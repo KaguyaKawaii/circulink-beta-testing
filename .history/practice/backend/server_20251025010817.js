@@ -37,7 +37,8 @@ const server = http.createServer(app);
 // CORS Configuration
 app.use(cors({
   origin: [
-    "https://circulink-beta-testing.vercel.app"
+    "https://circulink-beta-testing.vercel.app",
+    "http://localhost:5173"
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
@@ -50,8 +51,8 @@ app.use(express.json());
 const io = new Server(server, {
   cors: {
     origin: [
-      "https://circulink-beta-testing.vercel.app"
-      
+      "https://circulink-beta-testing.vercel.app",
+      "http://localhost:5173"
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
