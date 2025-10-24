@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
 
-const socket = io(`${import.meta.env.VITE_API_URL}`);
+const socket = io("http://localhost:5000");
 
 function Message({ user, setView, currentView }) {
   const [messages, setMessages] = useState([]);
@@ -49,7 +49,7 @@ function Message({ user, setView, currentView }) {
       for (const floor of floors) {
         try {
           const response = await axios.get(
-            `${import.meta.env.VITE_API_URL}/api/messages/unread-count/${user._id}/${floor}`
+            `http://localhost:5000/api/messages/unread-count/${user._id}/${floor}`
           );
           floorCounts[floor] = response.data.count || 0;
         } catch (err) {
@@ -63,7 +63,7 @@ function Message({ user, setView, currentView }) {
       const totalFloorUnread = Object.values(floorCounts).reduce((sum, count) => sum + count, 0);
       
       const adminResponse = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/messages/unread-count/${user._id}/admin`
+        `http://localhost:5000/api/messages/unread-count/${user._id}/admin`
       );
 
       setUnreadCounts({
@@ -87,7 +87,7 @@ function Message({ user, setView, currentView }) {
     
     try {
       const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/messages/unread-messages/${user._id}`
+        `http://localhost:5000/api/messages/unread-messages/${user._id}`
       );
       
       if (response.data.success) {
@@ -103,7 +103,7 @@ function Message({ user, setView, currentView }) {
     try {
       let receiver = activeTab === "floor" ? selectedFloor : "admin";
       
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/mark-read-on-reply`, {
+      const response = await axios.post("http://localhost:5000/api/messages/mark-read-on-reply", {
         userId: user._id,
         receiver: receiver,
         conversationType: activeTab
@@ -123,7 +123,7 @@ function Message({ user, setView, currentView }) {
     try {
       let receiver = activeTab === "floor" ? selectedFloor : "admin";
       
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/mark-conversation-read`, {
+      const response = await axios.post("http://localhost:5000/api/messages/mark-conversation-read", {
         userId: user._id,
         receiver: receiver,
         conversationType: activeTab
@@ -281,7 +281,7 @@ function Message({ user, setView, currentView }) {
     try {
       setLoading(true);
       const { data } = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/messages/floor-conversation/${user._id}/${selectedFloor}`
+        `http://localhost:5000/api/messages/floor-conversation/${user._id}/${selectedFloor}`
       );
       setMessages(data);
     } catch (err) {
@@ -295,7 +295,7 @@ function Message({ user, setView, currentView }) {
     try {
       setLoading(true);
       const { data } = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/messages/user-admin-conversation/${user._id}`
+        `http://localhost:5000/api/messages/user-admin-conversation/${user._id}`
       );
       setMessages(data);
     } catch (err) {
@@ -329,13 +329,13 @@ function Message({ user, setView, currentView }) {
       await markMessagesAsReadOnReply();
       
       if (activeTab === "floor") {
-        await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/send-to-floor`, {
+        await axios.post("http://localhost:5000/api/messages/send-to-floor", {
           userId: user._id,
           floor: selectedFloor,
           content: newMessage
         });
       } else {
-        await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/send-to-admin`, {
+        await axios.post("http://localhost:5000/api/messages/send-to-admin", {
           userId: user._id,
           content: newMessage
         });
