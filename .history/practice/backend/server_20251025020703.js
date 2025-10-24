@@ -51,7 +51,7 @@ const io = new Server(server, {
   cors: {
     origin: [
       "https://circulink-beta-testing.vercel.app"
-      
+      "http://localhost:5173"
     ],
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
