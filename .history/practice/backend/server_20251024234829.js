@@ -251,7 +251,7 @@ cron.schedule("*/5 * * * *", async () => {
     // ✅ FIXED: Use POST request to match the route
     const baseUrl = `${import.meta.env.VITE_API_URL}${process.env.PORT || 5000}`;
     const { data } = await axios.post(  // ✅ CHANGED TO POST
-      `${import.meta.env.VITE_API_URL}/api/reservations/check-expired`  // ✅ ADDED /api prefix
+      `${baseUrl}/api/reservations/check-expired`  // ✅ ADDED /api prefix
     );
     console.log(`✅ Expired reservations checked via API: ${data.message}`);
   } catch (err) {
