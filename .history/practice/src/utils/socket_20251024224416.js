@@ -1,7 +1,8 @@
+
 import { io } from "socket.io-client";
 
 // ✅ FIXED: Allow both transports to match server
-const socket = io(import.meta.env.VITE_API_URL, {
+const socket = io("http://localhost:5000", {
   withCredentials: true,
   autoConnect: true,
   reconnection: true,
