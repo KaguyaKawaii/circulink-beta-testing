@@ -417,7 +417,7 @@ function SignUp_User({ onSwitchToLogin }) {
   const handleResendOtp = async () => {
     try {
       setLoading(true);
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/resend-otp`, {
+      await axios.post("http://localhost:5000/api/auth/resend-otp", {
         email: formData.email,
       });
       setMessage("OTP resent successfully.");

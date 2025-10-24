@@ -249,7 +249,7 @@ function ReserveRoom({ user, setView }) {
 
       try {
       const res = await axios.get(
-  `${import.meta.env.VITE_API_URL}/api/users/check-participant?id_number=${val}`
+  `http://localhost:5000/api/users/check-participant?id_number=${val}`
 );
 
         if (!res.data.exists) {
@@ -344,7 +344,7 @@ const handleNumUsersChange = (val) => {
 
       console.log('🔄 Sending validation request to server...');
 const response = await axios.post(
-  `${import.meta.env.VITE_API_URL}/api/reservations/validate-floor-access`, 
+  "http://localhost:5000/api/reservations/validate-floor-access", 
         {
           location: formData.location,
           participantIds: participantIds

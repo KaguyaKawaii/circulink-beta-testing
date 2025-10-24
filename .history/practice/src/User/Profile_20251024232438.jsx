@@ -120,7 +120,7 @@ function Profile({ user, setView }) {
                     src={
                       profile.profilePicture.startsWith("http")
                         ? profile.profilePicture
-                        : `${import.meta.env.VITE_API_URL}/${profile.profilePicture}`
+                        : `${import.meta.env.VITE_API_URL}${profile.profilePicture}`
                     }
                     alt="Profile"
                     className="w-full h-full object-cover"

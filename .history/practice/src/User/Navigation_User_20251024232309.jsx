@@ -593,7 +593,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                   src={
                     user.profilePicture.startsWith("http")
                       ? `${user.profilePicture}?t=${imgTimestamp}`
-                      : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`
+                      : `http://localhost:5000${user.profilePicture}?t=${imgTimestamp}`
                   }
                   alt="Profile"
                   className="w-full h-full object-cover"

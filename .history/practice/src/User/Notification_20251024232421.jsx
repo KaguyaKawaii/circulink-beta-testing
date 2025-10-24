@@ -156,7 +156,7 @@ function Notification({ user, setView, setSelectedReservation }) {
 
   const markAsRead = async (id) => {
     try {
-      await axios.put(`${import.meta.env.VITE_API_URL}/api/notifications/${id}/read`);
+      await axios.put(`http://localhost:5000/api/notifications/${id}/read`);
       setNotifications(prev => prev.map(notif => 
         notif._id === id ? { ...notif, isRead: true } : notif
       ));
@@ -171,7 +171,7 @@ function Notification({ user, setView, setSelectedReservation }) {
 
   const markAllAsRead = async () => {
     try {
-      await axios.put(`${import.meta.env.VITE_API_URL}/api/notifications/mark-all-read/${user._id}`);
+      await axios.put(`http://localhost:5000/api/notifications/mark-all-read/${user._id}`);
       setNotifications(prev => prev.map(notif => ({ ...notif, isRead: true })));
       
       if (socketConnected) {

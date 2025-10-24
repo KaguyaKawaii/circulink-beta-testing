@@ -7,7 +7,7 @@ function News({ user, setView }) {
   const [selectedImage, setSelectedImage] = useState(null);
   const [isLoading, setIsLoading] = useState(false); // ✅ Add loading state
 
-  const NEWS_ENDPOINT = `${import.meta.env.VITE_API_URL}/news/active`; // fetch only active news
+  const NEWS_ENDPOINT = "http://localhost:5000/news/active"; // fetch only active news
 
   const formatPH = (date) => {
     if (!date) return "N/A";
@@ -49,7 +49,7 @@ function News({ user, setView }) {
     if (!img) return null;
     return img.startsWith("http")
       ? img
-      : `${import.meta.env.VITE_API_URL}/${img.replace(/^\/?/, "")}`;
+      : `http://localhost:5000/${img.replace(/^\/?/, "")}`;
   };
 
   return (

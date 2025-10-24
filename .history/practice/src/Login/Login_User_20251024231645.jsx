@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Eye, EyeOff, Loader2, CheckCircle, Home } from "lucide-react";
 import Logo from "../assets/logo.png";
 import "../index.css";
+import api from "../utils/api";
 
 function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
   const [email, setEmail] = useState("");
@@ -43,7 +44,7 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
     setLoading(true);
 
     try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/api/users/login`, {
+      const res = await fetch("/api/users/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
