@@ -250,7 +250,7 @@ cron.schedule("*/5 * * * *", async () => {
   try {
     // ✅ Use Render public URL in production
     const baseUrl =
-      process.env.RENDER_EXTERNAL_URL || `${import.meta.env.VITE_API_URL}/${process.env.PORT || 5000}`;
+      process.env.RENDER_EXTERNAL_URL || `http://localhost:${process.env.PORT || 5000}`;
 
     const { data } = await axios.post(`${baseUrl}/api/reservations/check-expired`);
     console.log(`✅ Expired reservations checked via API: ${data.message}`);

@@ -248,15 +248,15 @@ mongoose
 // CRON job to check expired reservations - FIXED
 cron.schedule("*/5 * * * *", async () => {
   try {
-    // ✅ Use Render public URL in production
-    const baseUrl =
-      process.env.RENDER_EXTERNAL_URL || `${import.meta.env.VITE_API_URL}/${process.env.PORT || 5000}`;
-
-    const { data } = await axios.post(`${baseUrl}/api/reservations/check-expired`);
+    // ✅ FIXED: Use POST request to match the route
+    const baseUrl = `http://localhost:${process.env.PORT || 5000}`;
+    const { data } = await axios.post(  // ✅ CHANGED TO POST
+      `${baseUrl}/api/reservations/check-expired`  // ✅ ADDED /api prefix
+    );
     console.log(`✅ Expired reservations checked via API: ${data.message}`);
   } catch (err) {
     console.error("❌ CRON job error:", err.message);
-
+    
     // Fallback to internal function if API fails
     console.log("⚠️  API route failed, using internal function");
     const result = await checkExpiredReservationsInternal();
@@ -265,7 +265,6 @@ cron.schedule("*/5 * * * *", async () => {
     }
   }
 });
-
 
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => {

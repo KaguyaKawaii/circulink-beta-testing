@@ -59,17 +59,13 @@ app.use("/backups", express.static(path.join(__dirname, "backups")));
 // ✅ FIXED: Socket.IO configuration - ALLOW BOTH TRANSPORTS
 const io = new Server(server, {
   cors: {
-    origin: [
-      "https://circulink-beta-testing.vercel.app", // ✅ your Vercel frontend
-      "http://localhost:5173"                      // ✅ dev mode
-    ],
+    origin: "http://localhost:5173",
     methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
   },
-  // ✅ Keep both transports for compatibility
+  // ✅ FIX: Allow both transports (polling + websocket)
   transports: ["polling", "websocket"]
 });
-
 
 // ✅ FIXED: Improved Socket.IO events for real-time messaging
 io.on("connection", (socket) => {
@@ -248,15 +244,15 @@ mongoose
 // CRON job to check expired reservations - FIXED
 cron.schedule("*/5 * * * *", async () => {
   try {
-    // ✅ Use Render public URL in production
-    const baseUrl =
-      process.env.RENDER_EXTERNAL_URL || `${import.meta.env.VITE_API_URL}/${process.env.PORT || 5000}`;
-
-    const { data } = await axios.post(`${baseUrl}/api/reservations/check-expired`);
+    // ✅ FIXED: Use POST request to match the route
+    const baseUrl = `http://localhost:${process.env.PORT || 5000}`;
+    const { data } = await axios.post(  // ✅ CHANGED TO POST
+      `${baseUrl}/api/reservations/check-expired`  // ✅ ADDED /api prefix
+    );
     console.log(`✅ Expired reservations checked via API: ${data.message}`);
   } catch (err) {
     console.error("❌ CRON job error:", err.message);
-
+    
     // Fallback to internal function if API fails
     console.log("⚠️  API route failed, using internal function");
     const result = await checkExpiredReservationsInternal();
@@ -265,7 +261,6 @@ cron.schedule("*/5 * * * *", async () => {
     }
   }
 });
-
 
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => {
