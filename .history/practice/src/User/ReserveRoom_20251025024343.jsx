@@ -614,36 +614,34 @@ await axios.post("http://localhost:5000/api/reservations", reservationData);
     setSelectedRoomDetails(room);
   };
 
-// SIMPLIFIED: Direct room-to-image mapping
+  // CORRECTED: Updated getRoomImage function to use exact image from room data
+// CORRECTED: Improved getRoomImage function
 const getRoomImage = (room) => {
-  // Direct mapping of room names to image IDs from roomImages.js
-  const directMappings = {
-    // Discussion Rooms
-    "Discussion Room 1": "discussion_room_1",
-    "Discussion Room 2": "discussion_room_2",
-    "Discussion Room 3": "discussion_room_3",
-    
-    // Graduate Research Hubs
-    "Graduate Research Hub 1": "graduate_hub_1",
-    "Graduate Research Hub 2": "graduate_hub_2", 
-    "Graduate Research Hub 3": "graduate_hub_3",
-    
-    // 5th Floor Rooms
-    "Faculty Room": "faculty_room",
-    "Collaboration Room": "collab_room",
-  };
-
-  const imageId = directMappings[room.room];
-  if (imageId) {
-    const image = getRoomImageById(imageId);
-    if (image?.url) {
-      return image.url;
-    }
+  console.log('🔍 Room data for image:', room); // Debug log
+  
+  // First, try to get the exact room image from availableRoomImages
+  const roomImage = availableRoomImages.find(img => 
+    img.name.toLowerCase() === room.room.toLowerCase() || 
+    img.id === room.imageId // if you have imageId in room data
+  );
+  
+  if (roomImage) {
+    console.log('✅ Found specific room image:', roomImage);
+    return roomImage.url;
   }
-
-  // Fallback to floor images
-  if (room.floor === "Ground Floor") return getRoomImageById("ground_floor")?.url;
-  return getRoomImageById("fifth_floor")?.url;
+  
+  // If no specific room image found, use floor-based fallback
+  const floorImageMap = {
+    "Ground Floor": getRoomImageById("ground_floor")?.url,
+    "2nd Floor": getRoomImageById("fifth_floor")?.url, // Using fifth_floor as fallback
+    "4th Floor": getRoomImageById("fifth_floor")?.url,
+    "5th Floor": getRoomImageById("fifth_floor")?.url,
+  };
+  
+  const fallbackImage = floorImageMap[room.floor] || getRoomImageById("ground_floor")?.url;
+  console.log('🔄 Using fallback image for floor:', room.floor, fallbackImage);
+  
+  return fallbackImage;
 };
 
   const RoomFeatureIcon = ({ feature, enabled }) => {
