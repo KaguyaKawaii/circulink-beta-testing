@@ -49,7 +49,7 @@ function News({ user, setView }) {
     if (!img) return null;
     return img.startsWith("http")
       ? img
-      : `${import.meta.env.VITE_API_URL}${img.replace(/^\/?/, "")}`;
+      : `${import.meta.env.VITE_API_URL}/${img.replace(/^\/?/, "")}`;
   };
 
   return (
