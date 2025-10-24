@@ -417,9 +417,9 @@ await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/verify-otp`, {
   const handleResendOtp = async () => {
     try {
       setLoading(true);
-await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/resend-otp`, {
-  email: formData.email,
-});
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/resend-otp`, {
+        email: formData.email,
+      });
       setMessage("OTP resent successfully.");
       setResendCooldown(60);
       setResendTimerActive(true);
