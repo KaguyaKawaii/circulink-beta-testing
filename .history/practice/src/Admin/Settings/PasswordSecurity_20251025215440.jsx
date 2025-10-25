@@ -165,7 +165,7 @@ function PasswordSecurity({ admin }) {
                     name="newPassword"
                     value={formData.newPassword}
                     onChange={handleChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] outline-0 focus:border-transparent transition-colors pr-12 cursor-not-allowed"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] outline-0 focus:border-transparent transition-colors pr-12 "
                     placeholder="Enter new password"
                     required
                   />
