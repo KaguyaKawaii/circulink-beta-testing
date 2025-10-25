@@ -127,7 +127,6 @@ function ProfileSettings({ setView, admin }) {
                       type="text"
                       name="name"
                       value={formData.name}
-                      disabled
                       onChange={handleChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors  outline-0 disabled"
                       placeholder="Enter your full name"

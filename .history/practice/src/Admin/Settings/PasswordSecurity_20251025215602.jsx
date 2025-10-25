@@ -128,7 +128,6 @@ function PasswordSecurity({ admin }) {
                     name="currentPassword"
                     value={formData.currentPassword}
                     onChange={handleChange}
-                    disabled
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] outline-0 focus:border-transparent transition-colors pr-12 cursor-not-allowed"
                     placeholder="Enter current password"
                     required
