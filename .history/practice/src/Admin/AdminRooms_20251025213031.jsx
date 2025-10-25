@@ -77,17 +77,16 @@ function AdminRooms({ setView }) {
       return;
     }
 
-    const roomData = {
-      room: roomName,
-      floor: floor,
-      type: roomType,
-      capacity: parseInt(capacity),
-      notes: notes,
-      features: roomFeatures,
-      image: roomImage, // Add image data to room
-      isActive: true
-    };
-
+const roomData = {
+  room: roomName,
+  floor: floor,
+  type: roomType,
+  capacity: parseInt(capacity),
+  notes: notes,
+  features: roomFeatures,
+  image: roomImage ? roomImage.id : null, // Save only the ID
+  isActive: true
+};
     try {
       await axios.post(`${import.meta.env.VITE_API_URL}/api/rooms`, roomData);
       fetchRooms();
@@ -105,16 +104,16 @@ function AdminRooms({ setView }) {
       return;
     }
 
-    const roomData = {
-      room: roomName,
-      floor: floor,
-      type: roomType,
-      capacity: parseInt(capacity),
-      notes: notes,
-      features: roomFeatures,
-      image: roomImage, // Add image data to room
-      isActive: true
-    };
+const roomData = {
+  room: roomName,
+  floor: floor,
+  type: roomType,
+  capacity: parseInt(capacity),
+  notes: notes,
+  features: roomFeatures,
+  image: roomImage ? roomImage.id : null, // Save only the ID
+  isActive: true
+};
 
     try {
       await axios.put(`${import.meta.env.VITE_API_URL}/api/rooms/${editingRoom._id}`, roomData);
