@@ -535,41 +535,37 @@ function AllRoomsSection({
             <label className="block text-sm font-medium text-gray-700 mb-2">Room Image</label>
             <div className="space-y-3">
               {roomImage ? (
-  <div className="flex items-center gap-4 p-4 border border-gray-300 rounded-xl bg-white">
-    <div className="relative w-20 h-20 rounded-lg overflow-hidden">
-      <img 
-        src={typeof roomImage.url === 'string' ? roomImage.url : URL.createObjectURL(roomImage.url)} 
-        alt={roomImage.name}
-        className="w-full h-full object-cover"
-        onError={(e) => {
-          console.error('Failed to load image:', roomImage);
-          e.target.src = '/placeholder-image.jpg'; // Add a fallback
-        }}
-      />
-    </div>
-    <div className="flex-1">
-      <p className="font-medium text-gray-800">{roomImage.name}</p>
-      <p className="text-sm text-gray-500">{roomImage.category}</p>
-    </div>
-    <button
-      type="button"
-      onClick={handleRemoveImage}
-      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-    >
-      <X size={16} />
-    </button>
-  </div>
-) : (
-  <button
-    type="button"
-    onClick={() => setShowImageSelector(true)}
-    className="w-full p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-yellow-400 hover:bg-yellow-50/50 transition-all duration-200 flex flex-col items-center justify-center gap-2 cursor-pointer"
-  >
-    <Image size={24} className="text-gray-400" />
-    <span className="text-sm font-medium text-gray-600">Select Room Image</span>
-    <span className="text-xs text-gray-500">Choose from available room images</span>
-  </button>
-)}
+                <div className="flex items-center gap-4 p-4 border border-gray-300 rounded-xl bg-white">
+                  <div className="relative w-20 h-20 rounded-lg overflow-hidden">
+                    <img 
+                      src={roomImage.url} 
+                      alt={roomImage.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-800">{roomImage.name}</p>
+                    <p className="text-sm text-gray-500">{roomImage.category}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveImage}
+                    className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowImageSelector(true)}
+                  className="w-full p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-yellow-400 hover:bg-yellow-50/50 transition-all duration-200 flex flex-col items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Image size={24} className="text-gray-400" />
+                  <span className="text-sm font-medium text-gray-600">Select Room Image</span>
+                  <span className="text-xs text-gray-500">Choose from available room images</span>
+                </button>
+              )}
             </div>
           </div>
 
