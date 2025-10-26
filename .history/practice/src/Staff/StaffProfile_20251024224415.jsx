@@ -174,7 +174,7 @@ function StaffProfile({ staff, setView }) {
                         src={
                           profile.profilePicture.startsWith("http")
                             ? profile.profilePicture
-                            : `${import.meta.env.VITE_API_URL}${profile.profilePicture}`
+                            : `http://localhost:5000${profile.profilePicture}`
                         }
                         alt="Profile"
                         className="w-full h-full object-cover"

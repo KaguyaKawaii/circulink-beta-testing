@@ -102,7 +102,7 @@ function AdminNews({ setView, admin }) {
     if (!archiveConfirm) return;
 
     try {
-      await axios.put(`${import.meta.env.VITE_API_URL}/api/news/archive/${archiveConfirm._id}`);
+      await axios.put(`${import.meta.env.VITE_API_URL}/news/archive/${archiveConfirm._id}`);
       setNewsList(prevList =>
         prevList.filter(n => n._id.toString() !== archiveConfirm._id.toString())
       );
