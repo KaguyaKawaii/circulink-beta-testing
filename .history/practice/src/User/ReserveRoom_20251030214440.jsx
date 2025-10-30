@@ -551,7 +551,7 @@ const reservationData = {
   status: "Pending"
 };
 
-await axios.post(`${import.meta.env.VITE_API_URL}/api/reservations`, reservationData);
+await axios.post("http://localhost:5000/api/reservations", reservationData);
       setShowSuccessModal(true);
     } catch (error) {
       console.error("Reservation failed:", error);
