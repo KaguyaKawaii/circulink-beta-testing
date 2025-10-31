@@ -614,71 +614,7 @@ await axios.post(`${import.meta.env.VITE_API_URL}/api/reservations`, reservation
     setSelectedRoomDetails(room);
   };
 
-const getRoomImage = (room) => {
-  // Floor-specific mapping to avoid conflicts
-  const floorMappings = {
-    "1st Floor": {
-      "Discussion Room 1": "discussion_room_1",
-      "Discussion Room 2": "discussion_room_2", 
-      "Discussion Room 3": "discussion_room_3",
-      "Graduate Research Hub 1": "graduate_hub_1",
-      "Graduate Research Hub 2": "graduate_hub_2",
-      "Graduate Research Hub 3": "graduate_hub_3",
-    },
-    "2nd Floor": {
-      "Discussion Room 1": "2nd_discussion_room_1_2",
-      "Discussion Room 1.1": "2nd_discussion_room_1_1", 
-      "Discussion Room 2": "2nd_discussion_room_2_2",
-      "Discussion Room 2.1": "2nd_discussion_room_2_1",
-      "Faculty Room 1.1": "2nd_faculty_room_1_1",
-      "Faculty Room 1": "2nd_faculty_room_1_2",
-    },
-    "5th Floor": {
-      "Faculty Room": "faculty_room",
-      "Collaboration Room": "collab_room",
-    }
-  };
-
-  // Try floor-specific mapping first
-  const floorMap = floorMappings[room.floor];
-  if (floorMap && floorMap[room.room]) {
-    const imageId = floorMap[room.room];
-    const image = getRoomImageById(imageId);
-    if (image?.url) {
-      return image.url;
-    }
-  }
-
-  // Debug: Log rooms that don't have mappings
-  console.log('Room without image mapping:', {
-    room: room.room,
-    floor: room.floor,
-    availableMappings: floorMappings[room.floor]
-  });
-
-  // Fallback based on floor
-  if (room.floor === "Ground Floor") {
-    return getRoomImageById("ground_floor")?.url;
-  } else if (room.floor === "2nd Floor") {
-    // Try to find any 2nd floor room image
-    const secondFloorImages = availableRoomImages.filter(img => 
-      img.category === "Discussion" || img.category === "Faculty"
-    );
-    if (secondFloorImages.length > 0) {
-      // Use a simple hash to consistently show the same image for the same room
-      const roomHash = room.room.split('').reduce((a, b) => {
-        a = ((a << 5) - a) + b.charCodeAt(0);
-        return a & a;
-      }, 0);
-      return secondFloorImages[Math.abs(roomHash) % secondFloorImages.length].url;
-    }
-    return getRoomImageById("second_floor_1")?.url || getRoomImageById("second_floor_2")?.url;
-  } else if (room.floor === "4th Floor" || room.floor === "5th Floor") {
-    return getRoomImageById("fifth_floor")?.url;
-  }
-
-  return getRoomImageById("ground_floor")?.url;
-};
+const getRoomImage
 
   const RoomFeatureIcon = ({ feature, enabled }) => {
     const icons = {
