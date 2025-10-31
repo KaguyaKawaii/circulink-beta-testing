@@ -269,31 +269,33 @@ useEffect(() => {
     };
   }, [view, user]);
 
-// In your maintenance useEffect, add this condition:
-useEffect(() => {
-  if (maintenanceData.maintenanceMode) {
-    // ✅ FIXED: Don't block admin routes during maintenance
-    const isAdmin = user?.role?.toLowerCase() === 'admin';
-    const isAdminRoute = view.startsWith('admin');
-    
-    if (isAdmin) {
-      console.log("✅ Admin user detected during maintenance - allowing access");
-      return; // Skip maintenance redirect for admin
-    }
-    
-    // Your existing maintenance logic for non-admin users...
-    if (user) {
-      const canStayLoggedIn = MaintenanceService.canAccessDuringMaintenance(user.role, view);
-      
-      if (!canStayLoggedIn) {
-        console.log("Force logging out non-admin user during maintenance:", user.role);
-        handleForceLogout();
+  /* ---------- MAINTENANCE MODE ACCESS CONTROL ---------- */
+  useEffect(() => {
+    if (maintenanceData.maintenanceMode) {
+      console.log("Maintenance mode active, checking access...", {
+        userRole: user?.role,
+        allowAdminAccess: maintenanceData.allowAdminAccess,
+        currentView: view
+      });
+
+      if (user) {
+        const canStayLoggedIn = MaintenanceService.canAccessDuringMaintenance(user.role, view);
+        
+        if (!canStayLoggedIn) {
+          console.log("Force logging out non-admin user during maintenance:", user.role);
+          handleForceLogout();
+        } else {
+          handleMaintenanceRedirect(maintenanceData);
+        }
+      } else {
+        handleMaintenanceRedirect(maintenanceData);
       }
-    } else {
-      handleMaintenanceRedirect(maintenanceData);
+    } else if (!maintenanceData.maintenanceMode && view === "maintenance") {
+      console.log("Maintenance mode disabled, redirecting from maintenance screen");
+      const defaultRoute = NavigationService.getDefaultRoute(user?.role);
+      setView(defaultRoute);
     }
-  }
-}, [view, user, maintenanceData]);
+  }, [view, user, maintenanceData]);
 
   /* ---------- FETCH USER DATA ---------- */
   const fetchUser = async () => {
