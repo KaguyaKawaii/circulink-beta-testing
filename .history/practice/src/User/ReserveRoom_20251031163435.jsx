@@ -696,17 +696,17 @@ const getRoomImage = (room) => {
     );
   };
 
-// Get floor images from shared configuration
-const getFloorImage = (floor) => {
-  const floorImageMap = {
-    "Ground Floor": getRoomImageById("ground_floor")?.url,
-    "2nd Floor": getRoomImageById("second_floor_1")?.url, // Use 2nd floor image
-    "4th Floor": getRoomImageById("fifth_floor")?.url,
-    "5th Floor": getRoomImageById("fifth_floor")?.url,
+  // Get floor images from shared configuration
+  const getFloorImage = (floor) => {
+    const floorImageMap = {
+      "Ground Floor": getRoomImageById("ground_floor")?.url,
+      "2nd Floor": getRoomImageById("fifth_floor")?.url,
+      "4th Floor": getRoomImageById("fifth_floor")?.url,
+      "5th Floor": getRoomImageById("fifth_floor")?.url,
+    };
+    
+    return floorImageMap[floor] || getRoomImageById("ground_floor")?.url;
   };
-  
-  return floorImageMap[floor] || getRoomImageById("ground_floor")?.url;
-};
 
   // Mobile Participant Card Component
   const MobileParticipantCard = ({ participant, index, validation }) => (
@@ -1259,29 +1259,18 @@ const getFloorImage = (floor) => {
             <div className="flex flex-wrap gap-3 sm:gap-5 justify-center">
               {rooms
                 .filter((room) => {
-  const floor = formData.location;
+                  const floor = formData.location;
 
-  if (floor === "5th Floor") {
-    return (
-      room.floor === floor &&
-      (room.room === "Faculty Room" ||
-        room.room === "Collaboration Room")
-    );
-  } else if (floor === "2nd Floor") {
-    // Include specific 2nd floor rooms
-    const secondFloorRooms = [
-      "2nd Floor Discussion Room 1.1",
-      "2nd Floor Discussion Room 1",
-      "2nd Floor Discussion Room 2.1", 
-      "2nd Floor Discussion Room 2",
-      "2nd Floor Faculty Room 1.1",
-      "2nd Floor Faculty Room 1"
-    ];
-    return room.floor === floor && secondFloorRooms.includes(room.room);
-  } else {
-    return room.floor === floor;
-  }
-})
+                  if (floor === "5th Floor") {
+                    return (
+                      room.floor === floor &&
+                      (room.room === "Faculty Room" ||
+                        room.room === "Collaboration Room")
+                    );
+                  } else {
+                    return room.floor === floor;
+                  }
+                })
                 .map((room) => {
                   const roomImage = getRoomImage(room);
                   const isDisabled = !room.isActive;
