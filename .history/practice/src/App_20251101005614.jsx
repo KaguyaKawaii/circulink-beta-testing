@@ -136,6 +136,24 @@ function App() {
     initializeView();
   }, [location.pathname, user, isInitialized]);
 
+  // Add to your existing useEffect in App.js
+useEffect(() => {
+  const validateSessionPeriodically = async () => {
+    if (user?._id) {
+      const isValid = await AuthService.validateSession();
+      if (!isValid) {
+        // Session was invalidated (login from another browser)
+        handleLogout();
+        alert('Your account was logged in from another browser. You have been logged out.');
+      }
+    }
+  };
+
+  // Check every 10 seconds
+  const interval = setInterval(validateSessionPeriodically, 10000);
+  return () => clearInterval(interval);
+}, [user]);
+
   /* ---------- ROUTE SYNC ---------- */
   useEffect(() => {
     if (!isInitialized) return;
@@ -251,38 +269,31 @@ function App() {
     };
   }, [view, user]);
 
-  /* ---------- MAINTENANCE MODE ACCESS CONTROL ---------- */
-  useEffect(() => {
-    if (maintenanceData.maintenanceMode) {
-      console.log("Maintenance mode active, checking access...", {
-        userRole: user?.role,
-        allowAdminAccess: maintenanceData.allowAdminAccess,
-        currentView: view
-      });
-
-      // Allow admin-related views during maintenance
-      const adminRoutes = ['adminLogin', 'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 'adminLogs'];
-      const isAdminRoute = adminRoutes.includes(view);
-      
-      if (user) {
-        const canStayLoggedIn = MaintenanceService.canAccessDuringMaintenance(user.role, view);
-        
-        if (!canStayLoggedIn && !isAdminRoute) {
-          console.log("Force logging out non-admin user during maintenance:", user.role);
-          handleForceLogout();
-        }
-      } else {
-        // For non-logged in users, only allow admin login and maintenance views
-        if (view !== 'adminLogin' && view !== 'maintenance' && !isAdminRoute) {
-          setView("maintenance");
-        }
-      }
-    } else if (!maintenanceData.maintenanceMode && view === "maintenance") {
-      console.log("Maintenance mode disabled, redirecting from maintenance screen");
-      const defaultRoute = NavigationService.getDefaultRoute(user?.role);
-      setView(defaultRoute);
+// In your maintenance useEffect, add this condition:
+useEffect(() => {
+  if (maintenanceData.maintenanceMode) {
+    // ✅ FIXED: Don't block admin routes during maintenance
+    const isAdmin = user?.role?.toLowerCase() === 'admin';
+    const isAdminRoute = view.startsWith('admin');
+    
+    if (isAdmin) {
+      console.log("✅ Admin user detected during maintenance - allowing access");
+      return; // Skip maintenance redirect for admin
     }
-  }, [view, user, maintenanceData]);
+    
+    // Your existing maintenance logic for non-admin users...
+    if (user) {
+      const canStayLoggedIn = MaintenanceService.canAccessDuringMaintenance(user.role, view);
+      
+      if (!canStayLoggedIn) {
+        console.log("Force logging out non-admin user during maintenance:", user.role);
+        handleForceLogout();
+      }
+    } else {
+      handleMaintenanceRedirect(maintenanceData);
+    }
+  }
+}, [view, user, maintenanceData]);
 
   /* ---------- FETCH USER DATA ---------- */
   const fetchUser = async () => {
@@ -314,7 +325,7 @@ function App() {
     const role = userData.role.toLowerCase();
     
     if (maintenanceData.maintenanceMode) {
-      if ((role === 'admin' && maintenanceData.allowAdminAccess) || role === 'staff' || role === 'staff_office') {
+      if ((role === 'admin' && maintenanceData.allowAdminAccess) || role === 'staff') {
         const defaultRoute = NavigationService.getDefaultRoute(userData.role);
         setView(defaultRoute);
         setViewHistory([defaultRoute]);
@@ -333,32 +344,61 @@ function App() {
     handleLoginSuccess(newUserData);
   };
 
-  const handleAdminLoginSuccess = (adminData) => {
-    console.log("✅ Admin OTP verified successfully:", adminData);
-    
-    const updatedAdmin = AuthService.handleAdminLogin(adminData);
-    setUser(updatedAdmin);
-    
-    // Always allow admin to access dashboard during maintenance
-    if (maintenanceData.maintenanceMode) {
-      if (maintenanceData.allowAdminAccess) {
-        // Admin can access during maintenance
-        console.log("✅ Maintenance mode active but admin access allowed - redirecting to admin dashboard");
-        setView("adminDashboard");
-        setViewHistory(["adminDashboard"]);
-      } else {
-        // Even if admin access is disabled, still let admin login but show maintenance
-        console.log("⚠️ Maintenance mode active - admin logged in but showing maintenance screen");
-        setView("maintenance");
-        setViewHistory(["maintenance"]);
-      }
-    } else {
-      // Normal flow - no maintenance
-      console.log("✅ No maintenance mode - redirecting to admin dashboard");
+const handleAdminLoginSuccess = (adminData) => {
+  console.log("✅ Admin OTP verified successfully:", adminData);
+  
+  const updatedAdmin = AuthService.handleAdminLogin(adminData);
+  setUser(updatedAdmin);
+  
+  // ✅ FIXED: Always allow admin to access dashboard during maintenance
+  if (maintenanceData.maintenanceMode) {
+    if (maintenanceData.allowAdminAccess) {
+      // Admin can access during maintenance
+      console.log("✅ Maintenance mode active but admin access allowed - redirecting to admin dashboard");
       setView("adminDashboard");
       setViewHistory(["adminDashboard"]);
+    } else {
+      // Even if admin access is disabled, still let admin login but show maintenance
+      console.log("⚠️ Maintenance mode active - admin logged in but showing maintenance screen");
+      setView("maintenance");
+      setViewHistory(["maintenance"]);
     }
-  };
+  } else {
+    // Normal flow - no maintenance
+    console.log("✅ No maintenance mode - redirecting to admin dashboard");
+    setView("adminDashboard");
+    setViewHistory(["adminDashboard"]);
+  }
+};
+
+// Also update your maintenance access control to be more permissive for admin routes
+useEffect(() => {
+  if (maintenanceData.maintenanceMode) {
+    console.log("Maintenance mode active, checking access...", {
+      userRole: user?.role,
+      allowAdminAccess: maintenanceData.allowAdminAccess,
+      currentView: view
+    });
+
+    // ✅ FIXED: Allow admin-related views during maintenance
+    const adminRoutes = ['adminLogin', 'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 'adminLogs'];
+    const isAdminRoute = adminRoutes.includes(view);
+    
+    if (user) {
+      const canStayLoggedIn = MaintenanceService.canAccessDuringMaintenance(user.role, view);
+      
+      if (!canStayLoggedIn && !isAdminRoute) {
+        console.log("Force logging out non-admin user during maintenance:", user.role);
+        handleForceLogout();
+      }
+    } else {
+      // For non-logged in users, only allow admin login and maintenance views
+      if (view !== 'adminLogin' && view !== 'maintenance' && !isAdminRoute) {
+        setView("maintenance");
+      }
+    }
+  }
+}, [view, user, maintenanceData]);
 
   const handleLogout = () => {
     AuthService.clearUser();
@@ -497,14 +537,14 @@ function App() {
       )}
 
       {/* User Pages */}
-      {view === "dashboard" &&
-        renderUserNavigation(
-          <Dashboard
-            user={user}
-            setView={setView}
-            setSelectedReservation={setSelectedReservation}
-          />
-        )}
+{view === "dashboard" &&
+  renderUserNavigation(
+    <Dashboard
+      user={user}
+      setView={setView}
+      setSelectedReservation={setSelectedReservation}
+    />
+  )}
       {view === "news" && renderUserNavigation(<News user={user} setView={setView} />)}
       {view === "calendar" && renderUserNavigation(<Calendar user={user} setView={setView} />)}
       {view === "history" &&
@@ -547,27 +587,27 @@ function App() {
           />
         )}
 
-      {/* Admin Pages - FIXED: Pass admin={user} to all admin components */}
-      {view === "adminDashboard" && renderAdminNavigation(<AdminDashboard setView={setView} admin={user} />)}
-      {view === "adminReservation" && renderAdminNavigation(<AdminReservations setView={setView} admin={user} />)}
-      {view === "adminRoom" && renderAdminNavigation(<AdminRooms setView={setView} admin={user} />)}
-      {view === "adminUsers" && renderAdminNavigation(<AdminUsers setView={setView} admin={user} />)}
-      {view === "adminMessage" && renderAdminNavigation(<AdminMessages setView={setView} admin={user} />)}
-      {view === "adminReports" && renderAdminNavigation(<AdminReports setView={setView} admin={user} />)}
-      {view === "adminNotifications" && renderAdminNavigation(<AdminNotification setView={setView} admin={user} />)}
-      {view === "archivedUsers" && renderAdminNavigation(<ArchivedUsers setView={setView} admin={user} />)}
-      {view === "archivedReservations" && renderAdminNavigation(<ArchivedReservations setView={setView} admin={user} />)}
-      {view === "archivedReports" && renderAdminNavigation(<ArchivedReports setView={setView} admin={user} />)}
-      {view === "archivedNews" && renderAdminNavigation(<ArchivedNews setView={setView} admin={user} />)}
-      {view === "adminNews" && renderAdminNavigation(<AdminNews setView={setView} admin={user} />)}
-      {view === "adminLogs" && renderAdminNavigation(<AdminLogs setView={setView} admin={user} />)}
+      {/* Admin Pages */}
+      {view === "adminDashboard" && renderAdminNavigation(<AdminDashboard setView={setView} />)}
+      {view === "adminReservation" && renderAdminNavigation(<AdminReservations setView={setView} />)}
+      {view === "adminRoom" && renderAdminNavigation(<AdminRooms setView={setView} />)}
+      {view === "adminUsers" && renderAdminNavigation(<AdminUsers setView={setView} />)}
+      {view === "adminMessage" && renderAdminNavigation(<AdminMessages setView={setView} />)}
+      {view === "adminReports" && renderAdminNavigation(<AdminReports setView={setView} />)}
+      {view === "adminNotifications" && renderAdminNavigation(<AdminNotification setView={setView} />)}
+      {view === "archivedUsers" && renderAdminNavigation(<ArchivedUsers setView={setView} />)}
+      {view === "archivedReservations" && renderAdminNavigation(<ArchivedReservations setView={setView} />)}
+      {view === "archivedReports" && renderAdminNavigation(<ArchivedReports setView={setView} />)}
+      {view === "archivedNews" && renderAdminNavigation(<ArchivedNews setView={setView} />)}
+      {view === "adminNews" && renderAdminNavigation(<AdminNews setView={setView} />)}
+      {view === "adminLogs" && renderAdminNavigation(<AdminLogs setView={setView} />)}
 
       {/* Admin Settings Pages */}
       {view === "profileSettings" && renderAdminNavigation(<ProfileSettings setView={setView} admin={user} />)}
       {view === "passwordSecurity" && renderAdminNavigation(<PasswordSecurity setView={setView} admin={user} />)}
       {view === "systemSettings" && renderAdminNavigation(<SystemSettings setView={setView} admin={user} />)}
 
-      {/* Staff Pages - FIXED: Pass staff={user} to all staff components */}
+      {/* Staff Pages */}
       {view === "staffDashboard" && renderStaffNavigation(<StaffDashboard setView={setView} staff={user} />)}
       {view === "staffReservation" && renderStaffNavigation(<StaffReservations setView={setView} staff={user} />)}
       {view === "staffUsers" && renderStaffNavigation(<StaffUsers setView={setView} staff={user} />)}
