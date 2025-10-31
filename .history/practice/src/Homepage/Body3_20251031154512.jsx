@@ -17,9 +17,9 @@ import GroundFloor from "../assets/1st_Floor/Ground_Floor.jpg";
 // Import 2nd Floor images
 import SecondFloor1 from "../assets/2nd_Floor/2nd_Floor.2.jpg";
 import SecondFloor2 from "../assets/2nd_Floor/2nd_Floor.jpg";
-import Discussion1_1 from "../assets/2nd_Floor/Discussion/Discussion_Room_1.1.jpg";
+// import Discussion1_1 from "../assets/2nd_Floor/Discussion/Discussion_Room_1.1.jpg";
 import Discussion1_2 from "../assets/2nd_Floor/Discussion/Discussion_Room_1.jpg";
-import Discussion2_1 from "../assets/2nd_Floor/Discussion/Discussion_Room_2.1.jpg";
+// import Discussion2_1 from "../assets/2nd_Floor/Discussion/Discussion_Room_2.1.jpg";
 import Discussion2_2 from "../assets/2nd_Floor/Discussion/Discussion_Room_2.jpg";
 import Faculty1_1 from "../assets/2nd_Floor/Faculty/Faculty_Room_1.1.jpg";
 import Faculty1_2 from "../assets/2nd_Floor/Faculty/Faculty_Room_1.jpg";
@@ -52,12 +52,12 @@ const floors = [
     background: SecondFloor1,
     floorImage: SecondFloor1,
     rooms: [
-      { src: Discussion1_1, label: "Discussion Room 1", description: "Modern discussion space for academic collaboration" },
-      // { src: Discussion1_2, label: "2nd Floor Discussion Room 1", description: "Spacious room for group meetings and study sessions" },
-      { src: Discussion2_1, label: "Discussion Room 2", description: "Comfortable environment for team projects" },
-      // { src: Discussion2_2, label: "2nd Floor Discussion Room 2", description: "Well-equipped space for academic discussions" },
-      { src: Faculty1_1, label: "Faculty Room", description: "Professional workspace for faculty members" },
-      // { src: Faculty1_2, label: "2nd Floor Faculty Room", description: "Modern faculty office with advanced amenities" },
+      { src: Discussion1_1, label: "2nd Floor Discussion Room 1.1", description: "Modern discussion space for academic collaboration" },
+      { src: Discussion1_2, label: "2nd Floor Discussion Room 1", description: "Spacious room for group meetings and study sessions" },
+      { src: Discussion2_1, label: "2nd Floor Discussion Room 2.1", description: "Comfortable environment for team projects" },
+      { src: Discussion2_2, label: "2nd Floor Discussion Room 2", description: "Well-equipped space for academic discussions" },
+      { src: Faculty1_1, label: "2nd Floor Faculty Room 1.1", description: "Professional workspace for faculty members" },
+      { src: Faculty1_2, label: "2nd Floor Faculty Room 1", description: "Modern faculty office with advanced amenities" },
     ]
   },
   {

@@ -52,11 +52,11 @@ const floors = [
     background: SecondFloor1,
     floorImage: SecondFloor1,
     rooms: [
-      { src: Discussion1_1, label: "Discussion Room 1", description: "Modern discussion space for academic collaboration" },
-      // { src: Discussion1_2, label: "2nd Floor Discussion Room 1", description: "Spacious room for group meetings and study sessions" },
-      { src: Discussion2_1, label: "Discussion Room 2", description: "Comfortable environment for team projects" },
-      // { src: Discussion2_2, label: "2nd Floor Discussion Room 2", description: "Well-equipped space for academic discussions" },
-      { src: Faculty1_1, label: "Faculty Room", description: "Professional workspace for faculty members" },
+      // { src: Discussion1_1, label: "2nd Floor Discussion Room 1.1", description: "Modern discussion space for academic collaboration" },
+      { src: Discussion1_2, label: "2nd Floor Discussion Room 1", description: "Spacious room for group meetings and study sessions" },
+      // { src: Discussion2_1, label: "2nd Floor Discussion Room 2.1", description: "Comfortable environment for team projects" },
+      { src: Discussion2_2, label: "2nd Floor Discussion Room 2", description: "Well-equipped space for academic discussions" },
+      { src: Faculty1_1, label: "2nd Floor Faculty Room 1.1", description: "Professional workspace for faculty members" },
       // { src: Faculty1_2, label: "2nd Floor Faculty Room", description: "Modern faculty office with advanced amenities" },
     ]
   },

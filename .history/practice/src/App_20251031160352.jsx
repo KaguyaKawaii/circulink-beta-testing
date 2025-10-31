@@ -610,9 +610,8 @@ function App() {
           <Body onReserveClick={() => setView("login")} />
           <Body2 />
           <Body3 />
-          <Body5 />
           <Body4 />
-          
+          <Body5 />
           <Footer />
         </>
       )}

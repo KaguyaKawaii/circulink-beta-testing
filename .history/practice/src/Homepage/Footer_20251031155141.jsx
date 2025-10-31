@@ -130,8 +130,8 @@ function Footer() {
                     </div>
                     <div>
                       <p className="text-gray-300 text-sm sm:text-base leading-relaxed group-hover:text-white transition-colors duration-300">
-                        09196518691 / 337-4841 to<br />
-                        Local Number (1040)
+                        +63 (33) 337-4841<br />
+                        Local 1414
                       </p>
                     </div>
                   </div>
