@@ -704,16 +704,16 @@ const getRoomImage = (room) => {
   };
 
   // Get floor images from shared configuration
-const getFloorImage = (floor) => {
-  const floorImageMap = {
-    "Ground Floor": getRoomImageById("ground_floor")?.url,
-    "2nd Floor": getRoomImageById("second_floor_1")?.url || getRoomImageById("second_floor_2")?.url,
-    "4th Floor": getRoomImageById("fifth_floor")?.url,
-    "5th Floor": getRoomImageById("fifth_floor")?.url,
+  const getFloorImage = (floor) => {
+    const floorImageMap = {
+      "Ground Floor": getRoomImageById("ground_floor")?.url,
+      "2nd Floor": getRoomImageById("fifth_floor")?.url,
+      "4th Floor": getRoomImageById("fifth_floor")?.url,
+      "5th Floor": getRoomImageById("fifth_floor")?.url,
+    };
+    
+    return floorImageMap[floor] || getRoomImageById("ground_floor")?.url;
   };
-  
-  return floorImageMap[floor] || getRoomImageById("ground_floor")?.url;
-};
 
   // Mobile Participant Card Component
   const MobileParticipantCard = ({ participant, index, validation }) => (

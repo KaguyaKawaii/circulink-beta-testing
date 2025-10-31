@@ -32,14 +32,14 @@ export const availableRoomImages = [
   { id: "graduate_hub_3", name: "Graduate Research Hub 3", url: GraduateHub3, category: "Graduate" },
   
   // 2nd Floor Discussion Rooms
-  { id: "2nd_discussion_room_1_2", name: "2nd Floor Discussion Room 1", url: DiscussionRoom1_2, category: "Discussion" },
-  { id: "2nd_discussion_room_1_1", name: "2nd Floor Discussion Room 1.1", url: DiscussionRoom1_1, category: "Discussion" },
-  { id: "2nd_discussion_room_2_2", name: "2nd Floor Discussion Room 2", url: DiscussionRoom2_2, category: "Discussion" },
-  { id: "2nd_discussion_room_2_1", name: "2nd Floor Discussion Room 2.1", url: DiscussionRoom2_1, category: "Discussion" },
+  { id: "2nd_discussion_room_1_2", name: "2nd Floor Discussion Room 1", url: DiscussionRoom1_2ndFloor, category: "Discussion" },
+  { id: "2nd_discussion_room_1_1", name: "2nd Floor Discussion Room 1.1", url: DiscussionRoom1_1_2ndFloor, category: "Discussion" },
+  { id: "2nd_discussion_room_2_2", name: "2nd Floor Discussion Room 2", url: DiscussionRoom2_2ndFloor, category: "Discussion" },
+  { id: "2nd_discussion_room_2_1", name: "2nd Floor Discussion Room 2.1", url: DiscussionRoom2_1_2ndFloor, category: "Discussion" },
   
   // 2nd Floor Faculty Rooms
-  { id: "2nd_faculty_room_1_1", name: "2nd Floor Faculty Room 1.1", url: FacultyRoom1_1, category: "Faculty" },
-  { id: "2nd_faculty_room_1_2", name: "2nd Floor Faculty Room 1", url: FacultyRoom1_2, category: "Faculty" },
+  { id: "2nd_faculty_room_1_1", name: "2nd Floor Faculty Room 1.1", url: FacultyRoom1_1_2ndFloor, category: "Faculty" },
+  { id: "2nd_faculty_room_1_2", name: "2nd Floor Faculty Room 1", url: FacultyRoom1_2_2ndFloor, category: "Faculty" },
   
   // Floor Images
   { id: "ground_floor", name: "Ground Floor", url: GroundFloorImg, category: "Floor" },
