@@ -137,17 +137,17 @@ function ReserveRoom({ user, setView }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-useEffect(() => {
-  const fetchRooms = async () => {
-    try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/rooms`);
-      setRooms(res.data); // ✅ This should include room.image from database
-    } catch (err) {
-      console.error("Failed to fetch rooms:", err);
-    }
-  };
-  fetchRooms();
-}, []);
+  useEffect(() => {
+    const fetchRooms = async () => {
+  try {
+    const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/rooms`);
+    setRooms(res.data);
+  } catch (err) {
+    console.error("Failed to fetch rooms:", err);
+  }
+};
+    fetchRooms();
+  }, []);
 
   useEffect(() => {
     setCalendarDays(generateCalendarDays(currentMonth, currentYear));

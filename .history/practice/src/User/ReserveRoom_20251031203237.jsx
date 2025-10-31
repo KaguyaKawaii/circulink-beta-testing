@@ -137,17 +137,17 @@ function ReserveRoom({ user, setView }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-useEffect(() => {
-  const fetchRooms = async () => {
-    try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/rooms`);
-      setRooms(res.data); // ✅ This should include room.image from database
-    } catch (err) {
-      console.error("Failed to fetch rooms:", err);
-    }
-  };
-  fetchRooms();
-}, []);
+  useEffect(() => {
+    const fetchRooms = async () => {
+  try {
+    const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/rooms`);
+    setRooms(res.data);
+  } catch (err) {
+    console.error("Failed to fetch rooms:", err);
+  }
+};
+    fetchRooms();
+  }, []);
 
   useEffect(() => {
     setCalendarDays(generateCalendarDays(currentMonth, currentYear));
@@ -600,32 +600,26 @@ await axios.post(`${import.meta.env.VITE_API_URL}/api/reservations`, reservation
     return slot ? slot.display : "Select Time";
   };
 
-const handleRoomSelect = (room) => {
-  if (!room.isActive) {
-    showAlert("This room is currently unavailable. Please select another room.");
-    return;
-  }
-  
-  setFormData((prev) => ({
-    ...prev,
-    roomName: room.room,
-    room_Id: room._id,
-  }));
-  setSelectedRoomDetails(room); // ✅ This passes the full room object with image data
-};
+  const handleRoomSelect = (room) => {
+    if (!room.isActive) {
+      showAlert("This room is currently unavailable. Please select another room.");
+      return;
+    }
+    
+    setFormData((prev) => ({
+      ...prev,
+      roomName: room.room,
+      room_Id: room._id,
+    }));
+    setSelectedRoomDetails(room);
+  };
 
-// ✅ FIXED: Enhanced getRoomImage function in ReserveRoom.jsx
+// SIMPLIFIED: Direct room-to-image mapping
 const getRoomImage = (room) => {
-  // ✅ FIRST: Use the image from database if available
-  if (room.image && room.image.url) {
-    return room.image.url;
-  }
-
-  // ✅ SECOND: Fallback to direct mappings
   const directMappings = {
     // Discussion Rooms
     "Discussion Room 1": "discussion_room_1",
-    "Discussion Room 2": "discussion_room_2",
+    "Discussion Room 2": "discussion_room_2", 
     "Discussion Room 3": "discussion_room_3",
     
     // Graduate Research Hubs
@@ -651,9 +645,8 @@ const getRoomImage = (room) => {
     }
   }
 
-  // ✅ THIRD: Final fallback to floor images
+  // Fallback to floor images
   if (room.floor === "Ground Floor") return getRoomImageById("ground_floor")?.url;
-  if (room.floor === "2nd Floor") return getRoomImageById("second_floor_1")?.url;
   return getRoomImageById("fifth_floor")?.url;
 };
 

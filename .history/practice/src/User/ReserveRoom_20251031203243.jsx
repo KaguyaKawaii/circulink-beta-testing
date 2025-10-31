@@ -137,17 +137,17 @@ function ReserveRoom({ user, setView }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-useEffect(() => {
-  const fetchRooms = async () => {
-    try {
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/rooms`);
-      setRooms(res.data); // ✅ This should include room.image from database
-    } catch (err) {
-      console.error("Failed to fetch rooms:", err);
-    }
-  };
-  fetchRooms();
-}, []);
+  useEffect(() => {
+    const fetchRooms = async () => {
+  try {
+    const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/rooms`);
+    setRooms(res.data);
+  } catch (err) {
+    console.error("Failed to fetch rooms:", err);
+  }
+};
+    fetchRooms();
+  }, []);
 
   useEffect(() => {
     setCalendarDays(generateCalendarDays(currentMonth, currentYear));
@@ -600,19 +600,19 @@ await axios.post(`${import.meta.env.VITE_API_URL}/api/reservations`, reservation
     return slot ? slot.display : "Select Time";
   };
 
-const handleRoomSelect = (room) => {
-  if (!room.isActive) {
-    showAlert("This room is currently unavailable. Please select another room.");
-    return;
-  }
-  
-  setFormData((prev) => ({
-    ...prev,
-    roomName: room.room,
-    room_Id: room._id,
-  }));
-  setSelectedRoomDetails(room); // ✅ This passes the full room object with image data
-};
+  const handleRoomSelect = (room) => {
+    if (!room.isActive) {
+      showAlert("This room is currently unavailable. Please select another room.");
+      return;
+    }
+    
+    setFormData((prev) => ({
+      ...prev,
+      roomName: room.room,
+      room_Id: room._id,
+    }));
+    setSelectedRoomDetails(room);
+  };
 
 // ✅ FIXED: Enhanced getRoomImage function in ReserveRoom.jsx
 const getRoomImage = (room) => {
