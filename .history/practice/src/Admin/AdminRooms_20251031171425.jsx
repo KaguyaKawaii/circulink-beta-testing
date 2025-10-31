@@ -444,61 +444,6 @@ function AllRoomsSection({
     );
   };
 
-  // Add this function inside AllRoomsSection component
-  const getRoomImage = (room) => {
-    // Direct mapping of room names to image IDs from roomImages.js
-    const directMappings = {
-      // 1st Floor Discussion Rooms
-      "Discussion Room 1": "discussion_room_1",
-      "Discussion Room 2": "discussion_room_2", 
-      "Discussion Room 3": "discussion_room_3",
-      
-      // 1st Floor Graduate Research Hubs
-      "Graduate Research Hub 1": "graduate_hub_1",
-      "Graduate Research Hub 2": "graduate_hub_2",
-      "Graduate Research Hub 3": "graduate_hub_3",
-      
-      // 2nd Floor Discussion Rooms
-      "2nd Floor Discussion Room 1": "2nd_discussion_room_1_2",
-      "2nd Floor Discussion Room 1.1": "2nd_discussion_room_1_1", 
-      "2nd Floor Discussion Room 2": "2nd_discussion_room_2_2",
-      "2nd Floor Discussion Room 2.1": "2nd_discussion_room_2_1",
-      
-      // 2nd Floor Faculty Rooms
-      "2nd Floor Faculty Room 1.1": "2nd_faculty_room_1_1",
-      "2nd Floor Faculty Room 1": "2nd_faculty_room_1_2",
-      
-      // 5th Floor Rooms
-      "Faculty Room": "faculty_room",
-      "Collaboration Room": "collab_room",
-    };
-
-    const imageId = directMappings[room.room];
-    if (imageId) {
-      const image = availableRoomImages.find(img => img.id === imageId);
-      if (image?.url) {
-        return image.url;
-      }
-    }
-
-    // Fallback to floor images based on actual floor
-    if (room.floor === "Ground Floor") {
-      const groundFloorImg = availableRoomImages.find(img => img.id === "ground_floor");
-      return groundFloorImg?.url;
-    } else if (room.floor === "2nd Floor") {
-      const secondFloorImg = availableRoomImages.find(img => img.id === "second_floor_1") || 
-                            availableRoomImages.find(img => img.id === "second_floor_2");
-      return secondFloorImg?.url;
-    } else if (room.floor === "4th Floor" || room.floor === "5th Floor") {
-      const fifthFloorImg = availableRoomImages.find(img => img.id === "fifth_floor");
-      return fifthFloorImg?.url;
-    }
-
-    // Ultimate fallback
-    const defaultImg = availableRoomImages.find(img => img.id === "ground_floor");
-    return defaultImg?.url;
-  };
-
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-200/60 p-6">
       <div className="flex justify-between items-center mb-6">
@@ -730,8 +675,12 @@ function AllRoomsSection({
       {isLoading ? (
         <div className="text-center py-12">
           <div className="text-center">
-            <p className="text-gray-500 font-bold">Loading rooms...</p>
-          </div>
+  
+  <p className="text-gray-500 font-bold">Loading rooms...</p>
+
+
+</div>
+          
         </div>
       ) : rooms.length === 0 ? (
         <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-blue-50/30 rounded-2xl border-2 border-dashed border-gray-300">
@@ -764,16 +713,16 @@ function AllRoomsSection({
                   : "border-red-200/60 hover:border-red-300/60 opacity-80"
               }`}
             >
-              {/* Room Image Preview - FIXED VERSION */}
-              {(room.image || getRoomImage(room)) && (
-                <div className="mb-3 rounded-xl overflow-hidden h-32 bg-gray-100">
-                  <img 
-                    src={room.image?.url || getRoomImage(room)} 
-                    alt={room.room}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
+        {/* Room Image Preview */}
+{(room.image || getRoomImage(room)) && (
+  <div className="mb-3 rounded-xl overflow-hidden h-32 bg-gray-100">
+    <img 
+      src={room.image?.url || getRoomImage(room)} 
+      alt={room.room}
+      className="w-full h-full object-cover"
+    />
+  </div>
+)}
               
               <div className="flex justify-between items-start mb-3">
                 <div className="flex-1">
