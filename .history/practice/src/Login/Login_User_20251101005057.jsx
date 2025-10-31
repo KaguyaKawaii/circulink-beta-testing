@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Eye, EyeOff, Loader2, CheckCircle, Home } from "lucide-react";
 import Logo from "../assets/logo.png";
 import "../index.css";
-import AuthService from "../services/authService"; // Adjust the path as needed
+
 
 function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
   const [email, setEmail] = useState("");
