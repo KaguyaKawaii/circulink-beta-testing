@@ -1282,52 +1282,19 @@ const getRoomImage = (room) => {
 
             <div className="flex flex-wrap gap-3 sm:gap-5 justify-center">
               {rooms
-               .filter((room) => {
-  const floor = formData.location;
+                .filter((room) => {
+                  const floor = formData.location;
 
-  if (floor === "5th Floor") {
-    return (
-      room.floor === floor &&
-      (room.room === "Faculty Room" ||
-        room.room === "Collaboration Room")
-    );
-  } else if (floor === "2nd Floor") {
-    // Only show specific 2nd floor rooms
-    const secondFloorRooms = [
-      "Discussion Room 1.1",
-      "Discussion Room 1",
-      "Discussion Room 2.1", 
-      "Discussion Room 2",
-      "Faculty Room 1.1",
-      "Faculty Room 1"
-    ];
-    return room.floor === floor && secondFloorRooms.includes(room.room);
-  } else if (floor === "1st Floor") {
-    // Only show specific 1st floor rooms
-    const firstFloorRooms = [
-      "Discussion Room 1",
-      "Discussion Room 2",
-      "Discussion Room 3",
-      "Graduate Research Hub 1",
-      "Graduate Research Hub 2",
-      "Graduate Research Hub 3"
-    ];
-    return room.floor === floor && firstFloorRooms.includes(room.room);
-  } else if (floor === "Ground Floor") {
-    // Only show specific ground floor rooms
-    const groundFloorRooms = [
-      "Discussion Room 1",
-      "Discussion Room 2", 
-      "Discussion Room 3",
-      "Graduate Research Hub 1",
-      "Graduate Research Hub 2",
-      "Graduate Research Hub 3"
-    ];
-    return room.floor === floor && groundFloorRooms.includes(room.room);
-  } else {
-    return room.floor === floor;
-  }
-})
+                  if (floor === "5th Floor") {
+                    return (
+                      room.floor === floor &&
+                      (room.room === "Faculty Room" ||
+                        room.room === "Collaboration Room")
+                    );
+                  } else {
+                    return room.floor === floor;
+                  }
+                })
                 .map((room) => {
                   const roomImage = getRoomImage(room);
                   const isDisabled = !room.isActive;

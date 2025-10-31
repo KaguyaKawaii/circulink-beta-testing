@@ -614,71 +614,36 @@ await axios.post(`${import.meta.env.VITE_API_URL}/api/reservations`, reservation
     setSelectedRoomDetails(room);
   };
 
-// FIXED: Floor-specific room image mapping to avoid conflicts
+// SIMPLIFIED: Direct room-to-image mapping
 const getRoomImage = (room) => {
-  // Floor-specific mapping that considers both room name and floor
-  const floorSpecificMappings = {
-    // 1st Floor Rooms
-    "1st Floor": {
-      "Discussion Room 1": "discussion_room_1",
-      "Discussion Room 2": "discussion_room_2",
-      "Discussion Room 3": "discussion_room_3",
-      "Graduate Research Hub 1": "graduate_hub_1",
-      "Graduate Research Hub 2": "graduate_hub_2",
-      "Graduate Research Hub 3": "graduate_hub_3",
-    },
+  // Direct mapping of room names to image IDs from roomImages.js
+  const directMappings = {
+    // Discussion Rooms
+    "Discussion Room 1": "discussion_room_1",
+    "Discussion Room 2": "discussion_room_2",
+    "Discussion Room 3": "discussion_room_3",
     
-    // 2nd Floor Rooms
-    "2nd Floor": {
-      "Discussion Room 1.1": "2nd_discussion_room_1_1",
-      "Discussion Room 1": "2nd_discussion_room_1_2",
-      "Discussion Room 2.1": "2nd_discussion_room_2_1",
-      "Discussion Room 2": "2nd_discussion_room_2_2",
-      "Faculty Room 1.1": "2nd_faculty_room_1_1",
-      "Faculty Room 1": "2nd_faculty_room_1_2",
-    },
+    // Graduate Research Hubs
+    "Graduate Research Hub 1": "graduate_hub_1",
+    "Graduate Research Hub 2": "graduate_hub_2", 
+    "Graduate Research Hub 3": "graduate_hub_3",
     
     // 5th Floor Rooms
-    "5th Floor": {
-      "Faculty Room": "faculty_room",
-      "Collaboration Room": "collab_room",
-    }
-  };
-
-  // Try floor-specific mapping first
-  const floorMapping = floorSpecificMappings[room.floor];
-  if (floorMapping) {
-    const imageId = floorMapping[room.room];
-    if (imageId) {
-      const image = getRoomImageById(imageId);
-      if (image?.url) {
-        return image.url;
-      }
-    }
-  }
-
-  // Fallback: Try generic mapping without floor context
-  const genericMappings = {
     "Faculty Room": "faculty_room",
     "Collaboration Room": "collab_room",
   };
-  
-  const genericImageId = genericMappings[room.room];
-  if (genericImageId) {
-    const image = getRoomImageById(genericImageId);
+
+  const imageId = directMappings[room.room];
+  if (imageId) {
+    const image = getRoomImageById(imageId);
     if (image?.url) {
       return image.url;
     }
   }
 
-  // Final fallback to floor images
+  // Fallback to floor images
   if (room.floor === "Ground Floor") return getRoomImageById("ground_floor")?.url;
-  if (room.floor === "2nd Floor") return getRoomImageById("second_floor_1")?.url;
-  if (room.floor === "4th Floor") return getRoomImageById("fifth_floor")?.url;
-  if (room.floor === "5th Floor") return getRoomImageById("fifth_floor")?.url;
-  
-  // Default fallback
-  return getRoomImageById("ground_floor")?.url;
+  return getRoomImageById("fifth_floor")?.url;
 };
 
   const RoomFeatureIcon = ({ feature, enabled }) => {
@@ -1282,52 +1247,19 @@ const getRoomImage = (room) => {
 
             <div className="flex flex-wrap gap-3 sm:gap-5 justify-center">
               {rooms
-               .filter((room) => {
-  const floor = formData.location;
+                .filter((room) => {
+                  const floor = formData.location;
 
-  if (floor === "5th Floor") {
-    return (
-      room.floor === floor &&
-      (room.room === "Faculty Room" ||
-        room.room === "Collaboration Room")
-    );
-  } else if (floor === "2nd Floor") {
-    // Only show specific 2nd floor rooms
-    const secondFloorRooms = [
-      "Discussion Room 1.1",
-      "Discussion Room 1",
-      "Discussion Room 2.1", 
-      "Discussion Room 2",
-      "Faculty Room 1.1",
-      "Faculty Room 1"
-    ];
-    return room.floor === floor && secondFloorRooms.includes(room.room);
-  } else if (floor === "1st Floor") {
-    // Only show specific 1st floor rooms
-    const firstFloorRooms = [
-      "Discussion Room 1",
-      "Discussion Room 2",
-      "Discussion Room 3",
-      "Graduate Research Hub 1",
-      "Graduate Research Hub 2",
-      "Graduate Research Hub 3"
-    ];
-    return room.floor === floor && firstFloorRooms.includes(room.room);
-  } else if (floor === "Ground Floor") {
-    // Only show specific ground floor rooms
-    const groundFloorRooms = [
-      "Discussion Room 1",
-      "Discussion Room 2", 
-      "Discussion Room 3",
-      "Graduate Research Hub 1",
-      "Graduate Research Hub 2",
-      "Graduate Research Hub 3"
-    ];
-    return room.floor === floor && groundFloorRooms.includes(room.room);
-  } else {
-    return room.floor === floor;
-  }
-})
+                  if (floor === "5th Floor") {
+                    return (
+                      room.floor === floor &&
+                      (room.room === "Faculty Room" ||
+                        room.room === "Collaboration Room")
+                    );
+                  } else {
+                    return room.floor === floor;
+                  }
+                })
                 .map((room) => {
                   const roomImage = getRoomImage(room);
                   const isDisabled = !room.isActive;

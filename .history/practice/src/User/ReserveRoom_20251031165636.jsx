@@ -1282,7 +1282,7 @@ const getRoomImage = (room) => {
 
             <div className="flex flex-wrap gap-3 sm:gap-5 justify-center">
               {rooms
-               .filter((room) => {
+                .filter((room) => {
   const floor = formData.location;
 
   if (floor === "5th Floor") {
@@ -1324,6 +1324,15 @@ const getRoomImage = (room) => {
       "Graduate Research Hub 3"
     ];
     return room.floor === floor && groundFloorRooms.includes(room.room);
+  } else if (floor === "4th Floor") {
+    // Only show specific 4th floor rooms (adjust as needed)
+    const fourthFloorRooms = [
+      // Add your 4th floor room names here
+      "Discussion Room 1",
+      "Discussion Room 2",
+      "Discussion Room 3"
+    ];
+    return room.floor === floor && fourthFloorRooms.includes(room.room);
   } else {
     return room.floor === floor;
   }
