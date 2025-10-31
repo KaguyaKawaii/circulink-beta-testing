@@ -1,14 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const authController = require("../controllers/authController");
-const loginController = require("../controllers/loginController"); // ADD THIS
-const sessionController = require("../controllers/sessionController");
-
-// ✅ NEW: Login routes with session management
-router.post("/login", loginController.login);
-router.post("/admin-login", loginController.adminLogin);
-router.post("/logout", loginController.logout);
-router.post("/force-logout", loginController.forceLogout);
+const sessionController = require("../controllers/sessionController"); // ADD THIS
 
 // Session management routes
 router.post("/check-login-status", sessionController.checkLoginStatus);
