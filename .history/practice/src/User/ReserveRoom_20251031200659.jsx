@@ -616,21 +616,17 @@ await axios.post(`${import.meta.env.VITE_API_URL}/api/reservations`, reservation
 
 // SIMPLIFIED: Direct room-to-image mapping
 const getRoomImage = (room) => {
+  // Direct mapping of room names to image IDs from roomImages.js
   const directMappings = {
     // Discussion Rooms
     "Discussion Room 1": "discussion_room_1",
-    "Discussion Room 2": "discussion_room_2", 
+    "Discussion Room 2": "discussion_room_2",
     "Discussion Room 3": "discussion_room_3",
     
     // Graduate Research Hubs
     "Graduate Research Hub 1": "graduate_hub_1",
     "Graduate Research Hub 2": "graduate_hub_2", 
     "Graduate Research Hub 3": "graduate_hub_3",
-    
-    // 2nd Floor Rooms
-    "2nd Floor Discussion Room 1": "2nd_discussion_room_1_2",
-    "2nd Floor Discussion Room 2": "2nd_discussion_room_2_2",
-    "2nd Floor Faculty Room": "2nd_faculty_room_1_2",
     
     // 5th Floor Rooms
     "Faculty Room": "faculty_room",
