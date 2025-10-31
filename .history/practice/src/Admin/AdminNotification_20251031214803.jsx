@@ -365,7 +365,7 @@ function AdminNotification({ setView }) {
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <h2 className="text-base font-semibold text-gray-900">Notifications</h2>
                 <div className="flex flex-wrap gap-1">
-                  {["all", "unread", "reservation", "report"].map((filter) => (
+                  {["all", "unread", "reservation", "report", "system", "alert", "expired", "dismissed"].map((filter) => (
                     <button
                       key={filter}
                       onClick={() => setActiveFilter(filter)}
