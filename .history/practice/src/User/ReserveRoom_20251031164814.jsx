@@ -1273,19 +1273,18 @@ const getFloorImage = (floor) => {
       (room.room === "Faculty Room" ||
         room.room === "Collaboration Room")
     );
-// In the room filtering section, update the 2nd floor room names:
-} else if (floor === "2nd Floor") {
-  // Include specific 2nd floor rooms - UPDATED NAMES
-  const secondFloorRooms = [
-    "Discussion Room 1.1",
-    "Discussion Room 1", 
-    "Discussion Room 2.1",
-    "Discussion Room 2",
-    "Faculty Room 1.1",
-    "Faculty Room 1"
-  ];
-  return room.floor === floor && secondFloorRooms.includes(room.room);
-} else {
+  } else if (floor === "2nd Floor") {
+    // Include specific 2nd floor rooms
+    const secondFloorRooms = [
+      "2nd Floor Discussion Room 1.1",
+      "2nd Floor Discussion Room 1",
+      "2nd Floor Discussion Room 2.1", 
+      "2nd Floor Discussion Room 2",
+      "2nd Floor Faculty Room 1.1",
+      "2nd Floor Faculty Room 1"
+    ];
+    return room.floor === floor && secondFloorRooms.includes(room.room);
+  } else {
     return room.floor === floor;
   }
 })
