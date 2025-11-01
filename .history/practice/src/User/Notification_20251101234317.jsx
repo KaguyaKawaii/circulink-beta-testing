@@ -228,8 +228,6 @@ function Notification({ user, setView, setSelectedReservation }) {
         return "bg-green-100 text-green-800 border-green-200";
       case "Unverified":
         return "bg-yellow-100 text-yellow-800 border-yellow-200";
-      case "New": // 👈 ADDED THIS LINE - Hides the "New" badge
-        return "hidden";
       default:
         return "bg-gray-100 text-gray-800 border-gray-200";
     }
@@ -242,10 +240,19 @@ function Notification({ user, setView, setSelectedReservation }) {
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  // Function to remove "New" from notification messages
   const cleanNotificationMessage = (message) => {
-    return message.replace(/\bNew\b\s*/gi, '').trim();
-  };
+  if (!message) return '';
+  
+  const cleaned = message
+    .replace(/^(New|NEW|new)\s*[-:•]\s*/i, '')
+    .replace(/\b(New|NEW|new)\s+(notification|alert|update|message)\s*[-:•]\s*/gi, '')
+    .replace(/\b(New|NEW|new)\b\s*/gi, '')
+    .replace(/^\s*[-:•]\s*/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+};
 
   const ClockIcon = () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
