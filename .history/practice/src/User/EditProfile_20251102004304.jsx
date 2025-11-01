@@ -459,55 +459,28 @@ function EditProfile({ user, setView }) {
     }
   };
 
-// 📌 Profile Picture Reset - FIXED
-const resetProfilePicture = async () => {
-  try {
-    setUploading(true);
-    setError("");
-    setSuccessMsg("");
-    
-    // ✅ CORRECT ENDPOINTS
-    const endpoints = [
-      `/api/users/${user._id}/remove-picture`,  // Add /api prefix
-      `/users/${user._id}/remove-picture`,      // Without /api prefix
-    ];
-
-    let success = false;
-    
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`Trying reset endpoint: ${endpoint}`);
-        await api.delete(endpoint);
-        
-        console.log('✅ Profile picture reset successful via:', endpoint);
-        setSuccessMsg("Profile picture reset to default.");
-        await fetchUserProfile();
-        
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
-        success = true;
-        break;
-        
-      } catch (err) {
-        console.log(`❌ Failed with ${endpoint}:`, err.response?.status);
-        if (err.response?.status !== 404) {
-          throw err;
-        }
-      }
+  const resetProfilePicture = async () => {
+    try {
+      setUploading(true);
+      setError("");
+      setSuccessMsg("");
+      
+      // ✅ FIXED: Use the correct API path with environment variable
+      await api.delete(`/api/users/${user._id}/remove-picture`);
+      setSuccessMsg("Profile picture reset to default.");
+      await fetchUserProfile(); // Refresh profile data
+      
+      // Auto-refresh the page after successful reset
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (err) {
+      console.error("Reset error:", err);
+      setError(err.response?.data?.message || "Failed to reset profile picture.");
+    } finally {
+      setUploading(false);
     }
-
-    if (!success) {
-      throw new Error("Profile picture reset service unavailable.");
-    }
-    
-  } catch (err) {
-    console.error("Reset error:", err);
-    setError(err.response?.data?.message || err.message || "Failed to reset profile picture.");
-  } finally {
-    setUploading(false);
-  }
-};
+  };
 
 // 📌 Profile Update - FIXED endpoints
 const handleProfileSubmit = async (e) => {

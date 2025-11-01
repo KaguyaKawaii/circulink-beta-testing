@@ -459,57 +459,29 @@ function EditProfile({ user, setView }) {
     }
   };
 
-// 📌 Profile Picture Reset - FIXED
-const resetProfilePicture = async () => {
-  try {
-    setUploading(true);
-    setError("");
-    setSuccessMsg("");
-    
-    // ✅ CORRECT ENDPOINTS
-    const endpoints = [
-      `/api/users/${user._id}/remove-picture`,  // Add /api prefix
-      `/users/${user._id}/remove-picture`,      // Without /api prefix
-    ];
-
-    let success = false;
-    
-    for (const endpoint of endpoints) {
-      try {
-        console.log(`Trying reset endpoint: ${endpoint}`);
-        await api.delete(endpoint);
-        
-        console.log('✅ Profile picture reset successful via:', endpoint);
-        setSuccessMsg("Profile picture reset to default.");
-        await fetchUserProfile();
-        
-        setTimeout(() => {
-          window.location.reload();
-        }, 1000);
-        success = true;
-        break;
-        
-      } catch (err) {
-        console.log(`❌ Failed with ${endpoint}:`, err.response?.status);
-        if (err.response?.status !== 404) {
-          throw err;
-        }
-      }
+  const resetProfilePicture = async () => {
+    try {
+      setUploading(true);
+      setError("");
+      setSuccessMsg("");
+      
+      // ✅ FIXED: Use the correct API path with environment variable
+      await api.delete(`/api/users/${user._id}/remove-picture`);
+      setSuccessMsg("Profile picture reset to default.");
+      await fetchUserProfile(); // Refresh profile data
+      
+      // Auto-refresh the page after successful reset
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (err) {
+      console.error("Reset error:", err);
+      setError(err.response?.data?.message || "Failed to reset profile picture.");
+    } finally {
+      setUploading(false);
     }
+  };
 
-    if (!success) {
-      throw new Error("Profile picture reset service unavailable.");
-    }
-    
-  } catch (err) {
-    console.error("Reset error:", err);
-    setError(err.response?.data?.message || err.message || "Failed to reset profile picture.");
-  } finally {
-    setUploading(false);
-  }
-};
-
-// 📌 Profile Update - FIXED endpoints
 const handleProfileSubmit = async (e) => {
   e.preventDefault();
   setLoading(true);
@@ -517,12 +489,11 @@ const handleProfileSubmit = async (e) => {
   setSuccessMsg("");
 
   try {
-    // ✅ CORRECT ENDPOINTS - Try these in order
+    // ✅ FIXED: Use endpoints WITHOUT /api prefix
     const endpoints = [
-      `/api/users/${user._id}/update-profile`,  // Add /api prefix
-      `/api/users/update-profile/${user._id}`,
-      `/api/users/profile/${user._id}`,
-      `/users/${user._id}/update-profile`,     // Without /api prefix
+      `/users/${user._id}/update-profile`,  // This should work
+      `/users/update-profile/${user._id}`,
+      `/users/profile/${user._id}`
     ];
 
     let lastError = null;
@@ -533,32 +504,46 @@ const handleProfileSubmit = async (e) => {
         const response = await api.put(endpoint, form);
         
         console.log('✅ Profile update successful via:', endpoint);
+        console.log('Update response:', response.data);
+        
         setSuccessMsg("Profile updated successfully.");
         await fetchUserProfile();
         
         setTimeout(() => {
           window.location.reload();
         }, 1000);
-        return;
+        return; // Success, exit function
         
       } catch (err) {
         lastError = err;
         console.log(`❌ Failed with ${endpoint}:`, err.response?.status);
-        continue;
+        if (err.response?.status !== 404) {
+          // If it's not a 404, show that error instead
+          throw err;
+        }
+        continue; // Try next endpoint only for 404 errors
       }
     }
 
-    throw new Error(`Profile update service unavailable. Tried ${endpoints.length} endpoints.`);
+    // If all endpoints failed with 404
+    throw new Error(`Profile update service is currently unavailable.`);
 
   } catch (err) {
     console.error("Profile update failed:", err);
-    setError(err.response?.data?.message || err.message || "Failed to update profile.");
+    
+    if (err.response?.status === 404) {
+      setError(`Profile update service unavailable. Please try again later.`);
+    } else if (err.message.includes("Profile update service")) {
+      setError(err.message);
+    } else {
+      setError(err.response?.data?.message || "Failed to update profile.");
+    }
   } finally {
     setLoading(false);
   }
 };
 
-// 📌 Change Password - FIXED endpoints
+// 📌 Change Password - FIXED with correct endpoints
 const handlePasswordSubmit = async (e) => {
   e.preventDefault();
   setLoading(true);
@@ -566,6 +551,7 @@ const handlePasswordSubmit = async (e) => {
   setSuccessMsg("");
 
   try {
+    // Validate passwords
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       setError("New passwords do not match.");
       setLoading(false);
@@ -578,24 +564,29 @@ const handlePasswordSubmit = async (e) => {
       return;
     }
 
-    // ✅ CORRECT ENDPOINTS
+    console.log("🔄 Attempting password change...");
+    console.log("User ID:", user._id);
+    
+    // ✅ FIXED: Use endpoints WITHOUT /api prefix since your axios instance already adds it
     const endpoints = [
-      `/api/users/${user._id}/change-password`,  // Add /api prefix
-      `/api/users/change-password/${user._id}`,
-      `/users/${user._id}/change-password`,      // Without /api prefix
+      `/users/${user._id}/change-password`,  // This is the correct one
+      `/users/change-password/${user._id}`,
+      `/users/profile/change-password`
     ];
 
     let success = false;
     
     for (const endpoint of endpoints) {
       try {
-        console.log(`Trying password endpoint: ${endpoint}`);
+        console.log(`Trying endpoint: ${endpoint}`);
         const response = await api.put(endpoint, {
           oldPassword: passwordForm.oldPassword,
           newPassword: passwordForm.newPassword
         });
         
         console.log('✅ Password change successful via:', endpoint);
+        console.log('Response:', response.data);
+        
         setSuccessMsg("Password changed successfully!");
         setPasswordForm({
           oldPassword: "",
@@ -603,23 +594,33 @@ const handlePasswordSubmit = async (e) => {
           confirmPassword: ""
         });
         success = true;
-        break;
+        break; // Exit loop on success
         
       } catch (err) {
         console.log(`❌ Failed with ${endpoint}:`, err.response?.status);
+        
+        // If it's not a 404, show the actual error
         if (err.response?.status !== 404) {
           throw err;
         }
+        // Continue to next endpoint for 404 errors
       }
     }
 
     if (!success) {
-      throw new Error("Password change service unavailable.");
+      throw new Error("Password change service is currently unavailable. Please try again later.");
     }
 
   } catch (err) {
     console.error("Password change error:", err);
-    setError(err.response?.data?.message || err.message || "Failed to change password.");
+    
+    if (err.response?.data?.message) {
+      setError(err.response.data.message);
+    } else if (err.message.includes("Password change service")) {
+      setError(err.message);
+    } else {
+      setError("Failed to change password. Please check your current password.");
+    }
   } finally {
     setLoading(false);
   }
@@ -1102,7 +1103,7 @@ const handlePasswordSubmit = async (e) => {
                       />
                     </svg>
                     <p className="text-gray-600 mb-2 font-medium text-base sm:text-lg">Click to upload an image</p>
-                 
+                    <p className="text-gray-500 text-sm sm:text-base">Max 10MB</p>
                   </div>
                 </div>
               ) : (
