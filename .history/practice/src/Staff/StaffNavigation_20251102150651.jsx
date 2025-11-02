@@ -289,7 +289,7 @@ function StaffNavigation({ staff, setView, currentView, onLogout }) {
             {/* Logout Button - Now uses the onLogout prop from App.jsx */}
             <div className="mt-auto border-t border-gray-800 bg-[#0a0a0a]">
               <button
-                onClick={onLogout} 
+                onClick={onLogout} {/* This triggers the logout modal in App.jsx */}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm text-gray-400 hover:bg-red-900/20 hover:text-red-300 transition-all duration-200 hover:border-l-4 hover:border-red-500 cursor-pointer"
               >
                 <div className="text-gray-400">
