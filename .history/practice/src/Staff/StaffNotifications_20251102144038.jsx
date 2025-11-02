@@ -645,7 +645,14 @@ function StaffNotifications({ setView, staff }) {
               </p>
             </div>
             <div className="flex items-center space-x-4">
-            
+              <button
+                onClick={refreshData}
+                disabled={refreshing}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 min-h-[44px]"
+              >
+                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+                {refreshing ? "Refreshing..." : "Refresh"}
+              </button>
               <span className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
                 {new Date().toLocaleDateString("en-US", {
                   weekday: "long",
