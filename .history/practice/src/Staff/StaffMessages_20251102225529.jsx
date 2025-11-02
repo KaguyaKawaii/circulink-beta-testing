@@ -5,7 +5,7 @@ import StaffNavigation from "./StaffNavigation";
 
 const socket = io(`${import.meta.env.VITE_API_URL}`);
 
-function StaffMessages({ setView, staff, onLogout }) {
+function StaffNotifications({ setView, staff, onLogout }) {
   const [conversations, setConversations] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);

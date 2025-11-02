@@ -4,7 +4,7 @@ import StaffNavigation from "./StaffNavigation";
 import { Bell, AlertCircle, Calendar, RefreshCw, Eye, X, Clock, CheckCircle, PlayCircle, Users, MapPin, FileText, User, Building, Play, Wrench, AlertTriangle, Search, BellOff } from "lucide-react";
 import ReservationModal from "./Modals/ReservationModal";
 
-function StaffNotifications({ setView, staff, onLogout }) {
+function StaffNotifications({ setView, staff }) {
   const [reservations, setReservations] = useState([]);
   const [reportNotifications, setReportNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -589,8 +589,7 @@ function StaffNotifications({ setView, staff, onLogout }) {
   if (loading) {
     return (
       <>
-<StaffNavigation setView={setView} currentView="staffNotification" staff={staff} onLogout={onLogout} />     
-   <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50 flex flex-col">
+<StaffNavigation setView={setView} currentView="staffNotification" staff={staff} onLogout={onLogout} />        <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50 flex flex-col">
           <header className="bg-white px-6 py-4 border-b border-gray-200">
             <div className="flex justify-between items-center">
               <div>

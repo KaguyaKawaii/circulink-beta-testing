@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import api from "../utils/api";
 
-function StaffProfile({ staff, setView, onLogout }) {
+function StaffProfile({ staff, setView }) {
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
   const [passwordForm, setPasswordForm] = useState({
@@ -145,7 +145,6 @@ function StaffProfile({ staff, setView, onLogout }) {
 
   return (
     <>
-    <StaffNavigation setView={setView} currentView="staffProfile" staff={staff} onLogout={onLogout} />
     <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen flex flex-col bg-gradient-to-br from-gray-50 to-gray-100">
       <header className="bg-white px-6 py-4 border-b border-gray-200">
           <div className="flex justify-between items-center">

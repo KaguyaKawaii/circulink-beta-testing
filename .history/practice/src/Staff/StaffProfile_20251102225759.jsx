@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import api from "../utils/api";
 
-function StaffProfile({ staff, setView, onLogout }) {
+function StaffProfile({ staff, setView }) {
   const [profile, setProfile] = useState(null);
   const [error, setError] = useState("");
   const [passwordForm, setPasswordForm] = useState({

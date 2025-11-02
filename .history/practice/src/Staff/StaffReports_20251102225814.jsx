@@ -3,7 +3,7 @@ import axios from "axios";
 import StaffNavigation from "./StaffNavigation";
 import { Eye, RefreshCw, Search, ChevronDown, X, CheckCircle, Clock, MapPin, FileText, User, Building, AlertTriangle, Play, CheckCircle as CheckCircleIcon } from "lucide-react";
 
-function StaffReports({ setView, staff, onLogout }) {
+function StaffReports({ setView, staff }) {
   const [reports, setReports] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState("All");
@@ -152,8 +152,7 @@ function StaffReports({ setView, staff, onLogout }) {
 
   return (
     <>
-<StaffNavigation setView={setView} currentView="staffReports" staff={staff} onLogout={onLogout} />
-      <main className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] min-h-screen bg-gray-50">
+<StaffNavigation setView={setView} currentView="staffReports" staff={staff} onLogout={onLogout} />      <main className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] min-h-screen bg-gray-50">
         {/* Header */}
         <header className="bg-white px-4 sm:px-6 py-4 border-b border-gray-200">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

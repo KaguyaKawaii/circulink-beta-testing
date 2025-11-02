@@ -3,7 +3,7 @@ import axios from "axios";
 import StaffNavigation from "./StaffNavigation";
 import { Eye, RefreshCw, Search, ChevronDown, X, CheckCircle, Clock, MapPin, FileText, User, Building, AlertTriangle, Play, CheckCircle as CheckCircleIcon } from "lucide-react";
 
-function StaffReports({ setView, staff, onLogout }) {
+function StaffReports({ setView, staff }) {
   const [reports, setReports] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState("All");

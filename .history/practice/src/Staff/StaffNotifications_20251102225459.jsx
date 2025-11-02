@@ -4,7 +4,7 @@ import StaffNavigation from "./StaffNavigation";
 import { Bell, AlertCircle, Calendar, RefreshCw, Eye, X, Clock, CheckCircle, PlayCircle, Users, MapPin, FileText, User, Building, Play, Wrench, AlertTriangle, Search, BellOff } from "lucide-react";
 import ReservationModal from "./Modals/ReservationModal";
 
-function StaffNotifications({ setView, staff, onLogout }) {
+function StaffNotifications({ setView, staff }) {
   const [reservations, setReservations] = useState([]);
   const [reportNotifications, setReportNotifications] = useState([]);
   const [loading, setLoading] = useState(true);

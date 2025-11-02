@@ -403,7 +403,7 @@ const renderStaffNavigation = (Component) => (
       staff={user}
       setView={setView}
       currentView={view}
-      onLogout={() => setShowLogoutModal(true)}  // This should already be here
+      onLogout={() => setShowLogoutModal(true)}  // ← This triggers App.jsx modal
     />
     {Component}
   </>
