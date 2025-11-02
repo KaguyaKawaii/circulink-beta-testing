@@ -457,7 +457,7 @@ function AllRoomsSection({
 
   return (
     <>
-   
+
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-200/60 p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
