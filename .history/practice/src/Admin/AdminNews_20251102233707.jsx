@@ -137,7 +137,7 @@ function AdminNews({ setView, admin, onLogout }) {
 
   return (
     <>
-      <AdminNavigation setView={setView} currentView="adminNews" onLogout={onLogout}/>
+      <AdminNavigation setView={setView} currentView="adminNews" />
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
         <header className="bg-white px-6 py-4 border-b border-gray-200">
           <h1 className="text-2xl font-bold text-[#CC0000]">News Management</h1>

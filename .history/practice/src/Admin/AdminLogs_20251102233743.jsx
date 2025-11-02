@@ -171,7 +171,7 @@ function AdminLogs({ setView, onLogout }) {
 
   return (
     <>
-      <AdminNavigation setView={setView} currentView="adminLogs" onLogout={onLogout} />
+      <AdminNavigation setView={setView} currentView="adminLogs" onLogout={handleLogout} />
       <main className="ml-[250px] min-h-screen bg-gray-50">
         {/* ✅ Header */}
         <header className="bg-white px-6 py-4 border-b border-gray-200">

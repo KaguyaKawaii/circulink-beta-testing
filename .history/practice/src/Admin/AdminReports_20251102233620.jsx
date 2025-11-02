@@ -440,7 +440,7 @@ function AdminReports({ setView, onLogout }) {
 
   return (
     <>
-      <AdminNavigation setView={setView} currentView="adminReports" onLogout={onLogout}/>
+      <AdminNavigation setView={setView} currentView="adminReports" />
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
         {/* Header */}
         <header className="bg-white px-6 py-4 border-b border-gray-200">

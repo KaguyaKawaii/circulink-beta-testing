@@ -87,7 +87,7 @@ function PasswordSecurity({ admin, onLogout }) {
 
   return (
     <>
-    <AdminNavigation setView={setView} currentView="passwordSecurity" onLogout={onLogout} />
+    <AdminNavigation setView={setView} currentView="adminLogs" onLogout={onLogout} />
     <div className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
       <header className="bg-white px-6 py-4 border-b border-gray-200">
         <h1 className="text-2xl font-bold text-[#CC0000]">Password & Security</h1>

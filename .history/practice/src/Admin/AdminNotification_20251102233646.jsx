@@ -5,7 +5,7 @@ import AdminNavigation from "./AdminNavigation";
 import ReportModal from "./Modals/ReportModal";
 import AdminReservationModal from "./Modals/AdminReservationModal";
 
-function AdminNotification({ setView, onLogout }) {
+function AdminNotification({ setView }) {
   const [notifications, setNotifications] = useState([]);
   const [activeFilter, setActiveFilter] = useState("all");
   const [loading, setLoading] = useState(false);
