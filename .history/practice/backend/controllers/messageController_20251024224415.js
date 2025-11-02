@@ -6,7 +6,6 @@ const Message = require("../models/Message");
 ─────────────────────────────── */
 // In messageController.js - Update sendMessage function
 // In messageController.js - Update sendMessage function
-// In messageController.js - UPDATE the sendMessage function
 exports.sendMessage = async (req, res) => {
   try {
     const { sender, receiver, content } = req.body;
@@ -17,21 +16,19 @@ exports.sendMessage = async (req, res) => {
 
     let messageData;
 
-    // 🆕 CRITICAL FIX: Add auto-mark-as-read for admin replies
+    // Decide routing logic - UPDATED: Admin should NOT see user-staff conversations
     if (sender === "admin") {
       if (receiver.includes("Floor")) {
         messageData = await messageService.sendMessageFromAdminToFloor(receiver, content);
       } else {
         messageData = await messageService.sendMessageFromAdminToUser(receiver, content);
-        
-        // 🎯 AUTO-MARK PREVIOUS MESSAGES AS READ WHEN ADMIN REPLIES
-        await messageService.markMessagesAsReadFromUser("admin", receiver);
       }
     } else if (receiver === "admin") {
       messageData = await messageService.sendMessageToAdmin(sender, content);
     } else if (receiver.includes("Floor")) {
       messageData = await messageService.sendMessageToFloor(sender, receiver, content);
     } else {
+      // USER TO STAFF MESSAGE - Admin should NOT see this
       messageData = await messageService.sendMessageUserToStaff(sender, receiver, content);
     }
 
@@ -49,21 +46,8 @@ exports.sendMessage = async (req, res) => {
       !sender.includes("Floor");
 
     if (!isUserStaffConversation) {
+      // Only notify admin for direct admin conversations
       io.to("admin").emit("newMessage", messageData);
-    }
-
-    // 🆕 CRITICAL FIX: Update unread counts for admin in real-time
-    if (sender === "admin") {
-      try {
-        const adminRecipients = await messageService.getAdminRecipientsWithUnread();
-        io.to("admin").emit("adminUnreadUpdate", { 
-          recipients: adminRecipients,
-          totalUnread: adminRecipients.reduce((sum, r) => sum + r.unreadCount, 0)
-        });
-        console.log("📢 Emitted adminUnreadUpdate after admin reply");
-      } catch (error) {
-        console.error("❌ Failed to emit admin unread update:", error);
-      }
     }
 
     // Emit unread count updates for receiver
@@ -74,7 +58,7 @@ exports.sendMessage = async (req, res) => {
 
     res.status(201).json(messageData);
   } catch (err) {
-    console.error("❌ Failed to send message:", err);
+    console.error("Failed to send message:", err);
     res.status(500).json({ message: "Failed to send message." });
   }
 };
