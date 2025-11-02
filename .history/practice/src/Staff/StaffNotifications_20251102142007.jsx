@@ -1,7 +1,7 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import StaffNavigation from "./StaffNavigation";
-import { Bell, AlertCircle, Calendar, RefreshCw, Eye, X, Clock, CheckCircle, PlayCircle, Users, MapPin, FileText, User, Building, Play, Wrench, AlertTriangle, Search, BellOff } from "lucide-react";
+import { Bell, AlertCircle, Calendar, RefreshCw, Eye, X, Clock, CheckCircle, PlayCircle, Users, MapPin, FileText, User, Building, Play, Wrench, AlertTriangle } from "lucide-react";
 import ReservationModal from "./Modals/ReservationModal";
 
 function StaffNotifications({ setView, staff }) {
@@ -18,28 +18,6 @@ function StaffNotifications({ setView, staff }) {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [searchQuery, setSearchQuery] = useState("");
-
-  // Color system for consistent UI
-  const colors = {
-    primary: '#CC0000',
-    success: '#10B981',
-    warning: '#F59E0B',
-    error: '#EF4444',
-    info: '#3B82F6',
-    gray: {
-      50: '#F9FAFB',
-      100: '#F3F4F6',
-      200: '#E5E7EB',
-      300: '#D1D5DB',
-      400: '#9CA3AF',
-      500: '#6B7280',
-      600: '#4B5563',
-      700: '#374151',
-      800: '#1F2937',
-      900: '#111827'
-    }
-  };
 
   // Normalize floor names
   const normalizeFloor = (str) => {
@@ -54,128 +32,6 @@ function StaffNotifications({ setView, staff }) {
     return lower;
   };
 
-  // Enhanced status configuration
-  const statusConfig = {
-    Pending: { 
-      bg: 'bg-amber-100', 
-      text: 'text-amber-800', 
-      border: 'border-amber-200',
-      icon: <Clock size={14} />
-    },
-    Approved: { 
-      bg: 'bg-green-100', 
-      text: 'text-green-800', 
-      border: 'border-green-200',
-      icon: <CheckCircle size={14} />
-    },
-    Rejected: { 
-      bg: 'bg-red-100', 
-      text: 'text-red-800', 
-      border: 'border-red-200',
-      icon: <X size={14} />
-    },
-    Cancelled: { 
-      bg: 'bg-red-100', 
-      text: 'text-red-800', 
-      border: 'border-red-200',
-      icon: <X size={14} />
-    },
-    Expired: { 
-      bg: 'bg-gray-100', 
-      text: 'text-gray-800', 
-      border: 'border-gray-200',
-      icon: <Clock size={14} />
-    },
-    "In Progress": { 
-      bg: 'bg-blue-100', 
-      text: 'text-blue-800', 
-      border: 'border-blue-200',
-      icon: <Play size={14} />
-    },
-    Ongoing: { 
-      bg: 'bg-blue-100', 
-      text: 'text-blue-800', 
-      border: 'border-blue-200',
-      icon: <Play size={14} />
-    },
-    Resolved: { 
-      bg: 'bg-emerald-100', 
-      text: 'text-emerald-800', 
-      border: 'border-emerald-200',
-      icon: <CheckCircle size={14} />
-    }
-  };
-
-  // Status Pill Component
-  const StatusPill = ({ status }) => {
-    const config = statusConfig[status] || statusConfig.Pending;
-    return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${config.bg} ${config.text} ${config.border}`}>
-        {config.icon}
-        {status}
-      </span>
-    );
-  };
-
-  // Notification Skeleton Component
-  const NotificationSkeleton = () => (
-    <div className="border border-gray-200 rounded-xl p-4 bg-white animate-pulse">
-      <div className="flex justify-between mb-3">
-        <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-        <div className="h-4 bg-gray-200 rounded w-16"></div>
-      </div>
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-10 h-10 bg-gray-200 rounded-lg"></div>
-        <div className="flex-1">
-          <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-          <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-        </div>
-      </div>
-      <div className="h-8 bg-gray-200 rounded w-full"></div>
-    </div>
-  );
-
-  // Empty State Component
-  const EmptyState = () => {
-    if (searchQuery) {
-      return (
-        <div className="text-center py-12">
-          <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No matches found</h3>
-          <p className="text-gray-500">Try adjusting your search terms or filters</p>
-        </div>
-      );
-    }
-    
-    if (unreadOnly) {
-      return (
-        <div className="text-center py-12">
-          <BellOff className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No unread notifications</h3>
-          <p className="text-gray-500">You're all caught up!</p>
-        </div>
-      );
-    }
-
-    if (statusFilter !== "all") {
-      return (
-        <div className="text-center py-12">
-          <AlertCircle className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">No notifications</h3>
-          <p className="text-gray-500">No {statusFilter.toLowerCase()} notifications found</p>
-        </div>
-      );
-    }
-
-    return (
-      <div className="text-center py-12">
-        <Bell className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">No notifications yet</h3>
-        <p className="text-gray-500">New reservations and reports will appear here</p>
-      </div>
-    );
-  };
-
   // Fetch unread count separately
   const fetchUnreadCount = async () => {
     if (!staff?._id) return;
@@ -184,6 +40,7 @@ function StaffNotifications({ setView, staff }) {
       setUnreadCount(response.data.count || 0);
     } catch (err) {
       console.error("Failed to fetch unread count:", err);
+      // Fallback: calculate from local state
       const localUnreadCount = filteredNotifications.filter(n => !n.isRead).length;
       setUnreadCount(localUnreadCount);
     }
@@ -193,9 +50,11 @@ function StaffNotifications({ setView, staff }) {
     if (!staff?._id) return;
     setRefreshing(true);
     try {
+      // Get staff notifications from the API
       const resNotifications = await axios.get(`${import.meta.env.VITE_API_URL}/api/notifications/staff/${staff._id}`);
       const staffNotifications = resNotifications.data || [];
 
+      // Process notifications to extract reservations and reports
       const reservationData = [];
       const reportData = [];
 
@@ -218,6 +77,7 @@ function StaffNotifications({ setView, staff }) {
         }
       });
 
+      // Filter reservations by staff floor
       const staffFloor = normalizeFloor(staff.floor);
       const filteredReservations = reservationData.filter(
         reservation => normalizeFloor(reservation.location) === staffFloor
@@ -225,10 +85,13 @@ function StaffNotifications({ setView, staff }) {
 
       setReservations(filteredReservations);
       setReportNotifications(reportData);
+
+      // Fetch unread count after loading data
       await fetchUnreadCount();
 
     } catch (err) {
       console.error("Failed to fetch staff notifications:", err);
+      // Fallback: fetch reservations and reports separately if notifications fail
       try {
         const resReservations = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations`);
         const staffFloor = normalizeFloor(staff.floor);
@@ -252,6 +115,7 @@ function StaffNotifications({ setView, staff }) {
         }));
         setReportNotifications(reportsWithReadStatus);
 
+        // Calculate unread count from fallback data
         const fallbackUnreadCount = [...reservationsWithReadStatus, ...reportsWithReadStatus]
           .filter(n => !n.isRead).length;
         setUnreadCount(fallbackUnreadCount);
@@ -269,7 +133,7 @@ function StaffNotifications({ setView, staff }) {
     fetchData();
   }, [staff?._id, staff?.floor]);
 
-  // Combine and filter notifications with search
+  // Combine reservations and reports into notifications
   useEffect(() => {
     const reservationNotifications = reservations.map(res => ({
       ...res,
@@ -278,8 +142,7 @@ function StaffNotifications({ setView, staff }) {
       createdAt: res.createdAt,
       status: res.status,
       isRead: res.isRead || false,
-      notificationId: res.notificationId,
-      searchText: `${res.roomName} ${res.eventName} ${res.location} ${res.status}`.toLowerCase()
+      notificationId: res.notificationId
     }));
 
     const reportNotificationsFormatted = reportNotifications.map(rep => ({
@@ -289,21 +152,13 @@ function StaffNotifications({ setView, staff }) {
       createdAt: rep.createdAt,
       status: rep.status,
       isRead: rep.isRead || false,
-      notificationId: rep.notificationId,
-      searchText: `${rep.category} ${rep.details} ${rep.status} ${rep.floor} ${rep.room}`.toLowerCase()
+      notificationId: rep.notificationId
     }));
 
     const allNotifications = [...reservationNotifications, ...reportNotificationsFormatted]
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     let results = [...allNotifications];
-    
-    // Apply search filter
-    if (searchQuery) {
-      results = results.filter(notif => 
-        notif.searchText.includes(searchQuery.toLowerCase())
-      );
-    }
     
     if (statusFilter !== "all") {
       results = results.filter(notif => notif.status === statusFilter);
@@ -314,11 +169,12 @@ function StaffNotifications({ setView, staff }) {
     }
     
     setFilteredNotifications(results);
-  }, [reservations, reportNotifications, statusFilter, unreadOnly, searchQuery]);
+  }, [reservations, reportNotifications, statusFilter, unreadOnly]);
 
-  // Mark notification as read
+  // Mark notification as read - UPDATED to refresh unread count
   const markAsRead = async (notificationId, itemId, itemType) => {
     try {
+      // Update local state immediately for better UX
       setFilteredNotifications(prev => prev.map(notif => 
         (notif._id === itemId || notif.notificationId === notificationId) ? { ...notif, isRead: true } : notif
       ));
@@ -331,38 +187,48 @@ function StaffNotifications({ setView, staff }) {
         (rep._id === itemId || rep.notificationId === notificationId) ? { ...rep, isRead: true } : rep
       ));
 
+      // Call backend to mark as read if we have a notification ID
       if (notificationId) {
         await axios.put(`${import.meta.env.VITE_API_URL}/api/notifications/${notificationId}/read`);
       } else {
+        // If no notification ID, try to mark all as read for staff
         await axios.put(`${import.meta.env.VITE_API_URL}/api/notifications/mark-all-read/${staff._id}`);
       }
 
+      // Refresh unread count after marking as read
       await fetchUnreadCount();
 
     } catch (err) {
       console.error("Failed to mark as read:", err);
+      // Keep local state changes even if API fails
+      // Update unread count locally
       const currentUnread = unreadCount - 1;
       setUnreadCount(currentUnread >= 0 ? currentUnread : 0);
     }
   };
 
-  // Mark all as read
+  // Mark all as read - UPDATED to refresh unread count
   const markAllAsRead = async () => {
     try {
+      // Update all local state first
       setFilteredNotifications(prev => prev.map(notif => ({ ...notif, isRead: true })));
       setReservations(prev => prev.map(res => ({ ...res, isRead: true })));
       setReportNotifications(prev => prev.map(rep => ({ ...rep, isRead: true })));
 
+      // Call API to mark all as read
       await axios.put(`${import.meta.env.VITE_API_URL}/api/notifications/mark-all-read/${staff._id}`);
+
+      // Update unread count to 0
       setUnreadCount(0);
 
     } catch (err) {
       console.error("Failed to mark all as read:", err);
+      // Local state already updated for better UX
       setUnreadCount(0);
     }
   };
 
-  // Refresh data function
+  // Refresh data function - UPDATED to include unread count
   const refreshData = async () => {
     await fetchData();
     await fetchUnreadCount();
@@ -387,6 +253,72 @@ function StaffNotifications({ setView, staff }) {
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
     if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
     return formatDateTime(date);
+  };
+
+  const statusColor = (status) => {
+    switch (status) {
+      case "Approved": return "bg-green-100 text-green-800 border-green-200";
+      case "Rejected":
+      case "Cancelled":
+      case "Expired": return "bg-red-100 text-red-800 border-red-200";
+      case "Pending": return "bg-yellow-100 text-yellow-800 border-yellow-200";
+      case "In Progress":
+      case "Ongoing": return "bg-blue-100 text-blue-800 border-blue-200";
+      case "Resolved": return "bg-green-50 text-green-800 border-green-100";
+      default: return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
+
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case "Pending": return <Clock className="w-4 h-4" />;
+      case "In Progress":
+      case "Ongoing": return <PlayCircle className="w-4 h-4" />;
+      case "Resolved":
+      case "Approved": return <CheckCircle className="w-4 h-4" />;
+      default: return <AlertCircle className="w-4 h-4" />;
+    }
+  };
+
+  const updateReportStatus = async (newStatus) => {
+    if (!selectedReport) return;
+    try {
+      setIsProcessing(true);
+      
+      if (newStatus === "In Progress") {
+        await axios.put(`${import.meta.env.VITE_API_URL}/api/reports/${selectedReport._id}/start`, {
+          startedBy: staff._id
+        });
+      } else if (newStatus === "Resolved") {
+        await axios.put(`${import.meta.env.VITE_API_URL}/api/reports/${selectedReport._id}/resolve`, {
+          actionTaken: "Issue resolved by staff",
+          resolvedBy: staff._id
+        });
+      } else {
+        await axios.put(`${import.meta.env.VITE_API_URL}/api/reports/${selectedReport._id}/status`, {
+          status: newStatus,
+          updatedBy: staff._id
+        });
+      }
+      
+      setReportNotifications((prev) =>
+        prev.map((r) => (r._id === selectedReport._id ? { ...r, status: newStatus } : r))
+      );
+      
+      const updated = { ...selectedReport, status: newStatus };
+      setSelectedReport(updated);
+
+      if (newStatus === "Resolved") {
+        setTimeout(() => setSelectedReport(null), 1500);
+      }
+      
+      refreshData();
+    } catch (err) {
+      console.error("Failed to update report status:", err);
+      alert("Failed to update report status. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleApproveReservation = async (reservationId) => {
@@ -431,82 +363,77 @@ function StaffNotifications({ setView, staff }) {
     }
   };
 
+  const handleViewReservations = () => {
+    setView("staffReservation");
+  };
+
   const clearFilters = () => {
     setStatusFilter("all");
     setUnreadOnly(false);
-    setSearchQuery("");
   };
 
   const currentUnreadCount = filteredNotifications.filter(n => !n.isRead).length;
 
-  // Enhanced Notification Card Component
-  const NotificationCard = ({ notification }) => (
-    <div
-      className={`
-        relative p-4 rounded-xl border-l-4 transition-all duration-200 group
-        ${notification.type === 'reservation' ? 'border-l-blue-500' : 'border-l-red-500'}
-        ${notification.isRead ? 'bg-white border border-gray-200' : 'bg-blue-50 border border-blue-200'}
-        hover:shadow-md cursor-pointer min-h-[120px] flex flex-col justify-center
-      `}
-      onClick={() => {
-        if (!notification.isRead) {
-          markAsRead(notification.notificationId, notification._id, notification.type);
-        }
-        if (notification.type === "reservation") {
-          setSelectedReservation(notification);
-        } else if (notification.type === "report") {
-          setSelectedReport(notification);
-        }
-      }}
-    >
-      {/* Unread indicator */}
-      {!notification.isRead && (
-        <div className="absolute -left-2 top-1/2 transform -translate-y-1/2 w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
-      )}
-      
-      <div className="flex gap-3">
-        {/* Icon with type-based coloring */}
-        <div className={`
-          p-2 rounded-lg flex-shrink-0 self-start mt-1
-          ${notification.type === 'reservation' ? 'bg-blue-100' : 'bg-red-100'}
-        `}>
-          {notification.type === 'reservation' ? 
-            <Calendar className="w-5 h-5 text-blue-600" /> : 
-            <AlertTriangle className="w-5 h-5 text-red-600" />
-          }
-        </div>
-        
-        {/* Content area */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between mb-2">
-            <h3 className="font-semibold text-gray-900 text-base leading-tight">
-              {notification.type === 'reservation' ? 
-                `${notification.roomName} Reservation` : 
-                `${notification.category} Report`
-              }
-            </h3>
-            <span className="text-sm text-gray-500 flex-shrink-0 ml-2">
-              {formatRelativeTime(notification.createdAt)}
-            </span>
-          </div>
-          
-          <p className="text-gray-600 text-sm mb-3 line-clamp-2 leading-relaxed">
-            {notification.type === 'reservation' ? 
-              notification.eventName : 
-              notification.details?.substring(0, 120) + (notification.details?.length > 120 ? '...' : '')
-            }
-          </p>
-          
-          <div className="flex items-center justify-between">
-            <StatusPill status={notification.status} />
-            <button className="text-blue-600 hover:text-blue-800 text-sm font-medium flex items-center gap-1 transition-colors">
-              View Details
-              <Eye size={14} />
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+  // Custom SVG Icons
+  const ClockIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2"/>
+      <path d="M12 6V12L16 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  );
+
+  const CheckCircleIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M22 11.08V12C21.9988 14.1564 21.3005 16.2547 20.0093 17.9818C18.7182 19.709 16.9033 20.9725 14.8354 21.5839C12.7674 22.1953 10.5573 22.1219 8.53447 21.3746C6.51168 20.6273 4.78465 19.2461 3.61096 17.4371C2.43727 15.628 1.87979 13.4881 2.02168 11.3363C2.16356 9.18455 2.99721 7.13631 4.39828 5.49706C5.79935 3.85781 7.69279 2.71537 9.79619 2.24013C11.8996 1.7649 14.1003 1.98232 16.07 2.85999" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M22 4L12 14.01L9 11.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+
+  const BellIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M18 8C18 6.4087 17.3679 4.88258 16.2426 3.75736C15.1174 2.63214 13.5913 2 12 2C10.4087 2 8.88258 2.63214 7.75736 3.75736C6.63214 4.88258 6 6.4087 6 8C6 15 3 17 3 17H21C21 17 18 15 18 8Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M13.73 21C13.5542 21.3031 13.3019 21.5547 12.9982 21.7295C12.6946 21.9044 12.3504 21.9965 12 21.9965C11.6496 21.9965 11.3054 21.9044 11.0018 21.7295C10.6982 21.5547 10.4458 21.3031 10.27 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+
+  const BellOffIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M13.73 21C13.5542 21.3031 13.3019 21.5547 12.9982 21.7295C12.6946 21.9044 12.3504 21.9965 12 21.9965C11.6496 21.9965 11.3054 21.9044 11.0018 21.7295C10.6982 21.5547 10.4458 21.3031 10.27 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8.62998 8.62999C8.20998 9.23999 7.99998 9.99999 7.99998 10.83V11C7.99998 15 5.99998 17 5.99998 17H15.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M17.67 17.67C16.94 17.94 16.02 18 15 18H9C6.5 18 4.5 16 4.5 13.5V10.84C4.5 9.67 4.95 8.55 5.75 7.7L6.07 7.37" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M8.99998 4.16C9.02998 4.16 9.04998 4.16 9.07998 4.16C9.67998 4.09 10.26 4 10.83 3.85" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M14.92 4.16C14.57 3.4 14.02 2.77 13.33 2.33" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M19 8C19.5304 8 20.0391 8.21071 20.4142 8.58579C20.7893 8.96086 21 9.46957 21 10V11C21 12.66 20.44 14.11 19.5 15.31" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M21 21L3 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+
+  const FilterIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M22 3H2L10 12.46V19L14 21V12.46L22 3Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+
+  const CloseIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+
+  const EyeIcon = () => (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M1 12C1 12 5 4 12 4C19 4 23 12 23 12C23 12 19 20 12 20C5 20 1 12 1 12Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+
+  const RefreshIcon = () => (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M23 4V10H17" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M1 20V14H7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M3.51 9C4.01717 7.56678 4.87913 6.2854 6.01547 5.27542C7.1518 4.26543 8.52547 3.55976 10.0083 3.22426C11.4911 2.88875 13.0348 2.93434 14.4952 3.35677C15.9556 3.77921 17.2853 4.56471 18.36 5.64L23 10M1 14L5.64 18.36C6.71475 19.4353 8.04437 20.2208 9.50481 20.6432C10.9652 21.0657 12.5089 21.1113 13.9917 20.7757C15.4745 20.4402 16.8482 19.7346 17.9845 18.7246C19.1209 17.7146 19.9828 16.4332 20.49 15" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
   );
 
   // Helper functions for the new report modal
@@ -523,7 +450,7 @@ function StaffNotifications({ setView, staff }) {
     });
   };
 
-  const getModalStatusConfig = (status) => {
+  const getStatusConfig = (status) => {
     const configs = {
       Pending: { 
         color: "bg-amber-100 text-amber-800 border-amber-200", 
@@ -590,9 +517,16 @@ function StaffNotifications({ setView, staff }) {
           <div className="flex-1 p-6 overflow-y-auto">
             <div className="max-w-4xl mx-auto w-full">
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div className="space-y-4">
+                <div className="animate-pulse space-y-4">
                   {[...Array(4)].map((_, i) => (
-                    <NotificationSkeleton key={i} />
+                    <div key={i} className="border border-gray-200 rounded-xl p-4 bg-gray-50">
+                      <div className="flex justify-between">
+                        <div className="h-5 bg-gray-200 rounded w-1/4 mb-3"></div>
+                        <div className="h-5 bg-gray-200 rounded w-16"></div>
+                      </div>
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                      <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -607,7 +541,7 @@ function StaffNotifications({ setView, staff }) {
     <>
       <StaffNavigation setView={setView} currentView="staffNotification" staff={staff} unseenCount={unreadCount} />
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50 flex flex-col">
-        {/* Header */}
+        {/* Header - Keeping the same size */}
         <header className="bg-white px-6 py-4 border-b border-gray-200">
           <div className="flex justify-between items-center">
             <div>
@@ -619,14 +553,7 @@ function StaffNotifications({ setView, staff }) {
               </p>
             </div>
             <div className="flex items-center space-x-4">
-              <button
-                onClick={refreshData}
-                disabled={refreshing}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 min-h-[44px]"
-              >
-                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
-                {refreshing ? "Refreshing..." : "Refresh"}
-              </button>
+              
               <span className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
                 {new Date().toLocaleDateString("en-US", {
                   weekday: "long",
@@ -642,7 +569,7 @@ function StaffNotifications({ setView, staff }) {
           <div className="max-w-4xl mx-auto w-full">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
               {/* Header with stats and filters */}
-              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
                     <div className={`w-3 h-3 rounded-full ${currentUnreadCount > 0 ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
@@ -652,73 +579,41 @@ function StaffNotifications({ setView, staff }) {
                   </div>
                 </div>
                 
-                {/* Search Bar */}
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Search notifications..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <X size={16} />
-                    </button>
-                  )}
-                </div>
-                
                 <div className="flex flex-wrap gap-2">
                   <button 
                     onClick={() => setUnreadOnly(!unreadOnly)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all cursor-pointer min-h-[44px] flex-1 lg:flex-none justify-center min-w-[140px] ${
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-all cursor-pointer flex-1 sm:flex-none justify-center min-w-[140px] ${
                       unreadOnly 
                         ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100' 
                         : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400 hover:bg-gray-50'
                     }`}
                   >
-                    {unreadOnly ? <BellOff size={16} /> : <Bell size={16} />}
+                    {unreadOnly ? <BellOffIcon /> : <BellIcon />}
                     {unreadOnly ? 'Unread Only' : 'All Notifications'}
                   </button>
                   
                   <button 
                     onClick={() => setShowFilterModal(true)}
-                    className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-all text-sm cursor-pointer min-h-[44px] flex-1 lg:flex-none justify-center min-w-[100px]"
+                    className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-all text-sm cursor-pointer flex-1 sm:flex-none justify-center min-w-[100px]"
                   >
-                    <Wrench size={16} />
+                    <FilterIcon />
                     Filter
                   </button>
                   
-                  {(statusFilter !== "all" || unreadOnly || searchQuery) && (
+                  {(statusFilter !== "all" || unreadOnly) && (
                     <button 
                       onClick={clearFilters}
-                      className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-all text-sm cursor-pointer min-h-[44px] flex-1 lg:flex-none justify-center min-w-[120px]"
+                      className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg hover:border-gray-400 hover:bg-gray-50 transition-all text-sm cursor-pointer flex-1 sm:flex-none justify-center min-w-[120px]"
                     >
-                      <X size={16} />
-                      Clear All
+                      Clear Filters
                     </button>
                   )}
                 </div>
               </div>
 
               {/* Active filters display */}
-              {(statusFilter !== "all" || unreadOnly || searchQuery) && (
+              {(statusFilter !== "all" || unreadOnly) && (
                 <div className="flex flex-wrap gap-2 mb-6">
-                  {searchQuery && (
-                    <div className="bg-gray-100 px-3 py-1.5 rounded-full text-sm flex items-center gap-1 border border-gray-300">
-                      <span className="text-gray-700">Search: "{searchQuery}"</span>
-                      <button 
-                        onClick={() => setSearchQuery("")}
-                        className="text-gray-500 hover:text-gray-700 cursor-pointer transition-colors"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  )}
                   {statusFilter !== "all" && (
                     <div className="bg-gray-100 px-3 py-1.5 rounded-full text-sm flex items-center gap-1 border border-gray-300">
                       <span className="text-gray-700">Status: {statusFilter}</span>
@@ -726,7 +621,7 @@ function StaffNotifications({ setView, staff }) {
                         onClick={() => setStatusFilter("all")}
                         className="text-gray-500 hover:text-gray-700 cursor-pointer transition-colors"
                       >
-                        <X size={14} />
+                        <CloseIcon />
                       </button>
                     </div>
                   )}
@@ -737,7 +632,7 @@ function StaffNotifications({ setView, staff }) {
                         onClick={() => setUnreadOnly(false)}
                         className="text-gray-500 hover:text-gray-700 cursor-pointer transition-colors"
                       >
-                        <X size={14} />
+                        <CloseIcon />
                       </button>
                     </div>
                   )}
@@ -746,18 +641,18 @@ function StaffNotifications({ setView, staff }) {
 
               {/* Mark all as read button */}
               {currentUnreadCount > 0 && !unreadOnly && (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 p-3 bg-red-50 rounded-lg border border-red-100">
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                    <span className="text-sm text-blue-700 font-medium">
+                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm text-red-700 font-medium">
                       {currentUnreadCount} unread {currentUnreadCount === 1 ? 'notification' : 'notifications'}
                     </span>
                   </div>
                   <button
                     onClick={markAllAsRead}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-blue-200 hover:bg-blue-50 transition-all cursor-pointer w-full sm:w-auto justify-center"
+                    className="text-sm text-red-600 hover:text-red-800 font-medium flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg border border-red-200 hover:bg-red-50 transition-all cursor-pointer w-full sm:w-auto justify-center"
                   >
-                    <CheckCircle size={16} />
+                    <CheckCircleIcon />
                     Mark all as read
                   </button>
                 </div>
@@ -765,14 +660,103 @@ function StaffNotifications({ setView, staff }) {
 
               {/* Notifications list */}
               {filteredNotifications.length === 0 ? (
-                <EmptyState />
+                <div className="text-center py-8 sm:py-12">
+                  <div className="mx-auto text-gray-300 mb-4" style={{ width: '64px', height: '64px' }}>
+                    <BellIcon />
+                  </div>
+                  <p className="text-gray-500 text-base sm:text-lg font-medium mb-2">
+                    No notifications found
+                  </p>
+                  <p className="text-gray-400 text-sm sm:text-base max-w-sm mx-auto">
+                    {statusFilter !== "all" || unreadOnly 
+                      ? "Try adjusting your filters to see more notifications." 
+                      : "You're all caught up! New reservations and reports will appear here."}
+                  </p>
+                </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {filteredNotifications.map((notification) => (
-                    <NotificationCard 
-                      key={notification._id || notification.notificationId} 
-                      notification={notification} 
-                    />
+                    <div
+                      key={notification._id || notification.notificationId}
+                      className={`border rounded-xl p-4 transition-all duration-200 hover:shadow-sm cursor-pointer ${
+                        notification.isRead 
+                          ? 'bg-white border-gray-200' 
+                          : 'bg-blue-50 border-blue-200 hover:bg-blue-100'
+                      }`}
+                      onClick={() => {
+                        if (!notification.isRead) {
+                          markAsRead(notification.notificationId, notification._id, notification.type);
+                        }
+                        if (notification.type === "reservation") {
+                          setSelectedReservation(notification);
+                        } else if (notification.type === "report") {
+                          setSelectedReport(notification);
+                        }
+                      }}
+                    >
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-2">
+                            {!notification.isRead && (
+                              <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                            )}
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border ${statusColor(notification.status)}`}>
+                              {getStatusIcon(notification.status)}
+                              {notification.status}
+                            </span>
+                            <span className="text-xs text-gray-500 flex-shrink-0">
+                              {formatRelativeTime(notification.createdAt)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mb-1">
+                            {notification.type === "reservation" ? (
+                              <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                            )}
+                            <h3 className="font-semibold text-gray-900 truncate">
+                              {notification.type === "reservation" 
+                                ? `${notification.roomName} Reservation` 
+                                : `${notification.category} Report`}
+                            </h3>
+                          </div>
+                          <p className="text-gray-600 text-sm mb-2">
+                            {notification.type === "reservation" 
+                              ? `${notification.eventName} • ${notification.location}` 
+                              : `${notification.details?.substring(0, 100)}${notification.details?.length > 100 ? '...' : ''}`}
+                          </p>
+                          <div className="flex items-center gap-4 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <ClockIcon />
+                              {formatDateTime(notification.createdAt)}
+                            </span>
+                            {notification.type === "reservation" && (
+                              <span className="flex items-center gap-1">
+                                <Users className="w-3 h-3" />
+                                {notification.attendees || "N/A"} attendees
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!notification.isRead) {
+                              markAsRead(notification.notificationId, notification._id, notification.type);
+                            }
+                            if (notification.type === "reservation") {
+                              setSelectedReservation(notification);
+                            } else if (notification.type === "report") {
+                              setSelectedReport(notification);
+                            }
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm cursor-pointer flex-shrink-0"
+                        >
+                          <EyeIcon />
+                          View Details
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -790,7 +774,7 @@ function StaffNotifications({ setView, staff }) {
                   onClick={() => setShowFilterModal(false)}
                   className="text-gray-400 hover:text-gray-600 cursor-pointer transition-colors"
                 >
-                  <X size={20} />
+                  <CloseIcon />
                 </button>
               </div>
               
@@ -800,7 +784,7 @@ function StaffNotifications({ setView, staff }) {
                   <select 
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer min-h-[44px]"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
                   >
                     <option value="all">All Status</option>
                     <option value="Pending">Pending</option>
@@ -819,7 +803,7 @@ function StaffNotifications({ setView, staff }) {
                     id="unreadOnly"
                     checked={unreadOnly}
                     onChange={(e) => setUnreadOnly(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer min-h-[44px]"
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
                   />
                   <label htmlFor="unreadOnly" className="text-sm text-gray-700 cursor-pointer">
                     Show unread notifications only
@@ -830,13 +814,13 @@ function StaffNotifications({ setView, staff }) {
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={clearFilters}
-                  className="flex-1 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer min-h-[44px]"
+                  className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
                 >
                   Clear All
                 </button>
                 <button
                   onClick={() => setShowFilterModal(false)}
-                  className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer min-h-[44px]"
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
                 >
                   Apply Filters
                 </button>
@@ -857,7 +841,7 @@ function StaffNotifications({ setView, staff }) {
           />
         )}
 
-        {/* Report Modal */}
+        {/* Report Modal - FIXED to match Report.js schema */}
         {selectedReport && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-gray-200">
@@ -883,13 +867,13 @@ function StaffNotifications({ setView, staff }) {
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className={`px-3 py-1.5 rounded-full border flex items-center gap-2 text-sm font-medium ${getModalStatusConfig(selectedReport.status).color}`}>
-                      {getModalStatusConfig(selectedReport.status).icon}
+                    <div className={`px-3 py-1.5 rounded-full border flex items-center gap-2 text-sm font-medium ${getStatusConfig(selectedReport.status).color}`}>
+                      {getStatusConfig(selectedReport.status).icon}
                       {selectedReport.status}
                     </div>
                     <button
                       onClick={() => setSelectedReport(null)}
-                      className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                      className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200"
                     >
                       <X size={24} />
                     </button>
@@ -984,7 +968,7 @@ function StaffNotifications({ setView, staff }) {
                 </div>
               </div>
 
-              {/* Footer */}
+              {/* Footer - REMOVED BUTTONS */}
               <div className="border-t border-gray-200 bg-gray-50 p-6">
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
                   <div className="text-sm text-gray-600">
@@ -994,7 +978,7 @@ function StaffNotifications({ setView, staff }) {
                   <div className="flex flex-wrap gap-2 justify-center sm:justify-end">
                     <button
                       onClick={() => setSelectedReport(null)}
-                      className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium text-sm min-h-[44px]"
+                      className="px-4 py-2.5 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium text-sm"
                     >
                       Close
                     </button>
