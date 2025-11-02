@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
-import { io } from "socket.io-client"; // 🆕 ADD THIS IMPORT
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import AdminNews from "./AdminNews";
@@ -74,128 +73,6 @@ function AdminDashboard({ setView }) {
   const [error, setError] = useState(null);
   const [roomAvailability, setRoomAvailability] = useState({});
   const [unreadBreakdown, setUnreadBreakdown] = useState([]);
-
-  // 🆕 ADD WEBSOCKET LISTENER FOR REAL-TIME UPDATES
-  useEffect(() => {
-    // Only set up socket if not already connected
-    if (!window.socketConnected) {
-      console.log('🔌 Connecting to WebSocket for real-time updates...');
-      const socket = io(import.meta.env.VITE_WS_URL);
-      
-      // Listen for admin unread updates
-      socket.on('adminUnreadUpdate', (data) => {
-        console.log('📥 Received real-time admin unread update:', data);
-        updateUnreadCountsFromSocket(data);
-      });
-
-      // Listen for new messages to admin
-      socket.on('newMessage', (message) => {
-        if (message.receiver === 'admin' || message.sender === 'admin') {
-          console.log('📥 New message affecting admin, refreshing counts');
-          refreshUnreadCounts();
-        }
-      });
-
-      // Listen for connection events
-      socket.on('connect', () => {
-        console.log('✅ Connected to WebSocket server');
-      });
-
-      socket.on('disconnect', () => {
-        console.log('❌ Disconnected from WebSocket server');
-      });
-
-      window.socketConnected = true;
-      
-      return () => {
-        socket.off('adminUnreadUpdate');
-        socket.off('newMessage');
-        socket.off('connect');
-        socket.off('disconnect');
-        socket.disconnect();
-        window.socketConnected = false;
-      };
-    }
-  }, []);
-
-  // 🆕 ADD FUNCTION TO PROCESS SOCKET UPDATES
-  const updateUnreadCountsFromSocket = (data) => {
-    const { recipients, totalUnread } = data;
-    
-    if (Array.isArray(recipients)) {
-      const unreadUserMessages = recipients
-        .filter(recipient => recipient.type === 'user')
-        .reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0);
-
-      const unreadStaffMessages = recipients
-        .filter(recipient => recipient.type === 'staff')
-        .reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0);
-
-      setSummaryData(prev => ({
-        ...prev,
-        unreadMessages: totalUnread || 0,
-        unreadUserMessages,
-        unreadStaffMessages
-      }));
-
-      setUnreadBreakdown(
-        recipients
-          .filter(recipient => recipient.unreadCount > 0)
-          .sort((a, b) => b.unreadCount - a.unreadCount)
-          .slice(0, 5)
-      );
-      
-      console.log('✅ Unread counts updated via WebSocket:', { 
-        totalUnread, 
-        unreadUserMessages, 
-        unreadStaffMessages 
-      });
-    }
-  };
-
-  // 🆕 ENHANCED REFRESH FUNCTION FOR UNREAD COUNTS
-  const refreshUnreadCounts = async () => {
-    try {
-      console.log('🔄 Manually refreshing unread counts...');
-      const adminRecipients = await apiService.get('/api/messages/recipients/admin');
-      
-      const totalUnread = Array.isArray(adminRecipients) 
-        ? adminRecipients.reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0)
-        : 0;
-
-      const unreadUserMessages = Array.isArray(adminRecipients)
-        ? adminRecipients
-            .filter(recipient => recipient.type === 'user')
-            .reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0)
-        : 0;
-
-      const unreadStaffMessages = Array.isArray(adminRecipients)
-        ? adminRecipients
-            .filter(recipient => recipient.type === 'staff')
-            .reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0)
-        : 0;
-
-      setSummaryData(prev => ({
-        ...prev,
-        unreadMessages: totalUnread,
-        unreadUserMessages,
-        unreadStaffMessages
-      }));
-
-      setUnreadBreakdown(
-        Array.isArray(adminRecipients)
-          ? adminRecipients
-              .filter(recipient => recipient.unreadCount > 0)
-              .sort((a, b) => b.unreadCount - a.unreadCount)
-              .slice(0, 5)
-          : []
-      );
-
-      console.log('✅ Unread counts refreshed:', { totalUnread, unreadUserMessages, unreadStaffMessages });
-    } catch (error) {
-      console.error('❌ Failed to refresh unread counts:', error);
-    }
-  };
 
   const fetchAllData = useCallback(async () => {
     try {
@@ -758,11 +635,7 @@ function AdminDashboard({ setView }) {
                               {conversation.unreadCount} unread
                             </span>
                             <button
-                              onClick={() => {
-                                setView("adminMessage");
-                                // 🆕 Refresh counts after navigating to messages
-                                setTimeout(refreshUnreadCounts, 1000);
-                              }}
+                              onClick={() => setView("adminMessage")}
                               className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
                             >
                               Reply
@@ -777,11 +650,7 @@ function AdminDashboard({ setView }) {
                     <MessageSquare className="mx-auto mb-3 text-gray-400" size={32} />
                     <p className="text-gray-500 text-sm mb-4">No conversation details available</p>
                     <button
-                      onClick={() => {
-                        setView("adminMessage");
-                        // 🆕 Refresh counts after navigating to messages
-                        setTimeout(refreshUnreadCounts, 1000);
-                      }}
+                      onClick={() => setView("adminMessage")}
                       className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
                     >
                       Check Messages
