@@ -1076,7 +1076,7 @@ function AdminDashboard({ setView }) {
                         <p className="text-xs text-gray-500 mt-1 line-clamp-2">{activity.details}</p>
                         <div className="flex items-center justify-between mt-3">
                           <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-lg border border-gray-200">{activity.user}</span>
-                          <span className="text-xs bg-blue-50 px-2 py-1 rounded-lg border border-blue-200 text-blue-600">{activity.time}</span>
+                          <span className="text-xs text-gray-400 bg-blue-50 px-2 py-1 rounded-lg border border-blue-200 text-blue-600">{activity.time}</span>
                         </div>
                       </div>
                     </div>
