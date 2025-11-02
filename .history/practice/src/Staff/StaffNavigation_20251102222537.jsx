@@ -344,7 +344,39 @@ const handleLogoutConfirm = () => {
       {/* Spacer to push content to the right of navigation */}
       <div className="w-[250px] flex-shrink-0"></div>
 
-      
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100000] p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 transform transition-all duration-300 scale-100">
+            <div className="flex items-center mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                <AlertTriangle className="text-red-600" size={20} />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Confirm Logout
+              </h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to logout? You will need to login again to access the staff panel.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleCancelLogout}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2 cursor-pointer"
+              >
+                <LogOut size={16} />
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

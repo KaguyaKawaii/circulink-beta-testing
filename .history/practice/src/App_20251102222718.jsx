@@ -397,17 +397,17 @@ const renderAdminNavigation = (Component) => (
   </>
 );
 
-const renderStaffNavigation = (Component) => (
-  <>
-    <StaffNavigation
-      staff={user}
-      setView={setView}
-      currentView={view}
-      onLogout={() => setShowLogoutModal(true)}  // ← This triggers App.jsx modal
-    />
-    {Component}
-  </>
-);
+  const renderStaffNavigation = (Component) => (
+    <>
+      <StaffNavigation
+        staff={user}
+        setView={setView}
+        currentView={view}
+        onLogout={() => setShowLogoutModal(true)}
+      />
+      {Component}
+    </>
+  );
 
   /* ---------- CHECK IF CURRENT VIEW IS ALLOWED ---------- */
   const isViewAllowed = () => {

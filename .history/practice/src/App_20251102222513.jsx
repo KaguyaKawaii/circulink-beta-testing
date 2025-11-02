@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { LogOut } from "lucide-react";
 
 // Services
 import api from "./utils/api";
@@ -88,7 +87,6 @@ function App() {
 
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
   const [selectedReservation, setSelectedReservation] = useState(null);
-  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Maintenance state
@@ -363,7 +361,6 @@ function App() {
   const handleLogout = () => {
     AuthService.clearUser();
     setUser(null);
-    setShowLogoutModal(false);
     setViewHistory(["home"]);
     if (maintenanceData.maintenanceMode) {
       setView("maintenance");
@@ -373,41 +370,41 @@ function App() {
   };
 
   /* ---------- NAVIGATION WRAPPERS ---------- */
-const renderUserNavigation = (Component) => (
-  <>
-    <Navigation
-      user={user}
-      setView={setView}
-      currentView={view}
-      onLogout={() => setShowLogoutModal(true)}  // ← This triggers App.jsx modal
-    />
-    {Component}
-  </>
-);
+  const renderUserNavigation = (Component) => (
+    <>
+      <Navigation
+        user={user}
+        setView={setView}
+        currentView={view}
+        onLogout={handleLogout}
+      />
+      {Component}
+    </>
+  );
 
-const renderAdminNavigation = (Component) => (
-  <>
-    <AdminNavigation
-      admin={user}
-      setView={setView}
-      currentView={view}
-      onLogout={() => setShowLogoutModal(true)}  // ← This triggers App.jsx modal
-    />
-    {Component}
-  </>
-);
+  const renderAdminNavigation = (Component) => (
+    <>
+      <AdminNavigation
+        admin={user}
+        setView={setView}
+        currentView={view}
+        onLogout={handleLogout}
+      />
+      {Component}
+    </>
+  );
 
-const renderStaffNavigation = (Component) => (
-  <>
-    <StaffNavigation
-      staff={user}
-      setView={setView}
-      currentView={view}
-      onLogout={() => setShowLogoutModal(true)}  // ← This triggers App.jsx modal
-    />
-    {Component}
-  </>
-);
+  const renderStaffNavigation = (Component) => (
+    <>
+      <StaffNavigation
+        staff={user}
+        setView={setView}
+        currentView={view}
+        onLogout={handleLogout}
+      />
+      {Component}
+    </>
+  );
 
   /* ---------- CHECK IF CURRENT VIEW IS ALLOWED ---------- */
   const isViewAllowed = () => {
@@ -575,40 +572,6 @@ const renderStaffNavigation = (Component) => (
       {view === "staffNotification" && renderStaffNavigation(<StaffNotification setView={setView} staff={user} />)}
       {view === "staffProfile" && renderStaffNavigation(<StaffProfile setView={setView} staff={user} />)}
       {view === "staffReports" && renderStaffNavigation(<StaffReports setView={setView} staff={user} />)}
-
-      {/* Logout Modal */}
-      {showLogoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-[360px] rounded-xl bg-white shadow-2xl px-6 py-8 relative">
-            <div className="flex flex-col items-center text-center mb-6">
-              <div className="mb-3 flex items-center justify-center w-14 h-14 rounded-full bg-red-100">
-                <LogOut size={28} className="text-[#CC0000]" />
-              </div>
-              <h2 className="text-xl font-semibold text-gray-800">
-                Log out of your account?
-              </h2>
-              <p className="text-sm text-gray-600 mt-1">
-                You'll need to sign in again to access your dashboard.
-              </p>
-            </div>
-            <div className="border-t border-gray-200 mb-6" />
-            <div className="flex justify-between">
-              <button
-                onClick={() => setShowLogoutModal(false)}
-                className="flex-1 mr-3 px-5 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 cursor-pointer"
-              >
-                No, stay
-              </button>
-              <button
-                onClick={handleLogout}
-                className="flex-1 px-5 py-2 bg-[#CC0000] text-white rounded-lg hover:bg-red-600 cursor-pointer"
-              >
-                Yes, log out
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

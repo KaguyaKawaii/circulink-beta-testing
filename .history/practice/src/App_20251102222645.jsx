@@ -373,41 +373,41 @@ function App() {
   };
 
   /* ---------- NAVIGATION WRAPPERS ---------- */
-const renderUserNavigation = (Component) => (
-  <>
-    <Navigation
-      user={user}
-      setView={setView}
-      currentView={view}
-      onLogout={() => setShowLogoutModal(true)}  // ← This triggers App.jsx modal
-    />
-    {Component}
-  </>
-);
+  const renderUserNavigation = (Component) => (
+    <>
+      <Navigation
+        user={user}
+        setView={setView}
+        currentView={view}
+        onLogout={() => setShowLogoutModal(true)}
+      />
+      {Component}
+    </>
+  );
 
-const renderAdminNavigation = (Component) => (
-  <>
-    <AdminNavigation
-      admin={user}
-      setView={setView}
-      currentView={view}
-      onLogout={() => setShowLogoutModal(true)}  // ← This triggers App.jsx modal
-    />
-    {Component}
-  </>
-);
+  const renderAdminNavigation = (Component) => (
+    <>
+      <AdminNavigation
+        admin={user}
+        setView={setView}
+        currentView={view}
+        onLogout={() => setShowLogoutModal(true)}
+      />
+      {Component}
+    </>
+  );
 
-const renderStaffNavigation = (Component) => (
-  <>
-    <StaffNavigation
-      staff={user}
-      setView={setView}
-      currentView={view}
-      onLogout={() => setShowLogoutModal(true)}  // ← This triggers App.jsx modal
-    />
-    {Component}
-  </>
-);
+  const renderStaffNavigation = (Component) => (
+    <>
+      <StaffNavigation
+        staff={user}
+        setView={setView}
+        currentView={view}
+        onLogout={() => setShowLogoutModal(true)}
+      />
+      {Component}
+    </>
+  );
 
   /* ---------- CHECK IF CURRENT VIEW IS ALLOWED ---------- */
   const isViewAllowed = () => {

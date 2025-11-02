@@ -304,21 +304,53 @@ const handleLogoutConfirm = () => {
 
             {/* Logout - Fixed with proper click handling */}
             <div className="mt-auto border-t border-gray-800 bg-[#0a0a0a] relative z-[99999] pointer-events-auto">
-          <button
-  onClick={handleLogoutConfirm}  // ← Change this from handleLogoutConfirm to direct onLogout
-  className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm text-gray-400 hover:bg-red-900/20 hover:text-red-300 transition-all duration-200 hover:border-l-4 hover:border-red-500 cursor-pointer relative z-[99999]"
->
-  <div className="text-gray-400">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16,17 21,12 16,7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-  </div>
-  <span>Logout</span>
-</button>
+              <button
+                onClick={handleLogoutConfirm} // Changed from onLogout to handleLogoutConfirm
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm text-gray-400 hover:bg-red-900/20 hover:text-red-300 transition-all duration-200 hover:border-l-4 hover:border-red-500 cursor-pointer relative z-[99999]"
+              >
+                <div className="text-gray-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16,17 21,12 16,7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                </div>
+                <span>Logout</span>
+              </button>
             </div>
           </div>
         </div>
       </aside>
 
-      
+      {/* Logout Confirmation Modal */}
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100000] p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 transform transition-all duration-300 scale-100">
+            <div className="flex items-center mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                <AlertTriangle className="text-red-600" size={20} />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Confirm Logout
+              </h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to logout? You will need to login again to access the admin panel.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleCancelLogout}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors flex items-center gap-2"
+              >
+                <LogOut size={16} />
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
