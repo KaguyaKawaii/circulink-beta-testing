@@ -4,8 +4,7 @@ import { Eye, RefreshCw, Search, X, ChevronDown } from "lucide-react";
 import StaffNavigation from "./StaffNavigation";
 import StaffUserViewModal from "./Modals/StaffUserViewModal"; // ✅ Fixed import path
 
-function StaffUsersViewOnly({ setView, staff, onLogout }) {
-  const [users, setUsers] = useState([]);
+function StaffUsersViewOnly({ setView, staff, onLogout }) {  const [users, setUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
@@ -122,7 +121,7 @@ function StaffUsersViewOnly({ setView, staff, onLogout }) {
 
   return (
     <>
-      <StaffNavigation setView={setView} currentView="staffUsers" staff={staff} onLogout={onLogout} />
+      <StaffNavigation setView={setView} currentView="staffUsers" staff={staff} />
       
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
         {/* Header */}

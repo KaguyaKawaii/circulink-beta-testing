@@ -122,7 +122,7 @@ function StaffUsersViewOnly({ setView, staff, onLogout }) {
 
   return (
     <>
-      <StaffNavigation setView={setView} currentView="staffUsers" staff={staff} onLogout={onLogout} />
+      <StaffNavigation setView={setView} currentView="staffUsers" staff={staff} />
       
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
         {/* Header */}
