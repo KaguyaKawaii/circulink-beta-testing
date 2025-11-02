@@ -2,17 +2,16 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import AdminNavigation from "../AdminNavigation";
 
-function AdminArchivedUsers({ setView, onLogout }) {
-  const [archivedUsers, setArchivedUsers] = useState([]);
+function AdminArchived({ setView }) {
+  const [archivedReservations, setArchivedReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(1);
-  const [viewUser, setViewUser] = useState(null);
+  const [viewReservation, setViewReservation] = useState(null);
   const [restoreConfirm, setRestoreConfirm] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
-  const [roleFilter, setRoleFilter] = useState("all");
-  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [alertModal, setAlertModal] = useState({ show: false, title: "", message: "", type: "info" });
 
   const itemsPerPage = 10;
@@ -22,55 +21,76 @@ function AdminArchivedUsers({ setView, onLogout }) {
     setAlertModal({ show: true, title, message, type });
   };
 
-  // ✅ Fetch archived users
-  const fetchArchivedUsers = async () => {
+  // Fetch archived reservations - FIXED ENDPOINT
+  const fetchArchivedReservations = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/users/archived/all`);
-
-      console.log("Archived Users Response:", res.data);
-
-      if (res.data && Array.isArray(res.data.users)) {
-        setArchivedUsers(res.data.users);
-      } else {
-        console.error("Response does not contain 'users' array");
-        setArchivedUsers([]);
-      }
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations/archived/all`);
+      setArchivedReservations(res.data);
     } catch (err) {
-      console.error("Failed to fetch archived users:", err);
-      showAlert("Error", "Failed to load archived users. Check console for details.", "error");
-      setArchivedUsers([]);
+      console.error("Failed to fetch archived reservations:", err);
+      showAlert("Error", "Failed to load archived reservations. Please try again.", "error");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchArchivedUsers();
+    fetchArchivedReservations();
   }, []);
 
-// ✅ Restore user - FIXED URL
-const handleRestore = async (id) => {
-  try {
-    await axios.put(`${import.meta.env.VITE_API_URL}/api/users/restore/${id}`); // Remove "/archived"
-    showAlert("Success", "User restored successfully.", "success");
-    fetchArchivedUsers();
-  } catch (err) {
-    console.error("Failed to restore user:", err);
-    showAlert("Error", "Failed to restore user. Check console for details.", "error");
-  }
-};
+  // Restore reservation - FIXED ENDPOINT
+  const handleRestore = async (id) => {
+    try {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/reservations/archived/${id}/restore`);
+      showAlert("Success", "Reservation restored successfully.", "success");
 
-  // ✅ Permanently delete user
+      // Refresh archived list
+      fetchArchivedReservations();
+
+      // 🔑 Tell AdminReservations to refresh
+      window.dispatchEvent(new Event("reservationRestored"));
+    } catch (err) {
+      console.error("Failed to restore reservation:", err);
+      const errorMessage = err.response?.data?.message || "Failed to restore reservation.";
+      showAlert("Error", errorMessage, "error");
+    }
+  };
+
+  // Permanently delete reservation - FIXED ENDPOINT
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`${import.meta.env.VITE_API_URL}/api/users/archived/${id}`);
-      showAlert("Success", "User permanently deleted.", "success");
-      fetchArchivedUsers();
+      await axios.delete(`${import.meta.env.VITE_API_URL}/api/reservations/archived/${id}`);
+      showAlert("Success", "Reservation permanently deleted.", "success");
+      fetchArchivedReservations();
     } catch (err) {
-      console.error("Failed to delete user:", err);
-      showAlert("Error", "Failed to delete user. Check console for details.", "error");
+      console.error("Failed to delete reservation:", err);
+      const errorMessage = err.response?.data?.message || "Failed to delete reservation.";
+      showAlert("Error", errorMessage, "error");
     }
+  };
+
+  // Calculate duration between start and end time
+  const calculateDuration = (start, end) => {
+    if (!start || !end) return "N/A";
+    const diffMs = new Date(end) - new Date(start);
+    if (diffMs <= 0) return "N/A";
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours >= 24) return `${Math.round(hours / 24)} day(s)`;
+    if (hours > 0) return `${hours} hr ${minutes} min`;
+    return `${minutes} min`;
+  };
+
+  // Format date for display
+  const formatDate = (date) => {
+    return date
+      ? new Date(date).toLocaleDateString("en-PH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      : "—";
   };
 
   // Format datetime for display
@@ -87,52 +107,49 @@ const handleRestore = async (id) => {
   };
 
   // Filter & sort
-  const filteredUsers = archivedUsers
-    .filter(user => {
+  const filteredReservations = archivedReservations
+    .filter(reservation => {
       const matchesSearch = 
-        user.name?.toLowerCase().includes(search.toLowerCase()) ||
-        user.id_number?.toLowerCase().includes(search.toLowerCase()) ||
-        user.email?.toLowerCase().includes(search.toLowerCase()) ||
-        user.department?.toLowerCase().includes(search.toLowerCase()) ||
-        user.course?.toLowerCase().includes(search.toLowerCase());
+        reservation.roomName?.toLowerCase().includes(search.toLowerCase()) ||
+        reservation.location?.toLowerCase().includes(search.toLowerCase()) ||
+        reservation.userId?.name?.toLowerCase().includes(search.toLowerCase()) ||
+        reservation.userId?.id_number?.toLowerCase().includes(search.toLowerCase());
       
-      const matchesRole = roleFilter === "all" || user.role === roleFilter;
-      const matchesDepartment = departmentFilter === "all" || user.department === departmentFilter;
+      const matchesStatus = statusFilter === "all" || reservation.status === statusFilter;
       
-      return matchesSearch && matchesRole && matchesDepartment;
+      return matchesSearch && matchesStatus;
     })
     .sort((a, b) => {
       if (sortBy === "newest") return new Date(b.archivedAt) - new Date(a.archivedAt);
       if (sortBy === "oldest") return new Date(a.archivedAt) - new Date(b.archivedAt);
-      if (sortBy === "name-az") return a.name.localeCompare(b.name);
-      if (sortBy === "name-za") return b.name.localeCompare(a.name);
-      if (sortBy === "id-az") return a.id_number.localeCompare(b.id_number);
-      if (sortBy === "id-za") return b.id_number.localeCompare(a.id_number);
+      if (sortBy === "room-az") return a.roomName.localeCompare(b.roomName);
+      if (sortBy === "room-za") return b.roomName.localeCompare(a.roomName);
+      if (sortBy === "user-az") return (a.userId?.name || "").localeCompare(b.userId?.name || "");
+      if (sortBy === "user-za") return (b.userId?.name || "").localeCompare(a.userId?.name || "");
       return 0;
     });
 
-  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
-  const paginatedUsers = filteredUsers.slice(
+  const totalPages = Math.ceil(filteredReservations.length / itemsPerPage);
+  const paginatedReservations = filteredReservations.slice(
     (page - 1) * itemsPerPage,
     page * itemsPerPage
   );
 
-  // Get unique values for filters
-  const roleOptions = ["all", ...new Set(archivedUsers.map(u => u.role))];
-  const departmentOptions = ["all", ...new Set(archivedUsers.map(u => u.department).filter(Boolean))];
+  // Get unique statuses for filter
+  const statusOptions = ["all", ...new Set(archivedReservations.map(r => r.status))];
 
   return (
     <>
-      <AdminNavigation setView={setView} currentView="adminArchivedUsers" onLogout={onLogout}/>
+      <AdminNavigation setView={setView} currentView="adminArchived" onLogout={onLogout} />
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
         <header className="bg-white px-6 py-4 border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-[#CC0000]">Archived Users</h1>
-          <p className="text-gray-600">View and manage archived user accounts</p>
+          <h1 className="text-2xl font-bold text-[#CC0000]">Archived Reservations</h1>
+          <p className="text-gray-600">View and manage archived reservation records</p>
         </header>
 
         <div className="p-6">
           {/* Search & Sort & Filter */}
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4 grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4 grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Search */}
             <div className="relative">
               <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
@@ -142,40 +159,24 @@ const handleRestore = async (id) => {
               </div>
               <input
                 type="text"
-                placeholder="Search users..."
+                placeholder="Search reservations..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="border border-gray-300 p-2.5 pl-10 rounded-lg w-full focus:ring-2 focus:ring-[#CC0000] focus:border-transparent outline-0 cursor-pointer"
               />
             </div>
 
-            {/* Role Filter */}
+            {/* Status Filter */}
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Role:</span>
+              <span className="text-sm text-gray-600">Status:</span>
               <select
-                value={roleFilter}
-                onChange={(e) => setRoleFilter(e.target.value)}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
                 className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent w-full outline-0 cursor-pointer"
               >
-                {roleOptions.map(role => (
-                  <option key={role} value={role}>
-                    {role === "all" ? "All Roles" : role}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Department Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Department:</span>
-              <select
-                value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent w-full outline-0 cursor-pointer"
-              >
-                {departmentOptions.map(dept => (
-                  <option key={dept} value={dept}>
-                    {dept === "all" ? "All Departments" : dept || "No Department"}
+                {statusOptions.map(status => (
+                  <option key={status} value={status}>
+                    {status === "all" ? "All Statuses" : status}
                   </option>
                 ))}
               </select>
@@ -191,34 +192,34 @@ const handleRestore = async (id) => {
               >
                 <option value="newest">Newest Archived</option>
                 <option value="oldest">Oldest Archived</option>
-                <option value="name-az">Name A-Z</option>
-                <option value="name-za">Name Z-A</option>
-                <option value="id-az">ID Number A-Z</option>
-                <option value="id-za">ID Number Z-A</option>
+                <option value="room-az">Room A-Z</option>
+                <option value="room-za">Room Z-A</option>
+                <option value="user-az">User A-Z</option>
+                <option value="user-za">User Z-A</option>
               </select>
             </div>
           </div>
 
-          {/* Users List */}
+          {/* Reservations List */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-800">Archived Users List</h2>
+              <h2 className="text-xl font-semibold text-gray-800">Archived Reservations List</h2>
               <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-                {filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'}
+                {filteredReservations.length} {filteredReservations.length === 1 ? 'item' : 'items'}
               </span>
             </div>
 
             {loading ? (
               <div className="text-center p-8">
-                <p className="mt-2 text-gray-500 font-bold">Loading archived users...</p>
+                <p className="mt-2 text-gray-500 font-bold">Loading archived reservations...</p>
               </div>
-            ) : paginatedUsers.length === 0 ? (
+            ) : paginatedReservations.length === 0 ? (
               <div className="text-center p-8 border border-dashed border-gray-300 rounded-lg">
                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No archived users found</h3>
-                <p className="mt-1 text-sm text-gray-500">All users are currently active or no users have been archived yet.</p>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No archived reservations found</h3>
+                <p className="mt-1 text-sm text-gray-500">All reservations are currently active or no reservations have been archived yet.</p>
               </div>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -226,51 +227,66 @@ const handleRestore = async (id) => {
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Room</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                       <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Archived On</th>
                       <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {paginatedUsers.map((user, index) => (
-                      <tr key={user._id} className="hover:bg-gray-50 transition-colors">
+                    {paginatedReservations.map((reservation, index) => (
+                      <tr key={reservation._id} className="hover:bg-gray-50 transition-colors">
                         <td className="p-3 text-gray-700">{(page - 1) * itemsPerPage + index + 1}</td>
-                        <td className="p-3 font-medium text-gray-900">{user.id_number}</td>
                         <td className="p-3">
-                          <div className="font-medium text-gray-900">{user.name}</div>
-                          {user.course && (
-                            <div className="text-xs text-gray-500">
-                              {user.course} {user.year_level ? `• Year ${user.year_level}` : ''}
-                            </div>
-                          )}
+                          <div className="font-medium text-gray-900">{reservation.roomName}</div>
+                          <div className="text-xs text-gray-500">{reservation.location}</div>
                         </td>
-                        <td className="p-3 text-gray-600">{user.email}</td>
+                        <td className="p-3">
+                          <div className="font-medium text-gray-900">{reservation.userId?.name}</div>
+                          <div className="text-xs text-gray-500">{reservation.userId?.id_number}</div>
+                        </td>
+                        <td className="p-3">
+                          <div className="text-gray-900">{formatDate(reservation.datetime)}</div>
+                          <div className="text-xs text-gray-500">
+                            {reservation.datetime && new Date(reservation.datetime).toLocaleTimeString([], { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </div>
+                        </td>
+                        <td className="p-3 text-gray-600">
+                          {calculateDuration(reservation.datetime, reservation.endDatetime)}
+                        </td>
                         <td className="p-3">
                           <span
                             className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              user.role === "admin"
-                                ? "bg-purple-100 text-purple-800"
-                                : user.role === "faculty"
+                              reservation.status === "Completed"
+                                ? "bg-green-100 text-green-800"
+                                : reservation.status === "Approved"
                                 ? "bg-blue-100 text-blue-800"
-                                : "bg-green-100 text-green-800"
+                                : reservation.status === "Cancelled"
+                                ? "bg-gray-100 text-gray-800"
+                                : reservation.status === "Rejected"
+                                ? "bg-red-100 text-red-800"
+                                : reservation.status === "Expired"
+                                ? "bg-orange-100 text-orange-800"
+                                : "bg-yellow-100 text-yellow-800"
                             }`}
                           >
-                            {user.role}
+                            {reservation.status}
                           </span>
                         </td>
-                        <td className="p-3 text-gray-600">{user.department || "—"}</td>
                         <td className="p-3 text-gray-500 text-sm">
-                          {formatDateTime(user.archivedAt)}
+                          {formatDateTime(reservation.archivedAt)}
                         </td>
                         <td className="p-3">
                           <div className="flex gap-2">
                             <button
                               className="text-gray-600 hover:text-gray-800 p-2 rounded-md bg-gray-100 hover:bg-gray-200 transition-all cursor-pointer outline-0"
-                              onClick={() => setViewUser(user)}
+                              onClick={() => setViewReservation(reservation)}
                               title="View Details"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -281,7 +297,7 @@ const handleRestore = async (id) => {
 
                             <button
                               className="text-green-600 hover:text-green-800 p-2 rounded-md bg-green-50 hover:bg-green-100 transition-all cursor-pointer outline-0"
-                              onClick={() => setRestoreConfirm(user)}
+                              onClick={() => setRestoreConfirm(reservation)}
                               title="Restore"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -291,7 +307,7 @@ const handleRestore = async (id) => {
                             
                             <button
                               className="text-[#CC0000] hover:text-red-800 p-2 rounded-md bg-red-50 hover:bg-red-100 transition-all cursor-pointer outline-0"
-                              onClick={() => setDeleteConfirm(user)}
+                              onClick={() => setDeleteConfirm(reservation)}
                               title="Delete Permanently"
                             >
                               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -308,10 +324,10 @@ const handleRestore = async (id) => {
             )}
 
             {/* Pagination */}
-            {filteredUsers.length > 0 && (
+            {filteredReservations.length > 0 && (
               <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
                 <div className="text-sm text-gray-500">
-                  Showing {(page - 1) * itemsPerPage + 1} to {Math.min(page * itemsPerPage, filteredUsers.length)} of {filteredUsers.length} entries
+                  Showing {(page - 1) * itemsPerPage + 1} to {Math.min(page * itemsPerPage, filteredReservations.length)} of {filteredReservations.length} entries
                 </div>
                 <div className="flex gap-2">
                   <button
@@ -368,7 +384,7 @@ const handleRestore = async (id) => {
                   </button>
                 </div>
                 <p className="text-gray-600 mb-6">
-                  Are you sure you want to restore user "<span className="font-semibold">{restoreConfirm.name}</span>" ({restoreConfirm.id_number})?
+                  Are you sure you want to restore the reservation for room "<span className="font-semibold">{restoreConfirm.roomName}</span>" by {restoreConfirm.userId?.name}?
                 </p>
                 <div className="flex gap-3 justify-end">
                   <button
@@ -405,7 +421,7 @@ const handleRestore = async (id) => {
                   </button>
                 </div>
                 <p className="text-gray-600 mb-6">
-                  Are you sure you want to permanently delete user "<span className="font-semibold">{deleteConfirm.name}</span>" ({deleteConfirm.id_number})? This action cannot be undone.
+                  Are you sure you want to permanently delete the reservation for room "<span className="font-semibold">{deleteConfirm.roomName}</span>" by {deleteConfirm.userId?.name}? This action cannot be undone.
                 </p>
                 <div className="flex gap-3 justify-end">
                   <button
@@ -428,15 +444,15 @@ const handleRestore = async (id) => {
             </div>
           )}
 
-          {/* View User Modal */}
-          {viewUser && (
+          {/* View Reservation Modal */}
+          {viewReservation && (
             <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4">
               <div className="bg-white p-6 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-800">User Details</h2>
+                  <h2 className="text-xl font-bold text-gray-800">Reservation Details</h2>
                   <button
                     className="text-gray-500 hover:text-gray-700 cursor-pointer outline-0"
-                    onClick={() => setViewUser(null)}
+                    onClick={() => setViewReservation(null)}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -444,67 +460,92 @@ const handleRestore = async (id) => {
                   </button>
                 </div>
                 
-                <div className="mb-6">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">{viewUser.name}</h3>
-                  <p className="text-sm text-gray-500">
-                    Archived on: {formatDateTime(viewUser.archivedAt)}
-                  </p>
-                </div>
-                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Reservation Information</h3>
                     <div className="space-y-3">
                       <div>
-                        <label className="text-sm font-medium text-gray-500">ID Number</label>
-                        <p className="text-gray-900">{viewUser.id_number}</p>
+                        <label className="text-sm font-medium text-gray-500">Room</label>
+                        <p className="text-gray-900">{viewReservation.roomName}</p>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Email</label>
-                        <p className="text-gray-900">{viewUser.email}</p>
+                        <label className="text-sm font-medium text-gray-500">Location</label>
+                        <p className="text-gray-900">{viewReservation.location}</p>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Role</label>
-                        <p className="text-gray-900">
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              viewUser.role === "admin"
-                                ? "bg-purple-100 text-purple-800"
-                                : viewUser.role === "faculty"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-green-100 text-green-800"
-                            }`}
-                          >
-                            {viewUser.role}
-                          </span>
-                        </p>
+                        <label className="text-sm font-medium text-gray-500">Start Time</label>
+                        <p className="text-gray-900">{formatDateTime(viewReservation.datetime)}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">End Time</label>
+                        <p className="text-gray-900">{formatDateTime(viewReservation.endDatetime)}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Duration</label>
+                        <p className="text-gray-900">{calculateDuration(viewReservation.datetime, viewReservation.endDatetime)}</p>
                       </div>
                     </div>
                   </div>
                   
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Academic Information</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">User Information</h3>
                     <div className="space-y-3">
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Department</label>
-                        <p className="text-gray-900">{viewUser.department || "—"}</p>
+                        <label className="text-sm font-medium text-gray-500">Name</label>
+                        <p className="text-gray-900">{viewReservation.userId?.name}</p>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Course</label>
-                        <p className="text-gray-900">{viewUser.course || "—"}</p>
+                        <label className="text-sm font-medium text-gray-500">ID Number</label>
+                        <p className="text-gray-900">{viewReservation.userId?.id_number}</p>
                       </div>
                       <div>
-                        <label className="text-sm font-medium text-gray-500">Year Level</label>
-                        <p className="text-gray-900">{viewUser.year_level || "—"}</p>
+                        <label className="text-sm font-medium text-gray-500">Email</label>
+                        <p className="text-gray-900">{viewReservation.userId?.email}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Role</label>
+                        <p className="text-gray-900">{viewReservation.userId?.role}</p>
                       </div>
                     </div>
                   </div>
                 </div>
 
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Status & Archive Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Status</label>
+                      <div className="mt-1">
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            viewReservation.status === "Completed"
+                              ? "bg-green-100 text-green-800"
+                              : viewReservation.status === "Approved"
+                              ? "bg-blue-100 text-blue-800"
+                              : viewReservation.status === "Cancelled"
+                              ? "bg-gray-100 text-gray-800"
+                              : viewReservation.status === "Rejected"
+                              ? "bg-red-100 text-red-800"
+                              : viewReservation.status === "Expired"
+                              ? "bg-orange-100 text-orange-800"
+                              : "bg-yellow-100 text-yellow-800"
+                          }`}
+                        >
+                          {viewReservation.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Archived On</label>
+                      <p className="text-gray-900">{formatDateTime(viewReservation.archivedAt)}</p>
+                    </div>
+                  </div>
+                </div>
+                
                 <div className="flex justify-end">
                   <button
                     className="px-4 py-2 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer outline-0"
-                    onClick={() => setViewUser(null)}
+                    onClick={() => setViewReservation(null)}
                   >
                     Close
                   </button>
@@ -528,7 +569,7 @@ const handleRestore = async (id) => {
   );
 }
 
-// Alert Modal Component (Copied from AdminLogs)
+// Alert Modal Component
 function AlertModal({ title, message, type = "info", onClose }) {
   const getIcon = () => {
     switch (type) {
@@ -603,4 +644,4 @@ function AlertModal({ title, message, type = "info", onClose }) {
   );
 }
 
-export default AdminArchivedUsers;
+export default AdminArchived;
