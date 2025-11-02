@@ -267,7 +267,11 @@ const ReportProblemModal = ({ isOpen, onClose, user }) => {
                   {loadingRooms && (
                     <p className="text-xs text-gray-500 mt-1">Loading rooms...</p>
                   )}
-                 
+                  {!loadingRooms && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      {Object.keys(roomOptions).length} floor(s) available
+                    </p>
+                  )}
                 </div>
 
                 <div className="mb-5">
