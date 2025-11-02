@@ -391,7 +391,7 @@ const renderAdminNavigation = (Component) => (
       admin={user}
       setView={setView}
       currentView={view}
-      onLogout={() => setShowLogoutModal(true)}  // ← onLogout is passed here
+      onLogout={() => setShowLogoutModal(true)}  // ← This triggers App.jsx modal
     />
     {Component}
   </>
