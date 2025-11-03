@@ -1,7 +1,7 @@
 import React from "react";
 import moment from "moment-timezone";
 
-function AdminRoomAvailabilityModal({
+function RoomAvailabilityModal({
   selectedDate,
   roomStatuses = [],
   availLoading,
@@ -22,26 +22,24 @@ function AdminRoomAvailabilityModal({
     return moment(iso).tz("Asia/Manila").format("hh:mm A");
   };
 
-  // Filter room statuses for admin view - show both approved and pending reservations
+  // Filter room statuses to only show approved reservations to other users
   const getFilteredRoomStatus = (room) => {
     const isRoomActive = room.isActive !== false;
     const approvedOccupied = Array.isArray(room.occupied) ? room.occupied : [];
-    const pendingReservations = Array.isArray(room.pending) ? room.pending : [];
     
-    // For admin view, show both approved and pending reservations
-    const adminView = {
+    // If we have currentUserId, we could show user's own pending reservations
+    // But for other users, only show approved reservations
+    const showToOtherUsers = {
       ...room,
-      occupied: approvedOccupied,
-      pending: pendingReservations,
-      // Include all reservation data for admin
+      occupied: approvedOccupied, // Only approved reservations
+      // Don't include pending array for other users
     };
 
-    return adminView;
+    return showToOtherUsers;
   };
 
   const filteredRoomStatuses = roomStatuses.map(getFilteredRoomStatus);
 
-  // Group rooms by floor
   const groupedByFloor = filteredRoomStatuses.reduce((acc, room) => {
     const floor = room.floor || "Unknown Floor";
     if (!acc[floor]) acc[floor] = [];
@@ -49,33 +47,19 @@ function AdminRoomAvailabilityModal({
     return acc;
   }, {});
 
-  // Helper function to determine room status (consider both approved and pending)
+  // Helper function to determine room status (only based on approved reservations)
   const getRoomStatus = (room) => {
     const isRoomActive = room.isActive !== false;
     const hasOccupied = Array.isArray(room.occupied) && room.occupied.length > 0;
-    const hasPending = Array.isArray(room.pending) && room.pending.length > 0;
 
     if (!isRoomActive) {
       return { status: 'inactive', color: 'gray' };
     } else if (hasOccupied) {
       return { status: 'occupied', color: 'red' };
-    } else if (hasPending) {
-      return { status: 'pending', color: 'amber' };
     } else {
       return { status: 'available', color: 'green' };
     }
   };
-
-  // Get all unique floors from the room data
-  const allFloors = Object.keys(groupedByFloor).sort((a, b) => {
-    const floorOrder = {
-      "Ground Floor": 0,
-      "2nd Floor": 1,
-      "4th Floor": 2,
-      "5th Floor": 3
-    };
-    return (floorOrder[a] || 999) - (floorOrder[b] || 999);
-  });
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-2">
@@ -110,7 +94,7 @@ function AdminRoomAvailabilityModal({
           {availLoading ? (
             <div className="flex flex-col items-center justify-center py-8">
               <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-              <p className="text-gray-600 text-sm">Loading room availability...</p>
+              <p className="text-gray-600 text-sm">Loading...</p>
             </div>
           ) : availError ? (
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
@@ -122,16 +106,13 @@ function AdminRoomAvailabilityModal({
             </div>
           ) : (
             <div className="space-y-3">
-              {allFloors.map((floorName, fIdx) => {
-                const rooms = groupedByFloor[floorName] || [];
+              {["Ground Floor", "2nd Floor", "4th Floor", "5th Floor"].filter(f => groupedByFloor[f]).map((floorName, fIdx) => {
+                const rooms = groupedByFloor[floorName];
                 return (
                   <div key={fIdx} className="border border-gray-200 rounded-lg overflow-hidden">
                     {/* Floor Header */}
                     <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
                       <h3 className="font-semibold text-gray-800 text-sm">{floorName}</h3>
-                      <p className="text-xs text-gray-500 mt-0.5">
-                        {rooms.length} room{rooms.length !== 1 ? 's' : ''}
-                      </p>
                     </div>
                     
                     {/* Room List */}
@@ -139,7 +120,6 @@ function AdminRoomAvailabilityModal({
                       {rooms.map((room, rIdx) => {
                         const { status, color } = getRoomStatus(room);
                         const isRoomActive = room.isActive !== false;
-                        const hasPending = Array.isArray(room.pending) && room.pending.length > 0;
 
                         return (
                           <div key={rIdx} className="p-3">
@@ -148,8 +128,7 @@ function AdminRoomAvailabilityModal({
                               <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                                   status === 'inactive' ? "bg-gray-400" :
-                                  status === 'occupied' ? "bg-red-500" :
-                                  status === 'pending' ? "bg-amber-500" : "bg-green-500"
+                                  status === 'occupied' ? "bg-red-500" : "bg-green-500"
                                 }`} />
                                 <p className={`font-medium text-sm truncate ${
                                   !isRoomActive ? "text-gray-500" : "text-gray-900"
@@ -175,37 +154,11 @@ function AdminRoomAvailabilityModal({
                                       <span className="text-xs text-gray-500">+{room.occupied.length - 2} more</span>
                                     )}
                                   </div>
-                                ) : status === 'pending' ? (
-                                  <div className="space-y-1">
-                                    <span className="text-xs text-amber-600 bg-amber-100 px-2 py-1 rounded block">Pending Approval</span>
-                                    {room.pending.slice(0, 2).map((p, i) => (
-                                      <span key={i} className="text-xs text-gray-600 bg-white px-2 py-1 rounded block">
-                                        {formatTime(p.start)}-{formatTime(p.end)}
-                                      </span>
-                                    ))}
-                                    {room.pending.length > 2 && (
-                                      <span className="text-xs text-gray-500">+{room.pending.length - 2} more</span>
-                                    )}
-                                  </div>
                                 ) : (
                                   <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">Available</span>
                                 )}
                               </div>
                             </div>
-
-                            {/* Additional info for admin */}
-                            {(room.occupied?.length > 0 || room.pending?.length > 0) && (
-                              <div className="mt-2 pt-2 border-t border-gray-100">
-                                <div className="flex justify-between text-xs text-gray-500">
-                                  <span>
-                                    Approved: {room.occupied?.length || 0}
-                                  </span>
-                                  <span>
-                                    Pending: {room.pending?.length || 0}
-                                  </span>
-                                </div>
-                              </div>
-                            )}
                           </div>
                         );
                       })}
@@ -217,28 +170,6 @@ function AdminRoomAvailabilityModal({
           )}
         </div>
         
-        {/* Legend */}
-        <div className="p-3 border-t border-gray-200 bg-gray-50">
-          <div className="flex flex-wrap gap-4 justify-center text-xs">
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <span className="text-gray-600">Available</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-              <span className="text-gray-600">Occupied</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
-              <span className="text-gray-600">Pending</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-              <span className="text-gray-600">Inactive</span>
-            </div>
-          </div>
-        </div>
-
         {/* Compact Footer */}
         <div className="p-3 border-t border-gray-200 bg-gray-50">
           <button
@@ -253,4 +184,4 @@ function AdminRoomAvailabilityModal({
   );
 }
 
-export default AdminRoomAvailabilityModal;
+export default RoomAvailabilityModal;
