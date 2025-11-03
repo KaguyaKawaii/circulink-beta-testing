@@ -277,14 +277,14 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
             {/* Logout - Fixed with proper click handling */}
             <div className="mt-auto border-t border-gray-800 bg-[#0a0a0a] relative z-[99999] pointer-events-auto">
               <button
-                onClick={() => {
-                  // Show logout modal instead of direct logout
-                  if (typeof window !== 'undefined') {
-                    window.dispatchEvent(new CustomEvent('showLogoutModal'));
-                  }
-                }}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm text-gray-400 hover:bg-red-900/20 hover:text-red-300 transition-all duration-200 hover:border-l-4 hover:border-red-500 cursor-pointer relative z-[99999]"
-              >
+  onClick={() => {
+    // Show logout modal instead of direct logout
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('showLogoutModal'));
+    }
+  }}
+  className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm text-gray-400 hover:bg-red-900/20 hover:text-red-300 transition-all duration-200 hover:border-l-4 hover:border-red-500 cursor-pointer relative z-[99999]"
+>
                 <div className="text-gray-400">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16,17 21,12 16,7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                 </div>
