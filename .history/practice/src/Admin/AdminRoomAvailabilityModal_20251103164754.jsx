@@ -22,18 +22,26 @@ function AdminRoomAvailabilityModal({
     return moment(iso).tz("Asia/Manila").format("hh:mm A");
   };
 
-  // Process room data - ensure consistent structure
-  const processedRoomStatuses = roomStatuses.map(room => ({
-    _id: room._id || room.room,
-    room: room.room || "Unnamed Room",
-    floor: room.floor || "Unknown Floor",
-    isActive: room.isActive !== false,
-    occupied: Array.isArray(room.occupied) ? room.occupied : [],
-    pending: Array.isArray(room.pending) ? room.pending : []
-  }));
+  // Enhanced room filtering for admin view - show both approved and pending
+  const getFilteredRoomStatus = (room) => {
+    const isRoomActive = room.isActive !== false;
+    const approvedOccupied = Array.isArray(room.occupied) ? room.occupied : [];
+    const pendingReservations = Array.isArray(room.pending) ? room.pending : [];
+    
+    // For admin view, show both approved and pending reservations
+    const adminView = {
+      ...room,
+      occupied: approvedOccupied,
+      pending: pendingReservations,
+    };
+
+    return adminView;
+  };
+
+  const filteredRoomStatuses = roomStatuses.map(getFilteredRoomStatus);
 
   // Group rooms by floor dynamically
-  const groupedByFloor = processedRoomStatuses.reduce((acc, room) => {
+  const groupedByFloor = filteredRoomStatuses.reduce((acc, room) => {
     const floor = room.floor || "Unknown Floor";
     if (!acc[floor]) acc[floor] = [];
     acc[floor].push(room);
@@ -107,14 +115,14 @@ function AdminRoomAvailabilityModal({
             <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-center">
               <p className="text-red-700 text-sm">{availError}</p>
             </div>
-          ) : processedRoomStatuses.length === 0 ? (
+          ) : filteredRoomStatuses.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-gray-500 text-sm">No rooms available for selected date</p>
+              <p className="text-gray-500 text-sm">No rooms available</p>
             </div>
           ) : (
             <div className="space-y-3">
               {allFloors.map((floorName, fIdx) => {
-                const rooms = groupedByFloor[floorName] || [];
+                const rooms = groupedByFloor[floorName];
                 return (
                   <div key={fIdx} className="border border-gray-200 rounded-lg overflow-hidden">
                     {/* Floor Header */}
@@ -130,6 +138,7 @@ function AdminRoomAvailabilityModal({
                       {rooms.map((room, rIdx) => {
                         const { status, color } = getRoomStatus(room);
                         const isRoomActive = room.isActive !== false;
+                        const hasPending = Array.isArray(room.pending) && room.pending.length > 0;
 
                         return (
                           <div key={rIdx} className="p-3">
