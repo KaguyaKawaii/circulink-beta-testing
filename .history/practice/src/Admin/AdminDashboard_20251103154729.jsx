@@ -5,8 +5,6 @@ import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import AdminNews from "./AdminNews";
 import AdminLogs from "./AdminLogs";
-import RoomAvailabilityModal from "./RoomAvailabilityModal";
-
 import {
   Home,
   MapPin,
