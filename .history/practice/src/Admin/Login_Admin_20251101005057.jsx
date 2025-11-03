@@ -161,6 +161,12 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
     setLockUntil(null);
   };
 
+  const handleBackToUserLogin = () => {
+    if (!maintenanceMode) {
+      onBackToUserLogin();
+    }
+  };
+
   // Check if account is still locked
   if (lockUntil && lockUntil > Date.now()) {
     const remainingMinutes = Math.ceil((lockUntil - Date.now()) / 1000 / 60);
@@ -177,6 +183,24 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
           <p className="text-gray-400 mb-6">
             Please try again in <strong className="text-amber-400">{remainingMinutes} minute{remainingMinutes > 1 ? 's' : ''}</strong>.
           </p>
+          <div className="flex justify-center">
+            <button
+              onClick={handleBackToUserLogin}
+              disabled={maintenanceMode}
+              className={`px-6 py-3 rounded-lg transition-all duration-300 ${
+                maintenanceMode 
+                  ? "bg-gray-800 text-gray-500 cursor-not-allowed" 
+                  : "bg-gray-700 hover:bg-gray-600 text-white cursor-pointer"
+              }`}
+            >
+              {maintenanceMode ? "Maintenance Mode Active" : "Back to User Login"}
+            </button>
+          </div>
+          {maintenanceMode && (
+            <p className="text-center text-amber-400 text-sm mt-3">
+              User login is currently unavailable during maintenance.
+            </p>
+          )}
         </div>
       </main>
     );
@@ -349,6 +373,27 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
                 {loading ? "Authenticating..." : "Login to Admin Portal"}
               </button>
             </form>
+          )}
+
+          {!requiresOTP && (
+            <div className="mt-6 pt-6 border-t border-gray-700 text-center">
+              <button
+                onClick={handleBackToUserLogin}
+                disabled={maintenanceMode || loading}
+                className={`font-medium transition-colors duration-300 text-sm ${
+                  maintenanceMode 
+                    ? "text-gray-500 cursor-not-allowed" 
+                    : "text-amber-400 hover:text-amber-300 cursor-pointer"
+                } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
+              >
+                {maintenanceMode ? "User Login Unavailable (Maintenance)" : "← Back to User Login"}
+              </button>
+              {maintenanceMode && (
+                <p className="text-xs text-amber-400 mt-2">
+                  Regular user login is temporarily disabled during system maintenance.
+                </p>
+              )}
+            </div>
           )}
         </div>
 
