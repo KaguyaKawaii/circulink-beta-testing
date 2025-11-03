@@ -1,10 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const roomController = require("../controllers/roomController");
-const availabilityController = require("../controllers/availabilityController"); // Add this import
-
-// ✅ ADD THIS ROUTE - MUST BE AT THE TOP
-router.get("/availability", availabilityController.getAvailability);
 
 // GET /rooms
 router.get("/", roomController.getRooms);

@@ -3,7 +3,7 @@ const router = express.Router();
 const roomController = require("../controllers/roomController");
 const availabilityController = require("../controllers/availabilityController"); // Add this import
 
-// ✅ ADD THIS ROUTE - MUST BE AT THE TOP
+// ✅ ADD THIS ROUTE - MUST BE BEFORE DYNAMIC ROUTES
 router.get("/availability", availabilityController.getAvailability);
 
 // GET /rooms
@@ -12,7 +12,7 @@ router.get("/", roomController.getRooms);
 // GET /rooms/stats
 router.get("/stats", roomController.getRoomStats);
 
-// GET /rooms/:id
+// GET /rooms/:id  ← This was catching "/availability" as an ID
 router.get("/:id", roomController.getRoomById);
 
 // GET /rooms/floor/:floor
