@@ -80,39 +80,11 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get current domain dynamically
+  // Get current domain
   const hostname = window.location.hostname;
-  const protocol = window.location.protocol;
-  const isAdminDomain = hostname.includes('admin-circulink') || hostname.includes('admin.');
+  const isAdminDomain = hostname.includes('admin.');
   
-  // Dynamic domain URLs
-  const getMainDomainUrl = () => {
-    if (isAdminDomain) {
-      // If we're on admin domain, construct main domain
-      const mainDomain = hostname.replace('admin-', '').replace('admin.', '');
-      return `${protocol}//${mainDomain}`;
-    }
-    return `${protocol}//${hostname}`;
-  };
-
-  const getAdminDomainUrl = () => {
-    if (!isAdminDomain) {
-      // If we're on main domain, construct admin domain
-      if (hostname.includes('vercel.app')) {
-        return `${protocol}//admin-${hostname}`;
-      } else {
-        return `${protocol}//admin.${hostname}`;
-      }
-    }
-    return `${protocol}//${hostname}`;
-  };
-
-  console.log("Domain detection:", { 
-    hostname, 
-    isAdminDomain, 
-    mainDomain: getMainDomainUrl(),
-    adminDomain: getAdminDomainUrl()
-  });
+  console.log("Domain detection:", { hostname, isAdminDomain });
 
   // State using services
   const [user, setUser] = useState(() => AuthService.getUser());
@@ -141,13 +113,15 @@ function App() {
     // If on admin domain but user is not admin, redirect to main domain
     if (isAdminDomain && currentUser && currentUser.role !== 'admin') {
       console.log("Non-admin user on admin domain, redirecting to main domain");
-      window.location.href = `${getMainDomainUrl()}${location.pathname}`;
+      window.location.href = `https://yourapp.com${location.pathname}`;
       return;
     }
 
     // If on main domain but admin user, allow access but show warning
     if (!isAdminDomain && currentUser && currentUser.role === 'admin') {
       console.log("Admin user on main domain - allowing access but consider redirecting to admin domain");
+      // Optional: redirect to admin domain
+      // window.location.href = `https://admin.yourapp.com${location.pathname}`;
     }
   }, [view, user, isInitialized, isAdminDomain]);
 
@@ -176,8 +150,7 @@ function App() {
           setViewHistory(["adminLogin"]);
         } else if (currentUser.role === 'admin') {
           // Admin user on admin domain
-          const adminRoutes = ['adminLogin', 'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings'];
-          if (viewFromPath && adminRoutes.includes(viewFromPath)) {
+          if (viewFromPath && viewFromPath.startsWith('admin')) {
             setView(viewFromPath);
             setViewHistory([viewFromPath]);
           } else {
@@ -187,7 +160,7 @@ function App() {
           }
         } else {
           // Non-admin user on admin domain - redirect to main domain
-          window.location.href = getMainDomainUrl();
+          window.location.href = "https://yourapp.com";
           return;
         }
       } else {
@@ -435,7 +408,7 @@ function App() {
       setViewHistory(["adminDashboard"]);
     } else {
       // Admin logged in on main domain - redirect to admin domain
-      window.location.href = `${getAdminDomainUrl()}/admin/dashboard`;
+      window.location.href = "https://admin.yourapp.com/admin/dashboard";
     }
   };
 
@@ -537,7 +510,7 @@ function App() {
           <Login_Admin
             onAdminLoginSuccess={handleAdminLoginSuccess}
             onBackToUserLogin={() => {
-              window.location.href = `${getMainDomainUrl()}/login`;
+              window.location.href = "https://yourapp.com/login";
             }}
           />
         )}
