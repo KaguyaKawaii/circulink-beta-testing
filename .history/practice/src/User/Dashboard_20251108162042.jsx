@@ -44,7 +44,7 @@ const isSameManilaDate = (date1, date2) => {
   return getManilaDateString(date1) === getManilaDateString(date2);
 };
 
-
+// Filter reservations to hide expired, canceled, and completed after 24 hours
 // Filter reservations to hide expired, canceled, and completed after 24 hours
 const filterReservations = (reservations) => {
   const now = new Date();
