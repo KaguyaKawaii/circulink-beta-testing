@@ -174,17 +174,8 @@ function Message({ user, setView, currentView }) {
 
   // Responsive handling
   useEffect(() => {
-    const handleResize = () => {
-      const mobile = window.innerWidth < 1024;
-      setIsMobile(mobile);
-      // On desktop, always show sidebar open
-      if (!mobile && !isSidebarOpen) {
-        setIsSidebarOpen(true);
-      }
-    };
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
     window.addEventListener('resize', handleResize);
-    // Initial check
-    handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
@@ -565,18 +556,14 @@ function Message({ user, setView, currentView }) {
     } else {
       fetchAdminMessages();
     }
-    if (isMobile) {
-      setIsSidebarOpen(false);
-    }
+    setIsSidebarOpen(false);
   };
 
   const handleFloorSelect = (floor) => {
     setSelectedFloor(floor);
     setMessages([]);
     fetchMessages();
-    if (isMobile) {
-      setIsSidebarOpen(false);
-    }
+    setIsSidebarOpen(false);
   };
 
   const handleKeyDown = (e) => {
@@ -591,42 +578,18 @@ function Message({ user, setView, currentView }) {
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >      
-      {/* HEADER - Simplified for mobile */}
+      {/* HEADER - Removed burger icon from here */}
       <header className="text-black px-4 lg:px-6 h-16 lg:h-[60px] flex items-center justify-between shadow-sm lg:shadow-lg border-b border-gray-200 bg-white relative z-50">
         <div className="flex items-center space-x-3">
-          {/* Show burger icon on mobile only */}
-          {isMobile ? (
-            <button 
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
-              aria-label="Toggle sidebar"
-            >
-              <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-          ) : (
-            <h1 className="text-xl lg:text-2xl font-bold tracking-wide bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-              Messages
-            </h1>
-          )}
+          <h1 className="text-xl lg:text-2xl font-bold tracking-wide bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+            Messages
+          </h1>
         </div>
-        {/* On mobile, show chat switcher button */}
-        {isMobile && (
-          <div className="lg:hidden">
-            <button
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-lg transition-colors"
-            >
-              Switch Chat
-            </button>
-          </div>
-        )}
       </header>
 
       <div className="flex flex-1 overflow-hidden relative z-40">
         {/* Mobile Sidebar Overlay */}
-        {isSidebarOpen && isMobile && (
+        {isSidebarOpen && (
           <div 
             className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
             onClick={() => setIsSidebarOpen(false)}
@@ -635,33 +598,28 @@ function Message({ user, setView, currentView }) {
 
         {/* Sidebar - Mobile & Desktop */}
         <aside className={`
-          fixed lg:static top-0 left-0 h-full w-full sm:w-80 bg-white border-r border-gray-200 shadow-sm z-60 flex flex-col
+          fixed lg:static top-0 left-0 h-full w-80 bg-white border-r border-gray-200 shadow-sm z-60 flex flex-col
           transition-transform duration-300 ease-in-out
-          ${isSidebarOpen || !isMobile ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          ${isMobile ? 'w-full' : 'w-80'}
+          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
           {/* Mobile Header */}
-          {isMobile && (
-            <div className="flex items-center justify-between p-4 border-b border-gray-200">
-              <h2 className="text-lg font-bold text-gray-800">Message Options</h2>
-              <button 
-                onClick={() => setIsSidebarOpen(false)}
-                className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
-                aria-label="Close sidebar"
-              >
-                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          )}
+          <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200">
+            <h2 className="text-lg font-bold text-gray-800">Message Options</h2>
+            <button 
+              onClick={() => setIsSidebarOpen(false)}
+              className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+              aria-label="Close sidebar"
+            >
+              <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
 
-          {!isMobile && (
-            <div className="p-4 lg:p-6 border-b border-gray-100">
-              <h2 className="font-bold text-lg text-gray-800">Message Options</h2>
-              <p className="text-sm text-gray-600 mt-1">Choose who to message</p>
-            </div>
-          )}
+          <div className="p-6 border-b border-gray-100">
+            <h2 className="font-bold text-lg text-gray-800 hidden lg:block">Message Options</h2>
+            <p className="text-sm text-gray-600 mt-1 hidden lg:block">Choose who to message</p>
+          </div>
           
           {/* Tab Buttons */}
           <div className="p-4 border-b border-gray-100">
@@ -724,7 +682,7 @@ function Message({ user, setView, currentView }) {
 
           {/* Floor Selection (only show for floor tab) */}
           {activeTab === MESSAGE_TYPES.FLOOR && (
-            <div className="p-4 flex-1 overflow-y-auto">
+            <div className="p-4 flex-1">
               <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
                 <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -788,123 +746,119 @@ function Message({ user, setView, currentView }) {
           )}
         </aside>
 
-        {/* Chat Area - Only show when sidebar is closed on mobile */}
-        {(!isMobile || !isSidebarOpen) && (
-          <div className="flex-1 flex flex-col relative z-40 w-full">
-            {/* Chat Header */}
-            <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  {/* Burger Icon for mobile and desktop */}
-                  {!isMobile && (
-                    <button 
-                      onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
-                      aria-label="Toggle chat selection"
-                    >
-                      <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                      </svg>
-                    </button>
-                  )}
-                  
-                  <div className={`w-3 h-3 rounded-full ${
-                    activeTab === MESSAGE_TYPES.FLOOR ? "bg-gradient-to-r from-red-500 to-orange-500" : "bg-gradient-to-r from-blue-500 to-cyan-500"
-                  }`}></div>
-                  <div>
-                    <h2 className="text-lg lg:text-xl font-bold text-gray-800">
-                      {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "Administration Team"}
-                    </h2>
-                    <p className="text-xs lg:text-sm text-gray-600 mt-1 flex items-center">
-                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {activeTab === MESSAGE_TYPES.FLOOR 
-                        ? `${selectedFloor} maintenance and support team` 
-                        : "System administrators and support staff"
-                      }
-                    </p>
-                  </div>
+        {/* Chat Area */}
+        <div className="flex-1 flex flex-col relative z-40">
+          {/* Chat Header - Added burger icon here */}
+          <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                {/* Burger Icon for mobile and desktop */}
+                <button 
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                  aria-label="Toggle chat selection"
+                >
+                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+                
+                <div className={`w-3 h-3 rounded-full ${
+                  activeTab === MESSAGE_TYPES.FLOOR ? "bg-gradient-to-r from-red-500 to-orange-500" : "bg-gradient-to-r from-blue-500 to-cyan-500"
+                }`}></div>
+                <div>
+                  <h2 className="text-lg lg:text-xl font-bold text-gray-800">
+                    {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "Administration Team"}
+                  </h2>
+                  <p className="text-xs lg:text-sm text-gray-600 mt-1 flex items-center">
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {activeTab === MESSAGE_TYPES.FLOOR 
+                      ? `${selectedFloor} maintenance and support team` 
+                      : "System administrators and support staff"
+                    }
+                  </p>
                 </div>
-                {getCurrentUnreadCount() > 0 && (
-                  <div className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
-                    {getCurrentUnreadCount()} unread message{getCurrentUnreadCount() !== 1 ? 's' : ''}
-                  </div>
-                )}
               </div>
-            </div>
-
-            {/* Messages Container */}
-            <div className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50">
-              {loading ? (
-                <LoadingSkeleton />
-              ) : messages.length === 0 ? (
-                <EmptyState />
-              ) : (
-                <div className="space-y-6 max-w-full mx-auto">
-                  {Object.entries(messageGroups).map(([date, dateMessages]) => (
-                    <div key={date}>
-                      <DateSeparator date={date} />
-                      
-                      {/* Messages for this date */}
-                      <div className="space-y-4">
-                        {dateMessages.map(msg => (
-                          <MessageBubble
-                            key={msg._id}
-                            message={msg}
-                            isOwn={msg.sender === user._id}
-                            isUnread={isMessageUnread(msg._id)}
-                            activeTab={activeTab}
-                            user={user}
-                            formatTime={formatTime}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                  <div ref={messagesEndRef} />
+              {getCurrentUnreadCount() > 0 && (
+                <div className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
+                  {getCurrentUnreadCount()} unread message{getCurrentUnreadCount() !== 1 ? 's' : ''}
                 </div>
               )}
             </div>
+          </div>
 
-            {/* Message Input */}
-            <div className="bg-white p-4 lg:p-6 border-t border-gray-200 shadow-lg">
-              <div className="max-w-full mx-auto">
-                <div className="flex space-x-3">
-                  <textarea
-                    placeholder={
-                      activeTab === MESSAGE_TYPES.FLOOR 
-                        ? `Send a message to ${selectedFloor}` 
-                        : "Send a message to administration"
-                    }
-                    className="flex-1 border-2 border-gray-200 rounded-2xl px-4 lg:px-6 py-3 focus:outline-none focus:border-red-500 transition-colors duration-300 shadow-sm bg-gray-50 focus:bg-white resize-none"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    rows={1}
-                    style={{ minHeight: '50px', maxHeight: '120px' }}
-                    aria-label="Type your message"
-                  />
-                  <button
-                    onClick={sendMessage}
-                    disabled={!newMessage.trim()}
-                    className={`text-white rounded-full p-3 lg:px-8 lg:py-3 disabled:opacity-50 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center ${
-                      activeTab === MESSAGE_TYPES.FLOOR 
-                        ? "bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600" 
-                        : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
-                    }`}
-                    aria-label="Send message"
-                  >
-                    <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                    </svg>
-                    <span className="hidden lg:inline ml-2">Send</span>
-                  </button>
-                </div>
+          {/* Messages Container */}
+          <div className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50">
+            {loading ? (
+              <LoadingSkeleton />
+            ) : messages.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <div className="space-y-6 max-w-full mx-auto">
+                {Object.entries(messageGroups).map(([date, dateMessages]) => (
+                  <div key={date}>
+                    <DateSeparator date={date} />
+                    
+                    {/* Messages for this date */}
+                    <div className="space-y-4">
+                      {dateMessages.map(msg => (
+                        <MessageBubble
+                          key={msg._id}
+                          message={msg}
+                          isOwn={msg.sender === user._id}
+                          isUnread={isMessageUnread(msg._id)}
+                          activeTab={activeTab}
+                          user={user}
+                          formatTime={formatTime}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div ref={messagesEndRef} />
+              </div>
+            )}
+          </div>
+
+          {/* Message Input */}
+          <div className="bg-white p-4 lg:p-6 border-t border-gray-200 shadow-lg">
+            <div className="max-w-full mx-auto">
+              <div className="flex space-x-3">
+                <textarea
+                  placeholder={
+                    activeTab === MESSAGE_TYPES.FLOOR 
+                      ? `Send a message to ${selectedFloor}` 
+                      : "Send a message to administration"
+                  }
+                  className="flex-1 border-2 border-gray-200 rounded-2xl px-4 lg:px-6 py-3 focus:outline-none focus:border-red-500 transition-colors duration-300 shadow-sm bg-gray-50 focus:bg-white resize-none"
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  onKeyDown={handleKeyPress}
+                  rows={1}
+                  style={{ minHeight: '50px', maxHeight: '120px' }}
+                  aria-label="Type your message"
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={!newMessage.trim()}
+                  className={`text-white rounded-full p-3 lg:px-8 lg:py-3 disabled:opacity-50 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center ${
+                    activeTab === MESSAGE_TYPES.FLOOR 
+                      ? "bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600" 
+                      : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                  }`}
+                  aria-label="Send message"
+                >
+                  <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                  <span className="hidden lg:inline ml-2">Send</span>
+                </button>
               </div>
             </div>
           </div>
-        )}
+        </div>
       </div>
     </main>
   );
