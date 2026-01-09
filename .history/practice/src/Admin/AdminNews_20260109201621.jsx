@@ -3,13 +3,13 @@ import axios from "axios";
 import AdminNavigation from "./AdminNavigation";
 import { Editor, EditorProvider } from "react-simple-wysiwyg";
 
-function AdminNews({ setView, admin }) {
+function AdminNews({ setView, admin, onLogout }) {
   const [newsList, setNewsList] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isPosting, setIsPosting] = useState(false);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
-  const [image, setImage] = useState(null);
+  const [images, setImages] = useState([]);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [page, setPage] = useState(1);
@@ -18,7 +18,7 @@ function AdminNews({ setView, admin }) {
   const [viewNews, setViewNews] = useState(null);
   const [archiveConfirm, setArchiveConfirm] = useState(null);
   const [postConfirm, setPostConfirm] = useState(false);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
+  const [imagePreviewUrls, setImagePreviewUrls] = useState([]);
   const [alertModal, setAlertModal] = useState({ show: false, title: "", message: "", type: "info" });
 
   const itemsPerPage = 5;
@@ -48,20 +48,43 @@ function AdminNews({ setView, admin }) {
   const resetForm = () => {
     setTitle("");
     setContent("");
-    setImage(null);
-    setImagePreviewUrl("");
+    setImages([]);
+    setImagePreviewUrls([]);
     setEditNews(null);
     setPreview(null);
   };
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImage(file);
-      const reader = new FileReader();
-      reader.onloadend = () => setImagePreviewUrl(reader.result);
-      reader.readAsDataURL(file);
+    const files = Array.from(e.target.files);
+    if (files.length === 0) return;
+
+    // Limit maximum upload count (e.g., max 5 images)
+    const maxImages = 5;
+    const totalImages = images.length + files.length;
+    if (totalImages > maxImages) {
+      showAlert("Warning", `Maximum ${maxImages} images allowed`, "warning");
+      return;
     }
+
+    setImages(prev => [...prev, ...files]);
+
+    // Generate preview URLs
+    const newPreviewUrls = [];
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        newPreviewUrls.push(reader.result);
+        if (newPreviewUrls.length === files.length) {
+          setImagePreviewUrls(prev => [...prev, ...newPreviewUrls]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const removeImage = (index) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
+    setImagePreviewUrls(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleAddOrUpdate = async () => {
@@ -77,14 +100,21 @@ function AdminNews({ setView, admin }) {
     const formData = new FormData();
     formData.append("title", title);
     formData.append("content", content);
-    if (image) formData.append("image", image);
+    images.forEach((img, index) => {
+      formData.append("images", img); // Note: field name might be plural "images"
+    });
 
     try {
       if (editNews) {
-        await axios.put(`${import.meta.env.VITE_API_URL}/api/news/${editNews._id}`, formData);
+        // When editing, might need to pass information about deleted images
+        await axios.put(`${import.meta.env.VITE_API_URL}/api/news/${editNews._id}`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
         showAlert("Success", "News updated successfully!", "success");
       } else {
-        await axios.post(`${import.meta.env.VITE_API_URL}/api/news`, formData);
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/news`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
         showAlert("Success", "News posted successfully!", "success");
       }
       fetchNews();
@@ -92,7 +122,7 @@ function AdminNews({ setView, admin }) {
       setPostConfirm(false);
     } catch (err) {
       console.error("Error posting/updating news:", err);
-      showAlert("Error", "Failed to save news: " + (err.response?.data?.message || err.message), "error");
+      showAlert("Error", "Failed to save: " + (err.response?.data?.message || err.message), "error");
     } finally {
       setIsPosting(false);
     }
@@ -102,7 +132,7 @@ function AdminNews({ setView, admin }) {
     if (!archiveConfirm) return;
 
     try {
-      await axios.put(`${import.meta.env.VITE_API_URL}/news/archive/${archiveConfirm._id}`);
+      await axios.put(`${import.meta.env.VITE_API_URL}/api/news/archive/${archiveConfirm._id}`);
       setNewsList(prevList =>
         prevList.filter(n => n._id.toString() !== archiveConfirm._id.toString())
       );
@@ -110,7 +140,7 @@ function AdminNews({ setView, admin }) {
       setArchiveConfirm(null);
     } catch (err) {
       console.error("Error archiving news:", err);
-      showAlert("Error", "Failed to archive news: " + (err.response?.data?.message || err.message), "error");
+      showAlert("Error", "Failed to archive: " + (err.response?.data?.message || err.message), "error");
     }
   };
 
@@ -137,7 +167,7 @@ function AdminNews({ setView, admin }) {
 
   return (
     <>
-      <AdminNavigation setView={setView} currentView="adminNews" />
+      <AdminNavigation setView={setView} currentView="adminNews" onLogout={onLogout}/>
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
         <header className="bg-white px-6 py-4 border-b border-gray-200">
           <h1 className="text-2xl font-bold text-[#CC0000]">News Management</h1>
@@ -170,22 +200,55 @@ function AdminNews({ setView, admin }) {
                 </EditorProvider>
               </div>
 
-              {/* Image upload */}
+              {/* Multiple Image Upload */}
               <div className="flex flex-col">
-                <label className="text-sm font-medium text-gray-700 mb-1">News Image</label>
+                <label className="text-sm font-medium text-gray-700 mb-1">News Images (Multiple allowed)</label>
                 <label className={`flex flex-col items-center justify-center w-full h-40 p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors ${isPosting ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                  {imagePreviewUrl || editNews?.image ? (
-                    <img
-                      src={imagePreviewUrl || editNews.image}
-                      alt="Preview"
-                      className="w-full h-full object-contain rounded-lg"
-                    />
+                  {imagePreviewUrls.length > 0 ? (
+                    <div className="w-full h-full overflow-x-auto">
+                      <div className="flex gap-2 h-full items-center">
+                        {imagePreviewUrls.map((url, index) => (
+                          <div key={index} className="relative h-full flex-shrink-0">
+                            <img
+                              src={url}
+                              alt={`Preview ${index + 1}`}
+                              className="h-full w-auto object-contain rounded-lg"
+                            />
+                            <button
+                              type="button"
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 cursor-pointer"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeImage(index);
+                              }}
+                              disabled={isPosting}
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : editNews?.images?.length > 0 ? (
+                    <div className="w-full h-full overflow-x-auto">
+                      <div className="flex gap-2 h-full items-center">
+                        {editNews.images.map((img, index) => (
+                          <img
+                            key={index}
+                            src={img}
+                            alt={`Edit image ${index + 1}`}
+                            className="h-full w-auto object-contain rounded-lg"
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center pt-5 pb-6">
                       <svg className="w-8 h-8 mb-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
                         <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2" />
                       </svg>
                       <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
+                      <p className="text-xs text-gray-500">Maximum 5 images allowed</p>
                     </div>
                   )}
                   <input
@@ -194,15 +257,19 @@ function AdminNews({ setView, admin }) {
                     className="hidden"
                     onChange={handleImageChange}
                     disabled={isPosting}
+                    multiple
                   />
                 </label>
+                <p className="text-xs text-gray-500 mt-2">
+                  {images.length} image(s) selected {images.length > 0 && `(up to ${5 - images.length} more allowed)`}
+                </p>
               </div>
 
               <div className="flex justify-between items-center pt-2">
                 <button
                   type="button"
                   className={`px-4 py-2.5 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors font-medium cursor-pointer ${isPosting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  onClick={() => setPreview({ title, content, image: imagePreviewUrl || editNews?.image })}
+                  onClick={() => setPreview({ title, content, images: imagePreviewUrls })}
                   disabled={isPosting}
                 >
                   Preview
@@ -338,8 +405,19 @@ function AdminNews({ setView, admin }) {
                     </svg>
                   </button>
                 </div>
-                {preview.image && (
-                  <img src={preview.image} alt="News" className="w-full h-64 object-contain rounded-lg mb-4" />
+                {preview.images && preview.images.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex overflow-x-auto gap-2 pb-2">
+                      {preview.images.map((img, index) => (
+                        <img 
+                          key={index} 
+                          src={img} 
+                          alt={`Preview ${index + 1}`} 
+                          className="h-48 w-auto object-cover rounded-lg flex-shrink-0"
+                        />
+                      ))}
+                    </div>
+                  </div>
                 )}
                 <h3 className="text-2xl font-semibold mb-2">{preview.title}</h3>
                 <div className="mb-4" dangerouslySetInnerHTML={{ __html: preview.content }}></div>
@@ -390,11 +468,8 @@ function AdminNews({ setView, admin }) {
             {isLoading ? (
               <div className="text-center p-8">
                 <div className="text-center">
-
-  <p className="text-gray-500 font-bold">Loading News...</p>
-
-
-</div>
+                  <p className="text-gray-500 font-bold">Loading News...</p>
+                </div>
               </div>
             ) : paginatedNews.length === 0 ? (
               <div className="text-center p-8 border border-dashed border-gray-300 rounded-lg">
@@ -411,7 +486,7 @@ function AdminNews({ setView, admin }) {
                     <tr>
                       <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
                       <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
-                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
                       <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Content</th>
                       <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Posted</th>
                       <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -423,12 +498,24 @@ function AdminNews({ setView, admin }) {
                         <td className="p-3 text-gray-700">{(page - 1) * itemsPerPage + index + 1}</td>
                         <td className="p-3 font-medium text-gray-900">{item.title}</td>
                         <td className="p-3">
-                          {item.image && (
-                            <img
-                              src={item.image}
-                              alt="cover"
-                              className="h-12 w-12 object-cover rounded-lg"
-                            />
+                          {item.images && item.images.length > 0 ? (
+                            <div className="flex gap-1">
+                              {item.images.slice(0, 3).map((img, idx) => (
+                                <img
+                                  key={idx}
+                                  src={img}
+                                  alt={`Cover ${idx + 1}`}
+                                  className="h-12 w-12 object-cover rounded-lg"
+                                />
+                              ))}
+                              {item.images.length > 3 && (
+                                <div className="h-12 w-12 bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-500">
+                                  +{item.images.length - 3}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-gray-400 text-sm">No images</span>
                           )}
                         </td>
                         <td className="p-3 text-gray-600 max-w-xs">
@@ -459,7 +546,13 @@ function AdminNews({ setView, admin }) {
                                 setEditNews(item);
                                 setTitle(item.title);
                                 setContent(item.content);
-                                setImagePreviewUrl(item.image || "");
+                                // Handle existing images when editing
+                                if (item.images && item.images.length > 0) {
+                                  setImagePreviewUrls(item.images);
+                                  // Note: images state should be empty when editing because users need to re-select files
+                                  // Or implement a more complex edit logic to preserve existing images
+                                  setImages([]);
+                                }
                               }}
                               title="Edit"
                             >
@@ -556,12 +649,22 @@ function AdminNews({ setView, admin }) {
                   </p>
                 </div>
                 
-                {viewNews.image && (
-                  <img
-                    src={viewNews.image}
-                    alt="News cover"
-                    className="w-full h-64 object-cover rounded-xl mb-6"
-                  />
+                {viewNews.images && viewNews.images.length > 0 && (
+                  <div className="mb-6">
+                    <div className="flex overflow-x-auto gap-4 pb-4">
+                      {viewNews.images.map((img, index) => (
+                        <img
+                          key={index}
+                          src={img}
+                          alt={`News image ${index + 1}`}
+                          className="h-64 w-auto object-contain rounded-xl flex-shrink-0"
+                        />
+                      ))}
+                    </div>
+                    <p className="text-sm text-gray-500 text-center mt-2">
+                      {viewNews.images.length} image(s)
+                    </p>
+                  </div>
                 )}
                 
                 <div
