@@ -40,6 +40,26 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   // FIXED: Use ref to track if socket listeners are set up
   const socketListenersSet = useRef(false);
   
+  // Responsive state
+  const [isLaptop, setIsLaptop] = useState(window.innerWidth >= 1024);
+  const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsLaptop(window.innerWidth >= 1024);
+      setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1024);
+      
+      // Auto-close mobile menu when resizing to desktop
+      if (window.innerWidth >= 1024) {
+        setIsMobileMenuOpen(false);
+        document.body.style.overflow = 'unset';
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     // Create audio element only when needed and hide it
     messageSound.current = new Audio("/ringtone_message.wav");
@@ -92,21 +112,77 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   };
 
   const fetchUnreadCounts = async () => {
-    try {
-      // FIXED: Fetch both message count and notification count
-      const { data: messageCountData } = await api.get(`/messages/unread-count/${initialUser._id}`);
-      const messageCount = messageCountData.count || 0;
+    if (!initialUser?._id) {
+      console.warn('No user ID available for fetching unread counts');
+      return;
+    }
 
-      // FIXED: Actually fetch notification count from your API
-      const { data: notificationCountData } = await api.get(`/notifications/unread-count/${initialUser._id}`);
-      const notificationCount = notificationCountData.count || 0;
+    try {
+      console.log('🔔 Fetching unread counts for user:', initialUser._id);
+      
+      // Use Promise.allSettled to handle individual failures
+      const [messageResult, notificationResult] = await Promise.allSettled([
+        api.get(`/messages/unread-count/${initialUser._id}`),
+        api.get(`/notifications/unread-count/${initialUser._id}`)
+      ]);
+
+      let messageCount = 0;
+      let notificationCount = 0;
+
+      // Handle message count result
+      if (messageResult.status === 'fulfilled') {
+        const messageData = messageResult.value.data;
+        messageCount = messageData.count || messageData.unreadCount || 0;
+        console.log('✅ Message count fetched:', messageCount);
+      } else {
+        console.error('❌ Message count fetch failed:', messageResult.reason);
+        // Fallback: try alternative endpoint
+        try {
+          const fallbackResponse = await api.get(`/messages/user/${initialUser._id}`);
+          if (fallbackResponse.data) {
+            const messages = Array.isArray(fallbackResponse.data) ? fallbackResponse.data : 
+                           fallbackResponse.data.messages || [];
+            messageCount = messages.filter(msg => !msg.read).length;
+            console.log('✅ Message count (fallback):', messageCount);
+          }
+        } catch (fallbackError) {
+          console.error('❌ Fallback message count also failed:', fallbackError);
+        }
+      }
+
+      // Handle notification count result
+      if (notificationResult.status === 'fulfilled') {
+        const notificationData = notificationResult.value.data;
+        notificationCount = notificationData.count || notificationData.unreadCount || 0;
+        console.log('✅ Notification count fetched:', notificationCount);
+      } else {
+        console.error('❌ Notification count fetch failed:', notificationResult.reason);
+        // Fallback: try alternative endpoint
+        try {
+          const fallbackResponse = await api.get(`/notifications/user/${initialUser._id}`);
+          if (fallbackResponse.data) {
+            const notifications = Array.isArray(fallbackResponse.data) ? fallbackResponse.data : 
+                                fallbackResponse.data.notifications || [];
+            notificationCount = notifications.filter(notif => !notif.read).length;
+            console.log('✅ Notification count (fallback):', notificationCount);
+          }
+        } catch (fallbackError) {
+          console.error('❌ Fallback notification count also failed:', fallbackError);
+        }
+      }
+
+      console.log('📊 Final unread counts:', { 
+        messages: messageCount, 
+        notifications: notificationCount 
+      });
 
       setUnreadCounts({
         notifications: notificationCount,
         messages: messageCount,
       });
+
     } catch (err) {
-      console.error("Failed to fetch unread counts:", err);
+      console.error("❌ Overall unread counts fetch failed:", err);
       // Set fallback values if API fails
       setUnreadCounts({
         notifications: 0,
@@ -198,10 +274,13 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   const setupSocketListeners = () => {
     if (socketListenersSet.current) return;
     
-    console.log('Setting up socket listeners for Navigation_User');
+    console.log('🔌 Setting up socket listeners for Navigation_User');
 
     const handleUserUpdate = (updatedId) => {
-      if (updatedId === initialUser?._id) fetchData();
+      if (updatedId === initialUser?._id) {
+        console.log('🔄 User update received, refreshing data...');
+        fetchData();
+      }
     };
     
     const handleUserSuspended = (suspendedUserId, suspensionInfo) => {
@@ -225,6 +304,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     // FIXED: Improved notification handler
     const handleNewNotification = (newNotif) => {
       if (newNotif.userId === initialUser?._id || newNotif.targetRole === 'user' || newNotif.targetRole === 'all') {
+        console.log('🆕 New notification received:', newNotif);
         setUnreadCounts((prev) => ({
           ...prev,
           notifications: prev.notifications + 1,
@@ -238,6 +318,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     };
     
     const handleNewMessage = () => {
+      console.log('🆕 New message received, refreshing counts...');
       // FIXED: Don't increment locally, fetch fresh data from server
       fetchUnreadCounts();
       
@@ -250,19 +331,20 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     // FIXED: Handle notifications read event (when user manually marks as read in Notification component)
     const handleReadNotifications = (data) => {
       if (data.userId === initialUser?._id) {
-        console.log('Notifications read event received in Navigation');
+        console.log('📭 Notifications read event received in Navigation');
         fetchUnreadCounts(); // Refresh counts from server
       }
     };
     
     // FIXED: Handle messages read event
     const handleReadMessages = () => {
+      console.log('📭 Messages read event received');
       setUnreadCounts((prev) => ({ ...prev, messages: 0 }));
     };
 
     // FIXED: Handle unread count updates from socket
     const handleUnreadCountUpdate = (data) => {
-      console.log('Unread count update received in Navigation:', data);
+      console.log('🔢 Unread count update received in Navigation:', data);
       if (data.userId === initialUser?._id) {
         setUnreadCounts(prev => ({
           ...prev,
@@ -274,14 +356,14 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     // FIXED: Handle refresh unread counts event
     const handleRefreshUnreadCounts = (data) => {
       if (data.userId === initialUser?._id) {
-        console.log('Refreshing unread counts in Navigation...');
+        console.log('🔄 Refresh unread counts event received');
         fetchUnreadCounts();
       }
     };
 
     // FIXED: Handle unread-counts-updated event (from mark-as-read functions)
     const handleUnreadCountsUpdated = () => {
-      console.log('Unread counts updated event received in Navigation');
+      console.log('🔄 Unread counts updated event received in Navigation');
       fetchUnreadCounts();
     };
 
@@ -328,7 +410,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
 
     // Return cleanup function
     return () => {
-      console.log('Cleaning up Navigation_User socket listeners');
+      console.log('🧹 Cleaning up Navigation_User socket listeners');
       socket.off("user-updated", handleUserUpdate);
       socket.off("user-suspended", handleUserSuspended);
       socket.off("user-unsuspended", handleUserUnsuspended);
@@ -352,31 +434,30 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     };
   };
 
+  // FIXED: Optimized useEffect hooks for better performance
   useEffect(() => {
-    fetchData();
-    fetchAnnouncements(); // Fetch announcements on component mount
+    if (initialUser?._id) {
+      console.log('👤 User ID available, fetching initial data...');
+      fetchData();
+      fetchAnnouncements();
 
-    // Setup socket listeners and get cleanup function
-    const cleanupSocketListeners = setupSocketListeners();
+      // Setup socket listeners and get cleanup function
+      const cleanupSocketListeners = setupSocketListeners();
 
-    // Return cleanup function
-    return cleanupSocketListeners;
-  }, [initialUser?._id]); // FIXED: Remove currentView from dependencies
+      // Return cleanup function
+      return cleanupSocketListeners;
+    } else {
+      console.log('⏳ User ID not available yet, skipping data fetch');
+    }
+  }, [initialUser?._id]);
 
-  // FIXED: Add useEffect to refresh unread counts when switching to messages view
+  // FIXED: Only refresh counts when switching to notification/messages pages
   useEffect(() => {
-    if (currentView === "messages") {
-      // When user goes to messages view, refresh unread counts
+    if (currentView === "notification" || currentView === "messages") {
+      console.log(`🔄 Switched to ${currentView} view, refreshing counts...`);
       fetchUnreadCounts();
     }
   }, [currentView]);
-
-  // FIXED: Add useEffect to handle new messages when currentView changes
-  useEffect(() => {
-    // This ensures that when we receive new messages and we're not on messages page,
-    // the unread count updates properly
-    fetchUnreadCounts();
-  }, [currentView, initialUser?._id]);
 
   const handleForcedLogout = () => {
     localStorage.clear();
@@ -486,8 +567,10 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         showModal={showAnnouncementModal}
       />
 
-      {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#171717] z-50 flex items-center justify-between px-4 border-b border-gray-700">
+      {/* Mobile Header - Only shows on mobile/tablet */}
+      <div className={`fixed top-0 left-0 right-0 h-16 bg-[#171717] z-50 flex items-center justify-between px-4 border-b border-gray-700 ${
+        isLaptop ? 'hidden' : 'block'
+      }`}>
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setIsMobileMenu(!isMobileMenuOpen)}
@@ -512,7 +595,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                 src={
                   user.profilePicture.startsWith("http")
                     ? `${user.profilePicture}?t=${imgTimestamp}`
-                    : `http://localhost:5000${user.profilePicture}?t=${imgTimestamp}`
+                    : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`
                 }
                 alt="Profile"
                 className="w-full h-full object-cover"
@@ -531,25 +614,27 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
       {/* Sidebar */}
       <aside>
         {/* Mobile Overlay */}
-        {isMobileMenuOpen && (
+        {isMobileMenuOpen && !isLaptop && (
           <div 
-            className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
             onClick={() => setIsMobileMenu(false)}
           />
         )}
 
-        {/* Navigation Panel */}
+        {/* Navigation Panel - Responsive sizing */}
         <div className={`
           fixed top-0 left-0 h-screen bg-[#171717] shadow-md flex flex-col z-50
           transition-all duration-300 ease-in-out
-          lg:w-[250px] lg:rounded-tr-3xl lg:p-6
           ${isMobileMenuOpen 
-            ? 'w-full p-6 translate-x-0' 
-            : '-translate-x-full lg:translate-x-0 w-[250px] p-6'
+            ? 'w-full p-4 sm:p-6 translate-x-0' 
+            : isLaptop
+              ? 'w-[280px] p-6 translate-x-0' // Larger width for laptop/desktop
+              : '-translate-x-full w-[280px] p-6'
           }
+          ${isTablet && isMobileMenuOpen ? 'w-[350px]' : ''}
         `}>
           {/* Close Button - Mobile Only */}
-          <div className="lg:hidden flex justify-between items-center mb-6">
+          <div className="flex lg:hidden justify-between items-center mb-6">
             <div className="flex items-center space-x-3">
               <img src={Logo} alt="Logo" className="h-10 w-10" />
               <div>
@@ -566,34 +651,44 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
             </button>
           </div>
 
-          {/* Logo - Desktop Only */}
-          <div className="hidden lg:flex items-center justify-around mb-4">
-            <img src={Logo} alt="Logo" className="h-[100px] w-[100px]" />
-            <div className="flex flex-col items-start">
-              <h1 className="text-[15px] font-serif text-white">
+          {/* Logo - Shows on all sizes but different layout */}
+          <div className="flex items-center mb-4 sm:mb-6">
+            <img src={Logo} alt="Logo" className={`
+              ${isMobileMenuOpen && !isLaptop ? 'h-16 w-16 mr-4' : 'h-[100px] w-[100px] mr-4'}
+              ${isLaptop ? 'h-[100px] w-[100px]' : ''}
+            `} />
+            <div className="flex flex-col">
+              <h1 className={`
+                font-serif text-white
+                ${isMobileMenuOpen && !isLaptop ? 'text-base' : 'text-lg'}
+                ${isLaptop ? 'text-[17px]' : ''}
+              `}>
                 University of <br /> San Agustin
               </h1>
-              <div className="border w-full border-b-white/50"></div>
-              <p className="text-[20px] font-serif font-semibold text-white">CircuLink</p>
+              <div className="border w-full border-b-white/50 my-1"></div>
+              <p className={`
+                font-serif font-semibold text-white
+                ${isMobileMenuOpen && !isLaptop ? 'text-xl' : 'text-2xl'}
+                ${isLaptop ? 'text-[22px]' : ''}
+              `}>CircuLink</p>
             </div>
           </div>
           
           <div className="border-b border-gray-700 opacity-50 w-full my-4 lg:my-6"></div>
 
-          {/* User Info */}
-          <div className={`flex flex-col items-center ${
-            isMobileMenuOpen ? 'mt-4 lg:mt-5' : 'mt-5'
-          }`}>
+          {/* User Info - Responsive sizing */}
+          <div className="flex flex-col items-center mt-4 lg:mt-6">
             <div className={`
               border-2 border-gray-600 rounded-full bg-gray-800 overflow-hidden flex items-center justify-center text-gray-300
-              ${isMobileMenuOpen ? 'w-24 h-24 text-4xl lg:w-[120px] lg:h-[120px] lg:text-5xl' : 'w-[120px] h-[120px] text-5xl'}
+              ${isMobileMenuOpen && !isLaptop ? 'w-20 h-20 text-3xl' : 'w-[120px] h-[120px] text-5xl'}
+              ${isLaptop ? 'w-[130px] h-[130px] text-5xl' : ''}
             `}>
               {user?.profilePicture ? (
                 <img
                   src={
                     user.profilePicture.startsWith("http")
                       ? `${user.profilePicture}?t=${imgTimestamp}`
-                      : `http://localhost:5000${user.profilePicture}?t=${imgTimestamp}`
+                      : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`
                   }
                   alt="Profile"
                   className="w-full h-full object-cover"
@@ -607,14 +702,19 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               )}
             </div>
             <h1 className={`
-              font-bold text-white mt-3 text-center
-              ${isMobileMenuOpen ? 'text-xl lg:text-[20px]' : 'text-[20px]'}
+              font-bold text-white mt-3 text-center truncate max-w-full px-2
+              ${isMobileMenuOpen && !isLaptop ? 'text-lg' : 'text-xl'}
+              ${isLaptop ? 'text-[22px]' : ''}
             `}>
               {user?.name}
             </h1>
-            <p className="text-gray-300 mt-1 text-center text-sm lg:text-base">{user?.email}</p>
+            <p className="text-gray-300 mt-1 text-center text-sm lg:text-base truncate max-w-full px-2">
+              {user?.email}
+            </p>
             {user?.id_number && (
-              <p className="text-gray-400 mt-1 text-center text-sm lg:text-base">ID: {user.id_number}</p>
+              <p className="text-gray-400 mt-1 text-center text-sm lg:text-base">
+                ID: {user.id_number}
+              </p>
             )}
             {user?.suspended && (
               <div className="mt-2 px-3 py-1 bg-red-600 text-white text-xs rounded-full">
@@ -623,12 +723,9 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
             )}
           </div>
 
-          {/* Navigation Buttons */}
-          <div className={`
-            flex flex-col h-full
-            ${isMobileMenuOpen ? 'mt-8 lg:mt-10' : 'mt-10'}
-          `}>
-            <div className="flex flex-col gap-2 flex-grow">
+          {/* Navigation Buttons - Better spacing for laptop */}
+          <div className="mt-6 lg:mt-8 flex-grow flex flex-col">
+            <div className="flex flex-col gap-2 lg:gap-3 flex-grow">
               {navButtons.map((btn) => (
                 <button
                   key={btn.id}
@@ -641,13 +738,16 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                       : "bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white"
                     }
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                    ${isMobileMenuOpen ? 'text-base lg:text-sm' : 'text-sm'}
+                    ${isMobileMenuOpen && !isLaptop ? 'text-sm' : 'text-base lg:text-[15px]'}
+                    ${isLaptop ? 'py-3.5' : ''}
                   `}
                 >
                   <span
-                    className={`transition-transform duration-200 ${
-                      isActive(btn.id) ? "scale-110" : "group-hover:scale-110"
-                    }`}
+                    className={`
+                      transition-transform duration-200
+                      ${isActive(btn.id) ? "scale-110" : "group-hover:scale-110"}
+                      ${isLaptop ? 'scale-125' : ''}
+                    `}
                   >
                     {btn.icon}
                   </span>
@@ -674,7 +774,8 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                         : "bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white"
                     }
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                    ${isMobileMenuOpen ? 'text-base lg:text-sm' : 'text-sm'}
+                    ${isMobileMenuOpen && !isLaptop ? 'text-sm' : 'text-base lg:text-[15px]'}
+                    ${isLaptop ? 'py-3.5' : ''}
                   `}
                 >
                   <HelpCircle size={18} />
@@ -683,58 +784,115 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
 
                 {showHelp && !user?.suspended && (
                   <div className={`
-                    absolute flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 p-4 z-50
-                    ${isMobileMenuOpen 
-                      ? 'top-full left-1/2 transform -translate-x-1/2 mt-2 w-[90%] max-w-[280px]' 
-                      : 'top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[260px]'
+                    ${isMobileMenuOpen && !isLaptop
+                      ? 'fixed inset-0 flex items-center justify-center z-50 lg:hidden' 
+                      : 'hidden lg:block absolute top-0 left-full ml-2 z-50'
                     }
                   `}>
-                    <button
-                      onClick={() => {
-                        setView("help");
-                        setShowHelp(false);
-                        setIsMobileMenu(false);
-                      }}
-                      className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
-                      aria-label="Go to help center"
-                    >
-                      <h2 className="text-sm font-semibold text-gray-800">
-                        Help Center
-                      </h2>
-                      <p className="text-xs text-gray-600 mt-1">
-                        Get answers to your questions
-                      </p>
-                    </button>
+                    {/* Mobile: Centered Modal */}
+                    {isMobileMenuOpen && !isLaptop && (
+                      <>
+                        <div 
+                          className="absolute inset-0 bg-black/50 backdrop-blur-xs"
+                          onClick={() => setShowHelp(false)}
+                        />
+                        <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 p-6 w-[90%] max-w-[320px]">
+                          <div className="flex flex-col space-y-4">
+                            <button
+                              onClick={() => {
+                                setView("help");
+                                setShowHelp(false);
+                                setIsMobileMenu(false);
+                              }}
+                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                              aria-label="Go to help center"
+                            >
+                              <h2 className="text-sm font-semibold text-gray-800">
+                                Help Center
+                              </h2>
+                              <p className="text-xs text-gray-600 mt-1">
+                                Get answers to your questions
+                              </p>
+                            </button>
 
-                    <button
-                      onClick={() => {
-                        setView("guidelines");
-                        setShowHelp(false);
-                        setIsMobileMenu(false);
-                      }}
-                      className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 mt-3"
-                      aria-label="View guidelines"
-                    >
-                      <h2 className="text-sm font-semibold text-gray-800">
-                        Room Guidelines
-                      </h2>
-                      <p className="text-xs text-gray-600 mt-1">
-                        Learn how to use rooms properly
-                      </p>
-                    </button>
+                            <button
+                              onClick={() => {
+                                setView("guidelines");
+                                setShowHelp(false);
+                                setIsMobileMenu(false);
+                              }}
+                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                              aria-label="View guidelines"
+                            >
+                              <h2 className="text-sm font-semibold text-gray-800">
+                                Room Guidelines
+                              </h2>
+                              <p className="text-xs text-gray-600 mt-1">
+                                Learn how to use rooms properly
+                              </p>
+                            </button>
+                            
+                            <button
+                              onClick={() => setShowHelp(false)}
+                              className="mt-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 text-sm font-medium"
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Desktop/Laptop: Right Side Dropdown */}
+                    {isLaptop && (
+                      <div className="flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-[280px]">
+                        <button
+                          onClick={() => {
+                            setView("help");
+                            setShowHelp(false);
+                          }}
+                          className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                          aria-label="Go to help center"
+                        >
+                          <h2 className="text-sm font-semibold text-gray-800">
+                            Help Center
+                          </h2>
+                          <p className="text-xs text-gray-600 mt-1">
+                            Get answers to your questions
+                          </p>
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            setView("guidelines");
+                            setShowHelp(false);
+                          }}
+                          className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 mt-3"
+                          aria-label="View guidelines"
+                        >
+                          <h2 className="text-sm font-semibold text-gray-800">
+                            Room Guidelines
+                          </h2>
+                          <p className="text-xs text-gray-600 mt-1">
+                            Learn how to use rooms properly
+                          </p>
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Logout */}
+            {/* Logout Button - Better spacing for laptop */}
             <button
               onClick={onLogout}
               disabled={user?.suspended}
               className={`
-                mt-6 flex items-center gap-3 justify-center px-4 py-3 rounded-lg bg-[#2a2a2a] font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group
+                mt-6 lg:mt-8 flex items-center gap-3 justify-center px-4 py-3 rounded-lg bg-[#2a2a2a] font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group
                 ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                ${isMobileMenuOpen ? 'text-base lg:text-sm' : 'text-sm'}
+                ${isMobileMenuOpen && !isLaptop ? 'text-sm' : 'text-base lg:text-[15px]'}
+                ${isLaptop ? 'py-3.5' : ''}
               `}
             >
               <LogOut
@@ -747,8 +905,11 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         </div>
       </aside>
 
-      {/* Mobile Spacer */}
-      <div className="lg:hidden h-16"></div>
+      {/* Mobile Spacer - Only on mobile/tablet */}
+      {!isLaptop && <div className="h-16"></div>}
+      
+      {/* Laptop/Desktop Spacer - Sidebar is always visible */}
+      {isLaptop && <div className="w-[280px]"></div>}
     </>
   );
 }

@@ -40,6 +40,26 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   // FIXED: Use ref to track if socket listeners are set up
   const socketListenersSet = useRef(false);
   
+  // Responsive state
+  const [isLaptop, setIsLaptop] = useState(window.innerWidth >= 1024);
+  const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsLaptop(window.innerWidth >= 1024);
+      setIsTablet(window.innerWidth >= 768 && window.innerWidth < 1024);
+      
+      // Auto-close mobile menu when resizing to desktop
+      if (window.innerWidth >= 1024) {
+        setIsMobileMenuOpen(false);
+        document.body.style.overflow = 'unset';
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   useEffect(() => {
     // Create audio element only when needed and hide it
     messageSound.current = new Audio("/ringtone_message.wav");
@@ -547,8 +567,10 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         showModal={showAnnouncementModal}
       />
 
-      {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#171717] z-50 flex items-center justify-between px-4 border-b border-gray-700">
+      {/* Mobile Header - Only shows on mobile/tablet */}
+      <div className={`fixed top-0 left-0 right-0 h-16 bg-[#171717] z-50 flex items-center justify-between px-4 border-b border-gray-700 ${
+        isLaptop ? 'hidden' : 'block'
+      }`}>
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setIsMobileMenu(!isMobileMenuOpen)}
@@ -592,25 +614,27 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
       {/* Sidebar */}
       <aside>
         {/* Mobile Overlay */}
-        {isMobileMenuOpen && (
+        {isMobileMenuOpen && !isLaptop && (
           <div 
-            className="lg:hidden fixed inset-0 bg-opacity-50 z-40"
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
             onClick={() => setIsMobileMenu(false)}
           />
         )}
 
-        {/* Navigation Panel */}
+        {/* Navigation Panel - Responsive sizing */}
         <div className={`
           fixed top-0 left-0 h-screen bg-[#171717] shadow-md flex flex-col z-50
           transition-all duration-300 ease-in-out
-          lg:w-[250px] lg:rounded-tr-3xl lg:p-6
           ${isMobileMenuOpen 
-            ? 'w-full p-6 translate-x-0' 
-            : '-translate-x-full lg:translate-x-0 w-[250px] p-6'
+            ? 'w-full p-4 sm:p-6 translate-x-0' 
+            : isLaptop
+              ? 'w-[280px] p-6 translate-x-0' // Larger width for laptop/desktop
+              : '-translate-x-full w-[280px] p-6'
           }
+          ${isTablet && isMobileMenuOpen ? 'w-[350px]' : ''}
         `}>
           {/* Close Button - Mobile Only */}
-          <div className="lg:hidden flex justify-between items-center mb-6">
+          <div className="flex lg:hidden justify-between items-center mb-6">
             <div className="flex items-center space-x-3">
               <img src={Logo} alt="Logo" className="h-10 w-10" />
               <div>
@@ -627,27 +651,37 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
             </button>
           </div>
 
-          {/* Logo - Desktop Only */}
-          <div className="hidden lg:flex items-center justify-around mb-4">
-            <img src={Logo} alt="Logo" className="h-[100px] w-[100px]" />
-            <div className="flex flex-col items-start">
-              <h1 className="text-[15px] font-serif text-white">
+          {/* Logo - Shows on all sizes but different layout */}
+          <div className="flex items-center mb-4 sm:mb-6">
+            <img src={Logo} alt="Logo" className={`
+              ${isMobileMenuOpen && !isLaptop ? 'h-16 w-16 mr-4' : 'h-[100px] w-[100px] mr-4'}
+              ${isLaptop ? 'h-[100px] w-[100px]' : ''}
+            `} />
+            <div className="flex flex-col">
+              <h1 className={`
+                font-serif text-white
+                ${isMobileMenuOpen && !isLaptop ? 'text-base' : 'text-lg'}
+                ${isLaptop ? 'text-[17px]' : ''}
+              `}>
                 University of <br /> San Agustin
               </h1>
-              <div className="border w-full border-b-white/50"></div>
-              <p className="text-[20px] font-serif font-semibold text-white">CircuLink</p>
+              <div className="border w-full border-b-white/50 my-1"></div>
+              <p className={`
+                font-serif font-semibold text-white
+                ${isMobileMenuOpen && !isLaptop ? 'text-xl' : 'text-2xl'}
+                ${isLaptop ? 'text-[22px]' : ''}
+              `}>CircuLink</p>
             </div>
           </div>
           
           <div className="border-b border-gray-700 opacity-50 w-full my-4 lg:my-6"></div>
 
-          {/* User Info */}
-          <div className={`flex flex-col items-center ${
-            isMobileMenuOpen ? 'mt-4 lg:mt-5' : 'mt-5'
-          }`}>
+          {/* User Info - Responsive sizing */}
+          <div className="flex flex-col items-center mt-4 lg:mt-6">
             <div className={`
               border-2 border-gray-600 rounded-full bg-gray-800 overflow-hidden flex items-center justify-center text-gray-300
-              ${isMobileMenuOpen ? 'w-24 h-24 text-4xl lg:w-[120px] lg:h-[120px] lg:text-5xl' : 'w-[120px] h-[120px] text-5xl'}
+              ${isMobileMenuOpen && !isLaptop ? 'w-20 h-20 text-3xl' : 'w-[120px] h-[120px] text-5xl'}
+              ${isLaptop ? 'w-[130px] h-[130px] text-5xl' : ''}
             `}>
               {user?.profilePicture ? (
                 <img
@@ -668,14 +702,19 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               )}
             </div>
             <h1 className={`
-              font-bold text-white mt-3 text-center
-              ${isMobileMenuOpen ? 'text-xl lg:text-[20px]' : 'text-[20px]'}
+              font-bold text-white mt-3 text-center truncate max-w-full px-2
+              ${isMobileMenuOpen && !isLaptop ? 'text-lg' : 'text-xl'}
+              ${isLaptop ? 'text-[22px]' : ''}
             `}>
               {user?.name}
             </h1>
-            <p className="text-gray-300 mt-1 text-center text-sm lg:text-base">{user?.email}</p>
+            <p className="text-gray-300 mt-1 text-center text-sm lg:text-base truncate max-w-full px-2">
+              {user?.email}
+            </p>
             {user?.id_number && (
-              <p className="text-gray-400 mt-1 text-center text-sm lg:text-base">ID: {user.id_number}</p>
+              <p className="text-gray-400 mt-1 text-center text-sm lg:text-base">
+                ID: {user.id_number}
+              </p>
             )}
             {user?.suspended && (
               <div className="mt-2 px-3 py-1 bg-red-600 text-white text-xs rounded-full">
@@ -684,12 +723,9 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
             )}
           </div>
 
-          {/* Navigation Buttons */}
-          <div className={`
-            flex flex-col h-full
-            ${isMobileMenuOpen ? 'mt-8 lg:mt-10' : 'mt-10'}
-          `}>
-            <div className="flex flex-col gap-2 flex-grow">
+          {/* Navigation Buttons - Better spacing for laptop */}
+          <div className="mt-6 lg:mt-8 flex-grow flex flex-col">
+            <div className="flex flex-col gap-2 lg:gap-3 flex-grow">
               {navButtons.map((btn) => (
                 <button
                   key={btn.id}
@@ -702,13 +738,16 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                       : "bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white"
                     }
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                    ${isMobileMenuOpen ? 'text-base lg:text-sm' : 'text-sm'}
+                    ${isMobileMenuOpen && !isLaptop ? 'text-sm' : 'text-base lg:text-[15px]'}
+                    ${isLaptop ? 'py-3.5' : ''}
                   `}
                 >
                   <span
-                    className={`transition-transform duration-200 ${
-                      isActive(btn.id) ? "scale-110" : "group-hover:scale-110"
-                    }`}
+                    className={`
+                      transition-transform duration-200
+                      ${isActive(btn.id) ? "scale-110" : "group-hover:scale-110"}
+                      ${isLaptop ? 'scale-125' : ''}
+                    `}
                   >
                     {btn.icon}
                   </span>
@@ -735,7 +774,8 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                         : "bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white"
                     }
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                    ${isMobileMenuOpen ? 'text-base lg:text-sm' : 'text-sm'}
+                    ${isMobileMenuOpen && !isLaptop ? 'text-sm' : 'text-base lg:text-[15px]'}
+                    ${isLaptop ? 'py-3.5' : ''}
                   `}
                 >
                   <HelpCircle size={18} />
@@ -744,16 +784,16 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
 
                 {showHelp && !user?.suspended && (
                   <div className={`
-                    ${isMobileMenuOpen 
+                    ${isMobileMenuOpen && !isLaptop
                       ? 'fixed inset-0 flex items-center justify-center z-50 lg:hidden' 
                       : 'hidden lg:block absolute top-0 left-full ml-2 z-50'
                     }
                   `}>
                     {/* Mobile: Centered Modal */}
-                    {isMobileMenuOpen && (
+                    {isMobileMenuOpen && !isLaptop && (
                       <>
                         <div 
-                          className="absolute inset-0 backdrop-blur-xs bg-opacity-50"
+                          className="absolute inset-0 bg-black/50 backdrop-blur-xs"
                           onClick={() => setShowHelp(false)}
                         />
                         <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 p-6 w-[90%] max-w-[320px]">
@@ -803,9 +843,9 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                       </>
                     )}
 
-                    {/* Desktop: Right Side Dropdown */}
-                    {!isMobileMenuOpen && (
-                      <div className="flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-[260px]">
+                    {/* Desktop/Laptop: Right Side Dropdown */}
+                    {isLaptop && (
+                      <div className="flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-[280px]">
                         <button
                           onClick={() => {
                             setView("help");
@@ -844,14 +884,15 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               </div>
             </div>
 
-            {/* Logout */}
+            {/* Logout Button - Better spacing for laptop */}
             <button
               onClick={onLogout}
               disabled={user?.suspended}
               className={`
-                mt-6 flex items-center gap-3 justify-center px-4 py-3 rounded-lg bg-[#2a2a2a] font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group
+                mt-6 lg:mt-8 flex items-center gap-3 justify-center px-4 py-3 rounded-lg bg-[#2a2a2a] font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group
                 ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                ${isMobileMenuOpen ? 'text-base lg:text-sm' : 'text-sm'}
+                ${isMobileMenuOpen && !isLaptop ? 'text-sm' : 'text-base lg:text-[15px]'}
+                ${isLaptop ? 'py-3.5' : ''}
               `}
             >
               <LogOut
@@ -864,8 +905,11 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         </div>
       </aside>
 
-      {/* Mobile Spacer */}
-      <div className="lg:hidden h-16"></div>
+      {/* Mobile Spacer - Only on mobile/tablet */}
+      {!isLaptop && <div className="h-16"></div>}
+      
+      {/* Laptop/Desktop Spacer - Sidebar is always visible */}
+      {isLaptop && <div className="w-[280px]"></div>}
     </>
   );
 }
