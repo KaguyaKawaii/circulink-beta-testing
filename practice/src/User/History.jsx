@@ -10,24 +10,29 @@ function History({ user, setView, setSelectedReservation, historyRefreshKey }) {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [dateFilter, setDateFilter] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(5);
 
   useEffect(() => {
     if (!user || !user._id) return;
 
-const fetchReservations = async () => {
-  try {
-    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations/user/${user._id}`);
-    const sortedReservations = response.data.sort(
-      (a, b) => new Date(b.datetime) - new Date(a.datetime)
-    );
-    setReservations(sortedReservations);
-    setFilteredReservations(sortedReservations);
-  } catch (error) {
-    console.error("Failed to fetch reservations:", error);
-  } finally {
-    setLoading(false);
-  }
-};
+    const fetchReservations = async () => {
+      try {
+        const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations/user/${user._id}`);
+        const sortedReservations = response.data.sort(
+          (a, b) => new Date(b.datetime) - new Date(a.datetime)
+        );
+        setReservations(sortedReservations);
+        setFilteredReservations(sortedReservations);
+        setCurrentPage(1); // Reset to first page when data changes
+      } catch (error) {
+        console.error("Failed to fetch reservations:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
     setLoading(true);
     fetchReservations();
@@ -49,7 +54,14 @@ const fetchReservations = async () => {
     }
     
     setFilteredReservations(results);
+    setCurrentPage(1); // Reset to first page when filters change
   }, [dateFilter, statusFilter, reservations]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredReservations.length / itemsPerPage);
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredReservations.slice(indexOfFirstItem, indexOfLastItem);
 
   const formatPH = (d) =>
     new Date(d).toLocaleString("en-PH", {
@@ -112,6 +124,121 @@ const fetchReservations = async () => {
       ))}
     </div>
   );
+
+  // Pagination component
+  const Pagination = () => {
+    const pageNumbers = [];
+    const maxPagesToShow = 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+    let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+    
+    if (endPage - startPage + 1 < maxPagesToShow) {
+      startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+
+    return (
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-200">
+        <div className="text-sm text-gray-600">
+          Showing <span className="font-semibold">{indexOfFirstItem + 1}</span> to{" "}
+          <span className="font-semibold">
+            {Math.min(indexOfLastItem, filteredReservations.length)}
+          </span>{" "}
+          of <span className="font-semibold">{filteredReservations.length}</span>{" "}
+          reservations
+        </div>
+        
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+            disabled={currentPage === 1}
+            className={`flex items-center justify-center w-8 h-8 rounded-lg border ${
+              currentPage === 1
+                ? "border-gray-200 text-gray-400 cursor-not-allowed"
+                : "border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+
+          {startPage > 1 && (
+            <>
+              <button
+                onClick={() => setCurrentPage(1)}
+                className={`w-8 h-8 rounded-lg border ${
+                  currentPage === 1
+                    ? "border-[#CC0000] bg-[#CC0000] text-white"
+                    : "border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
+                }`}
+              >
+                1
+              </button>
+              {startPage > 2 && (
+                <span className="px-2 text-gray-400">...</span>
+              )}
+            </>
+          )}
+
+          {pageNumbers.map(number => (
+            <button
+              key={number}
+              onClick={() => setCurrentPage(number)}
+              className={`w-8 h-8 rounded-lg border text-sm ${
+                currentPage === number
+                  ? "border-[#CC0000] bg-[#CC0000] text-white"
+                  : "border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
+              }`}
+            >
+              {number}
+            </button>
+          ))}
+
+          {endPage < totalPages && (
+            <>
+              {endPage < totalPages - 1 && (
+                <span className="px-2 text-gray-400">...</span>
+              )}
+              <button
+                onClick={() => setCurrentPage(totalPages)}
+                className={`w-8 h-8 rounded-lg border ${
+                  currentPage === totalPages
+                    ? "border-[#CC0000] bg-[#CC0000] text-white"
+                    : "border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
+                }`}
+              >
+                {totalPages}
+              </button>
+            </>
+          )}
+
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+            disabled={currentPage === totalPages}
+            className={`flex items-center justify-center w-8 h-8 rounded-lg border ${
+              currentPage === totalPages
+                ? "border-gray-200 text-gray-400 cursor-not-allowed"
+                : "border-gray-300 text-gray-700 hover:bg-gray-50 cursor-pointer"
+            }`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span>Items per page:</span>
+          <span className="font-semibold">{itemsPerPage}</span>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <main className="w-full min-h-screen flex flex-col bg-gray-50 lg:ml-[250px] lg:w-[calc(100%-250px)]">
@@ -238,93 +365,107 @@ const fetchReservations = async () => {
               )}
             </div>
           ) : (
-            <div className="space-y-3 sm:space-y-4">
-              {filteredReservations.map((res, index) => (
-                <div
-                  key={res._id || index}
-                  className="flex gap-3 p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200 cursor-pointer"
-                  onClick={() => {
-                    setSelectedReservation(res);
-                    setView("reservationDetails");
-                  }}
-                >
-                  <div className="mt-1 sm:mt-1.5 flex-shrink-0">
-                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-[#CC0000] rounded-full"></div>
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2 sm:mb-3">
-                      <h2 className="text-base sm:text-lg font-bold text-gray-800 truncate">
-                        {res.roomName}
-                      </h2>
-                      <div className="flex-shrink-0">
-                        {statusBadge(res.status)}
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 gap-2 sm:gap-3 mb-2 sm:mb-3">
-                      <div className="flex items-start">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                        <span className="text-xs sm:text-sm text-gray-600 break-words">
-                          <span className="font-semibold">Location:</span> {res.location}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-start">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-xs sm:text-sm text-gray-600 break-words">
-                          <span className="font-semibold">Schedule:</span> {formatPH(res.datetime)}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-start">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-xs sm:text-sm text-gray-600 break-words">
-                          <span className="font-semibold">Purpose:</span> {res.purpose}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-start">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        <span className="text-xs sm:text-sm text-gray-600 break-words">
-                          <span className="font-semibold">Reserved on:</span>{" "}
-                          {new Date(res.createdAt).toLocaleDateString("en-PH", {
-                            timeZone: "Asia/Manila",
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })}
-                        </span>
-                      </div>
+            <>
+              <div className="space-y-3 sm:space-y-4">
+                {currentItems.map((res, index) => (
+                  <div
+                    key={res._id || index}
+                    className="flex gap-3 p-3 sm:p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-200 cursor-pointer"
+                    onClick={() => {
+                      setSelectedReservation(res);
+                      setView("reservationDetails");
+                    }}
+                  >
+                    <div className="mt-1 sm:mt-1.5 flex-shrink-0">
+                      <div className="w-2 h-2 sm:w-3 sm:h-3 bg-[#CC0000] rounded-full"></div>
                     </div>
 
-                    <div className="flex items-center text-[#CC0000] text-xs sm:text-sm font-medium mt-2">
-                      <span>View Details</span>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2 sm:mb-3">
+                        <h2 className="text-base sm:text-lg font-bold text-gray-800 truncate">
+                          {res.roomName}
+                        </h2>
+                        <div className="flex-shrink-0">
+                          {statusBadge(res.status)}
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-2 sm:gap-3 mb-2 sm:mb-3">
+                        <div className="flex items-start">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span className="text-xs sm:text-sm text-gray-600 break-words">
+                            <span className="font-semibold">Location:</span> {res.location}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-start">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-xs sm:text-sm text-gray-600 break-words">
+                            <span className="font-semibold">Schedule:</span> {formatPH(res.datetime)}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-start">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-xs sm:text-sm text-gray-600 break-words">
+                            <span className="font-semibold">Purpose:</span> {res.purpose}
+                          </span>
+                        </div>
+                        
+                        <div className="flex items-start">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span className="text-xs sm:text-sm text-gray-600 break-words">
+                            <span className="font-semibold">Reserved on:</span>{" "}
+                            {new Date(res.createdAt).toLocaleDateString("en-PH", {
+                              timeZone: "Asia/Manila",
+                              year: "numeric",
+                              month: "long",
+                              day: "numeric",
+                            })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center text-[#CC0000] text-xs sm:text-sm font-medium mt-2">
+                        <span>View Details</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {filteredReservations.length > itemsPerPage && (
+                <Pagination />
+              )}
+            </>
           )}
         </div>
       </div>
 
-      {/* Filter Modal */}
+      {/* Filter Modal with Blur Background */}
       {showFilterModal && (
-        <div className="fixed inset-0 bg-gray-100 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Blur Background */}
+          <div 
+            className="absolute inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={() => setShowFilterModal(false)}
+          />
+          
+          {/* Modal Content */}
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="p-4 sm:p-6">
               <div className="flex justify-between items-center mb-4 sm:mb-6">
                 <h3 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center">

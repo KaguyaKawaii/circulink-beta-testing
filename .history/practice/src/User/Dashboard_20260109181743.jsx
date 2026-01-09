@@ -44,6 +44,7 @@ const isSameManilaDate = (date1, date2) => {
   return getManilaDateString(date1) === getManilaDateString(date2);
 };
 
+
 // Filter reservations to hide expired, canceled, and completed after 24 hours
 const filterReservations = (reservations) => {
   const now = new Date();
@@ -55,10 +56,10 @@ const filterReservations = (reservations) => {
       return true;
     }
     
-    // For rejected, expired, or completed reservations, only show if created within last 24 hours
-    if (reservation.status === "Rejected" || reservation.status === "Expired" || reservation.status === "Completed") {
-      const reservationDate = new Date(reservation.createdAt);
-      return reservationDate > twentyFourHoursAgo;
+    // For rejected, expired, cancelled, or completed reservations, only show if created within last 24 hours
+    if (reservation.status === "Rejected" || reservation.status === "Expired" || reservation.status === "Cancelled" || reservation.status === "Completed") {
+      const relevantDate = new Date(reservation.statusUpdatedAt || reservation.createdAt);
+      return relevantDate > twentyFourHoursAgo;
     }
     
     // For any other status, show by default
@@ -95,7 +96,7 @@ function Dashboard({ user, setView, setSelectedReservation }) {
   const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
   const [allAnnouncements, setAllAnnouncements] = useState([]);
   
-const API_BASE_URL = "http://localhost:5000";
+const API_BASE_URL = `${import.meta.env.VITE_API_URL}`;
 const RESERVATIONS_ENDPOINT = `${API_BASE_URL}/api/reservations`;
 const NEWS_ENDPOINT = `${API_BASE_URL}/api/news`;
 const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
@@ -292,15 +293,18 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
           params: { date: manilaDateStr },
         });
 
-        setRoomStatuses(
-          Array.isArray(data)
-            ? data.map((r) => ({
-                floor: r.floor || "Unknown Floor",
-                room: r.room || "Unnamed Room",
-                occupied: Array.isArray(r.occupied) ? r.occupied : [],
-              }))
-            : []
-        );
+// Replace both instances with this:
+setRoomStatuses(
+  Array.isArray(data)
+    ? data.map((r) => ({
+        floor: r.floor || "Unknown Floor",
+        room: r.room || "Unnamed Room",
+        isActive: r.isActive !== false, // ✅ Add this line
+        occupied: Array.isArray(r.occupied) ? r.occupied : [],
+      }))
+    : []
+);
+
       } catch (error) {
         console.error("Availability fetch error:", error);
         setAvailError("Failed to load availability. Please try again later.");
@@ -380,15 +384,17 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
         params: { date: manilaDateStr },
       });
 
-      setRoomStatuses(
-        Array.isArray(data)
-          ? data.map((r) => ({
-              floor: r.floor || "Unknown Floor",
-              room: r.room || "Unnamed Room",
-              occupied: Array.isArray(r.occupied) ? r.occupied : [],
-            }))
-          : []
-      );
+// Replace both instances with this:
+setRoomStatuses(
+  Array.isArray(data)
+    ? data.map((r) => ({
+        floor: r.floor || "Unknown Floor",
+        room: r.room || "Unnamed Room",
+        isActive: r.isActive !== false, // ✅ Add this line
+        occupied: Array.isArray(r.occupied) ? r.occupied : [],
+      }))
+    : []
+);
     } catch (error) {
       console.error("Availability fetch error:", error);
       setAvailError("Failed to load availability. Please try again later.");
@@ -723,39 +729,45 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
         {/* RIGHT SIDEBAR */}
         <aside className="w-full xl:w-80 flex flex-col gap-4 sm:gap-6">
           {/* Calendar */}
-          <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border border-gray-200 shadow-lg p-4 sm:p-6 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center gap-2 mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <h2 className="text-lg font-bold text-gray-800">Calendar</h2>
-            </div>
-            <Calendar
-              onClickDay={handleDateClick}
-              value={selectedDate}
-              className="border-0 w-full"
-              tileContent={renderCalendarTile}
-              tileClassName={({ date, view }) => {
-                if (view !== "month") return "";
-                return "relative h-10 sm:h-12 hover:bg-gray-50 rounded-lg transition-colors duration-200";
-              }}
-              prevLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">◀</span>}
-              nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">▶</span>}
-              prev2Label={null}
-              next2Label={null}
-              aria-label="Reservation calendar"
-            />
-            <div className="mt-4 flex items-center justify-center space-x-4 flex-wrap gap-2">
-              <div className="flex items-center">
-                <div className="w-3 h-3 rounded-full bg-yellow-400/20 border border-yellow-400 mr-2"></div>
-                <span className="text-xs text-gray-600">Today</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500 mr-2"></div>
-                <span className="text-xs text-gray-600">Reserved</span>
-              </div>
-            </div>
-          </div>
+{/* Calendar */}
+<div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border border-gray-200 shadow-lg p-4 sm:p-6 hover:shadow-xl transition-all duration-300">
+  <div className="flex items-center gap-2 mb-4">
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+    <h2 className="text-lg font-bold text-gray-800">Calendar</h2>
+  </div>
+  <Calendar
+    onClickDay={handleDateClick}
+    value={selectedDate}
+    className="border-0 w-full"
+    tileContent={renderCalendarTile}
+    tileClassName={({ date, view }) => {
+      if (view !== "month") return "";
+      return "relative h-10 sm:h-12 hover:bg-gray-50 rounded-lg transition-colors duration-200";
+    }}
+    // Set Sunday as the first day of the week
+    calendarType="US"  // This sets Sunday as first day
+    formatShortWeekday={(locale, date) => 
+      ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]
+    }
+    prevLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">◀</span>}
+    nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">▶</span>}
+    prev2Label={null}
+    next2Label={null}
+    aria-label="Reservation calendar"
+  />
+  <div className="mt-4 flex items-center justify-center space-x-4 flex-wrap gap-2">
+    <div className="flex items-center">
+      <div className="w-3 h-3 rounded-full bg-yellow-400/20 border border-yellow-400 mr-2"></div>
+      <span className="text-xs text-gray-600">Today</span>
+    </div>
+    <div className="flex items-center">
+      <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500 mr-2"></div>
+      <span className="text-xs text-gray-600">Reserved</span>
+    </div>
+  </div>
+</div>
 
           {/* Reserve Room Button */}
           <button

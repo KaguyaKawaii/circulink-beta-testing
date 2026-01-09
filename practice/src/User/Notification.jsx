@@ -11,24 +11,62 @@ function Notification({ user, setView, setSelectedReservation }) {
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
+  
+  // Infinite scroll states
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [displayNotifications, setDisplayNotifications] = useState([]);
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async (pageNumber = 1, loadMore = false) => {
     try {
-      setRefreshing(true);
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/notifications/user/${user._id}`);
-      const sorted = res.data.sort(
+      if (loadMore) {
+        setLoadingMore(true);
+      } else {
+        if (pageNumber === 1) {
+          setLoading(true);
+          setInitialLoad(true);
+        }
+      }
+      
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/notifications/user/${user._id}`, {
+        params: {
+          page: pageNumber,
+          limit: 10
+        }
+      });
+      
+      const sorted = res.data.notifications.sort(
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
       );
-      setNotifications(sorted);
-      console.log("📬 Notifications fetched:", sorted.length);
+      
+      if (loadMore) {
+        // For infinite scroll, append new notifications
+        setNotifications(prev => [...prev, ...sorted]);
+        setDisplayNotifications(prev => [...prev, ...sorted]);
+      } else {
+        // For initial load or refresh
+        setNotifications(sorted);
+        setDisplayNotifications(sorted);
+      }
+      
+      // Check if there are more pages
+      setHasMore(res.data.hasMore);
+      setPage(pageNumber);
+      
+      console.log(`📬 Notifications fetched page ${pageNumber}:`, sorted.length, "hasMore:", res.data.hasMore);
     } catch (err) {
       console.error("Failed to fetch notifications:", err);
     } finally {
       setRefreshing(false);
       setLoading(false);
+      setLoadingMore(false);
+      setInitialLoad(false);
     }
   }, [user._id]);
 
+  // Initial fetch and socket setup
   useEffect(() => {
     if (!user?._id) return;
 
@@ -36,7 +74,7 @@ function Notification({ user, setView, setSelectedReservation }) {
 
     const initializeSocket = async () => {
       try {
-        await fetchNotifications();
+        await fetchNotifications(1, false);
 
         console.log("🔔 Joining user room:", user._id);
         socket.emit('join-user-room', user._id);
@@ -54,7 +92,8 @@ function Notification({ user, setView, setSelectedReservation }) {
           
           if (isForCurrentUser) {
             console.log("🔄 Auto-refreshing notifications for current user");
-            fetchNotifications();
+            // Reset to page 1 when new notification arrives
+            fetchNotifications(1, false);
             
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification('New Notification', {
@@ -74,15 +113,14 @@ function Notification({ user, setView, setSelectedReservation }) {
         const handleNotificationsRead = () => {
           if (!isSubscribed) return;
           console.log("📖 Notifications read event received");
-          fetchNotifications();
+          fetchNotifications(1, false);
         };
 
         const handleUserUpdated = (updatedUser) => {
           if (!isSubscribed) return;
           console.log("👤 User updated event received:", updatedUser);
-          // If the updated user is the current user, refresh notifications
           if (updatedUser._id === user._id) {
-            fetchNotifications();
+            fetchNotifications(1, false);
           }
         };
 
@@ -99,7 +137,6 @@ function Notification({ user, setView, setSelectedReservation }) {
           setSocketConnected(false);
         };
 
-        // Add error handler
         const handleError = (error) => {
           console.error("❌ Socket error:", error);
         };
@@ -111,7 +148,7 @@ function Notification({ user, setView, setSelectedReservation }) {
         socket.on('new-notification', handleNewNotification);
         socket.on('notification', handleNewNotification);
         socket.on('notifications-read', handleNotificationsRead);
-        socket.on('user-updated', handleUserUpdated); // Listen for user updates too
+        socket.on('user-updated', handleUserUpdated);
 
         setSocketConnected(socket.connected);
 
@@ -119,6 +156,7 @@ function Notification({ user, setView, setSelectedReservation }) {
         console.error('Error initializing socket:', error);
         setLoading(false);
         setRefreshing(false);
+        setInitialLoad(false);
       }
     };
 
@@ -140,8 +178,9 @@ function Notification({ user, setView, setSelectedReservation }) {
     };
   }, [user, fetchNotifications]);
 
+  // Filter notifications
   useEffect(() => {
-    let results = [...notifications];
+    let results = [...displayNotifications];
     
     if (statusFilter !== "all") {
       results = results.filter(notif => notif.status === statusFilter);
@@ -152,12 +191,39 @@ function Notification({ user, setView, setSelectedReservation }) {
     }
     
     setFilteredNotifications(results);
-  }, [notifications, statusFilter, unreadOnly]);
+  }, [displayNotifications, statusFilter, unreadOnly]);
+
+  // Handle infinite scroll
+  useEffect(() => {
+    const handleScroll = () => {
+      if (loadingMore || !hasMore) return;
+      
+      const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
+      const scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
+      const clientHeight = document.documentElement.clientHeight;
+      
+      // Load more when user is 100px from bottom
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        loadMoreNotifications();
+      }
+    };
+    
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [loadingMore, hasMore]);
+
+  const loadMoreNotifications = async () => {
+    if (!hasMore || loadingMore) return;
+    await fetchNotifications(page + 1, true);
+  };
 
   const markAsRead = async (id) => {
     try {
       await axios.put(`${import.meta.env.VITE_API_URL}/api/notifications/${id}/read`);
       setNotifications(prev => prev.map(notif => 
+        notif._id === id ? { ...notif, isRead: true } : notif
+      ));
+      setDisplayNotifications(prev => prev.map(notif => 
         notif._id === id ? { ...notif, isRead: true } : notif
       ));
       
@@ -173,6 +239,7 @@ function Notification({ user, setView, setSelectedReservation }) {
     try {
       await axios.put(`${import.meta.env.VITE_API_URL}/api/notifications/mark-all-read/${user._id}`);
       setNotifications(prev => prev.map(notif => ({ ...notif, isRead: true })));
+      setDisplayNotifications(prev => prev.map(notif => ({ ...notif, isRead: true })));
       
       if (socketConnected) {
         socket.emit("all-notifications-read", { userId: user._id });
@@ -185,7 +252,9 @@ function Notification({ user, setView, setSelectedReservation }) {
   // Add a manual refresh function
   const handleManualRefresh = () => {
     console.log("🔄 Manual refresh triggered");
-    fetchNotifications();
+    setPage(1);
+    setHasMore(true);
+    fetchNotifications(1, false);
   };
 
   const formatDateTime = (date) =>
@@ -245,6 +314,14 @@ function Notification({ user, setView, setSelectedReservation }) {
   // Function to remove "New" from notification messages
   const cleanNotificationMessage = (message) => {
     return message.replace(/\bNew\b\s*/gi, '').trim();
+  };
+
+  // Animation delay for each notification
+  const getAnimationDelay = (index) => {
+    if (initialLoad) {
+      return { animationDelay: `${index * 0.05}s` };
+    }
+    return {};
   };
 
   const ClockIcon = () => (
@@ -308,7 +385,20 @@ function Notification({ user, setView, setSelectedReservation }) {
     </svg>
   );
 
-  if (loading) {
+  const LoaderIcon = () => (
+    <svg className="animate-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2V6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M12 18V22" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M4.93 4.93L7.76 7.76" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M16.24 16.24L19.07 19.07" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M2 12H6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M18 12H22" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M4.93 19.07L7.76 16.24" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+      <path d="M16.24 7.76L19.07 4.93" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+    </svg>
+  );
+
+  if (loading && initialLoad) {
     return (
       <main className="w-full min-h-screen flex flex-col bg-gray-50 lg:ml-[250px] lg:w-[calc(100%-250px)]">
         <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm bg-white">
@@ -341,7 +431,13 @@ function Notification({ user, setView, setSelectedReservation }) {
     <main className="w-full min-h-screen flex flex-col bg-gray-50 lg:ml-[250px] lg:w-[calc(100%-250px)]">
       <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm bg-white">
         <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-wide">Notifications</h1>
-       
+        <button 
+          onClick={handleManualRefresh}
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm border border-gray-300 hover:border-gray-400 hover:bg-gray-50 transition-all cursor-pointer"
+        >
+          <RefreshIcon />
+          Refresh
+        </button>
       </header>
 
       <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
@@ -440,12 +536,12 @@ function Notification({ user, setView, setSelectedReservation }) {
                   <BellIcon />
                 </div>
                 <p className="text-gray-500 text-base sm:text-lg mb-2">
-                  {notifications.length === 0 
+                  {displayNotifications.length === 0 
                     ? "You don't have any notifications yet." 
                     : "No notifications match your filters."}
                 </p>
                 <p className="text-gray-400 text-xs sm:text-sm mb-4">
-                  {notifications.length === 0 
+                  {displayNotifications.length === 0 
                     ? "Notifications about your reservations and reports will appear here." 
                     : "Try adjusting your filters to see more results."}
                 </p>
@@ -460,79 +556,107 @@ function Notification({ user, setView, setSelectedReservation }) {
                 )}
               </div>
             ) : (
-              <ul className="space-y-3">
-                {filteredNotifications.map((notif) => (
-                  <li
-                    key={notif._id}
-                    className={`border rounded-xl p-4 transition-all duration-300 ${
-                      notif.isRead 
-                        ? "bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm" 
-                        : "bg-blue-50 border-blue-200 hover:border-blue-300 hover:shadow-sm"
-                    }`}
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
-                          <h3 className={`font-medium text-sm leading-relaxed ${notif.isRead ? 'text-gray-800' : 'text-gray-900'}`}>
-                            {cleanNotificationMessage(notif.message)}
-                          </h3>
-                          <div className="flex items-center gap-2 shrink-0 sm:ml-2">
-                            {/* FIXED: Only show status badge if status is not "New" */}
-                            {notif.status !== "New" && (
-                              <span
-                                className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full font-semibold border ${statusColor(
-                                  notif.status
-                                )}`}
-                              >
-                                {notif.status}
-                              </span>
-                            )}
-                            {!notif.isRead && (
-                              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+              <>
+                <ul className="space-y-3">
+                  {filteredNotifications.map((notif, index) => (
+                    <li
+                      key={notif._id}
+                      style={getAnimationDelay(index)}
+                      className={`border rounded-xl p-4 transition-all duration-300 animate-fadeIn ${
+                        notif.isRead 
+                          ? "bg-white border-gray-200 hover:border-gray-300 hover:shadow-sm" 
+                          : "bg-blue-50 border-blue-200 hover:border-blue-300 hover:shadow-sm"
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2 mb-2">
+                            <h3 className={`font-medium text-sm leading-relaxed ${notif.isRead ? 'text-gray-800' : 'text-gray-900'}`}>
+                              {cleanNotificationMessage(notif.message)}
+                            </h3>
+                            <div className="flex items-center gap-2 shrink-0 sm:ml-2">
+                              {/* FIXED: Only show status badge if status is not "New" */}
+                              {notif.status !== "New" && (
+                                <span
+                                  className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full font-semibold border ${statusColor(
+                                    notif.status
+                                  )}`}
+                                >
+                                  {notif.status}
+                                </span>
+                              )}
+                              {!notif.isRead && (
+                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center text-xs text-gray-500 gap-1 mb-2">
+                            <ClockIcon />
+                            {formatRelativeTime(notif.createdAt)}
+                            {formatRelativeTime(notif.createdAt).includes("ago") && (
+                              <span className="text-gray-400 hidden sm:inline">• {formatDateTime(notif.createdAt)}</span>
                             )}
                           </div>
-                        </div>
-                        
-                        <div className="flex items-center text-xs text-gray-500 gap-1 mb-2">
-                          <ClockIcon />
-                          {formatRelativeTime(notif.createdAt)}
-                          {formatRelativeTime(notif.createdAt).includes("ago") && (
-                            <span className="text-gray-400 hidden sm:inline">• {formatDateTime(notif.createdAt)}</span>
+
+                          {!notif.isRead && (
+                            <button
+                              onClick={() => markAsRead(notif._id)}
+                              className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1 mt-2 cursor-pointer hover:underline transition-colors"
+                            >
+                              <CheckCircleIcon />
+                              Mark as read
+                            </button>
                           )}
                         </div>
 
-                        {!notif.isRead && (
-                          <button
-                            onClick={() => markAsRead(notif._id)}
-                            className="text-xs text-blue-600 hover:text-blue-800 font-medium flex items-center gap-1 mt-2 cursor-pointer hover:underline transition-colors"
-                          >
-                            <CheckCircleIcon />
-                            Mark as read
-                          </button>
-                        )}
+                        <div className="flex flex-col gap-2 items-start sm:items-end shrink-0">
+                          {notif.reservationId && (
+                            <button
+                              onClick={() => {
+                                setSelectedReservation(notif.reservationId);
+                                setView("reservationDetails");
+                                if (!notif.isRead) {
+                                  markAsRead(notif._id);
+                                }
+                              }}
+                              className="text-blue-600 text-sm font-medium hover:text-blue-800 flex items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-all cursor-pointer border border-transparent hover:border-blue-200 w-full sm:w-auto justify-center"
+                            >
+                              <EyeIcon />
+                              View Details
+                            </button>
+                          )}
+                        </div>
                       </div>
+                    </li>
+                  ))}
+                </ul>
 
-                      <div className="flex flex-col gap-2 items-start sm:items-end shrink-0">
-                        {notif.reservationId && (
-                          <button
-                            onClick={() => {
-                              setSelectedReservation(notif.reservationId);
-                              setView("reservationDetails");
-                              if (!notif.isRead) {
-                                markAsRead(notif._id);
-                              }
-                            }}
-                            className="text-blue-600 text-sm font-medium hover:text-blue-800 flex items-center gap-1 whitespace-nowrap px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-all cursor-pointer border border-transparent hover:border-blue-200 w-full sm:w-auto justify-center"
-                          >
-                            <EyeIcon />
-                            View Details
-                          </button>
-                        )}
-                      </div>
+                {loadingMore && (
+                  <div className="mt-6 text-center">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg border border-gray-200">
+                      <LoaderIcon />
+                      <span className="text-sm text-gray-600">Loading more notifications...</span>
                     </div>
-                  </li>
-                ))}
-              </ul>
+                  </div>
+                )}
+
+                {hasMore && !loadingMore && filteredNotifications.length >= 10 && (
+                  <div className="mt-6 text-center">
+                    <p className="text-sm text-gray-500 mb-3">Scroll down to load more notifications</p>
+                    <div className="flex justify-center">
+                      <div className="w-6 h-6 rounded-full border-2 border-gray-300 border-t-blue-500 animate-spin"></div>
+                    </div>
+                  </div>
+                )}
+
+                {!hasMore && filteredNotifications.length > 0 && (
+                  <div className="mt-8 text-center py-4 border-t border-gray-200">
+                    <p className="text-gray-400 text-sm">You've reached the end of your notifications</p>
+                    <p className="text-gray-500 text-xs mt-1">Total: {filteredNotifications.length} notifications</p>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

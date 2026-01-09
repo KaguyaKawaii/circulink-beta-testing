@@ -729,39 +729,45 @@ setRoomStatuses(
         {/* RIGHT SIDEBAR */}
         <aside className="w-full xl:w-80 flex flex-col gap-4 sm:gap-6">
           {/* Calendar */}
-          <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border border-gray-200 shadow-lg p-4 sm:p-6 hover:shadow-xl transition-all duration-300">
-            <div className="flex items-center gap-2 mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <h2 className="text-lg font-bold text-gray-800">Calendar</h2>
-            </div>
-            <Calendar
-              onClickDay={handleDateClick}
-              value={selectedDate}
-              className="border-0 w-full"
-              tileContent={renderCalendarTile}
-              tileClassName={({ date, view }) => {
-                if (view !== "month") return "";
-                return "relative h-10 sm:h-12 hover:bg-gray-50 rounded-lg transition-colors duration-200";
-              }}
-              prevLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">◀</span>}
-              nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">▶</span>}
-              prev2Label={null}
-              next2Label={null}
-              aria-label="Reservation calendar"
-            />
-            <div className="mt-4 flex items-center justify-center space-x-4 flex-wrap gap-2">
-              <div className="flex items-center">
-                <div className="w-3 h-3 rounded-full bg-yellow-400/20 border border-yellow-400 mr-2"></div>
-                <span className="text-xs text-gray-600">Today</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500 mr-2"></div>
-                <span className="text-xs text-gray-600">Reserved</span>
-              </div>
-            </div>
-          </div>
+{/* Calendar */}
+<div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border border-gray-200 shadow-lg p-4 sm:p-6 hover:shadow-xl transition-all duration-300">
+  <div className="flex items-center gap-2 mb-4">
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+    <h2 className="text-lg font-bold text-gray-800">Calendar</h2>
+  </div>
+  <Calendar
+    onClickDay={handleDateClick}
+    value={selectedDate}
+    className="border-0 w-full"
+    tileContent={renderCalendarTile}
+    tileClassName={({ date, view }) => {
+      if (view !== "month") return "";
+      return "relative h-10 sm:h-12 hover:bg-gray-50 rounded-lg transition-colors duration-200";
+    }}
+    // Set Sunday as the first day of the week
+    calendarType="US"  // This sets Sunday as first day
+    formatShortWeekday={(locale, date) => 
+      ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()]
+    }
+    prevLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">◀</span>}
+    nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">▶</span>}
+    prev2Label={null}
+    next2Label={null}
+    aria-label="Reservation calendar"
+  />
+  <div className="mt-4 flex items-center justify-center space-x-4 flex-wrap gap-2">
+    <div className="flex items-center">
+      <div className="w-3 h-3 rounded-full bg-yellow-400/20 border border-yellow-400 mr-2"></div>
+      <span className="text-xs text-gray-600">Today</span>
+    </div>
+    <div className="flex items-center">
+      <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500 mr-2"></div>
+      <span className="text-xs text-gray-600">Reserved</span>
+    </div>
+  </div>
+</div>
 
           {/* Reserve Room Button */}
           <button
