@@ -578,18 +578,9 @@ function Message({ user, setView, currentView }) {
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >      
-      {/* HEADER */}
+      {/* HEADER - Removed burger icon from here */}
       <header className="text-black px-4 lg:px-6 h-16 lg:h-[60px] flex items-center justify-between shadow-sm lg:shadow-lg border-b border-gray-200 bg-white relative z-50">
         <div className="flex items-center space-x-3">
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors lg:hidden"
-            aria-label="Toggle sidebar"
-          >
-            <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
           <h1 className="text-xl lg:text-2xl font-bold tracking-wide bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
             Messages
           </h1>
@@ -757,10 +748,21 @@ function Message({ user, setView, currentView }) {
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col relative z-40">
-          {/* Chat Header */}
+          {/* Chat Header - Added burger icon here */}
           <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
+                {/* Burger Icon for mobile and desktop */}
+                <button 
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                  aria-label="Toggle chat selection"
+                >
+                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+                
                 <div className={`w-3 h-3 rounded-full ${
                   activeTab === MESSAGE_TYPES.FLOOR ? "bg-gradient-to-r from-red-500 to-orange-500" : "bg-gradient-to-r from-blue-500 to-cyan-500"
                 }`}></div>

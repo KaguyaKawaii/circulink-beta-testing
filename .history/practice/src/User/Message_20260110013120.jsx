@@ -1,15 +1,165 @@
-import { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
+import PropTypes from 'prop-types';
+
+// Constants
+const MESSAGE_TYPES = {
+  FLOOR: "floor",
+  ADMIN: "admin"
+};
+
+const FLOORS = [
+  "Ground Floor",
+  "Second Floor",
+  "Fourth Floor",
+  "Fifth Floor"
+];
+
+const SOCKET_EVENTS = {
+  NEW_MESSAGE: "newMessage",
+  UNREAD_UPDATE: "unreadCountUpdate",
+  REFRESH_UNREAD: "refresh-unread-counts",
+  MESSAGE_SENT: "messageSent"
+};
 
 const socket = io(`${import.meta.env.VITE_API_URL}`);
+
+// Utility Functions (moved outside component)
+const formatTime = (iso) => {
+  const date = new Date(iso);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatDate = (iso) => {
+  const date = new Date(iso);
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+// Extracted UI Components
+const MessageBubble = ({ message, isOwn, isUnread, activeTab, user, formatTime }) => {
+  const isToday = (iso) => {
+    const date = new Date(iso);
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
+  const isYesterday = (iso) => {
+    const date = new Date(iso);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return date.toDateString() === yesterday.toDateString();
+  };
+
+  return (
+    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+      <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-4 shadow-sm transition-all duration-300 hover:shadow-md relative ${
+        isOwn 
+          ? activeTab === MESSAGE_TYPES.FLOOR 
+            ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-br-none' 
+            : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-br-none'
+          : 'bg-white border border-gray-200 rounded-bl-none shadow-sm'
+      }`}>
+        {/* NEW BADGE for unread messages */}
+        {isUnread && !isOwn && (
+          <div className="absolute -top-2 -left-2 z-10">
+            <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg flex items-center animate-pulse">
+              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+              </svg>
+              NEW
+            </span>
+          </div>
+        )}
+        
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-sm font-semibold">
+            {isOwn ? 'You' : message.senderName}
+          </div>
+          {message.status === "sending" && (
+            <div className="text-xs opacity-80 flex items-center">
+              <svg className="w-3 h-3 mr-1 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v4m0 12v4m8-10h-4M6 12H2" />
+              </svg>
+              Sending...
+            </div>
+          )}
+          {message.status === "failed" && (
+            <div className="text-xs opacity-80 text-red-200 flex items-center">
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Failed
+            </div>
+          )}
+        </div>
+        <div className="text-sm leading-relaxed break-words whitespace-pre-wrap">{message.content}</div>
+        <div className={`text-xs mt-2 text-right flex items-center justify-end ${
+          isOwn 
+            ? activeTab === MESSAGE_TYPES.FLOOR ? 'text-red-100' : 'text-blue-100'
+            : 'text-gray-500'
+        }`}>
+          {formatTime(message.createdAt)}
+          {isOwn && (
+            <svg className="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const DateSeparator = ({ date }) => {
+  const isToday = (iso) => {
+    const date = new Date(iso);
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
+  const isYesterday = (iso) => {
+    const date = new Date(iso);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    return date.toDateString() === yesterday.toDateString();
+  };
+
+  return (
+    <div className="flex items-center justify-center my-6">
+      <div className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
+        {isToday(date) ? 'Today' : isYesterday(date) ? 'Yesterday' : formatDate(date)}
+      </div>
+    </div>
+  );
+};
+
+const LoadingSkeleton = () => (
+  <div className="flex justify-center items-center h-full">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+      <p className="text-gray-600">Loading messages...</p>
+    </div>
+  </div>
+);
+
+const EmptyState = () => (
+  <div className="flex justify-center items-center h-full">
+    <div className="text-center text-gray-500 max-w-sm">
+      <div className="text-6xl mb-4 opacity-60">💬</div>
+      <h3 className="text-lg font-semibold mb-2 text-gray-700">No messages yet</h3>
+      <p className="text-gray-600 mb-4">Start a conversation by sending a message below!</p>
+      <div className="w-16 h-1 bg-gradient-to-r from-gray-300 to-transparent rounded-full mx-auto"></div>
+    </div>
+  </div>
+);
 
 function Message({ user, setView, currentView }) {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [selectedFloor, setSelectedFloor] = useState("Ground Floor");
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("floor");
+  const [activeTab, setActiveTab] = useState(MESSAGE_TYPES.FLOOR);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({
     floor: 0,
@@ -17,16 +167,17 @@ function Message({ user, setView, currentView }) {
   });
   const [floorUnreadCounts, setFloorUnreadCounts] = useState({});
   const [unreadMessageIds, setUnreadMessageIds] = useState(new Set());
-
-  const floors = [
-    "Ground Floor",
-    "Second Floor",
-    "Fourth Floor",
-    "Fifth Floor"
-  ];
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
 
   const messagesEndRef = useRef(null);
   const messageSound = useRef(new Audio("/ringtone_message.wav"));
+
+  // Responsive handling
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     try { messageSound.current.volume = 0.75; } catch (e) {}
@@ -40,16 +191,44 @@ function Message({ user, setView, currentView }) {
     scrollToBottom();
   }, [messages]);
 
+  // Memoized calculations
+  const getCurrentUnreadCount = useCallback(() => {
+    if (activeTab === MESSAGE_TYPES.FLOOR) {
+      return floorUnreadCounts[selectedFloor] || 0;
+    } else {
+      return unreadCounts.admin;
+    }
+  }, [activeTab, selectedFloor, floorUnreadCounts, unreadCounts]);
+
+  const isMessageUnread = useCallback((messageId) => {
+    return unreadMessageIds.has(messageId);
+  }, [unreadMessageIds]);
+
+  const groupMessagesByDate = useCallback(() => {
+    const groups = {};
+    messages.forEach(message => {
+      const date = new Date(message.createdAt).toDateString();
+      if (!groups[date]) {
+        groups[date] = [];
+      }
+      groups[date].push(message);
+    });
+    return groups;
+  }, [messages]);
+
+  const messageGroups = useMemo(() => groupMessagesByDate(), [groupMessagesByDate]);
+
+  // API Functions
   const fetchAllUnreadCounts = async () => {
     if (!user?._id) return;
 
     try {
       const floorCounts = {};
       
-      for (const floor of floors) {
+      for (const floor of FLOORS) {
         try {
           const response = await axios.get(
-            `http://localhost:5000/api/messages/unread-count/${user._id}/${floor}`
+            `${import.meta.env.VITE_API_URL}/api/messages/unread-count/${user._id}/${floor}`
           );
           floorCounts[floor] = response.data.count || 0;
         } catch (err) {
@@ -63,7 +242,7 @@ function Message({ user, setView, currentView }) {
       const totalFloorUnread = Object.values(floorCounts).reduce((sum, count) => sum + count, 0);
       
       const adminResponse = await axios.get(
-        `http://localhost:5000/api/messages/unread-count/${user._id}/admin`
+        `${import.meta.env.VITE_API_URL}/api/messages/unread-count/${user._id}/admin`
       );
 
       setUnreadCounts({
@@ -75,7 +254,7 @@ function Message({ user, setView, currentView }) {
       setUnreadCounts({ floor: 0, admin: 0 });
       
       const initialCounts = {};
-      floors.forEach(floor => {
+      FLOORS.forEach(floor => {
         initialCounts[floor] = 0;
       });
       setFloorUnreadCounts(initialCounts);
@@ -87,7 +266,7 @@ function Message({ user, setView, currentView }) {
     
     try {
       const response = await axios.get(
-        `http://localhost:5000/api/messages/unread-messages/${user._id}`
+        `${import.meta.env.VITE_API_URL}/api/messages/unread-messages/${user._id}`
       );
       
       if (response.data.success) {
@@ -101,9 +280,9 @@ function Message({ user, setView, currentView }) {
 
   const markMessagesAsReadOnReply = async () => {
     try {
-      let receiver = activeTab === "floor" ? selectedFloor : "admin";
+      let receiver = activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "admin";
       
-      const response = await axios.post("http://localhost:5000/api/messages/mark-read-on-reply", {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/mark-read-on-reply`, {
         userId: user._id,
         receiver: receiver,
         conversationType: activeTab
@@ -121,9 +300,9 @@ function Message({ user, setView, currentView }) {
 
   const markConversationAsRead = async () => {
     try {
-      let receiver = activeTab === "floor" ? selectedFloor : "admin";
+      let receiver = activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "admin";
       
-      const response = await axios.post("http://localhost:5000/api/messages/mark-conversation-read", {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/mark-conversation-read`, {
         userId: user._id,
         receiver: receiver,
         conversationType: activeTab
@@ -139,23 +318,34 @@ function Message({ user, setView, currentView }) {
     }
   };
 
+  // Socket and Data Fetching
   useEffect(() => {
     if (!user?._id) return;
+
+    let isMounted = true;
 
     socket.emit("join", { userId: user._id });
     socket.emit("join", { userId: user.floor });
     socket.emit("join", { userId: "admin" });
 
-    fetchAllUnreadCounts();
-    fetchUnreadMessages();
-    
-    if (activeTab === "floor") {
-      fetchMessages();
-    } else {
-      fetchAdminMessages();
-    }
+    const initializeData = async () => {
+      if (!isMounted) return;
+      
+      await fetchAllUnreadCounts();
+      await fetchUnreadMessages();
+      
+      if (activeTab === MESSAGE_TYPES.FLOOR) {
+        await fetchMessages();
+      } else {
+        await fetchAdminMessages();
+      }
+    };
+
+    initializeData();
 
     const handleNewMessage = (msg) => {
+      if (!isMounted) return;
+      
       console.log("📨 New message received in User Messages:", msg);
       
       setMessages(prev => {
@@ -167,7 +357,7 @@ function Message({ user, setView, currentView }) {
         const exists = filtered.find(m => m._id === msg._id);
         if (exists) return filtered;
         
-        if (activeTab === "floor") {
+        if (activeTab === MESSAGE_TYPES.FLOOR) {
           const isRelevant =
             (msg.receiver === user._id && msg.floor === selectedFloor) ||
             (msg.sender === user._id && msg.receiver === selectedFloor) ||
@@ -202,7 +392,7 @@ function Message({ user, setView, currentView }) {
             console.log("✅ Adding new floor message:", msg);
             return [...filtered, msg];
           }
-        } else if (activeTab === "admin") {
+        } else if (activeTab === MESSAGE_TYPES.ADMIN) {
           const isRelevant =
             (msg.sender === user._id && msg.receiver === "admin") ||
             (msg.sender === "admin" && msg.receiver === user._id) ||
@@ -235,20 +425,22 @@ function Message({ user, setView, currentView }) {
     };
 
     const handleUnreadCountUpdate = (data) => {
-      if (data.userId === user._id) {
+      if (isMounted && data.userId === user._id) {
         fetchAllUnreadCounts();
         fetchUnreadMessages();
       }
     };
 
     const handleRefreshUnreadCounts = (data) => {
-      if (data.userId === user._id) {
+      if (isMounted && data.userId === user._id) {
         fetchAllUnreadCounts();
         fetchUnreadMessages();
       }
     };
 
     const handleMessageSent = (msg) => {
+      if (!isMounted) return;
+      
       console.log("✅ Message sent confirmation:", msg);
       setMessages(prev => prev.map(m => 
         m.status === "sending" && m.content === msg.content 
@@ -257,16 +449,17 @@ function Message({ user, setView, currentView }) {
       ));
     };
 
-    socket.on("newMessage", handleNewMessage);
-    socket.on("unreadCountUpdate", handleUnreadCountUpdate);
-    socket.on("refresh-unread-counts", handleRefreshUnreadCounts);
-    socket.on("messageSent", handleMessageSent);
+    socket.on(SOCKET_EVENTS.NEW_MESSAGE, handleNewMessage);
+    socket.on(SOCKET_EVENTS.UNREAD_UPDATE, handleUnreadCountUpdate);
+    socket.on(SOCKET_EVENTS.REFRESH_UNREAD, handleRefreshUnreadCounts);
+    socket.on(SOCKET_EVENTS.MESSAGE_SENT, handleMessageSent);
 
     return () => {
-      socket.off("newMessage", handleNewMessage);
-      socket.off("unreadCountUpdate", handleUnreadCountUpdate);
-      socket.off("refresh-unread-counts", handleRefreshUnreadCounts);
-      socket.off("messageSent", handleMessageSent);
+      isMounted = false;
+      socket.off(SOCKET_EVENTS.NEW_MESSAGE, handleNewMessage);
+      socket.off(SOCKET_EVENTS.UNREAD_UPDATE, handleUnreadCountUpdate);
+      socket.off(SOCKET_EVENTS.REFRESH_UNREAD, handleRefreshUnreadCounts);
+      socket.off(SOCKET_EVENTS.MESSAGE_SENT, handleMessageSent);
     };
   }, [user, selectedFloor, activeTab]);
 
@@ -281,7 +474,7 @@ function Message({ user, setView, currentView }) {
     try {
       setLoading(true);
       const { data } = await axios.get(
-        `http://localhost:5000/api/messages/floor-conversation/${user._id}/${selectedFloor}`
+        `${import.meta.env.VITE_API_URL}/api/messages/floor-conversation/${user._id}/${selectedFloor}`
       );
       setMessages(data);
     } catch (err) {
@@ -295,7 +488,7 @@ function Message({ user, setView, currentView }) {
     try {
       setLoading(true);
       const { data } = await axios.get(
-        `http://localhost:5000/api/messages/user-admin-conversation/${user._id}`
+        `${import.meta.env.VITE_API_URL}/api/messages/user-admin-conversation/${user._id}`
       );
       setMessages(data);
     } catch (err) {
@@ -309,7 +502,7 @@ function Message({ user, setView, currentView }) {
     if (!newMessage.trim()) return;
 
     let tempMsg;
-    let receiver = activeTab === "floor" ? selectedFloor : "admin";
+    let receiver = activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "admin";
     
     tempMsg = {
       _id: "temp-" + Date.now(),
@@ -319,7 +512,7 @@ function Message({ user, setView, currentView }) {
       createdAt: new Date().toISOString(),
       status: "sending",
       senderName: user.name,
-      floor: activeTab === "floor" ? selectedFloor : undefined
+      floor: activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : undefined
     };
 
     setMessages(prev => [...prev, tempMsg]);
@@ -328,14 +521,14 @@ function Message({ user, setView, currentView }) {
     try {
       await markMessagesAsReadOnReply();
       
-      if (activeTab === "floor") {
-        await axios.post("http://localhost:5000/api/messages/send-to-floor", {
+      if (activeTab === MESSAGE_TYPES.FLOOR) {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/send-to-floor`, {
           userId: user._id,
           floor: selectedFloor,
           content: newMessage
         });
       } else {
-        await axios.post("http://localhost:5000/api/messages/send-to-admin", {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/send-to-admin`, {
           userId: user._id,
           content: newMessage
         });
@@ -355,33 +548,10 @@ function Message({ user, setView, currentView }) {
     }
   };
 
-  const formatTime = (iso) => {
-    const date = new Date(iso);
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatDate = (iso) => {
-    const date = new Date(iso);
-    return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-  };
-
-  const isToday = (iso) => {
-    const date = new Date(iso);
-    const today = new Date();
-    return date.toDateString() === today.toDateString();
-  };
-
-  const isYesterday = (iso) => {
-    const date = new Date(iso);
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    return date.toDateString() === yesterday.toDateString();
-  };
-
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setMessages([]);
-    if (tab === "floor") {
+    if (tab === MESSAGE_TYPES.FLOOR) {
       fetchMessages();
     } else {
       fetchAdminMessages();
@@ -396,43 +566,21 @@ function Message({ user, setView, currentView }) {
     setIsSidebarOpen(false);
   };
 
-  const getCurrentUnreadCount = () => {
-    if (activeTab === "floor") {
-      return floorUnreadCounts[selectedFloor] || 0;
-    } else {
-      return unreadCounts.admin;
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape' && isSidebarOpen) {
+      setIsSidebarOpen(false);
     }
   };
 
-  const isMessageUnread = (messageId) => {
-    return unreadMessageIds.has(messageId);
-  };
-
-  const groupMessagesByDate = () => {
-    const groups = {};
-    messages.forEach(message => {
-      const date = new Date(message.createdAt).toDateString();
-      if (!groups[date]) {
-        groups[date] = [];
-      }
-      groups[date].push(message);
-    });
-    return groups;
-  };
-
-  const messageGroups = groupMessagesByDate();
-
   return (
-    <main className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-gradient-to-br from-gray-50 via-white to-gray-100 relative z-40">      {/* HEADER */}
-<header className="text-black px-4 lg:px-6 h-16 lg:h-[60px] flex items-center justify-between shadow-sm lg:shadow-lg border-b border-gray-200 bg-white relative z-50">        <div className="flex items-center space-x-3">
-          <button 
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors lg:hidden"
-          >
-            <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+    <main 
+      className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-gradient-to-br from-gray-50 via-white to-gray-100 relative z-40"
+      onKeyDown={handleKeyDown}
+      tabIndex={-1}
+    >      
+      {/* HEADER - Removed burger icon from here */}
+      <header className="text-black px-4 lg:px-6 h-16 lg:h-[60px] flex items-center justify-between shadow-sm lg:shadow-lg border-b border-gray-200 bg-white relative z-50">
+        <div className="flex items-center space-x-3">
           <h1 className="text-xl lg:text-2xl font-bold tracking-wide bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
             Messages
           </h1>
@@ -449,7 +597,7 @@ function Message({ user, setView, currentView }) {
         )}
 
         {/* Sidebar - Mobile & Desktop */}
- <aside className={`
+        <aside className={`
           fixed lg:static top-0 left-0 h-full w-80 bg-white border-r border-gray-200 shadow-sm z-60 flex flex-col
           transition-transform duration-300 ease-in-out
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -460,6 +608,7 @@ function Message({ user, setView, currentView }) {
             <button 
               onClick={() => setIsSidebarOpen(false)}
               className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+              aria-label="Close sidebar"
             >
               <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -476,17 +625,18 @@ function Message({ user, setView, currentView }) {
           <div className="p-4 border-b border-gray-100">
             <div className="flex flex-col space-y-3">
               <button
-                onClick={() => handleTabChange("floor")}
+                onClick={() => handleTabChange(MESSAGE_TYPES.FLOOR)}
                 className={`p-4 rounded-xl text-left transition-all duration-300 transform hover:scale-[1.02] cursor-pointer border-2 ${
-                  activeTab === "floor" 
+                  activeTab === MESSAGE_TYPES.FLOOR 
                     ? "bg-gradient-to-r from-red-50 to-orange-50 border-red-200 shadow-lg scale-[1.02]" 
                     : "hover:bg-gray-50 border-transparent hover:border-gray-200"
                 }`}
+                aria-label="Message floor staff"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div className={`w-3 h-3 rounded-full mr-3 transition-colors ${
-                      activeTab === "floor" ? "bg-gradient-to-r from-red-500 to-orange-500" : "bg-gray-400"
+                      activeTab === MESSAGE_TYPES.FLOOR ? "bg-gradient-to-r from-red-500 to-orange-500" : "bg-gray-400"
                     }`}></div>
                     <div>
                       <div className="font-semibold text-gray-800">Floors</div>
@@ -502,17 +652,18 @@ function Message({ user, setView, currentView }) {
               </button>
               
               <button
-                onClick={() => handleTabChange("admin")}
+                onClick={() => handleTabChange(MESSAGE_TYPES.ADMIN)}
                 className={`p-4 rounded-xl text-left transition-all duration-300 transform hover:scale-[1.02] cursor-pointer border-2 ${
-                  activeTab === "admin" 
+                  activeTab === MESSAGE_TYPES.ADMIN 
                     ? "bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200 shadow-lg scale-[1.02]" 
                     : "hover:bg-gray-50 border-transparent hover:border-gray-200"
                 }`}
+                aria-label="Contact administration"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <div className={`w-3 h-3 rounded-full mr-3 transition-colors ${
-                      activeTab === "admin" ? "bg-gradient-to-r from-blue-500 to-cyan-500" : "bg-gray-400"
+                      activeTab === MESSAGE_TYPES.ADMIN ? "bg-gradient-to-r from-blue-500 to-cyan-500" : "bg-gray-400"
                     }`}></div>
                     <div>
                       <div className="font-semibold text-gray-800">Administration</div>
@@ -530,7 +681,7 @@ function Message({ user, setView, currentView }) {
           </div>
 
           {/* Floor Selection (only show for floor tab) */}
-          {activeTab === "floor" && (
+          {activeTab === MESSAGE_TYPES.FLOOR && (
             <div className="p-4 flex-1">
               <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
                 <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -539,7 +690,7 @@ function Message({ user, setView, currentView }) {
                 Select Floor
               </h3>
               <div className="space-y-2">
-                {floors.map(floor => (
+                {FLOORS.map(floor => (
                   <button
                     key={floor}
                     onClick={() => handleFloorSelect(floor)}
@@ -548,6 +699,7 @@ function Message({ user, setView, currentView }) {
                         ? "bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-xl scale-[1.02]" 
                         : "hover:bg-gray-50 bg-white border border-gray-200 hover:border-gray-300"
                     }`}
+                    aria-label={`Select ${floor}`}
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center">
@@ -578,7 +730,7 @@ function Message({ user, setView, currentView }) {
           )}
 
           {/* Admin Info (only show for admin tab) */}
-          {activeTab === "admin" && (
+          {activeTab === MESSAGE_TYPES.ADMIN && (
             <div className="p-4">
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4 shadow-sm">
                 <div className="flex items-center mb-3">
@@ -596,22 +748,33 @@ function Message({ user, setView, currentView }) {
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col relative z-40">
-          {/* Chat Header */}
+          {/* Chat Header - Added burger icon here */}
           <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
+                {/* Burger Icon for mobile and desktop */}
+                <button 
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                  aria-label="Toggle chat selection"
+                >
+                  <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+                
                 <div className={`w-3 h-3 rounded-full ${
-                  activeTab === "floor" ? "bg-gradient-to-r from-red-500 to-orange-500" : "bg-gradient-to-r from-blue-500 to-cyan-500"
+                  activeTab === MESSAGE_TYPES.FLOOR ? "bg-gradient-to-r from-red-500 to-orange-500" : "bg-gradient-to-r from-blue-500 to-cyan-500"
                 }`}></div>
                 <div>
                   <h2 className="text-lg lg:text-xl font-bold text-gray-800">
-                    {activeTab === "floor" ? selectedFloor : "Administration Team"}
+                    {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "Administration Team"}
                   </h2>
                   <p className="text-xs lg:text-sm text-gray-600 mt-1 flex items-center">
                     <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    {activeTab === "floor" 
+                    {activeTab === MESSAGE_TYPES.FLOOR 
                       ? `${selectedFloor} maintenance and support team` 
                       : "System administrators and support staff"
                     }
@@ -629,91 +792,27 @@ function Message({ user, setView, currentView }) {
           {/* Messages Container */}
           <div className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50">
             {loading ? (
-              <div className="flex justify-center items-center h-full">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
-                  <p className="text-gray-600">Loading messages...</p>
-                </div>
-              </div>
+              <LoadingSkeleton />
             ) : messages.length === 0 ? (
-              <div className="flex justify-center items-center h-full">
-                <div className="text-center text-gray-500 max-w-sm">
-                  <div className="text-6xl mb-4 opacity-60">💬</div>
-                  <h3 className="text-lg font-semibold mb-2 text-gray-700">No messages yet</h3>
-                  <p className="text-gray-600 mb-4">Start a conversation by sending a message below!</p>
-                  <div className="w-16 h-1 bg-gradient-to-r from-gray-300 to-transparent rounded-full mx-auto"></div>
-                </div>
-              </div>
+              <EmptyState />
             ) : (
               <div className="space-y-6 max-w-full mx-auto">
                 {Object.entries(messageGroups).map(([date, dateMessages]) => (
                   <div key={date}>
-                    {/* Date Separator */}
-                    <div className="flex items-center justify-center my-6">
-                      <div className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
-                        {isToday(date) ? 'Today' : isYesterday(date) ? 'Yesterday' : formatDate(date)}
-                      </div>
-                    </div>
+                    <DateSeparator date={date} />
                     
                     {/* Messages for this date */}
                     <div className="space-y-4">
                       {dateMessages.map(msg => (
-                        <div key={msg._id} className={`flex ${msg.sender === user._id ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-4 shadow-sm transition-all duration-300 hover:shadow-md relative ${
-                            msg.sender === user._id 
-                              ? activeTab === "floor" 
-                                ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-br-none' 
-                                : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-br-none'
-                              : 'bg-white border border-gray-200 rounded-bl-none shadow-sm'
-                          }`}>
-                            {/* NEW BADGE for unread messages */}
-                            {isMessageUnread(msg._id) && msg.sender !== user._id && (
-                              <div className="absolute -top-2 -left-2 z-10">
-                                <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg flex items-center animate-pulse">
-                                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-                                  </svg>
-                                  NEW
-                                </span>
-                              </div>
-                            )}
-                            
-                            <div className="flex items-center justify-between mb-2">
-                              <div className="text-sm font-semibold">
-                                {msg.sender === user._id ? 'You' : msg.senderName}
-                              </div>
-                              {msg.status === "sending" && (
-                                <div className="text-xs opacity-80 flex items-center">
-                                  <svg className="w-3 h-3 mr-1 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v4m0 12v4m8-10h-4M6 12H2" />
-                                  </svg>
-                                  Sending...
-                                </div>
-                              )}
-                              {msg.status === "failed" && (
-                                <div className="text-xs opacity-80 text-red-200 flex items-center">
-                                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                  Failed
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.content}</div>
-                            <div className={`text-xs mt-2 text-right flex items-center justify-end ${
-                              msg.sender === user._id 
-                                ? activeTab === "floor" ? 'text-red-100' : 'text-blue-100'
-                                : 'text-gray-500'
-                            }`}>
-                              {formatTime(msg.createdAt)}
-                              {msg.sender === user._id && (
-                                <svg className="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                              )}
-                            </div>
-                          </div>
-                        </div>
+                        <MessageBubble
+                          key={msg._id}
+                          message={msg}
+                          isOwn={msg.sender === user._id}
+                          isUnread={isMessageUnread(msg._id)}
+                          activeTab={activeTab}
+                          user={user}
+                          formatTime={formatTime}
+                        />
                       ))}
                     </div>
                   </div>
@@ -729,9 +828,9 @@ function Message({ user, setView, currentView }) {
               <div className="flex space-x-3">
                 <textarea
                   placeholder={
-                    activeTab === "floor" 
-                      ? `Send a Message` 
-                      : "Send a Message"
+                    activeTab === MESSAGE_TYPES.FLOOR 
+                      ? `Send a message to ${selectedFloor}` 
+                      : "Send a message to administration"
                   }
                   className="flex-1 border-2 border-gray-200 rounded-2xl px-4 lg:px-6 py-3 focus:outline-none focus:border-red-500 transition-colors duration-300 shadow-sm bg-gray-50 focus:bg-white resize-none"
                   value={newMessage}
@@ -739,15 +838,17 @@ function Message({ user, setView, currentView }) {
                   onKeyDown={handleKeyPress}
                   rows={1}
                   style={{ minHeight: '50px', maxHeight: '120px' }}
+                  aria-label="Type your message"
                 />
                 <button
                   onClick={sendMessage}
                   disabled={!newMessage.trim()}
                   className={`text-white rounded-full p-3 lg:px-8 lg:py-3 disabled:opacity-50 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center ${
-                    activeTab === "floor" 
+                    activeTab === MESSAGE_TYPES.FLOOR 
                       ? "bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600" 
                       : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
                   }`}
+                  aria-label="Send message"
                 >
                   <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
@@ -755,7 +856,6 @@ function Message({ user, setView, currentView }) {
                   <span className="hidden lg:inline ml-2">Send</span>
                 </button>
               </div>
-              
             </div>
           </div>
         </div>
@@ -763,5 +863,16 @@ function Message({ user, setView, currentView }) {
     </main>
   );
 }
+
+// Prop Validation
+Message.propTypes = {
+  user: PropTypes.shape({
+    _id: PropTypes.string.isRequired,
+    name: PropTypes.string.isRequired,
+    floor: PropTypes.string.isRequired
+  }).isRequired,
+  setView: PropTypes.func.isRequired,
+  currentView: PropTypes.string.isRequired
+};
 
 export default Message;
