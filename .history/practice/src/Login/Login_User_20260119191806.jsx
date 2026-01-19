@@ -173,7 +173,7 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
   }, [successModal]);
 
   return (
-    <main className="min-h-screen w-screen bg-white md:bg-gradient-to-br md:from-blue-50 md:via-white md:to-yellow-50 flex items-center justify-center p-0 m-0 overflow-x-hidden">
+    <main className="min-h-screen w-screen bg-white md:bg-gradient-to-br md:from-blue-50 md:via-white md:to-yellow-50 flex items-center justify-center p-0 m-0 overflow-x-hidden relative">
       {loading && (
         <div 
           className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-500/50 backdrop-blur-md"
@@ -187,22 +187,25 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
         </div>
       )}
 
-      {/* Error Messages - Fixed Positioning */}
+      {/* Error Messages - Mobile Centered, Desktop Top */}
       {error && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none p-4">
-          <div
-            key={error}
-            className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-lg animate-fade-in-down max-w-md w-full pointer-events-auto"
-            role="alert"
-          >
-            <p className="font-bold text-sm md:text-base">Error</p>
-            <p className="text-xs md:text-sm mt-1">{error}</p>
-          </div>
+        <div
+          key={error}
+          className="fixed z-40 bg-red-100 border-l-4 border-red-500 text-red-700 p-3 md:p-4 rounded-lg shadow-lg animate-fade-in-down max-w-md w-[95%] mx-auto pointer-events-auto"
+          role="alert"
+          style={{
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+          }}
+        >
+          <p className="font-bold text-sm md:text-base">Error</p>
+          <p className="text-xs md:text-sm">{error}</p>
         </div>
       )}
 
       {/* Main Content Container - Full white background always */}
-      <div className="w-full h-full flex items-center justify-center bg-white md:bg-transparent sm:flex sm:items-center sm:justify-center p-4">
+      <div className="w-full h-full flex items-center justify-center bg-white md:bg-transparent">
         <div className="w-full max-w-md bg-white md:rounded-2xl md:shadow-2xl md:border md:border-gray-200 p-6 md:p-8">
           {/* Header Section */}
           <div className="text-center mb-8">
@@ -351,11 +354,11 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
         @keyframes fade-in-down {
           0% {
             opacity: 0;
-            transform: translateY(-20px);
+            transform: translate(-50%, -60%);
           }
           100% {
             opacity: 1;
-            transform: translateY(0);
+            transform: translate(-50%, -50%);
           }
         }
         
@@ -385,17 +388,31 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
             min-height: 100vh;
             min-height: -webkit-fill-available;
           }
+          
+          /* Make sure error is above everything on mobile */
+          div[role="alert"] {
+            z-index: 9999 !important;
+          }
         }
 
         /* Desktop specific positioning */
         @media (min-width: 768px) {
-          .fixed.inset-0.flex.items-center.justify-center.pointer-events-none.p-4 {
-            align-items: flex-start;
-            padding-top: 1rem;
+          div[role="alert"] {
+            top: 1rem !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            animation-name: fade-in-down-desktop;
           }
-          
-          .fixed.inset-0.flex.items-center.justify-center.pointer-events-none.p-4 > div {
-            max-width: 32rem;
+        }
+        
+        @keyframes fade-in-down-desktop {
+          0% {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-20px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
           }
         }
       `}</style>

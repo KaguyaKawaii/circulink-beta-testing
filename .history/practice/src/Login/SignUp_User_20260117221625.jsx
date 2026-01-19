@@ -750,16 +750,16 @@ function SignUp_User({ onSwitchToLogin }) {
                 alt="University of San Agustin Logo" 
               />
             </div>
-            <h1 className="text-3xl font-bold mb-4">
-              Circulink
+            <h1 className="text-3xl font-serif font-bold mb-4">
+              CircuLink
             </h1>
-            <p className="text-2xl font-semibold text-white mb-6">
-              Learning Resource Center
-            </p>
-            <div className="w-24 h-1 bg-yellow-300 mb-4 mx-auto"></div>
             <h1 className="text-3xl font-serif font-bold mb-4">
               University of San Agustin
             </h1>
+            <div className="w-24 h-1 bg-yellow-300 mb-4 mx-auto"></div>
+            <p className="text-2xl font-semibold text-white mb-6">
+              Learning Resource Center
+            </p>
             
             
          

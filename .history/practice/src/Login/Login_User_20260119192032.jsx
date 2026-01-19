@@ -202,7 +202,7 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
       )}
 
       {/* Main Content Container - Full white background always */}
-      <div className="w-full h-full flex items-center justify-center bg-white md:bg-transparent sm:flex sm:items-center sm:justify-center p-4">
+      <div className="w-full h-full flex items-center justify-center bg-white md:bg-transparent">
         <div className="w-full max-w-md bg-white md:rounded-2xl md:shadow-2xl md:border md:border-gray-200 p-6 md:p-8">
           {/* Header Section */}
           <div className="text-center mb-8">

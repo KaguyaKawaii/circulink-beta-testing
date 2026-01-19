@@ -750,25 +750,29 @@ function SignUp_User({ onSwitchToLogin }) {
                 alt="University of San Agustin Logo" 
               />
             </div>
-            <h1 className="text-3xl font-bold mb-4">
-              Circulink
-            </h1>
-            <p className="text-2xl font-semibold text-white mb-6">
-              Learning Resource Center
-            </p>
-            <div className="w-24 h-1 bg-yellow-300 mb-4 mx-auto"></div>
             <h1 className="text-3xl font-serif font-bold mb-4">
               University of San Agustin
             </h1>
+            <div className="w-24 h-1 bg-yellow-300 mb-4 mx-auto"></div>
+            <p className="text-2xl font-semibold text-white mb-6">
+              Learning Resource Center
+            </p>
+            <p className="text-lg text-yellow-100 max-w-md mx-auto mb-8">
+              Create your account to access library resources and services. Join our academic community today.
+            </p>
             
-            
-         
+            {/* Decorative elements */}
+            <div className="flex justify-center gap-4 mt-8">
+              <div className="w-4 h-4 rounded-full bg-yellow-300"></div>
+              <div className="w-4 h-4 rounded-full bg-yellow-300 opacity-70"></div>
+              <div className="w-4 h-4 rounded-full bg-yellow-300 opacity-40"></div>
+            </div>
           </div>
           
           {/* Footer text */}
           <div className="absolute bottom-8 left-0 right-0 text-center">
             <p className="text-sm text-yellow-100 opacity-80">
-              © {new Date().getFullYear()} CircuLink. All rights reserved.
+              Empowering education through accessible resources
             </p>
           </div>
         </div>

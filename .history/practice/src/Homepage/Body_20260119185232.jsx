@@ -21,14 +21,14 @@ function Body() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 h-screen flex flex-col items-center justify-center text-center px-3 xs:px-4 sm:px-6 lg:px-8 py-8">
+      <div className="relative z-10 h-screen flex flex-col items-center justify-center text-center px-4 sm:px-6 lg:px-8 py-8">
         {/* Logo and Title Container */}
         <div className="flex flex-col items-center mb-4 sm:mb-6 md:mb-8 transform transition-all duration-700 w-full max-w-6xl mx-auto">
-          {/* Logo Container - Always horizontal, no scroll */}
-          <div className="flex justify-center items-center gap-1.5 xs:gap-2 sm:gap-3 md:gap-4 lg:gap-6 mb-6 sm:mb-8 w-full">
+          {/* Logo Container - Always horizontal */}
+          <div className="flex justify-center items-center gap-2 xs:gap-3 sm:gap-4 md:gap-6 lg:gap-8 mb-6 sm:mb-8 w-full overflow-x-auto px-2 sm:px-0">
             {/* Logo 1 */}
-            <div className="relative group">
-              <div className="absolute -inset-1.5 xs:-inset-2 sm:-inset-3 bg-amber-400/20 rounded-full blur-md group-hover:bg-amber-400/30 transition-all duration-500"></div>
+            <div className="relative group shrink-0">
+              <div className="absolute -inset-2 xs:-inset-3 bg-amber-400/20 rounded-full blur-md group-hover:bg-amber-400/30 transition-all duration-500"></div>
               <img 
                 src={Logo2} 
                 alt="University of San Agustin Logo" 
@@ -36,12 +36,12 @@ function Body() {
               />
             </div>
             
-            {/* Divider 1 */}
-            <div className="h-16 xs:h-20 sm:h-24 md:h-28 lg:h-32 xl:h-36 w-px bg-gradient-to-b from-transparent via-white/50 to-transparent mx-1 xs:mx-1.5 sm:mx-2 md:mx-2.5 lg:mx-3 shrink-0"></div>
+            {/* Divider 1 - Show on all screens */}
+            <div className="h-16 xs:h-20 sm:h-24 md:h-28 lg:h-32 xl:h-36 w-px bg-gradient-to-b from-transparent via-white/50 to-transparent mx-1 xs:mx-1 sm:mx-2 md:mx-3 lg:mx-4 shrink-0"></div>
             
             {/* Logo 2 */}
-            <div className="relative group">
-              <div className="absolute -inset-1.5 xs:-inset-2 sm:-inset-3 bg-amber-400/20 rounded-full blur-md group-hover:bg-amber-400/30 transition-all duration-500"></div>
+            <div className="relative group shrink-0">
+              <div className="absolute -inset-2 xs:-inset-3 bg-amber-400/20 rounded-full blur-md group-hover:bg-amber-400/30 transition-all duration-500"></div>
               <img 
                 src={lrc} 
                 alt="Learning Resource Center Logo" 
@@ -49,12 +49,12 @@ function Body() {
               />
             </div>
 
-            {/* Divider 2 */}
-            <div className="h-16 xs:h-20 sm:h-24 md:h-28 lg:h-32 xl:h-36 w-px bg-gradient-to-b from-transparent via-white/50 to-transparent mx-1 xs:mx-1.5 sm:mx-2 md:mx-2.5 lg:mx-3 shrink-0"></div>
+            {/* Divider 2 - Show on all screens */}
+            <div className="h-16 xs:h-20 sm:h-24 md:h-28 lg:h-32 xl:h-36 w-px bg-gradient-to-b from-transparent via-white/50 to-transparent mx-1 xs:mx-1 sm:mx-2 md:mx-3 lg:mx-4 shrink-0"></div>
 
             {/* Logo 3 */}
-            <div className="relative group">
-              <div className="absolute -inset-1.5 xs:-inset-2 sm:-inset-3 bg-amber-400/20 rounded-full blur-md group-hover:bg-amber-400/30 transition-all duration-500"></div>
+            <div className="relative group shrink-0">
+              <div className="absolute -inset-2 xs:-inset-3 bg-amber-400/20 rounded-full blur-md group-hover:bg-amber-400/30 transition-all duration-500"></div>
               <img 
                 src={Logo3} 
                 alt="Learning Resource Center Logo" 
@@ -64,7 +64,7 @@ function Body() {
           </div>
           
           {/* Title and Tagline */}
-          <div className="text-center space-y-3 sm:space-y-4 w-full max-w-4xl mx-auto">
+          <div className="text-center space-y-3 sm:space-y-4 w-full max-w-4xl mx-auto px-2">
             <h1 className="text-2xl xs:text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl text-white font-bold leading-tight mb-1 sm:mb-2 animate-fade-in">
               <span className="text-amber-400 drop-shadow-md">USA-FLD</span>{' '}
               <span className="text-white drop-shadow-md">CircuLink</span>
@@ -72,7 +72,7 @@ function Body() {
             
             <div className="w-32 xs:w-40 sm:w-48 md:w-56 lg:w-64 h-1 sm:h-1.5 bg-gradient-to-r from-transparent via-amber-400 to-transparent mx-auto mb-2 sm:mb-4 rounded-full"></div>
             
-            <p className="text-base xs:text-lg sm:text-xl md:text-2xl lg:text-3xl text-white/90 font-normal max-w-xs xs:max-w-sm sm:max-w-md md:max-w-lg lg:max-w-2xl mx-auto leading-relaxed sm:leading-snug px-2">
+            <p className="text-base xs:text-lg sm:text-xl md:text-2xl lg:text-3xl text-white/90 font-normal max-w-2xl sm:max-w-3xl mx-auto leading-relaxed sm:leading-snug px-4 sm:px-6">
               Modern Web-Based Library Room Reservation System
             </p>
           </div>
@@ -88,7 +88,7 @@ function Body() {
         >
           <ChevronDown
             size={28}
-            className="w-6 h-6 xs:w-7 xs:h-7 sm:w-8 sm:h-8 text-white group-hover:text-amber-300 transition-colors duration-300 cursor-pointer"
+            className="w-6 h-6 sm:w-8 sm:h-8 text-white group-hover:text-amber-300 transition-colors duration-300 cursor-pointer"
           />
         </button>
       </div>

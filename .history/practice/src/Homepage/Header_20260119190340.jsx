@@ -2,8 +2,6 @@
 import { useState, useEffect } from "react";
 import { Menu, X, AlertTriangle } from "lucide-react";
 import Logo from "../assets/logo.png";
-import Logo2 from "../assets/logo2.png";
-import Logo3 from "../assets/logo3.png";
 import api from "../utils/api";
 
 function Header({ onLoginClick, onSignUpClick }) {
@@ -149,7 +147,7 @@ function Header({ onLoginClick, onSignUpClick }) {
               <div className="flex flex-col items-center justify-center h-full px-6">
                 {/* Logo Section */}
                 <div className="flex flex-col items-center mb-12">
-                  <div className="flex items-center justify-center gap-6">
+                  <div className="flex">
                     <img
                       className="w-16 h-16 mb-3"
                       src={Logo}
@@ -157,12 +155,12 @@ function Header({ onLoginClick, onSignUpClick }) {
                     />
                     <img
                       className="w-16 h-16 mb-3"
-                      src={Logo2}
+                      src={Logo}
                       alt="University of San Agustin Logo"
                     />
                     <img
                       className="w-16 h-16 mb-3"
-                      src={Logo3}
+                      src={Logo}
                       alt="University of San Agustin Logo"
                     />
                   </div>

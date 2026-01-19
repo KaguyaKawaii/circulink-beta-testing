@@ -173,7 +173,7 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
   }, [successModal]);
 
   return (
-    <main className="min-h-screen w-screen bg-white md:bg-gradient-to-br md:from-blue-50 md:via-white md:to-yellow-50 flex items-center justify-center p-0 m-0 overflow-x-hidden">
+    <main className="min-h-screen w-screen bg-white flex items-center justify-center p-0 m-0 overflow-x-hidden">
       {loading && (
         <div 
           className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-gray-500/50 backdrop-blur-md"
@@ -189,10 +189,10 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
 
       {/* Error Messages - Fixed Positioning */}
       {error && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none p-4">
+        <div className="fixed top-4 left-0 right-0 z-40 flex justify-center">
           <div
             key={error}
-            className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-lg animate-fade-in-down max-w-md w-full pointer-events-auto"
+            className="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 md:p-4 rounded-lg shadow-lg animate-fade-in-down max-w-md w-[95%] mx-4"
             role="alert"
           >
             <p className="font-bold text-sm md:text-base">Error</p>
@@ -201,121 +201,194 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
         </div>
       )}
 
-      {/* Main Content Container - Full white background always */}
-      <div className="w-full h-full flex items-center justify-center bg-white md:bg-transparent sm:flex sm:items-center sm:justify-center p-4">
-        <div className="w-full max-w-md bg-white md:rounded-2xl md:shadow-2xl md:border md:border-gray-200 p-6 md:p-8">
-          {/* Header Section */}
-          <div className="text-center mb-8">
-            <div className="flex justify-center mb-6 gap-6">
-              <img src={Logo} alt="University Logo" className="h-14 md:h-16 w-auto" />
-              <img src={Logo2} alt="University Logo" className="h-14 md:h-16 w-auto" />
-              <img src={Logo3} alt="University Logo" className="h-14 md:h-16 w-auto" />
-            </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">Welcome Back</h2>
-            <p className="text-gray-600 text-sm md:text-base">Sign in to access your account</p>
-          </div>
-
-          {/* Login Form */}
-          <form onSubmit={handleLogin} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-gray-700">Email Address</label>
-              <input
-                className="w-full border border-gray-300 p-3 md:p-4 rounded-xl hover:border-red-500 transition-colors duration-300 outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
-                type="text"
-                placeholder="Enter your email address"
-                value={email}
-                onChange={handleEmailChange}
-                onBlur={handleBlur('email')}
-                aria-label="Email address"
-                aria-required="true"
-                aria-invalid={showEmailError ? "true" : "false"}
+      {/* Full screen left-right layout */}
+      <div className="w-full h-screen flex">
+        {/* Left side - Background with logos */}
+        <div className="hidden lg:flex lg:w-1/2 bg-yellow-500 p-8 text-white flex-col justify-center items-center text-center relative overflow-hidden">
+          {/* Background pattern or gradient */}
+          <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 via-yellow-500 to-yellow-600"></div>
+          
+          {/* Content */}
+          <div className="relative z-10 max-w-lg">
+            <div className="flex justify-center gap-8 mb-8">
+              <img 
+                className="relative w-[120px] h-[120px] drop-shadow-lg" 
+                src={Logo} 
+                alt="University of San Agustin Logo" 
               />
-              {showEmailError && (
-                <p className="text-red-500 text-xs mt-1" role="alert">
-                  Email is required
-                </p>
-              )}
+              <img 
+                src={Logo2} 
+                alt="Learning Resource Center Logo" 
+                className="relative w-[120px] h-[120px] drop-shadow-lg"
+              />
+              <img 
+                className="relative w-[120px] h-[120px] drop-shadow-lg" 
+                src={Logo3} 
+                alt="University of San Agustin Logo" 
+              />
             </div>
-
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-gray-700">Password</label>
-                <button
-                  type="button"
-                  onClick={() => setView("resetPassword")}
-                  className="text-xs text-red-600 hover:text-red-800 font-medium cursor-pointer"
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <div className="relative">
-                <input
-                  className="w-full border border-gray-300 p-3 md:p-4 rounded-xl hover:border-red-500 transition-colors duration-300 outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
-                  type={showPw ? "text" : "password"}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={handlePasswordChange}
-                  onBlur={handleBlur('password')}
-                  aria-label="Password"
-                  aria-required="true"
-                  aria-invalid={showPasswordError ? "true" : "false"}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPw((s) => !s)}
-                  className="absolute right-3 md:right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-600 transition-colors duration-200"
-                  aria-label={showPw ? "Hide password" : "Show password"}
-                >
-                  {showPw ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-              </div>
-              {showPasswordError && (
-                <p className="text-red-500 text-xs mt-1" role="alert">
-                  Password is required
-                </p>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className={`w-full p-3 md:p-4 rounded-xl bg-[#CC0000] hover:bg-[#b80000] font-semibold text-white cursor-pointer transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 text-base ${
-                loading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              {loading ? 'Logging in...' : 'Login'}
-            </button>
-          </form>
-
-          {/* Sign Up Link */}
-          <div className="mt-8 text-center">
-            <p className="text-gray-600 text-sm md:text-base">
-              Don't have an account?{" "}
-              <button
-                onClick={onSwitchToSignUp}
-                className="text-red-600 hover:text-red-800 font-semibold cursor-pointer transition-colors duration-200"
-              >
-                Create Account
-              </button>
+            <h1 className="text-3xl font-bold mb-4">
+              Circulink
+            </h1>
+            <p className="text-2xl font-semibold text-white mb-6">
+              Learning Resource Center
+            </p>
+            <div className="w-24 h-1 bg-yellow-300 mb-4 mx-auto"></div>
+            <h1 className="text-3xl font-serif font-bold mb-4">
+              University of San Agustin
+            </h1>
+            
+            {/* Additional text or description */}
+            <p className="text-lg text-yellow-100 mt-6 max-w-md">
+              Sign in to access the Learning Resource Center's digital resources, manage your borrowings, and explore available materials.
             </p>
           </div>
+          
+          {/* Footer text */}
+          <div className="absolute bottom-8 left-0 right-0 text-center">
+            <p className="text-sm text-yellow-100 opacity-80">
+              © {new Date().getFullYear()} CircuLink. All rights reserved.
+            </p>
+          </div>
+        </div>
 
-          {/* Back to Home */}
-          <div className="mt-6 flex justify-center">
-            <button
-              onClick={handleBackToHome}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-800 font-medium cursor-pointer transition-colors duration-200"
-            >
-              <Home size={18} />
-              <span className="text-sm">Back to Home</span>
-            </button>
+        {/* Right side - Form Content */}
+        <div className="w-full lg:w-1/2 overflow-y-auto p-4 md:p-8 lg:p-12">
+          {/* Mobile Header - Only shown on mobile */}
+          <div className="lg:hidden w-full bg-white pt-6 pb-8 px-6">
+            <div className="flex flex-col items-center">
+              <div className="flex justify-center gap-6 mb-4">
+                <img src={Logo} alt="USA logo" className="h-16 w-16" />
+                <img src={Logo2} alt="LRC logo" className="h-16 w-16" />
+              </div>
+              <h1 className="text-xl font-serif font-semibold text-center text-gray-800 mb-2">
+                University of San Agustin
+              </h1>
+              <p className="text-base font-semibold text-gray-700 text-center">
+                Learning Resource Center
+              </p>
+              <div className="w-16 h-1 bg-yellow-500 mt-3"></div>
+            </div>
           </div>
 
-          {/* Footer */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <p className="text-xs text-center text-gray-500">
-              © {new Date().getFullYear()} University of San Agustin. All rights reserved.
-            </p>
+          {/* Form Container */}
+          <div className="max-w-md mx-auto">
+            {/* Main Content Container */}
+            <div className="w-full bg-white md:rounded-2xl md:shadow-2xl md:border md:border-gray-200 p-6 md:p-8">
+              {/* Header Section */}
+              <div className="text-center mb-8">
+                <div className="flex justify-center mb-6 gap-6">
+                  <img src={Logo} alt="University Logo" className="h-14 md:h-16 w-auto" />
+                  <img src={Logo2} alt="University Logo" className="h-14 md:h-16 w-auto" />
+                  <img src={Logo3} alt="University Logo" className="h-14 md:h-16 w-auto" />
+                </div>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-2">Welcome Back</h2>
+                <p className="text-gray-600 text-sm md:text-base">Sign in to access your account</p>
+              </div>
+
+              {/* Login Form */}
+              <form onSubmit={handleLogin} className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Email Address</label>
+                  <input
+                    className="w-full border border-gray-300 p-3 md:p-4 rounded-xl hover:border-red-500 transition-colors duration-300 outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
+                    type="text"
+                    placeholder="Enter your email address"
+                    value={email}
+                    onChange={handleEmailChange}
+                    onBlur={handleBlur('email')}
+                    aria-label="Email address"
+                    aria-required="true"
+                    aria-invalid={showEmailError ? "true" : "false"}
+                  />
+                  {showEmailError && (
+                    <p className="text-red-500 text-xs mt-1" role="alert">
+                      Email is required
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="text-sm font-medium text-gray-700">Password</label>
+                    <button
+                      type="button"
+                      onClick={() => setView("resetPassword")}
+                      className="text-xs text-red-600 hover:text-red-800 font-medium cursor-pointer"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      className="w-full border border-gray-300 p-3 md:p-4 rounded-xl hover:border-red-500 transition-colors duration-300 outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-base"
+                      type={showPw ? "text" : "password"}
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={handlePasswordChange}
+                      onBlur={handleBlur('password')}
+                      aria-label="Password"
+                      aria-required="true"
+                      aria-invalid={showPasswordError ? "true" : "false"}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPw((s) => !s)}
+                      className="absolute right-3 md:right-4 top-1/2 -translate-y-1/2 text-gray-500 hover:text-red-600 transition-colors duration-200"
+                      aria-label={showPw ? "Hide password" : "Show password"}
+                    >
+                      {showPw ? <EyeOff size={20} /> : <Eye size={20} />}
+                    </button>
+                  </div>
+                  {showPasswordError && (
+                    <p className="text-red-500 text-xs mt-1" role="alert">
+                      Password is required
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`w-full p-3 md:p-4 rounded-xl bg-[#CC0000] hover:bg-[#b80000] font-semibold text-white cursor-pointer transition-all duration-300 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 text-base ${
+                    loading ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {loading ? 'Logging in...' : 'Login'}
+                </button>
+              </form>
+
+              {/* Sign Up Link */}
+              <div className="mt-8 text-center">
+                <p className="text-gray-600 text-sm md:text-base">
+                  Don't have an account?{" "}
+                  <button
+                    onClick={onSwitchToSignUp}
+                    className="text-red-600 hover:text-red-800 font-semibold cursor-pointer transition-colors duration-200"
+                  >
+                    Create Account
+                  </button>
+                </p>
+              </div>
+
+              {/* Back to Home */}
+              <div className="mt-6 flex justify-center">
+                <button
+                  onClick={handleBackToHome}
+                  className="flex items-center gap-2 text-gray-600 hover:text-gray-800 font-medium cursor-pointer transition-colors duration-200"
+                >
+                  <Home size={18} />
+                  <span className="text-sm">Back to Home</span>
+                </button>
+              </div>
+
+              {/* Footer */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <p className="text-xs text-center text-gray-500">
+                  © {new Date().getFullYear()} University of San Agustin. All rights reserved.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

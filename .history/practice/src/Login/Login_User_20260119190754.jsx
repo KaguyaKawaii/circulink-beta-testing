@@ -188,21 +188,21 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
       )}
 
       {/* Error Messages - Fixed Positioning */}
-      {error && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none p-4">
+      <div className="fixed top-4 left-0 right-0 z-40 flex justify-center">
+        {error && (
           <div
             key={error}
-            className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-lg shadow-lg animate-fade-in-down max-w-md w-full pointer-events-auto"
+            className="bg-red-100 border-l-4 border-red-500 text-red-700 p-3 md:p-4 rounded-lg shadow-lg animate-fade-in-down max-w-md w-[95%] mx-4"
             role="alert"
           >
             <p className="font-bold text-sm md:text-base">Error</p>
-            <p className="text-xs md:text-sm mt-1">{error}</p>
+            <p className="text-xs md:text-sm">{error}</p>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Main Content Container - Full white background always */}
-      <div className="w-full h-full flex items-center justify-center bg-white md:bg-transparent sm:flex sm:items-center sm:justify-center p-4">
+      <div className="w-full h-full flex items-center justify-center bg-white md:bg-transparent">
         <div className="w-full max-w-md bg-white md:rounded-2xl md:shadow-2xl md:border md:border-gray-200 p-6 md:p-8">
           {/* Header Section */}
           <div className="text-center mb-8">
@@ -384,18 +384,6 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
             background: white !important;
             min-height: 100vh;
             min-height: -webkit-fill-available;
-          }
-        }
-
-        /* Desktop specific positioning */
-        @media (min-width: 768px) {
-          .fixed.inset-0.flex.items-center.justify-center.pointer-events-none.p-4 {
-            align-items: flex-start;
-            padding-top: 1rem;
-          }
-          
-          .fixed.inset-0.flex.items-center.justify-center.pointer-events-none.p-4 > div {
-            max-width: 32rem;
           }
         }
       `}</style>
