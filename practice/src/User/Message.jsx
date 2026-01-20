@@ -765,13 +765,13 @@ function Message({ user, setView, currentView }) {
         {/* Chat Area */}
         <div className="flex-1 flex flex-col relative w-full lg:w-auto">
           {/* Chat Header - Mobile & Desktop */}
-          <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-sm">
+          <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-sm relative z-40">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 {/* Mobile Hamburger Button - In header */}
                 <button 
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className="lg:hidden p-2 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg transition-transform hover:scale-105 mr-2"
+                  className="lg:hidden p-2 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg transition-transform hover:scale-105 mr-2 relative z-50"
                   aria-label="Toggle sidebar"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
