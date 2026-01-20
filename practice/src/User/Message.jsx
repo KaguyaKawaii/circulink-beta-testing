@@ -834,7 +834,7 @@ function Message({ user, setView, currentView }) {
           {/* Messages Container - Fixed scrolling - HIDDEN SCROLLBAR */}
           <div 
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50 scrollbar-hide"
+            className="flex-1 overflow-y-hidden p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50 scrollbar-hide"
             style={{ 
               minHeight: 0,
               scrollbarWidth: 'none', // Firefox
