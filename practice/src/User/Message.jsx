@@ -884,7 +884,7 @@ function Message({ user, setView, currentView }) {
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
                   rows={1}
-                  style={{ minHeight: '50px', maxHeight: '120px', overflowY: 'auto' }}
+                  style={{ minHeight: '50px', maxHeight: '120px' }}
                   aria-label="Type your message"
                 />
                 <button
