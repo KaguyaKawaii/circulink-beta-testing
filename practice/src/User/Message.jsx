@@ -615,7 +615,7 @@ function Message({ user, setView, currentView }) {
         {/* Mobile Sidebar Overlay - Higher z-index to ensure it covers navigation */}
         {isSidebarOpen && isMobile && (
           <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-[100] lg:hidden"
+            className="fixed inset-0 z-[100] lg:hidden"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
@@ -879,7 +879,7 @@ function Message({ user, setView, currentView }) {
                       ? `Send a message to ${selectedFloor}` 
                       : "Send a message to administration"
                   }
-                  className="flex-1 border-2 border-gray-200 rounded-2xl px-4 lg:px-6 py-3 focus:outline-none focus:border-red-500 transition-colors duration-300 shadow-sm bg-gray-50 focus:bg-white resize-none"
+                  className="flex-1 border-2 border-gray-200 rounded-2xl px-4 lg:px-6 py-3 focus:outline-none focus:border-red-500 transition-colors duration-300 shadow-sm bg-gray-50 focus:bg-white"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
