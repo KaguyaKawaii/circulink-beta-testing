@@ -594,23 +594,24 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         {/* Mobile Overlay */}
         {isMobileMenuOpen && (
           <div 
-            className="lg:hidden fixed inset-0 bg-opacity-50 z-40"
+            className="lg:hidden fixed inset-0 bg-black/50 z-40"
             onClick={() => setIsMobileMenu(false)}
           />
         )}
 
-        {/* Navigation Panel */}
+        {/* Navigation Panel - FIXED: Made sidebar responsive and scrollable */}
         <div className={`
-          fixed top-0 left-0 h-screen bg-[#171717] shadow-md flex flex-col z-50
+          fixed top-0 left-0 z-50
           transition-all duration-300 ease-in-out
-          lg:w-[250px] lg:rounded-tr-3xl lg:p-6
           ${isMobileMenuOpen 
-            ? 'w-full p-6 translate-x-0' 
-            : '-translate-x-full lg:translate-x-0 w-[250px] p-6'
+            ? 'w-full h-full p-6 translate-x-0' 
+            : '-translate-x-full lg:translate-x-0 w-[250px] h-screen p-6'
           }
+          bg-[#171717] shadow-md flex flex-col
+          lg:rounded-tr-3xl
         `}>
           {/* Close Button - Mobile Only */}
-          <div className="lg:hidden flex justify-between items-center mb-6">
+          <div className="lg:hidden flex justify-between items-center mb-4">
             <div className="flex items-center space-x-3">
               <img src={Logo} alt="Logo" className="h-10 w-10" />
               <div>
@@ -639,15 +640,15 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
             </div>
           </div>
           
-          <div className="border-b border-gray-700 opacity-50 w-full my-4 lg:my-6"></div>
+          <div className="border-b border-gray-700 opacity-50 w-full my-4 lg:my-4"></div>
 
-          {/* User Info */}
+          {/* User Info - FIXED: Made more compact for mobile */}
           <div className={`flex flex-col items-center ${
-            isMobileMenuOpen ? 'mt-4 lg:mt-5' : 'mt-5'
+            isMobileMenuOpen ? 'mt-2 lg:mt-4' : 'mt-4'
           }`}>
             <div className={`
               border-2 border-gray-600 rounded-full bg-gray-800 overflow-hidden flex items-center justify-center text-gray-300
-              ${isMobileMenuOpen ? 'w-24 h-24 text-4xl lg:w-[120px] lg:h-[120px] lg:text-5xl' : 'w-[120px] h-[120px] text-5xl'}
+              ${isMobileMenuOpen ? 'w-20 h-20 text-3xl lg:w-[100px] lg:h-[100px] lg:text-4xl' : 'w-[100px] h-[100px] text-4xl'}
             `}>
               {user?.profilePicture ? (
                 <img
@@ -668,41 +669,41 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               )}
             </div>
             <h1 className={`
-              font-bold text-white mt-3 text-center
-              ${isMobileMenuOpen ? 'text-xl lg:text-[20px]' : 'text-[20px]'}
+              font-bold text-white mt-2 text-center truncate max-w-full px-2
+              ${isMobileMenuOpen ? 'text-lg lg:text-[18px]' : 'text-[18px]'}
             `}>
               {user?.name}
             </h1>
-            <p className="text-gray-300 mt-1 text-center text-sm lg:text-base">{user?.email}</p>
+            <p className="text-gray-300 mt-1 text-center text-xs lg:text-sm truncate max-w-full px-2">{user?.email}</p>
             {user?.id_number && (
-              <p className="text-gray-400 mt-1 text-center text-sm lg:text-base">ID: {user.id_number}</p>
+              <p className="text-gray-400 mt-1 text-center text-xs lg:text-sm">ID: {user.id_number}</p>
             )}
             {user?.suspended && (
-              <div className="mt-2 px-3 py-1 bg-red-600 text-white text-xs rounded-full">
+              <div className="mt-2 px-2 py-1 bg-red-600 text-white text-xs rounded-full">
                 SUSPENDED
               </div>
             )}
           </div>
 
-          {/* Navigation Buttons */}
+          {/* Navigation Buttons - FIXED: Made container scrollable on mobile */}
           <div className={`
-            flex flex-col h-full
-            ${isMobileMenuOpen ? 'mt-8 lg:mt-10' : 'mt-10'}
+            flex-1 flex flex-col mt-4
+            ${isMobileMenuOpen ? 'overflow-y-auto' : ''}
           `}>
-            <div className="flex flex-col gap-2 flex-grow">
+            <div className="flex flex-col gap-1.5">
               {navButtons.map((btn) => (
                 <button
                   key={btn.id}
                   onClick={() => handleNavClick(btn.id)}
                   disabled={user?.suspended}
                   className={`
-                    flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer relative group
+                    flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer relative group
                     ${isActive(btn.id)
                       ? "bg-red-600 text-white shadow-md"
                       : "bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white"
                     }
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                    ${isMobileMenuOpen ? 'text-base lg:text-sm' : 'text-sm'}
+                    text-sm
                   `}
                 >
                   <span
@@ -712,9 +713,9 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                   >
                     {btn.icon}
                   </span>
-                  <span className="flex-1 text-left">{btn.label}</span>
+                  <span className="flex-1 text-left truncate">{btn.label}</span>
                   {btn.badge && (
-                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
+                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px] flex-shrink-0">
                       {btn.badge > 9 ? "9+" : btn.badge}
                     </span>
                   )}
@@ -722,12 +723,12 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               ))}
 
               {/* Help Button */}
-              <div className="relative">
+              <div className="relative mt-1">
                 <button
                   onClick={() => !user?.suspended && setShowHelp((prev) => !prev)}
                   disabled={user?.suspended}
                   className={`
-                    flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer w-full
+                    flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer w-full
                     ${showHelp ||
                       currentView === "help" ||
                       currentView === "guidelines"
@@ -735,11 +736,11 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                         : "bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white"
                     }
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                    ${isMobileMenuOpen ? 'text-base lg:text-sm' : 'text-sm'}
+                    text-sm
                   `}
                 >
                   <HelpCircle size={18} />
-                  <span>Help</span>
+                  <span className="truncate">Help</span>
                 </button>
 
                 {showHelp && !user?.suspended && (
@@ -753,18 +754,18 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                     {isMobileMenuOpen && (
                       <>
                         <div 
-                          className="absolute inset-0 backdrop-blur-xs bg-opacity-50"
+                          className="absolute inset-0 bg-black/50"
                           onClick={() => setShowHelp(false)}
                         />
-                        <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 p-6 w-[90%] max-w-[320px]">
-                          <div className="flex flex-col space-y-4">
+                        <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-[90%] max-w-[300px]">
+                          <div className="flex flex-col space-y-3">
                             <button
                               onClick={() => {
                                 setView("help");
                                 setShowHelp(false);
                                 setIsMobileMenu(false);
                               }}
-                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
                               aria-label="Go to help center"
                             >
                               <h2 className="text-sm font-semibold text-gray-800">
@@ -781,7 +782,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                                 setShowHelp(false);
                                 setIsMobileMenu(false);
                               }}
-                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-4 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
                               aria-label="View guidelines"
                             >
                               <h2 className="text-sm font-semibold text-gray-800">
@@ -805,7 +806,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
 
                     {/* Desktop: Right Side Dropdown */}
                     {!isMobileMenuOpen && (
-                      <div className="flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-[260px]">
+                      <div className="flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 p-3 w-[240px]">
                         <button
                           onClick={() => {
                             setView("help");
@@ -844,22 +845,24 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               </div>
             </div>
 
-            {/* Logout */}
-            <button
-              onClick={onLogout}
-              disabled={user?.suspended}
-              className={`
-                mt-6 flex items-center gap-3 justify-center px-4 py-3 rounded-lg bg-[#2a2a2a] font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group
-                ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                ${isMobileMenuOpen ? 'text-base lg:text-sm' : 'text-sm'}
-              `}
-            >
-              <LogOut
-                size={18}
-                className="group-hover:scale-110 transition-transform duration-200"
-              />
-              Logout
-            </button>
+            {/* Logout - FIXED: Positioned at bottom */}
+            <div className="mt-auto pt-4">
+              <button
+                onClick={onLogout}
+                disabled={user?.suspended}
+                className={`
+                  w-full flex items-center gap-3 justify-center px-4 py-2.5 rounded-lg bg-[#2a2a2a] font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group
+                  ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
+                  text-sm
+                `}
+              >
+                <LogOut
+                  size={16}
+                  className="group-hover:scale-110 transition-transform duration-200"
+                />
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </aside>
