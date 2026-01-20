@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import AdminNavigation from "./AdminNavigation";
 import { Editor, EditorProvider } from "react-simple-wysiwyg";
@@ -20,6 +20,11 @@ function AdminNews({ setView, admin, onLogout }) {
   const [postConfirm, setPostConfirm] = useState(false);
   const [imagePreviewUrls, setImagePreviewUrls] = useState([]);
   const [alertModal, setAlertModal] = useState({ show: false, title: "", message: "", type: "info" });
+  const [uploadProgress, setUploadProgress] = useState({}); // Track upload progress per image
+  const [isDragging, setIsDragging] = useState(false);
+  
+  const fileInputRef = useRef(null);
+  const dropZoneRef = useRef(null);
 
   const itemsPerPage = 5;
 
@@ -52,39 +57,143 @@ function AdminNews({ setView, admin, onLogout }) {
     setImagePreviewUrls([]);
     setEditNews(null);
     setPreview(null);
+    setUploadProgress({});
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
-  const handleImageChange = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length === 0) return;
+  // Handle drag and drop events
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
 
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    
+    if (isPosting) return;
+    
+    const files = Array.from(e.dataTransfer.files).filter(file => 
+      file.type.startsWith('image/')
+    );
+    
+    if (files.length > 0) {
+      handleImageFiles(files);
+    }
+  };
+
+  const handleImageFiles = (files) => {
     // Limit maximum upload count (e.g., max 5 images)
     const maxImages = 5;
     const totalImages = images.length + files.length;
     if (totalImages > maxImages) {
-      showAlert("Warning", `Maximum ${maxImages} images allowed`, "warning");
+      showAlert("Warning", `Maximum ${maxImages} images allowed. You have ${images.length} images already.`, "warning");
       return;
     }
 
-    setImages(prev => [...prev, ...files]);
+    // Filter out duplicates by name and size
+    const newImages = files.filter(newFile => 
+      !images.some(existingFile => 
+        existingFile.name === newFile.name && existingFile.size === newFile.size
+      )
+    );
 
-    // Generate preview URLs
-    const newPreviewUrls = [];
-    files.forEach(file => {
+    if (newImages.length === 0) {
+      showAlert("Info", "Some images are duplicates and were not added.", "info");
+      return;
+    }
+
+    setImages(prev => [...prev, ...newImages]);
+
+    // Generate preview URLs with progress simulation
+    newImages.forEach((file, index) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        newPreviewUrls.push(reader.result);
-        if (newPreviewUrls.length === files.length) {
-          setImagePreviewUrls(prev => [...prev, ...newPreviewUrls]);
+      reader.onloadstart = () => {
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.name]: 0
+        }));
+      };
+      reader.onprogress = (e) => {
+        if (e.lengthComputable) {
+          const progress = Math.round((e.loaded / e.total) * 100);
+          setUploadProgress(prev => ({
+            ...prev,
+            [file.name]: progress
+          }));
         }
+      };
+      reader.onloadend = () => {
+        setUploadProgress(prev => ({
+          ...prev,
+          [file.name]: 100
+        }));
+        setTimeout(() => {
+          setUploadProgress(prev => {
+            const newProgress = { ...prev };
+            delete newProgress[file.name];
+            return newProgress;
+          });
+        }, 500);
+        
+        setImagePreviewUrls(prev => [...prev, reader.result]);
       };
       reader.readAsDataURL(file);
     });
   };
 
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files).filter(file => 
+      file.type.startsWith('image/')
+    );
+    if (files.length === 0) return;
+    
+    handleImageFiles(files);
+  };
+
   const removeImage = (index) => {
+    const imageToRemove = images[index];
     setImages(prev => prev.filter((_, i) => i !== index));
     setImagePreviewUrls(prev => prev.filter((_, i) => i !== index));
+    
+    // Clear progress for removed image
+    setUploadProgress(prev => {
+      const newProgress = { ...prev };
+      delete newProgress[imageToRemove.name];
+      return newProgress;
+    });
+  };
+
+  const reorderImages = (fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return;
+    
+    const newImages = [...images];
+    const newPreviewUrls = [...imagePreviewUrls];
+    
+    const [movedImage] = newImages.splice(fromIndex, 1);
+    const [movedPreview] = newPreviewUrls.splice(fromIndex, 1);
+    
+    newImages.splice(toIndex, 0, movedImage);
+    newPreviewUrls.splice(toIndex, 0, movedPreview);
+    
+    setImages(newImages);
+    setImagePreviewUrls(newPreviewUrls);
   };
 
   const handleAddOrUpdate = async () => {
@@ -100,13 +209,12 @@ function AdminNews({ setView, admin, onLogout }) {
     const formData = new FormData();
     formData.append("title", title);
     formData.append("content", content);
-    images.forEach((img, index) => {
-      formData.append("images", img); // Note: field name might be plural "images"
+    images.forEach((img) => {
+      formData.append("images", img);
     });
 
     try {
       if (editNews) {
-        // When editing, might need to pass information about deleted images
         await axios.put(`${import.meta.env.VITE_API_URL}/api/news/${editNews._id}`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
@@ -200,58 +308,149 @@ function AdminNews({ setView, admin, onLogout }) {
                 </EditorProvider>
               </div>
 
-              {/* Multiple Image Upload */}
+              {/* Enhanced Multiple Image Upload */}
               <div className="flex flex-col">
-                <label className="text-sm font-medium text-gray-700 mb-1">News Images (Multiple allowed)</label>
-                <label className={`flex flex-col items-center justify-center w-full h-40 p-4 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors ${isPosting ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <label className="text-sm font-medium text-gray-700 mb-1">
+                  News Images (Multiple allowed) {images.length > 0 && <span className="text-[#CC0000]">({images.length}/5)</span>}
+                </label>
+                
+                {/* Drop Zone */}
+                <div
+                  ref={dropZoneRef}
+                  className={`relative w-full h-48 p-4 border-2 ${isDragging ? 'border-[#CC0000] border-dashed bg-red-50' : 'border-dashed border-gray-300'} rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-all duration-200 ${isPosting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={() => !isPosting && fileInputRef.current?.click()}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                >
                   {imagePreviewUrls.length > 0 ? (
                     <div className="w-full h-full overflow-x-auto">
-                      <div className="flex gap-2 h-full items-center">
+                      <div className="flex gap-3 h-full items-center pb-2">
                         {imagePreviewUrls.map((url, index) => (
-                          <div key={index} className="relative h-full flex-shrink-0">
-                            <img
-                              src={url}
-                              alt={`Preview ${index + 1}`}
-                              className="h-full w-auto object-contain rounded-lg"
-                            />
-                            <button
-                              type="button"
-                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600 cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                removeImage(index);
-                              }}
-                              disabled={isPosting}
-                            >
-                              ×
-                            </button>
+                          <div 
+                            key={index} 
+                            className="relative h-full flex-shrink-0 group"
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('text/plain', index.toString());
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.currentTarget.classList.add('border-2', 'border-[#CC0000]');
+                            }}
+                            onDragLeave={(e) => {
+                              e.currentTarget.classList.remove('border-2', 'border-[#CC0000]');
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.currentTarget.classList.remove('border-2', 'border-[#CC0000]');
+                              const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                              reorderImages(fromIndex, index);
+                            }}
+                          >
+                            <div className="relative h-full w-32 rounded-lg overflow-hidden border border-gray-200 group-hover:shadow-md transition-shadow">
+                              <img
+                                src={url}
+                                alt={`Preview ${index + 1}`}
+                                className="h-full w-full object-cover"
+                              />
+                              
+                              {/* Upload Progress Indicator */}
+                              {uploadProgress[images[index]?.name] !== undefined && uploadProgress[images[index]?.name] < 100 && (
+                                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                  <div className="text-white text-xs font-semibold">
+                                    {uploadProgress[images[index]?.name]}%
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Image Order Badge */}
+                              <div className="absolute top-1 left-1 bg-black/70 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                                {index + 1}
+                              </div>
+                              
+                              {/* Remove Button */}
+                              <button
+                                type="button"
+                                className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeImage(index);
+                                }}
+                                disabled={isPosting}
+                                title="Remove image"
+                              >
+                                ×
+                              </button>
+                              
+                              {/* Drag Handle */}
+                              <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 bg-black/70 text-white text-xs px-2 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-move">
+                                ⋮⋮
+                              </div>
+                            </div>
+                            
+                            {/* Image Name */}
+                            <p className="text-xs text-gray-500 truncate mt-1 max-w-32">
+                              {images[index]?.name || `Image ${index + 1}`}
+                            </p>
                           </div>
                         ))}
+                        
+                        {/* Add More Button */}
+                        {images.length < 5 && (
+                          <div
+                            className="h-full w-32 flex-shrink-0 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center bg-white hover:bg-gray-50 transition-colors cursor-pointer"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              fileInputRef.current?.click();
+                            }}
+                          >
+                            <svg className="w-8 h-8 mb-2 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            <p className="text-xs text-gray-500 text-center px-2">Add more</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ) : editNews?.images?.length > 0 ? (
                     <div className="w-full h-full overflow-x-auto">
-                      <div className="flex gap-2 h-full items-center">
+                      <div className="flex gap-3 h-full items-center">
                         {editNews.images.map((img, index) => (
-                          <img
-                            key={index}
-                            src={img}
-                            alt={`Edit image ${index + 1}`}
-                            className="h-full w-auto object-contain rounded-lg"
-                          />
+                          <div key={index} className="relative h-full w-32 flex-shrink-0">
+                            <img
+                              src={img}
+                              alt={`Edit image ${index + 1}`}
+                              className="h-full w-full object-cover rounded-lg"
+                            />
+                            <div className="absolute top-1 left-1 bg-black/70 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                              {index + 1}
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <svg className="w-8 h-8 mb-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-                        <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2" />
+                    <div className="flex flex-col items-center justify-center h-full pt-5 pb-6">
+                      <svg className="w-10 h-10 mb-3 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      <p className="mb-2 text-sm text-gray-500"><span className="font-semibold">Click to upload</span> or drag and drop</p>
-                      <p className="text-xs text-gray-500">Maximum 5 images allowed</p>
+                      <p className="mb-1 text-sm text-gray-500">
+                        <span className="font-semibold text-[#CC0000]">Click to upload</span> or drag and drop
+                      </p>
+                      <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB each</p>
+                      <p className="text-xs text-gray-500 mt-1">Max 5 images</p>
+                      {isDragging && (
+                        <div className="absolute inset-0 bg-[#CC0000]/10 border-2 border-[#CC0000] border-dashed rounded-lg flex items-center justify-center">
+                          <p className="text-[#CC0000] font-semibold">Drop images here</p>
+                        </div>
+                      )}
                     </div>
                   )}
+                  
                   <input
+                    ref={fileInputRef}
                     type="file"
                     accept="image/*"
                     className="hidden"
@@ -259,44 +458,102 @@ function AdminNews({ setView, admin, onLogout }) {
                     disabled={isPosting}
                     multiple
                   />
-                </label>
-                <p className="text-xs text-gray-500 mt-2">
-                  {images.length} image(s) selected {images.length > 0 && `(up to ${5 - images.length} more allowed)`}
-                </p>
+                </div>
+                
+                {/* Upload Instructions */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mt-2 text-xs text-gray-500">
+                  <div className="flex items-center gap-2 mb-1 sm:mb-0">
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      <span>Drag to reorder</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                      <span>Click × to remove</span>
+                    </div>
+                  </div>
+                  <p className="text-xs">
+                    {images.length > 0 ? `${images.length} image(s) selected` : 'No images selected'}
+                  </p>
+                </div>
               </div>
 
               <div className="flex justify-between items-center pt-2">
-                <button
-                  type="button"
-                  className={`px-4 py-2.5 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors font-medium cursor-pointer ${isPosting ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  onClick={() => setPreview({ title, content, images: imagePreviewUrls })}
-                  disabled={isPosting}
-                >
-                  Preview
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    className={`px-4 py-2.5 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors font-medium cursor-pointer flex items-center gap-2 ${isPosting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    onClick={() => setPreview({ title, content, images: imagePreviewUrls })}
+                    disabled={isPosting}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    Preview
+                  </button>
+                  
+                  {images.length > 0 && (
+                    <button
+                      type="button"
+                      className={`px-4 py-2.5 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors font-medium cursor-pointer flex items-center gap-2 ${isPosting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      onClick={() => {
+                        setImages([]);
+                        setImagePreviewUrls([]);
+                        setUploadProgress({});
+                      }}
+                      disabled={isPosting}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      Clear All Images
+                    </button>
+                  )}
+                </div>
+                
                 <div className="flex gap-2">
                   {editNews && (
                     <button
                       type="button"
-                      className={`px-4 py-2.5 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors font-medium cursor-pointer ${isPosting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      className={`px-4 py-2.5 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors font-medium cursor-pointer flex items-center gap-2 ${isPosting ? 'opacity-50 cursor-not-allowed' : ''}`}
                       onClick={resetForm}
                       disabled={isPosting}
                     >
-                      Cancel
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                      Cancel Edit
                     </button>
                   )}
                   <button
                     type="submit"
-                    className="bg-[#CC0000] text-white px-5 py-2.5 rounded-lg hover:bg-red-700 transition-colors font-medium shadow-sm hover:shadow flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    className="bg-[#CC0000] text-white px-5 py-2.5 rounded-lg hover:bg-red-700 transition-colors font-medium shadow-sm hover:shadow flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer min-w-[140px]"
                     disabled={isPosting}
                   >
                     {isPosting ? (
                       <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white "></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                         {editNews ? "Updating..." : "Posting..."}
                       </>
                     ) : (
-                      editNews ? "Update News" : "Post News"
+                      <>
+                        {editNews ? (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Update News
+                          </>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                            </svg>
+                            Post News
+                          </>
+                        )}
+                      </>
                     )}
                   </button>
                 </div>
@@ -359,9 +616,30 @@ function AdminNews({ setView, admin, onLogout }) {
                     </svg>
                   </button>
                 </div>
-                <p className="text-gray-600 mb-6">
-                  Are you sure you want to {editNews ? "update" : "post"} this news?
-                </p>
+                <div className="mb-4">
+                  <p className="text-gray-600 mb-2">
+                    Are you sure you want to {editNews ? "update" : "post"} this news?
+                  </p>
+                  {images.length > 0 && (
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-sm text-gray-600 mb-1">
+                        <span className="font-semibold">{images.length} image(s)</span> will be uploaded:
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {images.slice(0, 3).map((img, index) => (
+                          <span key={index} className="text-xs bg-white px-2 py-1 rounded border border-gray-200">
+                            {img.name}
+                          </span>
+                        ))}
+                        {images.length > 3 && (
+                          <span className="text-xs bg-white px-2 py-1 rounded border border-gray-200">
+                            +{images.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div className="flex gap-3 justify-end">
                   <button
                     className="px-4 py-2.5 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
@@ -389,38 +667,81 @@ function AdminNews({ setView, admin, onLogout }) {
             </div>
           )}
 
-          {/* Preview Modal */}
+          {/* Enhanced Preview Modal */}
           {preview && (
             <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-              <div className="bg-white p-6 rounded-xl w-full max-w-3xl max-h-[90vh] overflow-y-auto border border-gray-200">
+              <div className="bg-white p-6 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-800">Preview</h2>
+                  <h2 className="text-xl font-bold text-gray-800">Preview News</h2>
                   <button 
                     className="text-gray-500 hover:text-gray-700 cursor-pointer p-1" 
                     onClick={() => setPreview(null)}
                     disabled={isPosting}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
-                {preview.images && preview.images.length > 0 && (
-                  <div className="mb-4">
-                    <div className="flex overflow-x-auto gap-2 pb-2">
-                      {preview.images.map((img, index) => (
-                        <img 
-                          key={index} 
-                          src={img} 
-                          alt={`Preview ${index + 1}`} 
-                          className="h-48 w-auto object-cover rounded-lg flex-shrink-0"
-                        />
-                      ))}
+                
+                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex items-center justify-center border border-gray-500 rounded-full w-12 h-12 bg-yellow-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5.121 17.804A9.003 9.003 0 0112 15c2.21 0 4.21.804 5.879 2.137M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h1 className="font-bold text-base">USA-FLD Admin</h1>
+                      <p className="text-xs text-gray-500">Just now</p>
                     </div>
                   </div>
-                )}
-                <h3 className="text-2xl font-semibold mb-2">{preview.title}</h3>
-                <div className="mb-4" dangerouslySetInnerHTML={{ __html: preview.content }}></div>
+                  
+                  {preview.images && preview.images.length > 0 && (
+                    <div className="mb-4">
+                      <div className={`grid gap-2 ${preview.images.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'} mb-2`}>
+                        {preview.images.slice(0, 3).map((img, index) => (
+                          <img 
+                            key={index} 
+                            src={img} 
+                            alt={`Preview ${index + 1}`} 
+                            className="w-full h-48 object-cover rounded-lg"
+                          />
+                        ))}
+                      </div>
+                      {preview.images.length > 3 && (
+                        <p className="text-xs text-gray-500 text-center">
+                          +{preview.images.length - 3} more images will be shown in the actual post
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  
+                  <div className="border-b border-gray-200 mb-3" />
+                  <h3 className="text-xl font-bold text-gray-800 mb-3">{preview.title}</h3>
+                  <div 
+                    className="prose max-w-none text-gray-600"
+                    dangerouslySetInnerHTML={{ __html: preview.content }}
+                  />
+                </div>
+                
+                <div className="flex justify-end gap-2">
+                  <button
+                    className="px-4 py-2.5 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors font-medium cursor-pointer"
+                    onClick={() => setPreview(null)}
+                  >
+                    Close Preview
+                  </button>
+                  <button
+                    className="px-4 py-2.5 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors font-medium cursor-pointer"
+                    onClick={() => {
+                      setPreview(null);
+                      setPostConfirm(true);
+                    }}
+                  >
+                    Continue to Post
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -467,9 +788,8 @@ function AdminNews({ setView, admin, onLogout }) {
 
             {isLoading ? (
               <div className="text-center p-8">
-                <div className="text-center">
-                  <p className="text-gray-500 font-bold">Loading News...</p>
-                </div>
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#CC0000] mb-2"></div>
+                <p className="text-gray-500 font-bold">Loading News...</p>
               </div>
             ) : paginatedNews.length === 0 ? (
               <div className="text-center p-8 border border-dashed border-gray-300 rounded-lg">
@@ -546,13 +866,10 @@ function AdminNews({ setView, admin, onLogout }) {
                                 setEditNews(item);
                                 setTitle(item.title);
                                 setContent(item.content);
-                                // Handle existing images when editing
                                 if (item.images && item.images.length > 0) {
                                   setImagePreviewUrls(item.images);
-                                  // Note: images state should be empty when editing because users need to re-select files
-                                  // Or implement a more complex edit logic to preserve existing images
-                                  setImages([]);
                                 }
+                                setImages([]);
                               }}
                               title="Edit"
                             >
