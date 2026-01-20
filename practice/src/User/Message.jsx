@@ -161,6 +161,7 @@ function Message({ user, setView, currentView }) {
   const messageSound = useRef(new Audio("/ringtone_message.wav"));
   const textareaRef = useRef(null);
   const messagesContainerRef = useRef(null);
+  const sidebarRef = useRef(null);
 
   // Responsive handling
   useEffect(() => {
@@ -579,7 +580,8 @@ function Message({ user, setView, currentView }) {
   // Handle click outside sidebar on mobile
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (isMobile && isSidebarOpen && !e.target.closest('.message-sidebar')) {
+      if (isMobile && isSidebarOpen && sidebarRef.current && !sidebarRef.current.contains(e.target) && 
+          !e.target.closest('[data-hamburger]')) {
         setIsSidebarOpen(false);
       }
     };
@@ -587,6 +589,12 @@ function Message({ user, setView, currentView }) {
     document.addEventListener('click', handleClickOutside);
     return () => document.removeEventListener('click', handleClickOutside);
   }, [isMobile, isSidebarOpen]);
+
+  // Handle click on hamburger button
+  const handleHamburgerClick = (e) => {
+    e.stopPropagation(); // Prevent event from bubbling to document
+    setIsSidebarOpen(!isSidebarOpen);
+  };
 
   return (
     <main 
@@ -604,29 +612,37 @@ function Message({ user, setView, currentView }) {
       </header>
 
       <div className="flex flex-1 overflow-hidden relative">
-        {/* Mobile Sidebar Overlay */}
+        {/* Mobile Sidebar Overlay - Higher z-index to ensure it covers navigation */}
         {isSidebarOpen && isMobile && (
           <div 
-            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+            className="fixed inset-0 bg-black bg-opacity-50 z-[100] lg:hidden"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
 
         {/* Sidebar - Mobile & Desktop */}
-        <aside className={`message-sidebar
-          fixed lg:static top-0 left-0 h-full w-[280px] bg-white border-r border-gray-200 shadow-sm z-50 flex flex-col
-          transition-transform duration-300 ease-in-out
-          ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        `}>
+        <aside 
+          ref={sidebarRef}
+          className={`message-sidebar
+            fixed lg:static top-0 left-0 h-full w-[280px] bg-white border-r border-gray-200 shadow-lg z-[101] flex flex-col
+            transition-transform duration-300 ease-in-out
+            ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
+          `}
+        >
           {/* Mobile Header */}
-          <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200">
-            <h2 className="text-lg font-bold text-gray-800">Message Options</h2>
+          <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-red-50 to-orange-50">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center">
+              <svg className="w-5 h-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              Message Options
+            </h2>
             <button 
               onClick={() => setIsSidebarOpen(false)}
-              className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+              className="p-2 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md hover:shadow-lg transition-all"
               aria-label="Close sidebar"
             >
-              <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -660,7 +676,7 @@ function Message({ user, setView, currentView }) {
                     </div>
                   </div>
                   {unreadCounts.floor > 0 && (
-                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
+                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px] shadow-sm">
                       {unreadCounts.floor > 9 ? "9+" : unreadCounts.floor}
                     </span>
                   )}
@@ -687,7 +703,7 @@ function Message({ user, setView, currentView }) {
                     </div>
                   </div>
                   {unreadCounts.admin > 0 && (
-                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
+                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px] shadow-sm">
                       {unreadCounts.admin > 9 ? "9+" : unreadCounts.admin}
                     </span>
                   )}
@@ -698,7 +714,7 @@ function Message({ user, setView, currentView }) {
 
           {/* Floor Selection (only show for floor tab) */}
           {activeTab === MESSAGE_TYPES.FLOOR && (
-            <div className="p-4 flex-1">
+            <div className="p-4 flex-1 overflow-y-auto">
               <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
                 <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -734,7 +750,7 @@ function Message({ user, setView, currentView }) {
                         </div>
                       </div>
                       {floorUnreadCounts[floor] > 0 && (
-                        <span className="bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center min-w-[24px] ml-2">
+                        <span className="bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center min-w-[24px] ml-2 shadow-sm">
                           {floorUnreadCounts[floor] > 9 ? "9+" : floorUnreadCounts[floor]}
                         </span>
                       )}
@@ -765,13 +781,14 @@ function Message({ user, setView, currentView }) {
         {/* Chat Area */}
         <div className="flex-1 flex flex-col relative w-full lg:w-auto">
           {/* Chat Header - Mobile & Desktop */}
-          <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-sm relative z-[60]">
+          <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-md relative z-40">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                {/* Mobile Hamburger Button - In header */}
+                {/* Mobile Hamburger Button - FIXED: Added data attribute and higher z-index */}
                 <button 
-                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className="lg:hidden p-2 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg transition-transform hover:scale-105 mr-2 relative z-[999]"
+                  onClick={handleHamburgerClick}
+                  data-hamburger="true"
+                  className="lg:hidden p-3 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95 relative z-[999]"
                   aria-label="Toggle sidebar"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -797,8 +814,17 @@ function Message({ user, setView, currentView }) {
               {/* Unread badge */}
               {getCurrentUnreadCount() > 0 && (
                 <div className="hidden lg:block">
-                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-3 py-1">
+                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-3 py-1 shadow-sm">
                     {getCurrentUnreadCount()} unread
+                  </span>
+                </div>
+              )}
+              
+              {/* Mobile unread indicator */}
+              {isMobile && getCurrentUnreadCount() > 0 && (
+                <div className="lg:hidden">
+                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1 shadow-sm">
+                    {getCurrentUnreadCount()}
                   </span>
                 </div>
               )}
