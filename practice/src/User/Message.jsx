@@ -597,17 +597,6 @@ function Message({ user, setView, currentView }) {
             Messages
           </h1>
         </div>
-        
-        {/* Mobile Chat Switcher Button - Fixed at top right */}
-        <button 
-          onClick={() => setShowChatSwitcher(!showChatSwitcher)}
-          className="lg:hidden p-2.5 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg transition-transform hover:scale-105"
-          aria-label="Switch chat"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-          </svg>
-        </button>
       </header>
 
       <div className="flex flex-1 overflow-hidden relative z-40">
@@ -992,6 +981,17 @@ function Message({ user, setView, currentView }) {
           </>
         )}
       </div>
+
+      {/* Fixed Bottom Chat Switcher Button - ALWAYS VISIBLE on mobile */}
+      <button 
+        onClick={() => setShowChatSwitcher(true)}
+        className="lg:hidden fixed bottom-6 right-4 p-4 rounded-full bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-2xl z-50 transition-transform hover:scale-110 active:scale-95"
+        aria-label="Switch chat"
+      >
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+        </svg>
+      </button>
     </main>
   );
 }
