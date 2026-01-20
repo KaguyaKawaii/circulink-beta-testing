@@ -110,39 +110,78 @@ exports.getNewsById = async (req, res) => {
   }
 };
 
-// 🆕 Create news
+// 🆕 Create news (with multiple images)
 exports.createNews = async (req, res) => {
   const { title, content } = req.body;
+  
+  console.log("📝 Create News Request:");
+  console.log("- Title:", title);
+  console.log("- Content length:", content?.length);
+  console.log("- Files received:", req.files?.length || 0);
+  
   if (!title || !content) {
     return res.status(400).json({ error: "Title and content are required." });
   }
 
   try {
-    let imageUrl = null;
-    if (req.file) imageUrl = await uploadToCloudinary(req.file.buffer, "news_images");
+    let imageUrls = [];
+    
+    // Upload each file to Cloudinary
+    if (req.files && req.files.length > 0) {
+      console.log(`📷 Uploading ${req.files.length} images to Cloudinary...`);
+      
+      for (const file of req.files) {
+        try {
+          const imageUrl = await uploadToCloudinary(file.buffer, "news_images");
+          imageUrls.push(imageUrl);
+          console.log(`✅ Uploaded: ${file.originalname}`);
+        } catch (uploadError) {
+          console.error("❌ Cloudinary upload error:", uploadError.message);
+          // Continue with other images
+        }
+      }
+    }
 
-    const newNews = new News({ title, content, image: imageUrl });
+    console.log(`🎯 Total images uploaded: ${imageUrls.length}`);
+
+    // Create news with images array
+    const newNews = new News({ 
+      title, 
+      content, 
+      images: imageUrls,
+      image: imageUrls.length > 0 ? imageUrls[0] : null // First image for backward compatibility
+    });
+    
     await newNews.save();
 
     // Log successful creation
     await Log.create({
       userId: req.user?._id,
       action: 'CREATE_NEWS',
-      details: `Created news: "${title}" ${imageUrl ? 'with image' : 'without image'}`,
+      details: `Created news: "${title}" with ${imageUrls.length} image(s)`,
       id_number: 'N/A',
       userName: req.user?.name || 'Admin'
     });
 
     res.status(201).json(newNews);
   } catch (err) {
-    console.error("Error posting news:", err);
-    res.status(500).json({ error: "Failed to post news." });
+    console.error("❌ Error creating news:", err);
+    res.status(500).json({ 
+      error: "Failed to post news.",
+      message: err.message 
+    });
   }
 };
 
-// ✏️ Update news
+// ✏️ Update news (with multiple images)
 exports.updateNews = async (req, res) => {
   const { title, content } = req.body;
+  
+  console.log("📝 Update News Request:");
+  console.log("- Title:", title);
+  console.log("- Content length:", content?.length);
+  console.log("- Files received:", req.files?.length || 0);
+  
   if (!title || !content) {
     return res.status(400).json({ error: "Title and content are required." });
   }
@@ -153,12 +192,40 @@ exports.updateNews = async (req, res) => {
       return res.status(404).json({ error: "News not found." });
     }
 
-    let imageUrl = existingNews.image;
-    if (req.file) imageUrl = await uploadToCloudinary(req.file.buffer, "news_images");
+    // Start with existing images
+    let imageUrls = existingNews.images || [];
+    
+    // Add new uploaded images
+    if (req.files && req.files.length > 0) {
+      console.log(`📷 Adding ${req.files.length} new images...`);
+      
+      for (const file of req.files) {
+        try {
+          const imageUrl = await uploadToCloudinary(file.buffer, "news_images");
+          imageUrls.push(imageUrl);
+          console.log(`✅ Added: ${file.originalname}`);
+        } catch (uploadError) {
+          console.error("❌ Cloudinary upload error:", uploadError.message);
+        }
+      }
+      
+      // Limit to reasonable number
+      if (imageUrls.length > 10) {
+        imageUrls = imageUrls.slice(0, 10);
+      }
+    }
 
+    console.log(`🎯 Total images after update: ${imageUrls.length}`);
+
+    // Update the news item
     const updatedNews = await News.findByIdAndUpdate(
       req.params.id,
-      { title, content, image: imageUrl },
+      { 
+        title, 
+        content, 
+        images: imageUrls,
+        image: imageUrls.length > 0 ? imageUrls[0] : null
+      },
       { new: true, runValidators: true }
     );
 
@@ -166,15 +233,18 @@ exports.updateNews = async (req, res) => {
     await Log.create({
       userId: req.user?._id,
       action: 'UPDATE_NEWS',
-      details: `Updated news: "${title}" ${req.file ? 'with new image' : ''}`,
+      details: `Updated news: "${title}" with ${imageUrls.length} image(s)`,
       id_number: 'N/A',
       userName: req.user?.name || 'Admin'
     });
 
     res.json(updatedNews);
   } catch (err) {
-    console.error("Error updating news:", err);
-    res.status(500).json({ error: "Failed to update news." });
+    console.error("❌ Error updating news:", err);
+    res.status(500).json({ 
+      error: "Failed to update news.",
+      message: err.message 
+    });
   }
 };
 
