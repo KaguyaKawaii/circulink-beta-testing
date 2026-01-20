@@ -30,11 +30,11 @@ router.get("/active", newsController.getAllNews);
 // Get single news item by ID
 router.get("/:id", newsController.getNewsById);
 
-// Create news
-router.post("/", upload.single("image"), newsController.createNews);
+// Create news - CHANGED: upload.array("images") instead of upload.single("image")
+router.post("/", upload.array("images", 10), newsController.createNews);
 
-// Update news
-router.put("/:id", upload.single("image"), newsController.updateNews);
+// Update news - CHANGED: upload.array("images") instead of upload.single("image")
+router.put("/:id", upload.array("images", 10), newsController.updateNews);
 
 // Archive / Restore
 router.put("/archive/:id", newsController.archiveNews);
