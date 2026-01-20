@@ -1677,10 +1677,10 @@ function ReserveRoom({ user, setView }) {
 
         {/* Participants - Responsive Design */}
         <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100">
-          <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 pb-2 border-b border-gray-100">
+          <h2 className="text-base sm:text-lg font-semibold text-gray-800 ">
             Participants ({formData.participants.length})
           </h2>
-          <p className="text-xs sm:text-sm text-gray-600 italic mt-2 sm:mt-3">
+          <p className="text-xs sm:text-sm text-gray-600 italic mt-2 sm:mt-3 mb-3 sm:mb-4 pb-2 border-b border-gray-100">
             * Enter ID Number to auto-fill participant details. Verified fields will be locked.
           </p>
           
