@@ -663,7 +663,7 @@ function Message({ user, setView, currentView }) {
                     ? "bg-gradient-to-r from-red-50 to-orange-50 border-red-200 shadow-lg scale-[1.02]" 
                     : "hover:bg-gray-50 border-transparent hover:border-gray-200"
                 }`}
-                aria-label="Message floor staff"
+                aria-label="Message Receptionist"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
@@ -672,7 +672,7 @@ function Message({ user, setView, currentView }) {
                     }`}></div>
                     <div>
                       <div className="font-semibold text-gray-800">Floors</div>
-                      <div className="text-sm text-gray-500 mt-1">Message floor staff</div>
+                      <div className="text-sm text-gray-500 mt-1">Message Receptionist</div>
                     </div>
                   </div>
                   {unreadCounts.floor > 0 && (
