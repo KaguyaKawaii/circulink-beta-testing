@@ -598,7 +598,7 @@ function Message({ user, setView, currentView }) {
 
   return (
     <main 
-      className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-gradient-to-br from-gray-50 via-white to-gray-100 relative"
+      className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-gradient-to-br from-gray-50 via-white to-gray-100 relative overflow-hidden"
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >      
@@ -779,7 +779,7 @@ function Message({ user, setView, currentView }) {
         </aside>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col relative w-full lg:w-auto">
+        <div className="flex-1 flex flex-col relative w-full lg:w-auto overflow-hidden">
           {/* Chat Header - Mobile & Desktop */}
           <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-md relative z-40">
             <div className="flex items-center justify-between">
@@ -804,8 +804,8 @@ function Message({ user, setView, currentView }) {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     {activeTab === MESSAGE_TYPES.FLOOR 
-                      ? `${selectedFloor} maintenance and support team` 
-                      : "System administrators and support staff"
+                      ? `${selectedFloor} Receptionist` 
+                      : "System Administrators & Support Staff"
                     }
                   </p>
                 </div>
@@ -834,15 +834,16 @@ function Message({ user, setView, currentView }) {
           {/* Messages Container - Fixed scrolling - HIDDEN SCROLLBAR */}
           <div 
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50 scrollbar-hide"
+            className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50"
             style={{ 
               minHeight: 0,
               scrollbarWidth: 'none', // Firefox
               msOverflowStyle: 'none' // IE/Edge
             }}
           >
+            {/* Inline style for Webkit browsers */}
             <style jsx>{`
-              .scrollbar-hide::-webkit-scrollbar {
+              div[ref="messagesContainerRef"]::-webkit-scrollbar {
                 display: none;
               }
             `}</style>
@@ -891,10 +892,15 @@ function Message({ user, setView, currentView }) {
                   }
                   className="flex-1 border-2 border-gray-200 rounded-2xl px-4 lg:px-6 py-3 focus:outline-none focus:border-red-500 transition-colors duration-300 shadow-sm bg-gray-50 focus:bg-white"
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.value)}
+                  onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
                   rows={1}
-                  style={{ minHeight: '50px', maxHeight: '120px' }}
+                  style={{ 
+                    minHeight: '50px', 
+                    maxHeight: '120px',
+                    resize: 'none',
+                    overflow: 'hidden'
+                  }}
                   aria-label="Type your message"
                 />
                 <button
