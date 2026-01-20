@@ -745,7 +745,7 @@ function Message({ user, setView, currentView }) {
                           <div className={`text-sm mt-1 transition-colors text-left ${
                             selectedFloor === floor ? "text-red-100" : "text-gray-500 group-hover:text-gray-700"
                           }`}>
-                            {floor} Support Team
+                            
                           </div>
                         </div>
                       </div>
