@@ -36,23 +36,24 @@ const formatDate = (iso) => {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+// Helper functions
+const isToday = (iso) => {
+  const date = new Date(iso);
+  const today = new Date();
+  return date.toDateString() === today.toDateString();
+};
+
+const isYesterday = (iso) => {
+  const date = new Date(iso);
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  return date.toDateString() === yesterday.toDateString();
+};
+
 // Extracted UI Components
 const MessageBubble = ({ message, isOwn, isUnread, activeTab, user, formatTime }) => {
-  const isToday = (iso) => {
-    const date = new Date(iso);
-    const today = new Date();
-    return date.toDateString() === today.toDateString();
-  };
-
-  const isYesterday = (iso) => {
-    const date = new Date(iso);
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    return date.toDateString() === yesterday.toDateString();
-  };
-
   return (
-    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4`}>
       <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-4 shadow-sm transition-all duration-300 hover:shadow-md relative ${
         isOwn 
           ? activeTab === MESSAGE_TYPES.FLOOR 
@@ -112,19 +113,6 @@ const MessageBubble = ({ message, isOwn, isUnread, activeTab, user, formatTime }
 };
 
 const DateSeparator = ({ date }) => {
-  const isToday = (iso) => {
-    const date = new Date(iso);
-    const today = new Date();
-    return date.toDateString() === today.toDateString();
-  };
-
-  const isYesterday = (iso) => {
-    const date = new Date(iso);
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    return date.toDateString() === yesterday.toDateString();
-  };
-
   return (
     <div className="flex items-center justify-center my-6">
       <div className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
@@ -171,10 +159,19 @@ function Message({ user, setView, currentView }) {
 
   const messagesEndRef = useRef(null);
   const messageSound = useRef(new Audio("/ringtone_message.wav"));
+  const textareaRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   // Responsive handling
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 1024);
+    const handleResize = () => {
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+      if (!mobile) {
+        setIsSidebarOpen(false);
+      }
+    };
+    
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -182,6 +179,21 @@ function Message({ user, setView, currentView }) {
   useEffect(() => {
     try { messageSound.current.volume = 0.75; } catch (e) {}
   }, []);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
+  }, [messages]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+    }
+  }, [newMessage]);
 
   // Memoized calculations
   const getCurrentUnreadCount = useCallback(() => {
@@ -564,14 +576,26 @@ function Message({ user, setView, currentView }) {
     }
   };
 
+  // Handle click outside sidebar on mobile
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (isMobile && isSidebarOpen && !e.target.closest('.message-sidebar')) {
+        setIsSidebarOpen(false);
+      }
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [isMobile, isSidebarOpen]);
+
   return (
     <main 
-      className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-gradient-to-br from-gray-50 via-white to-gray-100 relative z-40"
+      className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-gradient-to-br from-gray-50 via-white to-gray-100 relative"
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >      
-      {/* HEADER - Hidden on mobile */}
-      <header className="hidden lg:flex text-black px-4 lg:px-6 h-16 lg:h-[60px] items-center justify-between shadow-sm lg:shadow-lg border-b border-gray-200 bg-white relative z-50">
+      {/* HEADER - Only shown on desktop */}
+      <header className="hidden lg:flex text-black px-6 h-[60px] items-center justify-between shadow-sm border-b border-gray-200 bg-white relative z-50">
         <div className="flex items-center space-x-3">
           <h1 className="text-xl lg:text-2xl font-bold tracking-wide bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
             Messages
@@ -579,18 +603,18 @@ function Message({ user, setView, currentView }) {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden relative z-40">
+      <div className="flex flex-1 overflow-hidden relative">
         {/* Mobile Sidebar Overlay */}
-        {isSidebarOpen && (
+        {isSidebarOpen && isMobile && (
           <div 
-            className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+            className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
 
         {/* Sidebar - Mobile & Desktop */}
-        <aside className={`
-          fixed lg:static top-0 left-0 h-full w-80 bg-white border-r border-gray-200 shadow-sm z-60 flex flex-col
+        <aside className={`message-sidebar
+          fixed lg:static top-0 left-0 h-full w-[280px] bg-white border-r border-gray-200 shadow-sm z-50 flex flex-col
           transition-transform duration-300 ease-in-out
           ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}>
@@ -739,14 +763,21 @@ function Message({ user, setView, currentView }) {
         </aside>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col relative z-40">
+        <div className="flex-1 flex flex-col relative w-full lg:w-auto">
           {/* Chat Header - Mobile & Desktop */}
           <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className={`w-3 h-3 rounded-full ${
-                  activeTab === MESSAGE_TYPES.FLOOR ? "bg-gradient-to-r from-red-500 to-orange-500" : "bg-gradient-to-r from-blue-500 to-cyan-500"
-                }`}></div>
+                {/* Mobile Hamburger Button - In header */}
+                <button 
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className="lg:hidden p-2 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg transition-transform hover:scale-105 mr-2"
+                  aria-label="Toggle sidebar"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
                 <div>
                   <h2 className="text-lg lg:text-xl font-bold text-gray-800">
                     {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "Administration Team"}
@@ -762,27 +793,30 @@ function Message({ user, setView, currentView }) {
                   </p>
                 </div>
               </div>
-              {/* Mobile Hamburger Button - Positioned in header */}
-              <button 
-                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="lg:hidden p-2 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg transition-transform hover:scale-105"
-                aria-label="Toggle sidebar"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
+              
+              {/* Unread badge */}
+              {getCurrentUnreadCount() > 0 && (
+                <div className="hidden lg:block">
+                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-3 py-1">
+                    {getCurrentUnreadCount()} unread
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Messages Container - Removed scrolling */}
-          <div className="flex-1 overflow-visible p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50">
+          {/* Messages Container - Fixed scrolling */}
+          <div 
+            ref={messagesContainerRef}
+            className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50"
+            style={{ minHeight: 0 }}
+          >
             {loading ? (
               <LoadingSkeleton />
             ) : messages.length === 0 ? (
               <EmptyState />
             ) : (
-              <div className="space-y-6 max-w-full mx-auto">
+              <div className="space-y-6 max-w-full mx-auto lg:max-w-4xl">
                 {Object.entries(messageGroups).map(([date, dateMessages]) => (
                   <div key={date}>
                     <DateSeparator date={date} />
@@ -810,9 +844,10 @@ function Message({ user, setView, currentView }) {
 
           {/* Message Input */}
           <div className="bg-white p-4 lg:p-6 border-t border-gray-200 shadow-lg">
-            <div className="max-w-full mx-auto">
-              <div className="flex space-x-3">
+            <div className="max-w-full mx-auto lg:max-w-4xl">
+              <div className="flex items-end space-x-3">
                 <textarea
+                  ref={textareaRef}
                   placeholder={
                     activeTab === MESSAGE_TYPES.FLOOR 
                       ? `Send a message to ${selectedFloor}` 
@@ -823,13 +858,13 @@ function Message({ user, setView, currentView }) {
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
                   rows={1}
-                  style={{ minHeight: '50px', maxHeight: '120px' }}
+                  style={{ minHeight: '50px', maxHeight: '120px', overflowY: 'auto' }}
                   aria-label="Type your message"
                 />
                 <button
                   onClick={sendMessage}
                   disabled={!newMessage.trim()}
-                  className={`text-white rounded-full p-3 lg:px-8 lg:py-3 disabled:opacity-50 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center ${
+                  className={`text-white rounded-full p-3 lg:px-8 lg:py-3 disabled:opacity-50 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center flex-shrink-0 ${
                     activeTab === MESSAGE_TYPES.FLOOR 
                       ? "bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600" 
                       : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
