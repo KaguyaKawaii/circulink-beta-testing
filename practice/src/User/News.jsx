@@ -5,9 +5,10 @@ import axios from "axios";
 function News({ user, setView }) {
   const [newsList, setNewsList] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
-  const [isLoading, setIsLoading] = useState(false); // ✅ Add loading state
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const NEWS_ENDPOINT = `${import.meta.env.VITE_API_URL}/api/news/active`; // fetch only active news
+  const NEWS_ENDPOINT = `${import.meta.env.VITE_API_URL}/api/news/active`;
 
   const formatPH = (date) => {
     if (!date) return "N/A";
@@ -44,12 +45,32 @@ function News({ user, setView }) {
     fetchNews();
   }, []);
 
-  // ✅ Helper to build full image URL safely
   const getImageUrl = (img) => {
     if (!img) return null;
     return img.startsWith("http")
       ? img
       : `${import.meta.env.VITE_API_URL}${img.replace(/^\/?/, "")}`;
+  };
+
+  const handleImageClick = (imageUrl, index) => {
+    setSelectedImage(imageUrl);
+    setSelectedImageIndex(index);
+  };
+
+  const handlePrevImage = (images) => {
+    if (selectedImageIndex > 0) {
+      const newIndex = selectedImageIndex - 1;
+      setSelectedImageIndex(newIndex);
+      setSelectedImage(getImageUrl(images[newIndex]));
+    }
+  };
+
+  const handleNextImage = (images) => {
+    if (selectedImageIndex < images.length - 1) {
+      const newIndex = selectedImageIndex + 1;
+      setSelectedImageIndex(newIndex);
+      setSelectedImage(getImageUrl(images[newIndex]));
+    }
   };
 
   return (
@@ -59,7 +80,7 @@ function News({ user, setView }) {
         <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-wide">News</h1>
       </header>
 
-      {/* Tab Switcher - Copied from Dashboard.jsx */}
+      {/* Tab Switcher */}
       <div className="flex w-full max-w-[200px] justify-between bg-white shadow-md p-1 rounded-3xl mt-4 sm:mt-6 ml-4 sm:ml-6 mx-4 sm:mx-0">
         <button
           onClick={() => setView("dashboard")}
@@ -125,16 +146,45 @@ function News({ user, setView }) {
                   </time>
                 </div>
 
-                {/* Show Full Image */}
-                {n.image && (
+                {/* Show Multiple Images */}
+                {n.images && n.images.length > 0 && (
                   <div className="mb-3">
-                    <img
-                      src={getImageUrl(n.image)}
-                      alt={n.title}
-                      className="w-full rounded-lg object-contain cursor-pointer"
-                      style={{ maxHeight: "600px" }}
-                      onClick={() => setSelectedImage(getImageUrl(n.image))}
-                    />
+                    {n.images.length === 1 ? (
+                      // Single image
+                      <img
+                        src={getImageUrl(n.images[0])}
+                        alt={n.title}
+                        className="w-full rounded-lg object-contain cursor-pointer"
+                        style={{ maxHeight: "600px" }}
+                        onClick={() => handleImageClick(n.images[0], 0)}
+                      />
+                    ) : (
+                      // Multiple images - grid layout
+                      <div className={`grid gap-2 ${n.images.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                        {n.images.map((img, index) => (
+                          <div key={index} className="relative">
+                            <img
+                              src={getImageUrl(img)}
+                              alt={`${n.title} - ${index + 1}`}
+                              className="w-full h-48 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => handleImageClick(img, index)}
+                            />
+                            {n.images.length > 3 && index === 2 && (
+                              <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                                <span className="text-white font-bold text-lg">
+                                  +{n.images.length - 3}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {n.images.length > 1 && (
+                      <p className="text-xs text-gray-500 mt-2 text-center">
+                        Click on any image to view full size ({n.images.length} images)
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -150,17 +200,82 @@ function News({ user, setView }) {
         </div>
       </div>
 
-      {/* Fullscreen Image Modal */}
+      {/* Fullscreen Image Modal with Navigation */}
       {selectedImage && (
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
-          onClick={() => setSelectedImage(null)}
+          onClick={() => {
+            setSelectedImage(null);
+            setSelectedImageIndex(0);
+          }}
         >
-          <img
-            src={selectedImage}
-            alt="Full view"
-            className="max-w-full max-h-full object-contain rounded-lg"
-          />
+          <div 
+            className="relative max-w-full max-h-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={getImageUrl(selectedImage)}
+              alt="Full view"
+              className="max-w-full max-h-[90vh] object-contain rounded-lg"
+            />
+            
+            {/* Close button */}
+            <button
+              className="absolute top-4 right-4 bg-black/50 text-white rounded-full p-2 hover:bg-black/70 transition-colors cursor-pointer"
+              onClick={() => {
+                setSelectedImage(null);
+                setSelectedImageIndex(0);
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Find the current news item to get all images */}
+            {newsList.map((newsItem) => {
+              if (newsItem.images && newsItem.images.includes(selectedImage.split('/').pop()) || 
+                  newsItem.images?.some(img => getImageUrl(img) === selectedImage)) {
+                const currentImages = newsItem.images;
+                
+                return (
+                  currentImages.length > 1 && (
+                    <>
+                      {/* Previous button */}
+                      {selectedImageIndex > 0 && (
+                        <button
+                          className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition-colors cursor-pointer"
+                          onClick={() => handlePrevImage(currentImages)}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                      )}
+
+                      {/* Next button */}
+                      {selectedImageIndex < currentImages.length - 1 && (
+                        <button
+                          className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition-colors cursor-pointer"
+                          onClick={() => handleNextImage(currentImages)}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      )}
+
+                      {/* Image counter */}
+                      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                        {selectedImageIndex + 1} / {currentImages.length}
+                      </div>
+                    </>
+                  )
+                );
+              }
+              return null;
+            })}
+          </div>
         </div>
       )}
     </main>
