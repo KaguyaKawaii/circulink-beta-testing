@@ -183,14 +183,6 @@ function Message({ user, setView, currentView }) {
     try { messageSound.current.volume = 0.75; } catch (e) {}
   }, []);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
   // Memoized calculations
   const getCurrentUnreadCount = useCallback(() => {
     if (activeTab === MESSAGE_TYPES.FLOOR) {
@@ -783,8 +775,8 @@ function Message({ user, setView, currentView }) {
             </div>
           </div>
 
-          {/* Messages Container */}
-          <div className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50">
+          {/* Messages Container - Removed scrolling */}
+          <div className="flex-1 overflow-visible p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50">
             {loading ? (
               <LoadingSkeleton />
             ) : messages.length === 0 ? (
@@ -854,17 +846,6 @@ function Message({ user, setView, currentView }) {
           </div>
         </div>
       </div>
-
-      {/* Fixed Bottom Menu Button - Only on mobile */}
-      <button 
-        onClick={() => setIsSidebarOpen(true)}
-        className="lg:hidden fixed bottom-6 right-6 p-4 rounded-full bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-2xl z-50 transition-transform hover:scale-110 active:scale-95 animate-bounce-slow"
-        aria-label="Open menu"
-      >
-        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-      </button>
     </main>
   );
 }
