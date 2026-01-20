@@ -32,7 +32,20 @@ function News({ user, setView }) {
     setIsLoading(true);
     try {
       const { data } = await axios.get(NEWS_ENDPOINT);
-      setNewsList(Array.isArray(data) ? data : data.news || []);
+      console.log("Fetched news data:", data); // Debug log
+      const newsData = Array.isArray(data) ? data : data.news || [];
+      setNewsList(newsData);
+      
+      // Debug each news item's images
+      newsData.forEach((item, index) => {
+        console.log(`News ${index}:`, {
+          title: item.title,
+          images: item.images,
+          imageCount: item.images?.length || 0,
+          hasImageField: !!item.image,
+          imageField: item.image
+        });
+      });
     } catch (error) {
       console.error("Failed to fetch news:", error);
       setNewsList([]);
@@ -46,14 +59,49 @@ function News({ user, setView }) {
   }, []);
 
   const getImageUrl = (img) => {
-    if (!img) return null;
-    return img.startsWith("http")
-      ? img
-      : `${import.meta.env.VITE_API_URL}${img.replace(/^\/?/, "")}`;
+    console.log("Processing image:", img); // Debug log
+    
+    if (!img) {
+      console.log("No image provided");
+      return null;
+    }
+    
+    // If it's already a full URL (http:// or https://) including Cloudinary
+    if (img.startsWith("http://") || img.startsWith("https://")) {
+      console.log("Image is already a full URL");
+      return img;
+    }
+    
+    // If it's a Cloudinary path (starts with cloudinary:// or has cloudinary in it)
+    if (img.includes("cloudinary") || img.includes("res.cloudinary.com")) {
+      // Check if it needs to be converted to a proper URL
+      if (img.startsWith("cloudinary://")) {
+        // Extract Cloudinary components and construct URL
+        // This depends on how your backend stores Cloudinary URLs
+        console.log("Cloudinary URL needs processing:", img);
+        // You might need to adjust this based on your actual Cloudinary URL format
+        return `https://res.cloudinary.com/${img.split('cloudinary://')[1]}`;
+      }
+      // If it's already a partial Cloudinary URL, prepend https://
+      if (img.startsWith("//") || img.startsWith("/")) {
+        return `https:${img}`;
+      }
+      return img;
+    }
+    
+    // Fallback: assume it's a relative path to your API
+    console.log("Treating as relative path");
+    const baseUrl = import.meta.env.VITE_API_URL;
+    const cleanedPath = img.replace(/^\/+/, ""); // Remove leading slashes
+    const url = `${baseUrl}/${cleanedPath}`;
+    console.log("Constructed URL:", url);
+    return url;
   };
 
   const handleImageClick = (imageUrl, index) => {
-    setSelectedImage(imageUrl);
+    console.log("Image clicked:", imageUrl, "Index:", index);
+    const fullUrl = getImageUrl(imageUrl);
+    setSelectedImage(fullUrl);
     setSelectedImageIndex(index);
   };
 
@@ -61,7 +109,8 @@ function News({ user, setView }) {
     if (selectedImageIndex > 0) {
       const newIndex = selectedImageIndex - 1;
       setSelectedImageIndex(newIndex);
-      setSelectedImage(getImageUrl(images[newIndex]));
+      const fullUrl = getImageUrl(images[newIndex]);
+      setSelectedImage(fullUrl);
     }
   };
 
@@ -69,8 +118,15 @@ function News({ user, setView }) {
     if (selectedImageIndex < images.length - 1) {
       const newIndex = selectedImageIndex + 1;
       setSelectedImageIndex(newIndex);
-      setSelectedImage(getImageUrl(images[newIndex]));
+      const fullUrl = getImageUrl(images[newIndex]);
+      setSelectedImage(fullUrl);
     }
+  };
+
+  // Helper to extract image filename for comparison
+  const getImageFilename = (url) => {
+    if (!url) return '';
+    return url.split('/').pop();
   };
 
   return (
@@ -115,87 +171,100 @@ function News({ user, setView }) {
               <p className="text-gray-500">No announcements available at this time.</p>
             </div>
           ) : (
-            newsList.map((n) => (
-              <article
-                key={n._id}
-                className="p-3 sm:p-4 border border-gray-100 rounded-lg hover:shadow transition-shadow bg-white"
-              >
-                <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-3">
-                  <div className="flex items-center gap-2 sm:gap-3 mb-2 md:mb-0">
-                    {/* Circle with Admin SVG */}
-                    <div className="flex items-center justify-center border border-gray-500 rounded-full w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] bg-yellow-300">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M5.121 17.804A9.003 9.003 0 0112 15c2.21 0 4.21.804 5.879 2.137M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                        />
-                      </svg>
-                    </div>
-                    <h1 className="font-bold text-sm sm:text-base">USA-FLD Admin</h1>
-                  </div>
-                  <time className="text-xs text-gray-500 flex items-center gap-1 mt-1 sm:mt-0">
-                    {formatPH(n.createdAt)}
-                  </time>
-                </div>
-
-                {/* Show Multiple Images */}
-                {n.images && n.images.length > 0 && (
-                  <div className="mb-3">
-                    {n.images.length === 1 ? (
-                      // Single image
-                      <img
-                        src={getImageUrl(n.images[0])}
-                        alt={n.title}
-                        className="w-full rounded-lg object-contain cursor-pointer"
-                        style={{ maxHeight: "600px" }}
-                        onClick={() => handleImageClick(n.images[0], 0)}
-                      />
-                    ) : (
-                      // Multiple images - grid layout
-                      <div className={`grid gap-2 ${n.images.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
-                        {n.images.map((img, index) => (
-                          <div key={index} className="relative">
-                            <img
-                              src={getImageUrl(img)}
-                              alt={`${n.title} - ${index + 1}`}
-                              className="w-full h-48 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                              onClick={() => handleImageClick(img, index)}
-                            />
-                            {n.images.length > 3 && index === 2 && (
-                              <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
-                                <span className="text-white font-bold text-lg">
-                                  +{n.images.length - 3}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        ))}
+            newsList.map((n) => {
+              // Handle both single image (n.image) and multiple images (n.images)
+              const images = n.images || (n.image ? [n.image] : []);
+              
+              return (
+                <article
+                  key={n._id}
+                  className="p-3 sm:p-4 border border-gray-100 rounded-lg hover:shadow transition-shadow bg-white"
+                >
+                  <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-3">
+                    <div className="flex items-center gap-2 sm:gap-3 mb-2 md:mb-0">
+                      {/* Circle with Admin SVG */}
+                      <div className="flex items-center justify-center border border-gray-500 rounded-full w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] bg-yellow-300">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M5.121 17.804A9.003 9.003 0 0112 15c2.21 0 4.21.804 5.879 2.137M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                          />
+                        </svg>
                       </div>
-                    )}
-                    {n.images.length > 1 && (
-                      <p className="text-xs text-gray-500 mt-2 text-center">
-                        Click on any image to view full size ({n.images.length} images)
-                      </p>
-                    )}
+                      <h1 className="font-bold text-sm sm:text-base">USA-FLD Admin</h1>
+                    </div>
+                    <time className="text-xs text-gray-500 flex items-center gap-1 mt-1 sm:mt-0">
+                      {formatPH(n.createdAt)}
+                    </time>
                   </div>
-                )}
 
-                <div className="border-b border-gray-100 mb-3" />
-                <h2 className="font-bold text-gray-800 text-base sm:text-lg">{n.title}</h2>
-                <div
-                  className="text-sm text-gray-600"
-                  dangerouslySetInnerHTML={{ __html: n.content }}
-                />
-              </article>
-            ))
+                  {/* Show Images */}
+                  {images.length > 0 && (
+                    <div className="mb-3">
+                      {images.length === 1 ? (
+                        // Single image
+                        <img
+                          src={getImageUrl(images[0])}
+                          alt={n.title}
+                          className="w-full rounded-lg object-contain cursor-pointer"
+                          style={{ maxHeight: "600px" }}
+                          onError={(e) => {
+                            console.error("Image failed to load:", images[0]);
+                            e.target.style.display = 'none';
+                          }}
+                          onClick={() => handleImageClick(images[0], 0)}
+                        />
+                      ) : (
+                        // Multiple images - grid layout
+                        <div className={`grid gap-2 ${images.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                          {images.slice(0, 3).map((img, index) => (
+                            <div key={index} className="relative">
+                              <img
+                                src={getImageUrl(img)}
+                                alt={`${n.title} - ${index + 1}`}
+                                className="w-full h-48 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                onError={(e) => {
+                                  console.error("Image failed to load:", img);
+                                  e.target.style.display = 'none';
+                                }}
+                                onClick={() => handleImageClick(img, index)}
+                              />
+                              {images.length > 3 && index === 2 && (
+                                <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                                  <span className="text-white font-bold text-lg">
+                                    +{images.length - 3}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {images.length > 1 && (
+                        <p className="text-xs text-gray-500 mt-2 text-center">
+                          Click on any image to view full size ({images.length} images)
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="border-b border-gray-100 mb-3" />
+                  <h2 className="font-bold text-gray-800 text-base sm:text-lg">{n.title}</h2>
+                  <div
+                    className="text-sm text-gray-600"
+                    dangerouslySetInnerHTML={{ __html: n.content }}
+                  />
+                </article>
+              );
+            })
           )}
         </div>
       </div>
@@ -214,9 +283,13 @@ function News({ user, setView }) {
             onClick={(e) => e.stopPropagation()}
           >
             <img
-              src={getImageUrl(selectedImage)}
+              src={selectedImage}
               alt="Full view"
               className="max-w-full max-h-[90vh] object-contain rounded-lg"
+              onError={(e) => {
+                console.error("Fullscreen image failed to load:", selectedImage);
+                e.target.style.display = 'none';
+              }}
             />
             
             {/* Close button */}
@@ -234,43 +307,45 @@ function News({ user, setView }) {
 
             {/* Find the current news item to get all images */}
             {newsList.map((newsItem) => {
-              if (newsItem.images && newsItem.images.includes(selectedImage.split('/').pop()) || 
-                  newsItem.images?.some(img => getImageUrl(img) === selectedImage)) {
-                const currentImages = newsItem.images;
-                
+              const itemImages = newsItem.images || (newsItem.image ? [newsItem.image] : []);
+              
+              // Check if selected image belongs to this news item
+              const currentImageUrl = getImageUrl(itemImages[selectedImageIndex]);
+              const isCurrentItem = currentImageUrl === selectedImage || 
+                                   getImageFilename(currentImageUrl) === getImageFilename(selectedImage);
+              
+              if (isCurrentItem && itemImages.length > 1) {
                 return (
-                  currentImages.length > 1 && (
-                    <>
-                      {/* Previous button */}
-                      {selectedImageIndex > 0 && (
-                        <button
-                          className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition-colors cursor-pointer"
-                          onClick={() => handlePrevImage(currentImages)}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                          </svg>
-                        </button>
-                      )}
+                  <>
+                    {/* Previous button */}
+                    {selectedImageIndex > 0 && (
+                      <button
+                        className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition-colors cursor-pointer"
+                        onClick={() => handlePrevImage(itemImages)}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                    )}
 
-                      {/* Next button */}
-                      {selectedImageIndex < currentImages.length - 1 && (
-                        <button
-                          className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition-colors cursor-pointer"
-                          onClick={() => handleNextImage(currentImages)}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      )}
+                    {/* Next button */}
+                    {selectedImageIndex < itemImages.length - 1 && (
+                      <button
+                        className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition-colors cursor-pointer"
+                        onClick={() => handleNextImage(itemImages)}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    )}
 
-                      {/* Image counter */}
-                      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
-                        {selectedImageIndex + 1} / {currentImages.length}
-                      </div>
-                    </>
-                  )
+                    {/* Image counter */}
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                      {selectedImageIndex + 1} / {itemImages.length}
+                    </div>
+                  </>
                 );
               }
               return null;
