@@ -1680,6 +1680,9 @@ function ReserveRoom({ user, setView }) {
           <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 pb-2 border-b border-gray-100">
             Participants ({formData.participants.length})
           </h2>
+          <p className="text-xs sm:text-sm text-gray-600 italic mt-2 sm:mt-3">
+            * Enter ID Number to auto-fill participant details. Verified fields will be locked.
+          </p>
           
           {/* Mobile View - Card Layout */}
           {isMobile ? (
@@ -1830,9 +1833,7 @@ function ReserveRoom({ user, setView }) {
             </div>
           )}
           
-          <p className="text-xs sm:text-sm text-gray-600 italic mt-2 sm:mt-3">
-            * Enter ID Number to auto-fill participant details. Verified fields will be locked.
-          </p>
+          
         </div>
 
         {/* Notes Section */}

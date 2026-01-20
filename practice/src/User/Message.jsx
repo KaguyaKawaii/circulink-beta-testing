@@ -779,7 +779,7 @@ function Message({ user, setView, currentView }) {
         </aside>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col relative w-full lg:w-[100dvh]">
+        <div className="flex-1 flex flex-col relative w-full lg:w-auto">
           {/* Chat Header - Mobile & Desktop */}
           <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-md relative z-40">
             <div className="flex items-center justify-between">
@@ -831,12 +831,22 @@ function Message({ user, setView, currentView }) {
             </div>
           </div>
 
-          {/* Messages Container - Fixed scrolling */}
+          {/* Messages Container - Fixed scrolling - HIDDEN SCROLLBAR */}
           <div 
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50"
-            style={{ minHeight: 0 }}
+            className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50 scrollbar-hide"
+            style={{ 
+              minHeight: 0,
+              scrollbarWidth: 'none', // Firefox
+              msOverflowStyle: 'none' // IE/Edge
+            }}
           >
+            <style jsx>{`
+              .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+              }
+            `}</style>
+            
             {loading ? (
               <LoadingSkeleton />
             ) : messages.length === 0 ? (
@@ -881,7 +891,7 @@ function Message({ user, setView, currentView }) {
                   }
                   className="flex-1 border-2 border-gray-200 rounded-2xl px-4 lg:px-6 py-3 focus:outline-none focus:border-red-500 transition-colors duration-300 shadow-sm bg-gray-50 focus:bg-white"
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={(e) => setNewMessage(e.value)}
                   onKeyDown={handleKeyPress}
                   rows={1}
                   style={{ minHeight: '50px', maxHeight: '120px' }}
