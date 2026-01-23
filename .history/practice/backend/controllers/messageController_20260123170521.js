@@ -4,8 +4,6 @@ const Message = require("../models/Message");
 /* ───────────────────────────────
    User Messaging Endpoints
 ─────────────────────────────── */
-// In messageController.js - Update sendMessage function
-// In messageController.js - Update sendMessage function
 exports.sendMessage = async (req, res) => {
   try {
     const { sender, receiver, content } = req.body;
@@ -16,29 +14,26 @@ exports.sendMessage = async (req, res) => {
 
     let messageData;
 
-    // Decide routing logic - UPDATED: Admin should NOT see user-staff conversations
     if (sender === "admin") {
       if (receiver.includes("Floor")) {
         messageData = await messageService.sendMessageFromAdminToFloor(receiver, content);
       } else {
         messageData = await messageService.sendMessageFromAdminToUser(receiver, content);
+        await messageService.markMessagesAsReadFromUser("admin", receiver);
       }
     } else if (receiver === "admin") {
       messageData = await messageService.sendMessageToAdmin(sender, content);
     } else if (receiver.includes("Floor")) {
       messageData = await messageService.sendMessageToFloor(sender, receiver, content);
     } else {
-      // USER TO STAFF MESSAGE - Admin should NOT see this
       messageData = await messageService.sendMessageUserToStaff(sender, receiver, content);
     }
 
     const io = req.app.get("io");
 
-    // Notify both sender and receiver rooms
     io.to(sender).emit("newMessage", messageData);
     io.to(receiver).emit("newMessage", messageData);
 
-    // DO NOT notify admin for user-staff conversations
     const isUserStaffConversation = 
       sender !== "admin" && 
       receiver !== "admin" && 
@@ -46,11 +41,21 @@ exports.sendMessage = async (req, res) => {
       !sender.includes("Floor");
 
     if (!isUserStaffConversation) {
-      // Only notify admin for direct admin conversations
       io.to("admin").emit("newMessage", messageData);
     }
 
-    // Emit unread count updates for receiver
+    if (sender === "admin") {
+      try {
+        const adminRecipients = await messageService.getAdminRecipientsWithUnread();
+        io.to("admin").emit("adminUnreadUpdate", { 
+          recipients: adminRecipients,
+          totalUnread: adminRecipients.reduce((sum, r) => sum + r.unreadCount, 0)
+        });
+      } catch (error) {
+        console.error("Failed to emit admin unread update:", error);
+      }
+    }
+
     if (receiver !== "admin" && !receiver.includes("Floor")) {
       const unreadCount = await messageService.getUnreadCount(receiver);
       io.to(receiver).emit("unreadCountUpdate", { userId: receiver, count: unreadCount });
@@ -63,7 +68,6 @@ exports.sendMessage = async (req, res) => {
   }
 };
 
-// User sends message to floor - FIXED for staff notifications
 exports.sendMessageToFloor = async (req, res) => {
   try {
     const { userId, floor, content } = req.body;
@@ -72,18 +76,15 @@ exports.sendMessageToFloor = async (req, res) => {
 
     const io = req.app.get("io");
     
-    // Notify floor staff and user
     io.to(floor).emit("newMessage", messageData);
     io.to(userId).emit("newMessage", messageData);
 
-    // Get all staff members assigned to this floor and update their unread counts
-    const Staff = require("../models/User"); // Assuming User model is used for staff
+    const Staff = require("../models/User");
     const floorStaff = await Staff.find({ 
       role: "staff", 
       floor: floor 
     }, "_id");
 
-    // Update unread counts for all staff on this floor
     for (const staff of floorStaff) {
       const unreadCount = await messageService.getStaffTotalUnreadCount(staff._id.toString());
       io.to(staff._id.toString()).emit("unreadCountUpdate", { 
@@ -99,7 +100,6 @@ exports.sendMessageToFloor = async (req, res) => {
   }
 };
 
-// User sends message to admin
 exports.sendMessageToAdmin = async (req, res) => {
   try {
     const { userId, content } = req.body;
@@ -108,7 +108,6 @@ exports.sendMessageToAdmin = async (req, res) => {
 
     const io = req.app.get("io");
     
-    // Notify admin and user
     io.to("admin").emit("newMessage", messageData);
     io.to(userId).emit("newMessage", messageData);
 
@@ -123,46 +122,52 @@ exports.sendMessageToAdmin = async (req, res) => {
    Staff Messaging Endpoints
 ─────────────────────────────── */
 
-// Staff replies to user (appears as floor staff) - FIXED: Auto-mark as read when staff replies
 exports.staffReplyToUser = async (req, res) => {
   try {
-    const { staffId, userId, content } = req.body;
+    const { staffId, userId, content, floor } = req.body;
     
     const messageData = await messageService.sendMessageFromStaff(staffId, userId, content);
 
     const io = req.app.get("io");
     
-    // Emit to user and staff
     io.to(userId).emit("newMessage", messageData);
     io.to(staffId).emit("newMessage", messageData);
 
-    // AUTO-MARK ALL MESSAGES FROM THIS USER AS READ FOR THIS STAFF
     await messageService.markMessagesAsReadFromUser(staffId, userId);
 
-    // Update unread count for user
     const userUnreadCount = await messageService.getUnreadCount(userId);
     io.to(userId).emit("unreadCountUpdate", { userId, count: userUnreadCount });
 
-    // Update unread count for staff (this should now show 0 for this conversation)
-    const staffUnreadCount = await messageService.getStaffTotalUnreadCount(staffId);
-    io.to(staffId).emit("unreadCountUpdate", { userId: staffId, count: staffUnreadCount });
-
-    // Also emit specific conversation update for immediate UI refresh
+    const staffTotalUnreadCount = await messageService.getStaffTotalUnreadCount(staffId);
     const conversationUnreadCount = await messageService.getUnreadCountByUser(staffId, userId);
+
+    io.to(staffId).emit("unreadCountUpdate", { 
+      userId: staffId, 
+      count: staffTotalUnreadCount 
+    });
+    
     io.to(staffId).emit("conversationUnreadUpdate", { 
       staffId, 
       userId, 
       count: conversationUnreadCount 
     });
+    
+    io.to(staffId).emit("conversationRead", {
+      staffId,
+      userId,
+      count: 0
+    });
 
-    res.status(201).json({ message: "Message sent", data: messageData });
+    res.status(201).json({ 
+      message: "Message sent", 
+      data: messageData
+    });
   } catch (err) {
     console.error("Failed to send staff reply:", err);
     res.status(500).json({ message: "Failed to send message." });
   }
 };
 
-// Staff sends message to admin
 exports.staffMessageToAdmin = async (req, res) => {
   try {
     const { staffId, content } = req.body;
@@ -171,14 +176,11 @@ exports.staffMessageToAdmin = async (req, res) => {
 
     const io = req.app.get("io");
     
-    // Emit to admin and staff
     io.to("admin").emit("newMessage", messageData);
     io.to(staffId).emit("newMessage", messageData);
 
-    // AUTO-MARK ADMIN MESSAGES AS READ FOR THIS STAFF
     await messageService.markMessagesAsRead(staffId, "admin");
 
-    // Update unread count for staff
     const unreadCount = await messageService.getStaffTotalUnreadCount(staffId);
     io.to(staffId).emit("unreadCountUpdate", { userId: staffId, count: unreadCount });
 
@@ -193,7 +195,6 @@ exports.staffMessageToAdmin = async (req, res) => {
    Admin Messaging Endpoints
 ─────────────────────────────── */
 
-// Admin sends message to user
 exports.adminMessageToUser = async (req, res) => {
   try {
     const { userId, content } = req.body;
@@ -202,11 +203,9 @@ exports.adminMessageToUser = async (req, res) => {
 
     const io = req.app.get("io");
     
-    // Emit to user and admin
     io.to(userId).emit("newMessage", messageData);
     io.to("admin").emit("newMessage", messageData);
 
-    // Update unread count for user
     const unreadCount = await messageService.getUnreadCount(userId);
     io.to(userId).emit("unreadCountUpdate", { userId, count: unreadCount });
 
@@ -217,7 +216,6 @@ exports.adminMessageToUser = async (req, res) => {
   }
 };
 
-// Admin sends message to staff
 exports.adminMessageToStaff = async (req, res) => {
   try {
     const { staffId, content } = req.body;
@@ -226,11 +224,9 @@ exports.adminMessageToStaff = async (req, res) => {
 
     const io = req.app.get("io");
     
-    // Emit to staff and admin
     io.to(staffId).emit("newMessage", messageData);
     io.to("admin").emit("newMessage", messageData);
 
-    // Update unread count for staff
     const unreadCount = await messageService.getStaffTotalUnreadCount(staffId);
     io.to(staffId).emit("unreadCountUpdate", { userId: staffId, count: unreadCount });
 
@@ -241,7 +237,6 @@ exports.adminMessageToStaff = async (req, res) => {
   }
 };
 
-// Admin sends message to floor
 exports.adminMessageToFloor = async (req, res) => {
   try {
     const { floor, content } = req.body;
@@ -250,18 +245,15 @@ exports.adminMessageToFloor = async (req, res) => {
 
     const io = req.app.get("io");
     
-    // Emit to floor and admin
     io.to(floor).emit("newMessage", messageData);
     io.to("admin").emit("newMessage", messageData);
 
-    // Get all staff members assigned to this floor and update their unread counts
     const Staff = require("../models/User");
     const floorStaff = await Staff.find({ 
       role: "staff", 
       floor: floor 
     }, "_id");
 
-    // Update unread counts for all staff on this floor
     for (const staff of floorStaff) {
       const unreadCount = await messageService.getStaffTotalUnreadCount(staff._id.toString());
       io.to(staff._id.toString()).emit("unreadCountUpdate", { 
@@ -281,7 +273,6 @@ exports.adminMessageToFloor = async (req, res) => {
    Conversation Fetching Endpoints
 ─────────────────────────────── */
 
-// Get floor conversation (user perspective)
 exports.getFloorConversation = async (req, res) => {
   try {
     const { userId, floor } = req.params;
@@ -294,7 +285,6 @@ exports.getFloorConversation = async (req, res) => {
   }
 };
 
-// Get user-admin conversation
 exports.getUserAdminConversation = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -307,7 +297,6 @@ exports.getUserAdminConversation = async (req, res) => {
   }
 };
 
-// Get staff's conversation with a user
 exports.getStaffUserConversation = async (req, res) => {
   try {
     const { staffId, userId } = req.params;
@@ -320,7 +309,6 @@ exports.getStaffUserConversation = async (req, res) => {
   }
 };
 
-// Get staff-admin conversation
 exports.getStaffAdminConversation = async (req, res) => {
   try {
     const { staffId } = req.params;
@@ -333,7 +321,6 @@ exports.getStaffAdminConversation = async (req, res) => {
   }
 };
 
-// Get admin conversation
 exports.getAdminConversation = async (req, res) => {
   try {
     const { entityId } = req.params;
@@ -355,12 +342,10 @@ exports.getAdminConversation = async (req, res) => {
   }
 };
 
-
 /* ───────────────────────────────
    List/Recipient Endpoints
 ─────────────────────────────── */
 
-// Get users for a floor (staff perspective)
 exports.getFloorUsers = async (req, res) => {
   try {
     const { floor } = req.params;
@@ -373,12 +358,10 @@ exports.getFloorUsers = async (req, res) => {
   }
 };
 
-// In messageController.js - Update getAdminRecipients
 exports.getAdminRecipients = async (req, res) => {
   try {
     const User = require("../models/User");
     
-    // ONLY find direct admin conversations
     const conversations = await Message.aggregate([
       {
         $match: {
@@ -415,13 +398,9 @@ exports.getAdminRecipients = async (req, res) => {
       }
     ]);
 
-    console.log('Found admin conversations:', conversations.length);
-
-    // Get user details for each conversation
     const recipients = await Promise.all(
       conversations.map(async (conv) => {
         try {
-          // Skip if not a valid user ID or if it's a floor
           if (!conv._id || typeof conv._id !== 'string' || conv._id.includes('Floor')) {
             return null;
           }
@@ -430,7 +409,6 @@ exports.getAdminRecipients = async (req, res) => {
             .select('name email role department');
           
           if (!user) {
-            console.log('User not found for ID:', conv._id);
             return null;
           }
 
@@ -452,11 +430,8 @@ exports.getAdminRecipients = async (req, res) => {
       })
     );
 
-    // Filter out null values and sort by latest message
     const filteredRecipients = recipients.filter(r => r !== null)
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-
-    console.log('Final admin recipients:', filteredRecipients.length);
 
     res.json(filteredRecipients);
   } catch (error) {
@@ -468,7 +443,6 @@ exports.getAdminRecipients = async (req, res) => {
   }
 };
 
-// Get recipients for staff
 exports.getStaffRecipients = async (req, res) => {
   try {
     const { staffId } = req.params;
@@ -482,10 +456,9 @@ exports.getStaffRecipients = async (req, res) => {
 };
 
 /* ───────────────────────────────
-   Unread Messages Endpoints - FIXED
+   Unread Messages Endpoints
 ─────────────────────────────── */
 
-// Mark messages as read - UPDATED for staff-user marking
 exports.markMessagesAsRead = async (req, res) => {
   try {
     const { userId, conversationId, messageIds, staffId, targetUserId } = req.body;
@@ -497,33 +470,39 @@ exports.markMessagesAsRead = async (req, res) => {
     let result;
     const actualUserId = userId || staffId;
     
-    // If marking messages from specific user for staff
     if (staffId && targetUserId) {
       result = await messageService.markMessagesAsReadFromUser(staffId, targetUserId);
     } 
-    // Original logic for conversation-based marking
     else if (conversationId || messageIds) {
       result = await messageService.markMessagesAsRead(actualUserId, conversationId, messageIds);
     }
-    // Fallback: mark all unread for user
     else {
       result = await messageService.markMessagesAsRead(actualUserId, null, null);
     }
     
     const io = req.app.get("io");
     
-    // Update unread counts
     if (staffId) {
-      const unreadCount = await messageService.getStaffTotalUnreadCount(staffId);
-      io.to(staffId).emit("unreadCountUpdate", { userId: staffId, count: unreadCount });
+      const totalUnreadCount = await messageService.getStaffTotalUnreadCount(staffId);
+      const conversationUnreadCount = targetUserId ? 
+        await messageService.getUnreadCountByUser(staffId, targetUserId) : 0;
       
-      // Also emit specific conversation update if targetUserId is provided
+      io.to(staffId).emit("unreadCountUpdate", { 
+        userId: staffId, 
+        count: totalUnreadCount 
+      });
+      
       if (targetUserId) {
-        const conversationUnreadCount = await messageService.getUnreadCountByUser(staffId, targetUserId);
         io.to(staffId).emit("conversationUnreadUpdate", { 
           staffId, 
           userId: targetUserId, 
           count: conversationUnreadCount 
+        });
+        
+        io.to(staffId).emit("conversationRead", {
+          staffId,
+          userId: targetUserId,
+          count: 0
         });
       }
     } else {
@@ -538,7 +517,6 @@ exports.markMessagesAsRead = async (req, res) => {
   }
 };
 
-// Get unread message count for user
 exports.getUnreadCount = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -562,7 +540,6 @@ exports.getUnreadCount = async (req, res) => {
   }
 };
 
-// Get unread count by conversation
 exports.getUnreadCountByConversation = async (req, res) => {
   try {
     const { userId, conversationId } = req.params;
@@ -579,7 +556,6 @@ exports.getUnreadCountByConversation = async (req, res) => {
   }
 };
 
-// NEW: Get unread count for specific user (for staff)
 exports.getUnreadCountByUser = async (req, res) => {
   try {
     const { staffId, userId } = req.params;
@@ -596,7 +572,6 @@ exports.getUnreadCountByUser = async (req, res) => {
   }
 };
 
-// Get total unread count for staff (floor users + admin)
 exports.getStaffTotalUnreadCount = async (req, res) => {
   try {
     const { staffId } = req.params;
@@ -613,7 +588,6 @@ exports.getStaffTotalUnreadCount = async (req, res) => {
   }
 };
 
-// Get unread count for staff from specific floor
 exports.getStaffFloorUnreadCount = async (req, res) => {
   try {
     const { staffId, floor } = req.params;
@@ -630,7 +604,6 @@ exports.getStaffFloorUnreadCount = async (req, res) => {
   }
 };
 
-// NEW: Get unread breakdown for staff (per user counts)
 exports.getStaffUnreadBreakdown = async (req, res) => {
   try {
     const { staffId } = req.params;
@@ -647,25 +620,21 @@ exports.getStaffUnreadBreakdown = async (req, res) => {
   }
 };
 
-// 📌 Mark messages as read when user replies - FIXED VERSION
-// 📌 Mark messages as read when user replies - FIXED VERSION
 exports.markMessagesAsReadOnReply = async (req, res) => {
   try {
     const { userId, receiver, conversationType } = req.body;
 
     let query = {};
     if (conversationType === "floor") {
-      // FIXED: Mark messages where user is receiver and sender is the floor staff
       query = {
         receiver: userId,
         $or: [
-          { sender: receiver }, // Messages from the floor to user
-          { floor: receiver, senderType: "staff" } // Messages from floor staff to user
+          { sender: receiver },
+          { floor: receiver, senderType: "staff" }
         ],
         read: false
       };
     } else if (conversationType === "admin") {
-      // FIXED: Mark messages where user is receiver and sender is admin
       query = {
         receiver: userId,
         sender: "admin",
@@ -683,7 +652,6 @@ exports.markMessagesAsReadOnReply = async (req, res) => {
       }
     );
 
-    // Emit socket event to refresh unread counts
     const io = req.app.get('io');
     io.to(userId).emit('refresh-unread-counts', { userId });
 
@@ -701,22 +669,18 @@ exports.markMessagesAsReadOnReply = async (req, res) => {
   }
 };
 
-
-// 📌 Mark entire conversation as read
 exports.markConversationAsRead = async (req, res) => {
   try {
     const { userId, receiver, conversationType } = req.body;
 
     let query = {};
     if (conversationType === "floor") {
-      // Mark all unread messages from this floor to this user
       query = {
         receiver: userId,
         sender: receiver,
         read: false
       };
     } else if (conversationType === "admin") {
-      // Mark all unread messages from admin to this user
       query = {
         receiver: userId,
         sender: "admin", 
@@ -734,7 +698,6 @@ exports.markConversationAsRead = async (req, res) => {
       }
     );
 
-    // Emit socket event to refresh unread counts
     req.app.get('io').emit('refresh-unread-counts', { userId });
 
     res.json({
@@ -751,7 +714,6 @@ exports.markConversationAsRead = async (req, res) => {
   }
 };
 
-// 📌 Get unread messages for a user (NEW FUNCTION)
 exports.getUnreadMessages = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -775,7 +737,6 @@ exports.getUnreadMessages = async (req, res) => {
   }
 };
 
-// NEW: Get unread count for specific floor
 exports.getUnreadCountForFloor = async (req, res) => {
   try {
     const { userId, floor } = req.params;
@@ -792,7 +753,6 @@ exports.getUnreadCountForFloor = async (req, res) => {
   }
 };
 
-// NEW: Get unread count for admin conversation
 exports.getUnreadCountForAdmin = async (req, res) => {
   try {
     const { userId } = req.params;
