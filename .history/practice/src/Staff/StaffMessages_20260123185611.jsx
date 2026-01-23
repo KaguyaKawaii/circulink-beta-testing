@@ -633,11 +633,9 @@ function StaffMessages({ setView, staff, onLogout }) {
                           {/* Enhanced Unread badge - FIXED: Now disappears when staff replies */}
                           {conv.unreadCount > 0 && (
                             <div className="flex-shrink-0">
-                              {selectedUser.unreadCount > 0 && (
-                      <span className="bg-red-500 text-white text-sm px-3 py-1 rounded-full shadow-lg">
-                        {selectedUser.unreadCount}
-                      </span>
-                    )}
+                              <div className="bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center border-2 border-white shadow-lg animate-pulse">
+                                {conv.unreadCount > 99 ? '99+' : conv.unreadCount}
+                              </div>
                             </div>
                           )}
                           <div className="w-10 h-10 bg-gradient-to-r from-[#CC0000] to-red-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-110 transition-transform duration-200 flex-shrink-0">
@@ -705,7 +703,11 @@ function StaffMessages({ setView, staff, onLogout }) {
                       </div>
                     </div>
                     {/* 🆕 FIXED: Unread badge disappears when staff replies */}
-                    
+                    {selectedUser.unreadCount > 0 && (
+                      <span className="bg-red-500 text-white text-sm px-3 py-1 rounded-full shadow-lg animate-pulse">
+                        {selectedUser.unreadCount}
+                      </span>
+                    )}
                   </div>
                 </div>
                 

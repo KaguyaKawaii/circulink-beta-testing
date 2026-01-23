@@ -635,7 +635,7 @@ function StaffMessages({ setView, staff, onLogout }) {
                             <div className="flex-shrink-0">
                               {selectedUser.unreadCount > 0 && (
                       <span className="bg-red-500 text-white text-sm px-3 py-1 rounded-full shadow-lg">
-                        {selectedUser.unreadCount}
+                        {selectedUser.unreadCount} unread
                       </span>
                     )}
                             </div>
