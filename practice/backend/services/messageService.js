@@ -574,23 +574,30 @@ exports.markMessagesAsRead = async (userId, conversationId, messageIds = null) =
   return result;
 };
 
-// NEW: Mark messages as read from specific user for staff
+// In messageService.js - make sure this function works correctly
 exports.markMessagesAsReadFromUser = async (staffId, userId) => {
-  const staff = await User.findById(staffId);
-  if (!staff || !staff.floor) throw new Error("Staff not found or no floor assigned");
-
-  // Mark all unread messages from this user to staff's floor as read
-  const result = await Message.updateMany(
-    {
-      $or: [
-        { sender: userId, receiver: staff.floor, read: false },
-        { receiver: staffId, sender: userId, read: false }
-      ]
-    },
-    { $set: { read: true, readAt: new Date() } }
-  );
-
-  return result;
+  try {
+    const result = await Message.updateMany(
+      {
+        $or: [
+          { sender: userId, receiver: staffId, read: false },
+          { sender: userId, receiver: staffId, read: { $exists: false } }
+        ]
+      },
+      {
+        $set: {
+          read: true,
+          readAt: new Date()
+        }
+      }
+    );
+    
+    console.log(`✅ Marked ${result.modifiedCount} messages from user ${userId} as read for staff ${staffId}`);
+    return result;
+  } catch (error) {
+    console.error("Error marking messages as read:", error);
+    throw error;
+  }
 };
 
 exports.getUnreadCount = async (userId) => {

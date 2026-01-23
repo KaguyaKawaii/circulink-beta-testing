@@ -1,37 +1,44 @@
-require("dotenv").config();
-const express = require("express");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const http = require("http");
-const { Server } = require("socket.io");
-const axios = require("axios");
-const cron = require("node-cron");
-const path = require("path");
+import dotenv from "dotenv";
+dotenv.config();
+import express from "express";
+import mongoose from "mongoose";
+import cors from "cors";
+import http from "http";
+import { Server } from "socket.io";
+import axios from "axios";
+import cron from "node-cron";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// ES module equivalent for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Routes
-const newsRoutes = require("./routes/newsRoutes");
-const messageRoutes = require("./routes/messageRoutes");
-const reservationRoutes = require("./routes/reservationRoutes");
-const notificationRoutes = require("./routes/notificationRoutes");
-const userRoutes = require("./routes/userRoutes");
-const adminRoutes = require("./routes/adminRoutes");
-const authRoutes = require("./routes/authRoutes");
-const forgotPasswordRoutes = require("./routes/forgotPasswordRoutes");
-const roomRoutes = require("./routes/roomRoutes");
-const reportRoutes = require("./routes/reportRoutes");
-const logRoutes = require("./routes/logRoutes");
-const availabilityRoutes = require("./routes/availabilityRoutes");
-const systemRoutes = require("./routes/system");
-const backupRoutes = require("./routes/backupRoutes");
-const announcementRoutes = require('./routes/announcement');
+import newsRoutes from "./routes/newsRoutes.js";
+import messageRoutes from "./routes/messageRoutes.js";
+import reservationRoutes from "./routes/reservationRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
+import adminRoutes from "./routes/adminRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+import forgotPasswordRoutes from "./routes/forgotPasswordRoutes.js";
+import roomRoutes from "./routes/roomRoutes.js";
+import reportRoutes from "./routes/reportRoutes.js";
+import logRoutes from "./routes/logRoutes.js";
+import availabilityRoutes from "./routes/availabilityRoutes.js";
+import systemRoutes from "./routes/system.js";
+import backupRoutes from "./routes/backupRoutes.js";
+import announcementRoutes from './routes/announcement.js';
 
 const app = express();
 const server = http.createServer(app);
 
+// CORS Configuration
 app.use(cors({
   origin: [
-    "https://circulink-beta-testing.vercel.app", // ✅ your deployed frontend
-    "http://localhost:5173"                      // ✅ for local development
+    "https://circulink-beta-testing.vercel.app",
+    "https://circulink-admin.vercel.app"
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
@@ -40,9 +47,23 @@ app.use(cors({
 
 app.use(express.json());
 
-// ✅ ADD THIS: Middleware to attach io to req object
+// ✅ Define Socket.io FIRST
+const io = new Server(server, {
+  cors: {
+    origin: [
+      "https://circulink-beta-testing.vercel.app",
+      'https://circulink-admin.vercel.app'
+      
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
+  },
+  transports: ["polling", "websocket"]
+});
+
+// ✅ NOW attach io to requests (after io is defined)
 app.use((req, res, next) => {
-  req.io = io; // This makes io available in all controllers
+  req.io = io;
   next();
 });
 
@@ -55,21 +76,6 @@ app.use("/uploads/news", express.static(path.join(__dirname, "uploads", "news"))
 
 // Serve backup files statically
 app.use("/backups", express.static(path.join(__dirname, "backups")));
-
-// ✅ FIXED: Socket.IO configuration - ALLOW BOTH TRANSPORTS
-const io = new Server(server, {
-  cors: {
-    origin: [
-      "https://circulink-beta-testing.vercel.app", // ✅ your Vercel frontend
-      "http://localhost:5173"                      // ✅ dev mode
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true
-  },
-  // ✅ Keep both transports for compatibility
-  transports: ["polling", "websocket"]
-});
-
 
 // ✅ FIXED: Improved Socket.IO events for real-time messaging
 io.on("connection", (socket) => {
@@ -97,6 +103,40 @@ io.on("connection", (socket) => {
   socket.on("join-admin-room", () => {
     socket.join("admin-room");
     console.log(`👨‍💼 Admin joined admin room: ${socket.id}`);
+  });
+
+  // 🆕 ADD THESE NEW EVENT HANDLERS:
+  
+  // Handle when staff marks conversation as read
+  socket.on("markConversationRead", (data) => {
+    console.log("📋 Conversation marked as read:", data);
+    
+    // Broadcast to relevant rooms
+    if (data.staffId) {
+      io.to(data.staffId).emit("conversationRead", data);
+    }
+    if (data.userId) {
+      io.to(data.userId).emit("conversationRead", data);
+    }
+  });
+
+  // Handle when staff sends a message (to update unread counts)
+  socket.on("staffMessageSent", (data) => {
+    console.log("📨 Staff message sent:", data);
+    
+    // Notify floor room that unread counts should be updated
+    if (data.floor) {
+      io.to(data.floor).emit("refreshFloorUnreadCounts", data);
+    }
+    
+    // Notify staff that their unread count for this user should be 0
+    if (data.staffId && data.userId) {
+      io.to(data.staffId).emit("conversationUnreadUpdate", {
+        staffId: data.staffId,
+        userId: data.userId,
+        count: 0
+      });
+    }
   });
 
   // FIXED: Improved message handling for all scenarios
@@ -137,18 +177,19 @@ io.on("connection", (socket) => {
       io.to(data.userId).emit("unreadCountUpdate", data);
     }
   });
-  // ✅ ADDED: Handle message sent confirmation
-socket.on("messageSent", (msg) => {
-  console.log("✅ Message sent confirmation received:", msg);
-  
-  // Send confirmation back to sender
-  io.to(msg.sender).emit("messageSent", msg);
-  
-  // Also send to receiver if needed
-  if (msg.receiver && msg.receiver !== msg.sender) {
-    io.to(msg.receiver).emit("messageSent", msg);
-  }
-});
+
+  // ✅ Handle message sent confirmation
+  socket.on("messageSent", (msg) => {
+    console.log("✅ Message sent confirmation received:", msg);
+    
+    // Send confirmation back to sender
+    io.to(msg.sender).emit("messageSent", msg);
+    
+    // Also send to receiver if needed
+    if (msg.receiver && msg.receiver !== msg.sender) {
+      io.to(msg.receiver).emit("messageSent", msg);
+    }
+  });
 
   // FIXED: Handle conversation-specific unread updates
   socket.on("updateConversationUnread", (data) => {
@@ -175,10 +216,18 @@ socket.on("messageSent", (msg) => {
     }
   });
 
-  // ✅ ADDED: Handle user verification notifications
+  // ✅ Handle user verification notifications
   socket.on("join-user-verification-room", (userId) => {
     socket.join(`user-${userId}`);
     console.log(`✅ User ${userId} joined verification room`);
+  });
+
+  // 🆕 ADD: Handle floor unread count refresh
+  socket.on("refreshFloorUnreadCounts", (data) => {
+    if (data.floor) {
+      io.to(data.floor).emit("refreshFloorUnreadCounts", data);
+      console.log(`🔄 Refreshing unread counts for floor: ${data.floor}`);
+    }
   });
 
   socket.on("disconnect", () => {
@@ -189,9 +238,9 @@ socket.on("messageSent", (msg) => {
 // Make io accessible to routes
 app.set("io", io);
 
-// Route mounting
+// ✅ FIXED: Consistent API routes
 app.use("/api/logs", logRoutes);
-app.use("/news", newsRoutes);
+app.use("/api/news", newsRoutes); // ✅ Added /api
 app.use("/api/messages", messageRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use("/api/notifications", notificationRoutes);
@@ -199,12 +248,11 @@ app.use("/api/users", userRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api", forgotPasswordRoutes);
-app.use('/api/rooms', require('./routes/roomRoutes'));
+app.use('/api/rooms', roomRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api", availabilityRoutes);
 app.use("/api/system", systemRoutes);
 app.use("/api/announcements", announcementRoutes);
-app.use("/announcements", announcementRoutes);
 app.use("/api/admin/system", backupRoutes);
 
 // Database connection + Start Server
@@ -216,7 +264,7 @@ mongoose
     // Internal function to check expired reservations
     async function checkExpiredReservationsInternal() {
       try {
-        const Reservation = require("./models/Reservation");
+        const Reservation = (await import("./models/Reservation.js")).default;
         const currentTime = new Date();
         
         // Find reservations that have ended but are still marked as active
@@ -245,29 +293,28 @@ mongoose
       }
     }
 
-// CRON job to check expired reservations - FIXED
-cron.schedule("*/5 * * * *", async () => {
-  try {
-    // ✅ Use Render public URL in production
-    const baseUrl =
-      process.env.RENDER_EXTERNAL_URL || `${import.meta.env.VITE_API_URL}${process.env.PORT || 5000}`;
+    // CRON job to check expired reservations - FIXED
+    cron.schedule("*/5 * * * *", async () => {
+      try {
+        // ✅ FIXED: Use process.env instead of import.meta.env
+        const baseUrl = process.env.VITE_API_URL;
+        const { data } = await axios.post(
+          `${baseUrl}/api/reservations/check-expired`
+        );
+        console.log(`✅ Expired reservations checked via API: ${data.message}`);
+      } catch (err) {
+        console.error("❌ CRON job error:", err.message);
+        
+        // Fallback to internal function if API fails
+        console.log("⚠️  API route failed, using internal function");
+        const result = await checkExpiredReservationsInternal();
+        if (result.success) {
+          console.log(`✅ Expired reservations checked internally: ${result.completed} completed`);
+        }
+      }
+    });
 
-    const { data } = await axios.post(`${baseUrl}/api/reservations/check-expired`);
-    console.log(`✅ Expired reservations checked via API: ${data.message}`);
-  } catch (err) {
-    console.error("❌ CRON job error:", err.message);
-
-    // Fallback to internal function if API fails
-    console.log("⚠️  API route failed, using internal function");
-    const result = await checkExpiredReservationsInternal();
-    if (result.success) {
-      console.log(`✅ Expired reservations checked internally: ${result.completed} completed`);
-    }
-  }
-});
-
-
-    const PORT = process.env.PORT || 5000;
+    const PORT = process.env.PORT;
     server.listen(PORT, () => {
       console.log(`✅ Server running on port ${PORT}`);
       console.log(`✅ CORS configured for all methods (GET, POST, PUT, DELETE, PATCH)`);
@@ -275,6 +322,7 @@ cron.schedule("*/5 * * * *", async () => {
       console.log(`✅ Real-time messaging enabled with improved room handling`);
       console.log(`✅ Auto-expired reservation checker running every 5 minutes`);
       console.log(`✅ WebSocket (io) attached to all requests`);
+      console.log(`✅ All routes now use consistent /api prefix`);
     });
   })
   .catch((err) => {

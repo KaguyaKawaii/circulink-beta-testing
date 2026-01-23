@@ -105,6 +105,40 @@ io.on("connection", (socket) => {
     console.log(`👨‍💼 Admin joined admin room: ${socket.id}`);
   });
 
+  // 🆕 ADD THESE NEW EVENT HANDLERS:
+  
+  // Handle when staff marks conversation as read
+  socket.on("markConversationRead", (data) => {
+    console.log("📋 Conversation marked as read:", data);
+    
+    // Broadcast to relevant rooms
+    if (data.staffId) {
+      io.to(data.staffId).emit("conversationRead", data);
+    }
+    if (data.userId) {
+      io.to(data.userId).emit("conversationRead", data);
+    }
+  });
+
+  // Handle when staff sends a message (to update unread counts)
+  socket.on("staffMessageSent", (data) => {
+    console.log("📨 Staff message sent:", data);
+    
+    // Notify floor room that unread counts should be updated
+    if (data.floor) {
+      io.to(data.floor).emit("refreshFloorUnreadCounts", data);
+    }
+    
+    // Notify staff that their unread count for this user should be 0
+    if (data.staffId && data.userId) {
+      io.to(data.staffId).emit("conversationUnreadUpdate", {
+        staffId: data.staffId,
+        userId: data.userId,
+        count: 0
+      });
+    }
+  });
+
   // FIXED: Improved message handling for all scenarios
   socket.on("sendMessage", (msg) => {
     console.log("📨 Message received:", msg);
@@ -144,7 +178,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ✅ ADDED: Handle message sent confirmation
+  // ✅ Handle message sent confirmation
   socket.on("messageSent", (msg) => {
     console.log("✅ Message sent confirmation received:", msg);
     
@@ -182,10 +216,18 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ✅ ADDED: Handle user verification notifications
+  // ✅ Handle user verification notifications
   socket.on("join-user-verification-room", (userId) => {
     socket.join(`user-${userId}`);
     console.log(`✅ User ${userId} joined verification room`);
+  });
+
+  // 🆕 ADD: Handle floor unread count refresh
+  socket.on("refreshFloorUnreadCounts", (data) => {
+    if (data.floor) {
+      io.to(data.floor).emit("refreshFloorUnreadCounts", data);
+      console.log(`🔄 Refreshing unread counts for floor: ${data.floor}`);
+    }
   });
 
   socket.on("disconnect", () => {

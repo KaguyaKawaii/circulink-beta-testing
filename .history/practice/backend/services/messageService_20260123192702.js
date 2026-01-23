@@ -574,23 +574,30 @@ exports.markMessagesAsRead = async (userId, conversationId, messageIds = null) =
   return result;
 };
 
-// NEW: Mark messages as read from specific user for staff
+// In messageService.js - make sure this function works correctly
 exports.markMessagesAsReadFromUser = async (staffId, userId) => {
-  const staff = await User.findById(staffId);
-  if (!staff || !staff.floor) throw new Error("Staff not found or no floor assigned");
-
-  // Mark all unread messages from this user to staff's floor as read
-  const result = await Message.updateMany(
-    {
-      $or: [
-        { sender: userId, receiver: staff.floor, read: false },
-        { receiver: staffId, sender: userId, read: false }
-      ]
-    },
-    { $set: { read: true, readAt: new Date() } }
-  );
-
-  return result;
+  try {
+    const result = await Message.updateMany(
+      {
+        $or: [
+          { sender: userId, receiver: staffId, read: false },
+          { sender: userId, receiver: staffId, read: { $exists: false } }
+        ]
+      },
+      {
+        $set: {
+          read: true,
+          readAt: new Date()
+        }
+      }
+    );
+    
+    console.log(`✅ Marked ${result.modifiedCount} messages from user ${userId} as read for staff ${staffId}`);
+    return result;
+  } catch (error) {
+    console.error("Error marking messages as read:", error);
+    throw error;
+  }
 };
 
 exports.getUnreadCount = async (userId) => {
@@ -782,4 +789,129 @@ exports.getStaffUnreadBreakdown = async (staffId) => {
     fromAdmin: adminUnreadCount,
     byUser: byUser
   };
+};
+
+// 🆕 ADD THIS FUNCTION to messageService.js
+/**
+ * Mark messages as read when admin replies to a user/staff
+ */
+exports.markMessagesAsReadFromUser = async (adminId, userId) => {
+  try {
+    console.log(`🔄 Admin ${adminId} replying to ${userId} - marking messages as read`);
+    
+    // Mark all unread messages from this user to admin as read
+    const result = await Message.updateMany(
+      {
+        sender: userId,
+        receiver: "admin", 
+        read: false
+      },
+      {
+        $set: {
+          read: true,
+          readAt: new Date()
+        }
+      }
+    );
+    
+    console.log(`✅ Marked ${result.modifiedCount} messages as read from ${userId} to admin`);
+    return result;
+  } catch (error) {
+    console.error("❌ Error marking admin messages as read:", error);
+    throw error;
+  }
+};
+
+// 🆕 ADD THIS FUNCTION to messageService.js  
+/**
+ * Get admin recipients with unread counts (for dashboard)
+ */
+exports.getAdminRecipientsWithUnread = async () => {
+  try {
+    // Get all conversations involving admin
+    const conversations = await Message.aggregate([
+      {
+        $match: {
+          $or: [
+            { sender: 'admin' },
+            { receiver: 'admin' }
+          ]
+        }
+      },
+      {
+        $group: {
+          _id: {
+            $cond: {
+              if: { $eq: ['$sender', 'admin'] },
+              then: '$receiver',
+              else: '$sender'
+            }
+          },
+          latestMessage: { $last: '$content' },
+          latestMessageTimestamp: { $last: '$createdAt' },
+          unreadCount: {
+            $sum: {
+              $cond: [
+                { 
+                  $and: [
+                    { $ne: ['$sender', 'admin'] }, // Message TO admin
+                    { $eq: ['$read', false] }      // That are unread
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
+    console.log(`📊 Found ${conversations.length} admin conversations`);
+
+    // Get user details for each conversation
+    const recipients = await Promise.all(
+      conversations.map(async (conv) => {
+        try {
+          // Skip floors and invalid IDs
+          if (!conv._id || typeof conv._id !== 'string' || conv._id.includes('Floor')) {
+            return null;
+          }
+
+          const user = await User.findOne({ _id: conv._id })
+            .select('name email role department');
+          
+          if (!user) {
+            console.log('❌ User not found for ID:', conv._id);
+            return null;
+          }
+
+          return {
+            _id: user._id.toString(),
+            name: user.name,
+            email: user.email,
+            type: user.role === 'staff' ? 'staff' : 'user',
+            department: user.department,
+            latestMessage: conv.latestMessage || 'No messages yet',
+            latestMessageTimestamp: conv.latestMessageTimestamp,
+            unreadCount: conv.unreadCount || 0,
+            timestamp: conv.latestMessageTimestamp || new Date().toISOString()
+          };
+        } catch (error) {
+          console.error('❌ Error processing recipient:', conv._id, error);
+          return null;
+        }
+      })
+    );
+
+    const filteredRecipients = recipients.filter(r => r !== null)
+      .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+    console.log(`✅ Final admin recipients: ${filteredRecipients.length}`);
+    
+    return filteredRecipients;
+  } catch (error) {
+    console.error('❌ Error fetching admin recipients:', error);
+    throw error;
+  }
 };
