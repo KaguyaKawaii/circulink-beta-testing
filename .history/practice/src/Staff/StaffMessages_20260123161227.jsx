@@ -144,7 +144,7 @@ function StaffMessages({ setView, staff, onLogout }) {
     }
 
     const handleNewMessage = (msg) => {
-      console.log("New message received in StaffMessages:", msg);
+      console.log("📨 New message received in StaffMessages:", msg);
       
       fetchTotalUnreadCount();
       
@@ -236,7 +236,7 @@ function StaffMessages({ setView, staff, onLogout }) {
     socket.on("conversationUnreadUpdate", handleConversationUnreadUpdate);
     
     socket.on("messageSent", (msg) => {
-      console.log("Message sent confirmation:", msg);
+      console.log("✅ Message sent confirmation:", msg);
       setMessages(prev => prev.map(m => 
         m.status === "sending" && m.content === msg.content 
           ? { ...msg, status: "sent" }
@@ -473,7 +473,7 @@ function StaffMessages({ setView, staff, onLogout }) {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
                 <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">
-                  Search
+                  🔍
                 </div>
               </div>
               
@@ -512,7 +512,7 @@ function StaffMessages({ setView, staff, onLogout }) {
                   </>
                 ) : filteredConversations.length === 0 ? (
                   <div className="text-center p-4 text-gray-500">
-                    <div className="text-4xl mb-2">No conversations icon</div>
+                    <div className="text-4xl mb-2">💬</div>
                     <p className="font-medium">No conversations</p>
                     <p className="text-sm mt-1">{searchTerm ? "No matches found" : "Residents will appear here"}</p>
                   </div>
@@ -565,7 +565,7 @@ function StaffMessages({ setView, staff, onLogout }) {
                   >
                     <div className="flex items-center mb-2">
                       <div className="w-10 h-10 bg-[#CC0000] rounded-lg flex items-center justify-center text-white mr-3">
-                        Admin Icon
+                        ⚙️
                       </div>
                       <div>
                         <span className="font-bold text-red-800 text-sm">Admin Support</span>
@@ -619,7 +619,7 @@ function StaffMessages({ setView, staff, onLogout }) {
                     ) : messages.length === 0 ? (
                       <div className="flex justify-center items-center h-full">
                         <div className="text-center text-gray-500">
-                          <div className="text-6xl mb-4">No messages icon</div>
+                          <div className="text-6xl mb-4">💬</div>
                           <p className="font-medium mb-2">No messages yet</p>
                           <p className="text-sm text-gray-600">Start the conversation below</p>
                         </div>
@@ -688,7 +688,7 @@ function StaffMessages({ setView, staff, onLogout }) {
                 <div className="bg-white p-4 border-b border-gray-200">
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-[#CC0000] rounded-lg flex items-center justify-center text-white">
-                      Admin Icon
+                      ⚙️
                     </div>
                     <div>
                       <h3 className="font-bold text-gray-800">Administration</h3>
@@ -705,7 +705,7 @@ function StaffMessages({ setView, staff, onLogout }) {
                     {messages.length === 0 ? (
                       <div className="flex justify-center items-center h-full">
                         <div className="text-center text-gray-500">
-                          <div className="text-6xl mb-4">No messages icon</div>
+                          <div className="text-6xl mb-4">📨</div>
                           <p className="font-medium mb-2">No messages yet</p>
                           <p className="text-sm text-gray-600">Contact administration below</p>
                         </div>
@@ -772,7 +772,7 @@ function StaffMessages({ setView, staff, onLogout }) {
             ) : (
               <div className="flex-1 flex items-center justify-center bg-gray-50">
                 <div className="text-center text-gray-500">
-                  <div className="text-6xl mb-4">Select conversation icon</div>
+                  <div className="text-6xl mb-4">📱</div>
                   <h3 className="text-lg font-medium mb-2">Select a Conversation</h3>
                   <p className="text-gray-600 max-w-sm">
                     Choose a resident to message, or contact administration for support.
