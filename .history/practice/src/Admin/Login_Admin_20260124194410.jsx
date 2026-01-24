@@ -178,7 +178,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
               onClick={handleBackToUserLogin}
               className="inline-flex items-center gap-2 text-red-100 hover:text-white transition-colors duration-300 group"
             >
-              <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform cursor-pointer" />
+              <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
               Back to User Login
             </button>
           </div>
@@ -230,7 +230,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
             <div className="mb-8">
               <button
                 onClick={handleBackToUserLogin}
-                className="inline-flex items-center gap-2 text-gray-400 hover:text-gray-200 transition-colors duration-300 cursor-pointer"
+                className="inline-flex items-center gap-2 text-gray-400 hover:text-gray-200 transition-colors duration-300"
               >
                 <ArrowLeft size={18} />
                 Back to User Login
@@ -259,7 +259,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
                 </button>
                 <button
                   onClick={handleBackToUserLogin}
-                  className="w-full py-3 rounded-xl bg-transparent hover:bg-gray-800 text-gray-400 hover:text-gray-200 font-semibold transition-colors duration-300 border border-gray-700 cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-transparent hover:bg-gray-800 text-gray-400 hover:text-gray-200 font-semibold transition-colors duration-300 border border-gray-700"
                 >
                   Back to User Login
                 </button>
@@ -293,9 +293,9 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
         <div className="absolute top-8 left-8">
           <button
             onClick={handleBackToUserLogin}
-            className="inline-flex items-center gap-2 text-white hover:text-white transition-colors duration-300 group cursor-pointer"
+            className="inline-flex items-center gap-2 text-white hover:text-white transition-colors duration-300 group"
           >
-            <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform cursor-pointer" />
+            <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
             Back to User Login
           </button>
         </div>
@@ -315,17 +315,17 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
           </div>
           
           <div className="mt-8">
-            <p className="text-white text-lg mb-6">Secure Administrative Access Portal</p>
+            <p className="text-red-100/80 text-lg mb-6">Secure Administrative Access Portal</p>
             
               
-            <p className="text-white/60 text-sm">
+            <p className="text-red-100/60 text-sm">
               For authorized administrative personnel only. All access is logged and monitored.
             </p>
           </div>
         </div>
         
         <div className="absolute bottom-8">
-          <p className="text-gray-400 text-sm">© {new Date().getFullYear()} University of San Agustin</p>
+          <p className="text-red-100/70 text-sm">© {new Date().getFullYear()} University of San Agustin</p>
         </div>
       </div>
 
@@ -346,7 +346,9 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
           {/* Form Header */}
           <div className="text-left mb-8">
             <div className="flex items-center gap-3 mb-4">
-              
+              <div className="w-12 h-12 bg-red-900/20 rounded-full flex items-center justify-center border border-red-800/50">
+                <Lock className="text-red-400" size={24} />
+              </div>
               <div>
                 <h2 className="text-2xl font-bold text-white">
                   {requiresOTP ? "Verify Identity" : "Admin Login"}
@@ -480,7 +482,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-4 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 font-semibold text-white transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 font-semibold text-white transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Authenticating..." : "Login to Admin Portal"}
               </button>
@@ -493,7 +495,11 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
                 </div>
               )}
 
-             
+              <div className="pt-4 border-t border-gray-800 text-center">
+                <p className="text-xs text-gray-500">
+                  Need help? Contact system administrator
+                </p>
+              </div>
             </form>
           )}
 

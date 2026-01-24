@@ -293,9 +293,9 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
         <div className="absolute top-8 left-8">
           <button
             onClick={handleBackToUserLogin}
-            className="inline-flex items-center gap-2 text-white hover:text-white transition-colors duration-300 group cursor-pointer"
+            className="inline-flex items-center gap-2 text-white hover:text-white transition-colors duration-300 group"
           >
-            <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform cursor-pointer" />
+            <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
             Back to User Login
           </button>
         </div>

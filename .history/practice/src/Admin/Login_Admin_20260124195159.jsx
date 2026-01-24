@@ -178,7 +178,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
               onClick={handleBackToUserLogin}
               className="inline-flex items-center gap-2 text-red-100 hover:text-white transition-colors duration-300 group"
             >
-              <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform cursor-pointer" />
+              <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
               Back to User Login
             </button>
           </div>
@@ -230,7 +230,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
             <div className="mb-8">
               <button
                 onClick={handleBackToUserLogin}
-                className="inline-flex items-center gap-2 text-gray-400 hover:text-gray-200 transition-colors duration-300 cursor-pointer"
+                className="inline-flex items-center gap-2 text-gray-400 hover:text-gray-200 transition-colors duration-300"
               >
                 <ArrowLeft size={18} />
                 Back to User Login
@@ -259,7 +259,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
                 </button>
                 <button
                   onClick={handleBackToUserLogin}
-                  className="w-full py-3 rounded-xl bg-transparent hover:bg-gray-800 text-gray-400 hover:text-gray-200 font-semibold transition-colors duration-300 border border-gray-700 cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-transparent hover:bg-gray-800 text-gray-400 hover:text-gray-200 font-semibold transition-colors duration-300 border border-gray-700"
                 >
                   Back to User Login
                 </button>
@@ -293,9 +293,9 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
         <div className="absolute top-8 left-8">
           <button
             onClick={handleBackToUserLogin}
-            className="inline-flex items-center gap-2 text-white hover:text-white transition-colors duration-300 group cursor-pointer"
+            className="inline-flex items-center gap-2 text-white hover:text-white transition-colors duration-300 group"
           >
-            <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform cursor-pointer" />
+            <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
             Back to User Login
           </button>
         </div>
@@ -480,7 +480,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-4 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 font-semibold text-white transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                className="w-full py-4 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 font-semibold text-white transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Authenticating..." : "Login to Admin Portal"}
               </button>
