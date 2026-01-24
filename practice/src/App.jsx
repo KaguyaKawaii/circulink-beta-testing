@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { LogOut } from "lucide-react";
@@ -142,6 +143,18 @@ function App() {
     allowAdminAccess: true
   });
 
+  // Admin route protection - Check if current path is an admin route
+  const isAdminRouteFromPath = (path) => {
+    const viewFromPath = pathToView[path];
+    const adminRoutes = [
+      'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 
+      'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 
+      'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 
+      'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings'
+    ];
+    return adminRoutes.includes(viewFromPath);
+  };
+
   /* ---------- LOGOUT MODAL EVENT LISTENER ---------- */
   useEffect(() => {
     const handleShowLogoutModal = () => {
@@ -161,16 +174,41 @@ function App() {
 
     const currentUser = AuthService.getUser();
     const currentUserRole = currentUser?.role?.toLowerCase();
+    const isAdminRoute = isAdminRouteFromPath(location.pathname);
     
+    console.log("Access control check:", {
+      path: location.pathname,
+      isAdminRoute,
+      userRole: currentUserRole,
+      isAdminDomain
+    });
+
+    // If accessing admin route (on any domain) and not logged in as admin, redirect to login
+    if (isAdminRoute && (!currentUser || currentUserRole !== 'admin')) {
+      console.log("Unauthorized access attempt to admin route");
+      
+      if (isAdminDomain) {
+        // On admin domain, redirect to admin login
+        setView("adminLogin");
+        setViewHistory(["adminLogin"]);
+        navigate("/admin/login", { replace: true });
+      } else {
+        // On main domain, redirect to admin login page
+        setView("adminLogin");
+        setViewHistory(["adminLogin"]);
+      }
+      return;
+    }
+
     // If on admin domain but user is not admin, redirect to main domain
     if (isAdminDomain && currentUser && currentUserRole !== 'admin') {
       console.log("Non-admin user on admin domain, redirecting to main domain");
-      window.location.href = `${getMainDomainUrl()}${location.pathname}`;
+      window.location.href = `${getMainDomainUrl()}`;
       return;
     }
 
     // If on main domain but accessing admin route as non-admin, redirect to appropriate route
-    if (!isAdminDomain && NavigationService.isAdminRoute(view) && currentUserRole !== 'admin') {
+    if (!isAdminDomain && isAdminRoute && currentUserRole !== 'admin') {
       console.log("Non-admin user accessing admin route on main domain, redirecting...");
       const defaultRoute = NavigationService.getDefaultRoute(currentUserRole, isAdminDomain);
       setView(defaultRoute);
@@ -179,10 +217,12 @@ function App() {
     }
 
     // If admin user on main domain accessing admin routes, suggest redirect to admin domain
-    if (!isAdminDomain && NavigationService.isAdminRoute(view) && currentUserRole === 'admin') {
+    if (!isAdminDomain && isAdminRoute && currentUserRole === 'admin') {
       console.log("Admin user accessing admin routes on main domain - consider redirecting to admin domain");
+      // Optionally redirect to admin domain for better experience
+      // window.location.href = `${getAdminDomainUrl()}${location.pathname}`;
     }
-  }, [view, user, isInitialized, isAdminDomain]);
+  }, [view, user, isInitialized, isAdminDomain, location.pathname]);
 
   /* ---------- DOMAIN-BASED INITIAL ROUTE SETUP ---------- */
   useEffect(() => {
@@ -193,16 +233,18 @@ function App() {
       const viewFromPath = pathToView[path];
       const currentUser = AuthService.getUser();
       const currentUserRole = currentUser?.role?.toLowerCase();
+      const isAdminRoute = isAdminRouteFromPath(path);
       
       console.log("Domain-based route setup:", { 
         hostname, 
         isAdminDomain, 
         path, 
-        viewFromPath, 
+        viewFromPath,
+        isAdminRoute,
         userRole: currentUserRole 
       });
 
-      // Admin domain specific logic
+      // ADMIN DOMAIN: Redirect to admin login if not authenticated
       if (isAdminDomain) {
         if (!currentUser) {
           // Not logged in on admin domain - show admin login
@@ -211,10 +253,13 @@ function App() {
         } else if (currentUserRole === 'admin') {
           // Admin user on admin domain
           const adminRoutes = ['adminLogin', 'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings'];
+          
+          // If trying to access admin route via URL, check if it's allowed
           if (viewFromPath && adminRoutes.includes(viewFromPath)) {
             setView(viewFromPath);
             setViewHistory([viewFromPath]);
           } else {
+            // Default to admin dashboard
             setView("adminDashboard");
             setViewHistory(["adminDashboard"]);
             navigate("/admin/dashboard", { replace: true });
@@ -224,9 +269,25 @@ function App() {
           window.location.href = getMainDomainUrl();
           return;
         }
-      } else {
-        // Main domain logic
-        if (viewFromPath && NavigationService.isRouteAllowed(currentUserRole, viewFromPath, isAdminDomain)) {
+      } 
+      // MAIN DOMAIN: Handle both admin and user routes
+      else {
+        // If trying to access admin route without being logged in as admin
+        if (isAdminRoute) {
+          if (!currentUser || currentUserRole !== 'admin') {
+            setView("adminLogin");
+            setViewHistory(["adminLogin"]);
+          } else if (viewFromPath && NavigationService.isRouteAllowed(currentUserRole, viewFromPath, isAdminDomain)) {
+            setView(viewFromPath);
+            setViewHistory([viewFromPath]);
+          } else {
+            setView("adminDashboard");
+            setViewHistory(["adminDashboard"]);
+            navigate("/admin/dashboard", { replace: true });
+          }
+        } 
+        // Regular user routes
+        else if (viewFromPath && NavigationService.isRouteAllowed(currentUserRole, viewFromPath, isAdminDomain)) {
           setView(viewFromPath);
           setViewHistory([viewFromPath]);
         } else {
@@ -465,7 +526,7 @@ function App() {
       setView("adminDashboard");
       setViewHistory(["adminDashboard"]);
     } else {
-      // Admin logged in on main domain - redirect to admin domain
+      // Admin logged in on main domain - redirect to admin domain for better experience
       window.location.href = `${getAdminDomainUrl()}/admin/dashboard`;
     }
   };
@@ -561,18 +622,23 @@ function App() {
 
   // ADMIN DOMAIN - Only show admin content
   if (isAdminDomain) {
-    return (
-      <div>
-        {/* Admin Login */}
-        {view === "adminLogin" && (
+    // If not logged in, only show admin login
+    if (!user || user?.role?.toLowerCase() !== 'admin') {
+      return (
+        <div>
           <Login_Admin
             onAdminLoginSuccess={handleAdminLoginSuccess}
             onBackToUserLogin={() => {
               window.location.href = `${getMainDomainUrl()}/login`;
             }}
           />
-        )}
+        </div>
+      );
+    }
 
+    // Admin is logged in, show admin routes
+    return (
+      <div>
         {/* Admin Routes */}
         {view === "adminDashboard" && renderAdminNavigation(<AdminDashboard setView={setView} admin={user} />)}
         {view === "adminReservation" && renderAdminNavigation(<AdminReservations setView={setView} admin={user} />)}

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { LogOut } from "lucide-react";
@@ -22,7 +23,7 @@ import Body4 from "./Homepage/Body4.jsx";
 import Body5 from "./Homepage/Body5.jsx";
 import Footer from "./Homepage/Footer.jsx";
 import Login_User from "./Login/Login_User.jsx";
-import Login_Admin from "./Login/Login_Admin.jsx";
+import Login_Admin from "./Admin/Login_Admin.jsx";
 import SignUp_User from "./Login/SignUp_User.jsx";
 import ResetPassword from "./Login/ResetPassword.jsx";
 import MaintenanceScreen from "./Homepage/MaintenanceScreen.jsx";
@@ -80,6 +81,50 @@ function App() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Get current domain dynamically
+  const hostname = window.location.hostname;
+  const protocol = window.location.protocol;
+
+  // Enhanced domain detection for your specific Vercel domains
+  const isAdminDomain = hostname.includes('admin-circulink') || 
+                       hostname.includes('admin.') || 
+                       hostname === 'circulink-admin.vercel.app';
+
+  // Dynamic domain URLs
+  const getMainDomainUrl = () => {
+    if (isAdminDomain) {
+      // If we're on admin domain, construct main domain
+      if (hostname === 'circulink-admin.vercel.app') {
+        return `${protocol}//circulink-beta-testing.vercel.app`;
+      } else {
+        const mainDomain = hostname.replace('admin-', '').replace('admin.', '');
+        return `${protocol}//${mainDomain}`;
+      }
+    }
+    return `${protocol}//${hostname}`;
+  };
+
+  const getAdminDomainUrl = () => {
+    if (!isAdminDomain) {
+      // If we're on main domain, construct admin domain
+      if (hostname === 'circulink-beta-testing.vercel.app') {
+        return `${protocol}//circulink-admin.vercel.app`;
+      } else if (hostname.includes('vercel.app')) {
+        return `${protocol}//admin-${hostname}`;
+      } else {
+        return `${protocol}//admin.${hostname}`;
+      }
+    }
+    return `${protocol}//${hostname}`;
+  };
+
+  console.log("Domain detection:", { 
+    hostname, 
+    isAdminDomain, 
+    mainDomain: getMainDomainUrl(),
+    adminDomain: getAdminDomainUrl()
+  });
+
   // State using services
   const [user, setUser] = useState(() => AuthService.getUser());
   const [view, setView] = useState("home");
@@ -98,6 +143,167 @@ function App() {
     allowAdminAccess: true
   });
 
+  // Admin route protection - Check if current path is an admin route
+  const isAdminRouteFromPath = (path) => {
+    const viewFromPath = pathToView[path];
+    const adminRoutes = [
+      'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 
+      'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 
+      'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 
+      'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings'
+    ];
+    return adminRoutes.includes(viewFromPath);
+  };
+
+  /* ---------- LOGOUT MODAL EVENT LISTENER ---------- */
+  useEffect(() => {
+    const handleShowLogoutModal = () => {
+      setShowLogoutModal(true);
+    };
+
+    window.addEventListener('showLogoutModal', handleShowLogoutModal);
+    
+    return () => {
+      window.removeEventListener('showLogoutModal', handleShowLogoutModal);
+    };
+  }, []);
+
+  /* ---------- DOMAIN-BASED ACCESS CONTROL ---------- */
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const currentUser = AuthService.getUser();
+    const currentUserRole = currentUser?.role?.toLowerCase();
+    const isAdminRoute = isAdminRouteFromPath(location.pathname);
+    
+    console.log("Access control check:", {
+      path: location.pathname,
+      isAdminRoute,
+      userRole: currentUserRole,
+      isAdminDomain
+    });
+
+    // If accessing admin route (on any domain) and not logged in as admin, redirect to login
+    if (isAdminRoute && (!currentUser || currentUserRole !== 'admin')) {
+      console.log("Unauthorized access attempt to admin route");
+      
+      if (isAdminDomain) {
+        // On admin domain, redirect to admin login
+        setView("adminLogin");
+        setViewHistory(["adminLogin"]);
+        navigate("/admin/login", { replace: true });
+      } else {
+        // On main domain, redirect to admin login page
+        setView("adminLogin");
+        setViewHistory(["adminLogin"]);
+      }
+      return;
+    }
+
+    // If on admin domain but user is not admin, redirect to main domain
+    if (isAdminDomain && currentUser && currentUserRole !== 'admin') {
+      console.log("Non-admin user on admin domain, redirecting to main domain");
+      window.location.href = `${getMainDomainUrl()}`;
+      return;
+    }
+
+    // If on main domain but accessing admin route as non-admin, redirect to appropriate route
+    if (!isAdminDomain && isAdminRoute && currentUserRole !== 'admin') {
+      console.log("Non-admin user accessing admin route on main domain, redirecting...");
+      const defaultRoute = NavigationService.getDefaultRoute(currentUserRole, isAdminDomain);
+      setView(defaultRoute);
+      setViewHistory([defaultRoute]);
+      return;
+    }
+
+    // If admin user on main domain accessing admin routes, suggest redirect to admin domain
+    if (!isAdminDomain && isAdminRoute && currentUserRole === 'admin') {
+      console.log("Admin user accessing admin routes on main domain - consider redirecting to admin domain");
+      // Optionally redirect to admin domain for better experience
+      // window.location.href = `${getAdminDomainUrl()}${location.pathname}`;
+    }
+  }, [view, user, isInitialized, isAdminDomain, location.pathname]);
+
+  /* ---------- DOMAIN-BASED INITIAL ROUTE SETUP ---------- */
+  useEffect(() => {
+    if (isInitialized) return;
+
+    const initializeView = () => {
+      const path = location.pathname;
+      const viewFromPath = pathToView[path];
+      const currentUser = AuthService.getUser();
+      const currentUserRole = currentUser?.role?.toLowerCase();
+      const isAdminRoute = isAdminRouteFromPath(path);
+      
+      console.log("Domain-based route setup:", { 
+        hostname, 
+        isAdminDomain, 
+        path, 
+        viewFromPath,
+        isAdminRoute,
+        userRole: currentUserRole 
+      });
+
+      // ADMIN DOMAIN: Redirect to admin login if not authenticated
+      if (isAdminDomain) {
+        if (!currentUser) {
+          // Not logged in on admin domain - show admin login
+          setView("adminLogin");
+          setViewHistory(["adminLogin"]);
+        } else if (currentUserRole === 'admin') {
+          // Admin user on admin domain
+          const adminRoutes = ['adminLogin', 'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings'];
+          
+          // If trying to access admin route via URL, check if it's allowed
+          if (viewFromPath && adminRoutes.includes(viewFromPath)) {
+            setView(viewFromPath);
+            setViewHistory([viewFromPath]);
+          } else {
+            // Default to admin dashboard
+            setView("adminDashboard");
+            setViewHistory(["adminDashboard"]);
+            navigate("/admin/dashboard", { replace: true });
+          }
+        } else {
+          // Non-admin user on admin domain - redirect to main domain
+          window.location.href = getMainDomainUrl();
+          return;
+        }
+      } 
+      // MAIN DOMAIN: Handle both admin and user routes
+      else {
+        // If trying to access admin route without being logged in as admin
+        if (isAdminRoute) {
+          if (!currentUser || currentUserRole !== 'admin') {
+            setView("adminLogin");
+            setViewHistory(["adminLogin"]);
+          } else if (viewFromPath && NavigationService.isRouteAllowed(currentUserRole, viewFromPath, isAdminDomain)) {
+            setView(viewFromPath);
+            setViewHistory([viewFromPath]);
+          } else {
+            setView("adminDashboard");
+            setViewHistory(["adminDashboard"]);
+            navigate("/admin/dashboard", { replace: true });
+          }
+        } 
+        // Regular user routes
+        else if (viewFromPath && NavigationService.isRouteAllowed(currentUserRole, viewFromPath, isAdminDomain)) {
+          setView(viewFromPath);
+          setViewHistory([viewFromPath]);
+        } else {
+          const defaultRoute = NavigationService.getDefaultRoute(currentUserRole, isAdminDomain);
+          setView(defaultRoute);
+          setViewHistory([defaultRoute]);
+          navigate(viewToPath[defaultRoute], { replace: true });
+        }
+      }
+      
+      setIsInitialized(true);
+    };
+
+    initializeView();
+  }, [location.pathname, user, isInitialized, isAdminDomain]);
+
   /* ---------- TRACK VIEW HISTORY ---------- */
   useEffect(() => {
     if (!isInitialized) return;
@@ -108,33 +314,6 @@ function App() {
       return newHistory.slice(-20);
     });
   }, [view, isInitialized]);
-
-  /* ---------- INITIAL ROUTE SETUP ---------- */
-  useEffect(() => {
-    if (isInitialized) return;
-
-    const initializeView = () => {
-      const path = location.pathname;
-      const viewFromPath = pathToView[path];
-      
-      console.log("Initial route setup:", { path, viewFromPath, user: user?.role });
-      
-      if (viewFromPath && NavigationService.isRouteAllowed(user?.role, viewFromPath)) {
-        setView(viewFromPath);
-        setViewHistory([viewFromPath]);
-      } else {
-        // Handle unknown routes using NavigationService
-        const defaultRoute = NavigationService.getDefaultRoute(user?.role);
-        setView(defaultRoute);
-        setViewHistory([defaultRoute]);
-        navigate(viewToPath[defaultRoute], { replace: true });
-      }
-      
-      setIsInitialized(true);
-    };
-
-    initializeView();
-  }, [location.pathname, user, isInitialized]);
 
   /* ---------- ROUTE SYNC ---------- */
   useEffect(() => {
@@ -159,14 +338,14 @@ function App() {
         setViewHistory(prev => prev.slice(0, -1));
         setView(previousView);
       } else {
-        const defaultRoute = NavigationService.getDefaultRoute(user?.role);
+        const defaultRoute = NavigationService.getDefaultRoute(user?.role, isAdminDomain);
         setView(defaultRoute);
       }
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [viewHistory, user]);
+  }, [viewHistory, user, isAdminDomain]);
 
   /* ---------- FORCE LOGOUT FUNCTION ---------- */
   const handleForceLogout = () => {
@@ -176,7 +355,12 @@ function App() {
     AuthService.clearUser();
     setUser(null);
     setViewHistory(["home"]);
-    setView("maintenance");
+    
+    if (isAdminDomain) {
+      setView("adminLogin");
+    } else {
+      setView("maintenance");
+    }
     
     console.log(`Force logged out ${userRole} user: ${userEmail} due to maintenance mode`);
   };
@@ -185,14 +369,14 @@ function App() {
   const handleMaintenanceRedirect = (maintenanceSettings) => {
     if (!maintenanceSettings.maintenanceMode) {
       if (view === "maintenance") {
-        const defaultRoute = NavigationService.getDefaultRoute(user?.role);
+        const defaultRoute = NavigationService.getDefaultRoute(user?.role, isAdminDomain);
         setView(defaultRoute);
       }
       return;
     }
 
-    // Use MaintenanceService to check access
-    const canAccess = MaintenanceService.canAccessDuringMaintenance(user?.role, view);
+    // Use MaintenanceService to check access with domain info
+    const canAccess = MaintenanceService.canAccessDuringMaintenance(user?.role, view, isAdminDomain);
     
     if (maintenanceSettings.maintenanceMode && user && !canAccess) {
       console.log("Maintenance mode: Force logging out user", user.role, user.email);
@@ -222,7 +406,7 @@ function App() {
       setMaintenanceData(data);
       
       if (data.maintenanceMode) {
-        const canStayLoggedIn = MaintenanceService.canAccessDuringMaintenance(user?.role, view);
+        const canStayLoggedIn = MaintenanceService.canAccessDuringMaintenance(user?.role, view, isAdminDomain);
         
         if (user && !canStayLoggedIn) {
           console.log("Maintenance mode activated - force logging out user", user.role);
@@ -232,7 +416,7 @@ function App() {
         }
       } else {
         if (view === "maintenance") {
-          const defaultRoute = NavigationService.getDefaultRoute(user?.role);
+          const defaultRoute = NavigationService.getDefaultRoute(user?.role, isAdminDomain);
           setView(defaultRoute);
         }
       }
@@ -249,7 +433,7 @@ function App() {
       clearInterval(interval);
       cleanupSocket();
     };
-  }, [view, user]);
+  }, [view, user, isAdminDomain]);
 
   /* ---------- MAINTENANCE MODE ACCESS CONTROL ---------- */
   useEffect(() => {
@@ -257,27 +441,30 @@ function App() {
       console.log("Maintenance mode active, checking access...", {
         userRole: user?.role,
         allowAdminAccess: maintenanceData.allowAdminAccess,
-        currentView: view
+        currentView: view,
+        isAdminDomain
       });
 
+      // Use domain-aware access check
+      const canStayLoggedIn = MaintenanceService.canAccessDuringMaintenance(user?.role, view, isAdminDomain);
+      
       if (user) {
-        const canStayLoggedIn = MaintenanceService.canAccessDuringMaintenance(user.role, view);
-        
         if (!canStayLoggedIn) {
           console.log("Force logging out non-admin user during maintenance:", user.role);
           handleForceLogout();
-        } else {
-          handleMaintenanceRedirect(maintenanceData);
         }
       } else {
-        handleMaintenanceRedirect(maintenanceData);
+        // For non-logged in users, only allow appropriate views
+        if (!canStayLoggedIn) {
+          setView(isAdminDomain ? "adminLogin" : "maintenance");
+        }
       }
     } else if (!maintenanceData.maintenanceMode && view === "maintenance") {
       console.log("Maintenance mode disabled, redirecting from maintenance screen");
-      const defaultRoute = NavigationService.getDefaultRoute(user?.role);
+      const defaultRoute = NavigationService.getDefaultRoute(user?.role, isAdminDomain);
       setView(defaultRoute);
     }
-  }, [view, user, maintenanceData]);
+  }, [view, user, maintenanceData, isAdminDomain]);
 
   /* ---------- FETCH USER DATA ---------- */
   const fetchUser = async () => {
@@ -309,8 +496,8 @@ function App() {
     const role = userData.role.toLowerCase();
     
     if (maintenanceData.maintenanceMode) {
-      if ((role === 'admin' && maintenanceData.allowAdminAccess) || role === 'staff') {
-        const defaultRoute = NavigationService.getDefaultRoute(userData.role);
+      if ((role === 'admin' && maintenanceData.allowAdminAccess) || role === 'staff' || role === 'staff_office') {
+        const defaultRoute = NavigationService.getDefaultRoute(userData.role, isAdminDomain);
         setView(defaultRoute);
         setViewHistory([defaultRoute]);
       } else {
@@ -318,7 +505,7 @@ function App() {
         setViewHistory(["maintenance"]);
       }
     } else {
-      const defaultRoute = NavigationService.getDefaultRoute(userData.role);
+      const defaultRoute = NavigationService.getDefaultRoute(userData.role, isAdminDomain);
       setView(defaultRoute);
       setViewHistory([defaultRoute]);
     }
@@ -329,15 +516,18 @@ function App() {
   };
 
   const handleAdminLoginSuccess = (adminData) => {
+    console.log("✅ Admin OTP verified successfully:", adminData);
+    
     const updatedAdmin = AuthService.handleAdminLogin(adminData);
     setUser(updatedAdmin);
     
-    if (maintenanceData.maintenanceMode && !maintenanceData.allowAdminAccess) {
-      setView("maintenance");
-      setViewHistory(["maintenance"]);
-    } else {
+    // Domain-based redirect after admin login
+    if (isAdminDomain) {
       setView("adminDashboard");
       setViewHistory(["adminDashboard"]);
+    } else {
+      // Admin logged in on main domain - redirect to admin domain for better experience
+      window.location.href = `${getAdminDomainUrl()}/admin/dashboard`;
     }
   };
 
@@ -346,7 +536,10 @@ function App() {
     setUser(null);
     setShowLogoutModal(false);
     setViewHistory(["home"]);
-    if (maintenanceData.maintenanceMode) {
+    
+    if (isAdminDomain) {
+      setView("adminLogin");
+    } else if (maintenanceData.maintenanceMode) {
       setView("maintenance");
     } else {
       setView("home");
@@ -393,17 +586,19 @@ function App() {
   /* ---------- CHECK IF CURRENT VIEW IS ALLOWED ---------- */
   const isViewAllowed = () => {
     if (!maintenanceData.maintenanceMode) return true;
-    return MaintenanceService.canAccessDuringMaintenance(user?.role, view);
+    return MaintenanceService.canAccessDuringMaintenance(user?.role, view, isAdminDomain);
   };
 
-  /* ---------- RENDER ---------- */
+  /* ---------- DOMAIN-BASED RENDER LOGIC ---------- */
   
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center space-y-6">
           <div>
-            <h3 className="text-xl font-semibold text-gray-800 mb-2">Loading CircuLink</h3>
+            <h3 className="text-xl font-semibold text-gray-800 mb-2">
+              Loading {isAdminDomain ? 'Admin Portal' : 'CircuLink'}
+            </h3>
             <p className="text-gray-600">Please wait while we set things up</p>
           </div>
           <div className="w-64 bg-gray-200 rounded-full h-2 mx-auto overflow-hidden">
@@ -425,6 +620,83 @@ function App() {
     );
   }
 
+  // ADMIN DOMAIN - Only show admin content
+  if (isAdminDomain) {
+    // If not logged in, only show admin login
+    if (!user || user?.role?.toLowerCase() !== 'admin') {
+      return (
+        <div>
+          <Login_Admin
+            onAdminLoginSuccess={handleAdminLoginSuccess}
+            onBackToUserLogin={() => {
+              window.location.href = `${getMainDomainUrl()}/login`;
+            }}
+          />
+        </div>
+      );
+    }
+
+    // Admin is logged in, show admin routes
+    return (
+      <div>
+        {/* Admin Routes */}
+        {view === "adminDashboard" && renderAdminNavigation(<AdminDashboard setView={setView} admin={user} />)}
+        {view === "adminReservation" && renderAdminNavigation(<AdminReservations setView={setView} admin={user} />)}
+        {view === "adminRoom" && renderAdminNavigation(<AdminRooms setView={setView} admin={user} />)}
+        {view === "adminUsers" && renderAdminNavigation(<AdminUsers setView={setView} admin={user} />)}
+        {view === "adminMessage" && renderAdminNavigation(<AdminMessages setView={setView} admin={user} />)}
+        {view === "adminReports" && renderAdminNavigation(<AdminReports setView={setView} admin={user} />)}
+        {view === "adminNotifications" && renderAdminNavigation(<AdminNotification setView={setView} admin={user} />)}
+        {view === "archivedUsers" && renderAdminNavigation(<ArchivedUsers setView={setView} admin={user} />)}
+        {view === "archivedReservations" && renderAdminNavigation(<ArchivedReservations setView={setView} admin={user} />)}
+        {view === "archivedReports" && renderAdminNavigation(<ArchivedReports setView={setView} admin={user} />)}
+        {view === "archivedNews" && renderAdminNavigation(<ArchivedNews setView={setView} admin={user} />)}
+        {view === "adminNews" && renderAdminNavigation(<AdminNews setView={setView} admin={user} />)}
+        {view === "adminLogs" && renderAdminNavigation(<AdminLogs setView={setView} admin={user} />)}
+
+        {/* Admin Settings Pages */}
+        {view === "profileSettings" && renderAdminNavigation(<ProfileSettings setView={setView} admin={user} />)}
+        {view === "passwordSecurity" && renderAdminNavigation(<PasswordSecurity setView={setView} admin={user} />)}
+        {view === "systemSettings" && renderAdminNavigation(<SystemSettings setView={setView} admin={user} />)}
+
+        {/* Logout Modal */}
+        {showLogoutModal && (
+          <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+            <div className="w-[360px] rounded-xl bg-white shadow-2xl px-6 py-8 relative">
+              <div className="flex flex-col items-center text-center mb-6">
+                <div className="mb-3 flex items-center justify-center w-14 h-14 rounded-full bg-red-100">
+                  <LogOut size={28} className="text-[#CC0000]" />
+                </div>
+                <h2 className="text-xl font-semibold text-gray-800">
+                  Log out of admin panel?
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  You'll need to sign in again to access the admin dashboard.
+                </p>
+              </div>
+              <div className="border-t border-gray-200 mb-6" />
+              <div className="flex justify-between">
+                <button
+                  onClick={() => setShowLogoutModal(false)}
+                  className="flex-1 mr-3 px-5 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="flex-1 px-5 py-2 bg-[#CC0000] text-white rounded-lg hover:bg-red-600 cursor-pointer"
+                >
+                  Yes, log out
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // MAIN DOMAIN - Show user/staff content (your existing render logic)
   return (
     <div>
       {/* Public Pages */}
@@ -478,75 +750,50 @@ function App() {
       )}
 
       {/* User Pages */}
-      {view === "dashboard" &&
-        renderUserNavigation(
-          <Dashboard
-            user={user}
-            setView={setView}
-            setSelectedReservation={setSelectedReservation}
-          />
-        )}
+      {view === "dashboard" && renderUserNavigation(
+        <Dashboard
+          user={user}
+          setView={setView}
+          setSelectedReservation={setSelectedReservation}
+        />
+      )}
       {view === "news" && renderUserNavigation(<News user={user} setView={setView} />)}
       {view === "calendar" && renderUserNavigation(<Calendar user={user} setView={setView} />)}
-      {view === "history" &&
-        renderUserNavigation(
-          <History
-            user={user}
-            setView={setView}
-            setSelectedReservation={setSelectedReservation}
-            refreshKey={historyRefreshKey}
-          />
-        )}
-      {view === "notification" &&
-        renderUserNavigation(
-          <Notification
-            user={user}
-            setView={setView}
-            setSelectedReservation={setSelectedReservation}
-          />
-        )}
+      {view === "history" && renderUserNavigation(
+        <History
+          user={user}
+          setView={setView}
+          setSelectedReservation={setSelectedReservation}
+          refreshKey={historyRefreshKey}
+        />
+      )}
+      {view === "notification" && renderUserNavigation(
+        <Notification
+          user={user}
+          setView={setView}
+          setSelectedReservation={setSelectedReservation}
+        />
+      )}
       {view === "messages" && renderUserNavigation(<Messages user={user} setView={setView} />)}
       {view === "profile" && renderUserNavigation(<Profile user={user} setView={setView} />)}
       {view === "editProfile" && renderUserNavigation(<EditProfile user={user} setView={setView} />)}
       {view === "guidelines" && renderUserNavigation(<Guidelines user={user} setView={setView} />)}
       {view === "help" && renderUserNavigation(<HelpCenter user={user} setView={setView} />)}
-      {view === "reserve" &&
-        renderUserNavigation(
-          <ReserveRoom
-            user={user}
-            setView={setView}
-            onReservationSubmitted={() => setHistoryRefreshKey((prev) => prev + 1)}
-          />
-        )}
-      {view === "reservationDetails" && 
-        renderUserNavigation(
-          <ReservationDetails
-            reservation={selectedReservation}
-            setView={setView}
-            refreshReservations={() => setHistoryRefreshKey((prev) => prev + 1)}
-            user={user}
-          />
-        )}
-
-      {/* Admin Pages */}
-      {view === "adminDashboard" && renderAdminNavigation(<AdminDashboard setView={setView} />)}
-      {view === "adminReservation" && renderAdminNavigation(<AdminReservations setView={setView} />)}
-      {view === "adminRoom" && renderAdminNavigation(<AdminRooms setView={setView} />)}
-      {view === "adminUsers" && renderAdminNavigation(<AdminUsers setView={setView} />)}
-      {view === "adminMessage" && renderAdminNavigation(<AdminMessages setView={setView} />)}
-      {view === "adminReports" && renderAdminNavigation(<AdminReports setView={setView} />)}
-      {view === "adminNotifications" && renderAdminNavigation(<AdminNotification setView={setView} />)}
-      {view === "archivedUsers" && renderAdminNavigation(<ArchivedUsers setView={setView} />)}
-      {view === "archivedReservations" && renderAdminNavigation(<ArchivedReservations setView={setView} />)}
-      {view === "archivedReports" && renderAdminNavigation(<ArchivedReports setView={setView} />)}
-      {view === "archivedNews" && renderAdminNavigation(<ArchivedNews setView={setView} />)}
-      {view === "adminNews" && renderAdminNavigation(<AdminNews setView={setView} />)}
-      {view === "adminLogs" && renderAdminNavigation(<AdminLogs setView={setView} />)}
-
-      {/* Admin Settings Pages */}
-      {view === "profileSettings" && renderAdminNavigation(<ProfileSettings setView={setView} admin={user} />)}
-      {view === "passwordSecurity" && renderAdminNavigation(<PasswordSecurity setView={setView} admin={user} />)}
-      {view === "systemSettings" && renderAdminNavigation(<SystemSettings setView={setView} admin={user} />)}
+      {view === "reserve" && renderUserNavigation(
+        <ReserveRoom
+          user={user}
+          setView={setView}
+          onReservationSubmitted={() => setHistoryRefreshKey((prev) => prev + 1)}
+        />
+      )}
+      {view === "reservationDetails" && renderUserNavigation(
+        <ReservationDetails
+          reservation={selectedReservation}
+          setView={setView}
+          refreshReservations={() => setHistoryRefreshKey((prev) => prev + 1)}
+          user={user}
+        />
+      )}
 
       {/* Staff Pages */}
       {view === "staffDashboard" && renderStaffNavigation(<StaffDashboard setView={setView} staff={user} />)}
@@ -559,7 +806,7 @@ function App() {
 
       {/* Logout Modal */}
       {showLogoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
           <div className="w-[360px] rounded-xl bg-white shadow-2xl px-6 py-8 relative">
             <div className="flex flex-col items-center text-center mb-6">
               <div className="mb-3 flex items-center justify-center w-14 h-14 rounded-full bg-red-100">
