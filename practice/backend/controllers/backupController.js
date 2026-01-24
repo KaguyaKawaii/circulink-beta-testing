@@ -1,13 +1,13 @@
 const backupService = require('../services/backupService');
 const Backup = require('../models/Backup');
-const Log = require('../models/Log'); // Add Log import
+const Log = require('../models/Log');
 
 exports.createBackup = async (req, res) => {
   try {
-    const userId = req.user?._id; // Assuming you have user authentication
+    const userId = req.user?._id;
     const result = await backupService.createBackup(userId);
     
-    // Log backup creation
+    // Keep: Log successful backup creation
     await Log.create({
       userId: userId,
       action: 'CREATE_BACKUP',
@@ -24,7 +24,7 @@ exports.createBackup = async (req, res) => {
   } catch (error) {
     console.error('Backup creation error:', error);
     
-    // Log backup creation error
+    // Keep: Log backup creation error
     await Log.create({
       userId: req.user?._id,
       action: 'CREATE_BACKUP_ERROR',
@@ -43,16 +43,6 @@ exports.createBackup = async (req, res) => {
 exports.listBackups = async (req, res) => {
   try {
     const backups = await backupService.getBackupList();
-
-    // Log backup list access
-    await Log.create({
-      userId: req.user?._id,
-      action: 'LIST_BACKUPS',
-      details: `Listed ${backups.length} backup files`,
-      id_number: req.user?.id_number,
-      userName: req.user?.name
-    });
-
     res.json({ 
       success: true, 
       backups,
@@ -61,7 +51,7 @@ exports.listBackups = async (req, res) => {
   } catch (error) {
     console.error('Backup list error:', error);
     
-    // Log backup list error
+    // Keep: Log backup list error
     await Log.create({
       userId: req.user?._id,
       action: 'LIST_BACKUPS_ERROR',
@@ -87,7 +77,7 @@ exports.downloadBackup = async (req, res) => {
     if (!backup) {
       console.error('❌ Backup not found for filename:', filename);
       
-      // Log backup not found for download
+      // Keep: Log backup not found for download
       await Log.create({
         userId: req.user?._id,
         action: 'DOWNLOAD_BACKUP_NOT_FOUND',
@@ -109,7 +99,7 @@ exports.downloadBackup = async (req, res) => {
     
     console.log('📁 File path:', filePath);
     
-    // Log backup download
+    // Keep: Log backup download
     await Log.create({
       userId: req.user?._id,
       action: 'DOWNLOAD_BACKUP',
@@ -126,7 +116,7 @@ exports.downloadBackup = async (req, res) => {
       if (err) {
         console.error('❌ Download error:', err);
         
-        // Log download error
+        // Keep: Log download error
         Log.create({
           userId: req.user?._id,
           action: 'DOWNLOAD_BACKUP_ERROR',
@@ -148,7 +138,7 @@ exports.downloadBackup = async (req, res) => {
   } catch (error) {
     console.error('❌ Download backup error:', error);
     
-    // Log download backup error
+    // Keep: Log download backup error
     await Log.create({
       userId: req.user?._id,
       action: 'DOWNLOAD_BACKUP_ERROR',
@@ -172,7 +162,7 @@ exports.deleteBackup = async (req, res) => {
     // FIX: Find backup by filename instead of name
     const backup = await Backup.findOne({ filename: filename });
     if (!backup) {
-      // Log backup not found for deletion
+      // Keep: Log backup not found for deletion
       await Log.create({
         userId: req.user?._id,
         action: 'DELETE_BACKUP_NOT_FOUND',
@@ -189,7 +179,7 @@ exports.deleteBackup = async (req, res) => {
 
     await backupService.deleteBackup(backup.name);
     
-    // Log backup deletion
+    // Keep: Log backup deletion
     await Log.create({
       userId: req.user?._id,
       action: 'DELETE_BACKUP',
@@ -205,7 +195,7 @@ exports.deleteBackup = async (req, res) => {
   } catch (error) {
     console.error('Delete backup error:', error);
     
-    // Log backup deletion error
+    // Keep: Log backup deletion error
     await Log.create({
       userId: req.user?._id,
       action: 'DELETE_BACKUP_ERROR',
@@ -228,29 +218,11 @@ exports.getBackupInfo = async (req, res) => {
     // FIX: Find backup by filename instead of name
     const backup = await Backup.findOne({ filename: filename });
     if (!backup) {
-      // Log backup info not found
-      await Log.create({
-        userId: req.user?._id,
-        action: 'BACKUP_INFO_NOT_FOUND',
-        details: `Backup info not found: ${filename}`,
-        id_number: req.user?.id_number,
-        userName: req.user?.name
-      });
-
       return res.status(404).json({ 
         success: false, 
         message: 'Backup not found' 
       });
     }
-    
-    // Log backup info access
-    await Log.create({
-      userId: req.user?._id,
-      action: 'GET_BACKUP_INFO',
-      details: `Accessed backup info: ${backup.name}`,
-      id_number: req.user?.id_number,
-      userName: req.user?.name
-    });
 
     res.json({ 
       success: true, 
@@ -266,7 +238,7 @@ exports.getBackupInfo = async (req, res) => {
   } catch (error) {
     console.error('Get backup info error:', error);
     
-    // Log backup info error
+    // Keep: Log backup info error
     await Log.create({
       userId: req.user?._id,
       action: 'GET_BACKUP_INFO_ERROR',
@@ -288,7 +260,7 @@ exports.testBackup = async (req, res) => {
     // Test database connection and get backup count
     const backupCount = await Backup.countDocuments();
     
-    // Log backup test
+    // Keep: Log backup test
     await Log.create({
       userId: req.user?._id,
       action: 'TEST_BACKUP_SYSTEM',
@@ -312,7 +284,7 @@ exports.testBackup = async (req, res) => {
       note: 'Download and delete endpoints use filename (e.g., system-backup-2024-01-15T10-30-45-123Z.zip)'
     });
   } catch (error) {
-    // Log backup test error
+    // Keep: Log backup test error
     await Log.create({
       userId: req.user?._id,
       action: 'TEST_BACKUP_SYSTEM_ERROR',
