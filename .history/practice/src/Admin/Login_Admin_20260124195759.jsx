@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Loader2, Mail, RotateCcw, Shield, Lock, ArrowLeft } from "lucide-react";
 import Logo from "../assets/logo.png";
-import Logo2 from "../assets/logo2.png";
-import Logo3 from "../assets/logo3.png";
 
 function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
   const [username, setUsername] = useState("");
@@ -305,31 +303,29 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
         </div>
         
         <div className="max-w-lg">
-          <div className="mb-10 flex  justify-center gap-6">
+          <div className="mb-10">
             <img 
               src={Logo} 
               alt="University of San Agustin Logo" 
               className="h-40 w-40  p-6 backdrop-blur-sm mx-auto"
             />
             <img 
-              src={Logo2} 
+              src={Logo} 
               alt="University of San Agustin Logo" 
               className="h-40 w-40  p-6 backdrop-blur-sm mx-auto"
             />
             <img 
-              src={Logo3} 
+              src={Logo} 
               alt="University of San Agustin Logo" 
               className="h-40 w-40  p-6 backdrop-blur-sm mx-auto"
             />
             
           </div>
           <h1 className="text-4xl font-bold text-white mb-4">University of San Agustin</h1>
-          <h1 className="text-4xl font-bold text-yellow-500 mb-4 border-t border-gray-700 pt-5">Circulink</h1>
           <h2 className="text-2xl font-semibold text-white mb-8">Learning Resource Center</h2>
           <div className="bg-white/10 backdrop-blur-sm px-8 py-4 rounded-full mb-12 inline-block">
             <p className="text-white font-semibold text-lg">Admin Portal</p>
           </div>
-          
           
           <div className="mt-8">
             <p className="text-white text-lg mb-6">Secure Administrative Access Portal</p>

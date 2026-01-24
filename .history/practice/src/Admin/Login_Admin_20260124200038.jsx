@@ -324,12 +324,15 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
             
           </div>
           <h1 className="text-4xl font-bold text-white mb-4">University of San Agustin</h1>
-          <h1 className="text-4xl font-bold text-yellow-500 mb-4 border-t border-gray-700 pt-5">Circulink</h1>
           <h2 className="text-2xl font-semibold text-white mb-8">Learning Resource Center</h2>
-          <div className="bg-white/10 backdrop-blur-sm px-8 py-4 rounded-full mb-12 inline-block">
-            <p className="text-white font-semibold text-lg">Admin Portal</p>
+          <div className="flex flex-col justify-center gap-6">
+            <div className="bg-white/10 backdrop-blur-sm px-8 py-4 rounded-full mb-12 inline-block">
+              <p className="text-white font-semibold text-lg">Admin Portal</p>
+            </div>
+            <div className="bg-white/10 backdrop-blur-sm px-8 py-4 rounded-full mb-12 inline-block">
+              <p className="text-white font-semibold text-lg">Circulink</p>
+            </div>
           </div>
-          
           
           <div className="mt-8">
             <p className="text-white text-lg mb-6">Secure Administrative Access Portal</p>
