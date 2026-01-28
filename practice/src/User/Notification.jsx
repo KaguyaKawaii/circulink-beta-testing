@@ -353,12 +353,12 @@ function Notification({ user, setView, setSelectedReservation }) {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
+                {/* <div className="flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${unreadCount > 0 ? 'bg-red-500 animate-pulse' : 'bg-green-500'}`}></div>
                   <span className="text-sm text-gray-600">
                     {unreadCount} unread {unreadCount === 1 ? 'notification' : 'notifications'}
                   </span>
-                </div>
+                </div> */}
               </div>
               
               <div className="flex flex-wrap gap-2">
