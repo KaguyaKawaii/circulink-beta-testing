@@ -13,6 +13,7 @@ function History({ user, setView, setSelectedReservation, historyRefreshKey }) {
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [dateFilter, setDateFilter] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [showReportModal, setShowReportModal] = useState(false);
   
   // Pagination states
   const [currentPage, setCurrentPage] = useState(1);
