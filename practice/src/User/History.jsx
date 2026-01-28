@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { Calendar } from "react-calendar";
 import "react-calendar/dist/Calendar.css";
+import ReportProblemModal from "./Modals/ReportProblemModal";
+
+
 
 function History({ user, setView, setSelectedReservation, historyRefreshKey }) {
   const [reservations, setReservations] = useState([]);
@@ -487,6 +490,15 @@ function History({ user, setView, setSelectedReservation, historyRefreshKey }) {
           </button>
         </div>
       </footer>
+
+      {/* Modal Components */}
+      {showReportModal && (
+        <ReportProblemModal
+          isOpen={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          user={user}
+        />
+      )}
 
       {/* Filter Modal with Blur Background */}
       {showFilterModal && (
