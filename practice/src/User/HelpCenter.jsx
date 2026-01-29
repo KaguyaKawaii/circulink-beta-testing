@@ -104,7 +104,7 @@ export default function HelpCenter({ setView }) {
                   <span className="font-medium text-blue-600">"Reserve Room"</span>{" "}
                   button. Select the date you want to reserve using the calendar
                   view. Next, choose a location (such as Ground Floor or Second
-                  Floor) from the displayed image tiles. Once a floor is chosen,
+                  Floor or Forth Floor and Fifth Floor) from the displayed image tiles. Once a floor is chosen,
                   the available rooms will appear, allowing you to pick one that
                   best suits your group size and preferences.
                 </p>
@@ -135,27 +135,30 @@ export default function HelpCenter({ setView }) {
                   Reservation limit and restrictions:
                 </p>
                 <p>
-                  Each user including participants is allowed only one active
-                  reservation per day. This means that even if your previous
-                  reservation was cancelled or rejected, you cannot make another
-                  one until the next day.
+                  Each user is allowed to make only two reservations per week. Once you have
+                  reached the two-reservation limit, any additional booking attempts within the
+                  same week will be automatically rejected. You must wait until the following
+                  week to make a new reservation.
                 </p>
               </div>
 
               <div>
                 <p className="font-semibold text-gray-900 mb-1">
-                  Why you may be blocked from reserving:
-                </p>
-                <p>
-                  If the system prevents you from submitting a reservation, it
-                  could be due to:
-                </p>
-                <ul className="list-disc ml-5 mt-1 space-y-1">
-                  <li>Having another reservation on the same day</li>
-                  <li>Being unverified</li>
-                  <li>Already being a participant in another reservation for that day</li>
-                </ul>
-                <p className="mt-2">Always check your reservation history for confirmation.</p>
+  Why you may be blocked from reserving:
+</p>
+<p>
+  If the system prevents you from submitting a reservation, it could be due to:
+</p>
+<ul className="list-disc ml-5 mt-1 space-y-1">
+  <li>You have already reached the two-reservations-per-week limit</li>
+  <li>You already have a reservation on the selected day</li>
+  <li>You are unverified</li>
+  <li>You are already listed as a participant in another reservation on that day</li>
+</ul>
+<p className="mt-2">
+  Always check your reservation history for confirmation.
+</p>
+
               </div>
             </div>
           </details>
