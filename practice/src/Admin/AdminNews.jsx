@@ -439,7 +439,6 @@ function AdminNews({ setView, admin, onLogout }) {
                       <p className="mb-1 text-sm text-gray-500">
                         <span className="font-semibold text-[#CC0000]">Click to upload</span> or drag and drop
                       </p>
-                      <p className="text-xs text-gray-500">PNG, JPG, GIF up to 5MB each</p>
                       <p className="text-xs text-gray-500 mt-1">Max 5 images</p>
                       {isDragging && (
                         <div className="absolute inset-0 bg-[#CC0000]/10 border-2 border-[#CC0000] border-dashed rounded-lg flex items-center justify-center">
