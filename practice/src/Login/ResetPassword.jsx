@@ -108,7 +108,7 @@ function ResetPassword({ onBackToLogin }) {
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200 p-8">
           {/* Header Section */}
           <div className="text-center mb-8">
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center mb-6 gap-6">
               <img src={Logo} alt="University Logo" className="h-16 w-auto" />
               <img src={Logo2} alt="University Logo" className="h-16 w-auto" />
               <img src={Logo3} alt="University Logo" className="h-16 w-auto" />
