@@ -61,13 +61,13 @@ function MaintenanceScreen({ message, setView })
             Refresh Status
           </button>
 
-          <button
+          {/* <button
             onClick={handleAdminLogin}
             className="flex items-center justify-center gap-2 px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2 cursor-pointer"
           >
             <LogIn size={18} />
             Administrator Access
-          </button>
+          </button> */}
         </div>
 
         {/* Detailed Information */}

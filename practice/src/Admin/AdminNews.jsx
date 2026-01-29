@@ -311,7 +311,7 @@ function AdminNews({ setView, admin, onLogout }) {
               {/* Enhanced Multiple Image Upload */}
               <div className="flex flex-col">
                 <label className="text-sm font-medium text-gray-700 mb-1">
-                  News Images (Multiple allowed) {images.length > 0 && <span className="text-[#CC0000]">({images.length}/5)</span>}
+                  News Images {images.length > 0 && <span className="text-[#CC0000]">({images.length}/5)</span>}
                 </label>
                 
                 {/* Drop Zone */}
