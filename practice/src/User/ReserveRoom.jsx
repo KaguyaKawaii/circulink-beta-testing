@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
 import socket from "../utils/socket";
 import moment from "moment-timezone";
 
@@ -25,8 +24,6 @@ const useDebounce = (value, delay) => {
 };
 
 function ReserveRoom({ user, setView }) {
-  const navigate = useNavigate();
-
   const [formData, setFormData] = useState({
     date: "",
     time: "",
@@ -639,7 +636,8 @@ function ReserveRoom({ user, setView }) {
 
   const closeSuccess = () => {
     setShowSuccessModal(false);
-    navigate("/dashboard");
+    // ✅ FIXED: Use setView to navigate back to dashboard instead of navigate
+    setView("dashboard");
   };
 
   const roomLocations = [
