@@ -17,13 +17,13 @@ function MaintenanceScreen({ message, setView })
     
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-6">
 
-        <div className="absolute top-40 right-0 flex">
-  <img
-    className="w-[40rem] h-[50rem]"
-    src={yelan}
-    alt="University of San Agustin Logo"
-  />
-</div>
+        {/* <div className="absolute top-40 right-0 flex">
+          <img
+            className="w-[40rem] h-[50rem]"
+            src={yelan}
+            alt="University of San Agustin Logo"
+          />
+        </div> */}
 
 
 
