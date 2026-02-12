@@ -308,19 +308,7 @@ export default function HelpCenter({ setView }) {
                 </p>
               </div>
 
-              <div>
-                <p className="font-semibold text-gray-900 mb-1">Calendar not showing:</p>
-                <p>If the calendar doesn't appear, try these steps:</p>
-                <ul className="list-disc ml-5 mt-1 space-y-1">
-                  <li>Refresh the page and wait a few seconds</li>
-                  <li>Try using a different browser like Chrome or Firefox</li>
-                  <li>Turn off incognito/private mode, if it's on</li>
-                  <li>Disable any browser extensions that block pop-ups or scripts</li>
-                </ul>
-                <p className="mt-2">
-                  If the problem continues, contact the library staff or send a message through the system.
-                </p>
-              </div>
+             
 
               <div>
                 <p className="font-semibold text-gray-900 mb-1">Participants not verifying:</p>
@@ -398,7 +386,7 @@ export default function HelpCenter({ setView }) {
               <div>
                 <p className="font-semibold text-gray-900 mb-1">Email:</p>
                 <p>
-                  For urgent matters, email us at <a href="mailto:support@yourdomain.com" className="text-blue-600 hover:underline">support@yourdomain.com</a>. Include your full name, ID number, and a clear description of your issue for faster assistance.
+                  For urgent matters, email us at <p className="text-blue-600 hover:underline">support@yourdomain.com</p>. Include your full name, ID number, and a clear description of your issue for faster assistance.
                 </p>
               </div>
 
