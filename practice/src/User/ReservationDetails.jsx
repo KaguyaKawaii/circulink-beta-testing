@@ -44,6 +44,18 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
     return participant.name || `${participant.firstName || ''} ${participant.lastName || ''}`.trim() || 'N/A';
   };
 
+  // Helper function to check if a participant is the main reserver
+  const isMainReserverParticipant = (participant) => {
+    if (!localReservation || !localReservation.userId) return false;
+    
+    const participantId = getParticipantId(participant);
+    const mainReserverId = typeof localReservation.userId === 'string' 
+      ? localReservation.userId 
+      : localReservation.userId._id;
+    
+    return participantId === mainReserverId;
+  };
+
   // Load reservation from localStorage on component mount and when reservation prop changes
   useEffect(() => {
     const loadReservation = () => {
@@ -752,43 +764,49 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
             
             {/* Mobile Cards View */}
             <div className="sm:hidden space-y-3">
-              {localReservation.participants.map((p, i) => (
-                <div key={i} className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
-                  <div className="space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-medium text-gray-900 text-sm">{getParticipantName(p)}</p>
-                        <p className="text-xs text-gray-600">ID: {getParticipantId(p)}</p>
+              {localReservation.participants.map((p, i) => {
+                const isMainReserver = isMainReserverParticipant(p);
+                return (
+                  <div key={i} className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-gray-900 text-sm">{getParticipantName(p)}</p>
+                          <p className="text-xs text-gray-600">ID: {getParticipantId(p)}</p>
+                          {isMainReserver && (
+                            <span className="inline-block mt-1 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">Main Reserver</span>
+                          )}
+                        </div>
+                        {!isMainReserver && isMainReserver && ["Pending", "Approved"].includes(localReservation.status) && (
+                          <button
+                            onClick={() => openRemoveConfirm(p)}
+                            disabled={processingParticipantAction === `remove-${getParticipantId(p)}`}
+                            className="text-red-600 hover:text-red-800 disabled:opacity-50 transition-colors cursor-pointer p-1"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        )}
                       </div>
-                      {isMainReserver && ["Pending", "Approved"].includes(localReservation.status) && (
-                        <button
-                          onClick={() => openRemoveConfirm(p)}
-                          disabled={processingParticipantAction === `remove-${getParticipantId(p)}`}
-                          className="text-red-600 hover:text-red-800 disabled:opacity-50 transition-colors cursor-pointer p-1"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <span className="text-gray-500">Course:</span>
-                        <p className="text-gray-700">{p.course || "N/A"}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Year Level:</span>
-                        <p className="text-gray-700">{p.year_level || p.yearLevel || "N/A"}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-gray-500">Department:</span>
-                        <p className="text-gray-700">{p.department || "N/A"}</p>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-gray-500">Course:</span>
+                          <p className="text-gray-700">{p.course || "N/A"}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Year Level:</span>
+                          <p className="text-gray-700">{p.year_level || p.yearLevel || "N/A"}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-500">Department:</span>
+                          <p className="text-gray-700">{p.department || "N/A"}</p>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Desktop Table View */}
@@ -807,39 +825,51 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {localReservation.participants.map((p, i) => (
-                    <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50 hover:bg-gray-100"}>
-                      <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm font-medium text-gray-900">
-                        {getParticipantId(p)}
-                      </td>
-                      <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">
-                        {getParticipantName(p)}
-                      </td>
-                      <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm text-gray-500">
-                        {p.course || "N/A"}
-                      </td>
-                      <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm text-gray-500">
-                        {p.year_level || p.yearLevel || "N/A"}
-                      </td>
-                      <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm text-gray-500">
-                        {p.department || "N/A"}
-                      </td>
-                      {isMainReserver && ["Pending", "Approved"].includes(localReservation.status) && (
-                        <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm">
-                          <button
-                            onClick={() => openRemoveConfirm(p)}
-                            disabled={processingParticipantAction === `remove-${getParticipantId(p)}`}
-                            className="text-red-600 hover:text-red-800 disabled:opacity-50 transition-colors cursor-pointer flex items-center"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                            {processingParticipantAction === `remove-${getParticipantId(p)}` ? "Removing..." : "Remove"}
-                          </button>
+                  {localReservation.participants.map((p, i) => {
+                    const isMainReserver = isMainReserverParticipant(p);
+                    return (
+                      <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50 hover:bg-gray-100"}>
+                        <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm font-medium text-gray-900">
+                          {getParticipantId(p)}
                         </td>
-                      )}
-                    </tr>
-                  ))}
+                        <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm text-gray-900">
+                          <div className="flex items-center">
+                            {getParticipantName(p)}
+                            {isMainReserver && (
+                              <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">Main Reserver</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm text-gray-500">
+                          {p.course || "N/A"}
+                        </td>
+                        <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm text-gray-500">
+                          {p.year_level || p.yearLevel || "N/A"}
+                        </td>
+                        <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm text-gray-500">
+                          {p.department || "N/A"}
+                        </td>
+                        {isMainReserver && ["Pending", "Approved"].includes(localReservation.status) && (
+                          <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm">
+                            {!isMainReserver ? (
+                              <button
+                                onClick={() => openRemoveConfirm(p)}
+                                disabled={processingParticipantAction === `remove-${getParticipantId(p)}`}
+                                className="text-red-600 hover:text-red-800 disabled:opacity-50 transition-colors cursor-pointer flex items-center"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                {processingParticipantAction === `remove-${getParticipantId(p)}` ? "Removing..." : "Remove"}
+                              </button>
+                            ) : (
+                              <span className="text-gray-400 text-sm">Cannot remove</span>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1653,7 +1683,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                     Current Participants: {currentParticipantCount} / {maxParticipants}
                   </p>
                   <p className="text-xs sm:text-sm text-blue-700 mt-1">
-                    You can remove existing participants and add new ones. Maximum of {maxParticipants} participants allowed.
+                    You can remove existing participants and add new ones. Maximum of {maxParticipants} participants allowed. The main reserver cannot be removed.
                   </p>
                 </div>
               </div>
@@ -1673,31 +1703,44 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                 
                 <div className="space-y-2 sm:space-y-3 max-h-60 sm:max-h-80 overflow-y-auto pr-1 sm:pr-2">
                   {localReservation.participants.length > 0 ? (
-                    localReservation.participants.map((participant, index) => (
-                      <div key={index} className="flex justify-between items-center p-3 sm:p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors shadow-sm">
-                        <div className="flex items-center space-x-2 sm:space-x-3">
-                          <div className="bg-gray-100 p-1 sm:p-2 rounded-full">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                            </svg>
+                    localReservation.participants.map((participant, index) => {
+                      const isMainReserver = isMainReserverParticipant(participant);
+                      return (
+                        <div key={index} className="flex justify-between items-center p-3 sm:p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors shadow-sm">
+                          <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+                            <div className="bg-gray-100 p-1 sm:p-2 rounded-full flex-shrink-0">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 text-gray-600" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium text-gray-800 text-sm truncate">
+                                {getParticipantName(participant)}
+                                {isMainReserver && (
+                                  <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full inline-block">Main Reserver</span>
+                                )}
+                              </p>
+                              <p className="text-xs text-gray-600 truncate">ID: {getParticipantId(participant)}</p>
+                            </div>
                           </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="font-medium text-gray-800 text-sm truncate">{getParticipantName(participant)}</p>
-                            <p className="text-xs text-gray-600 truncate">ID: {getParticipantId(participant)}</p>
-                          </div>
+                          {!isMainReserver && (
+                            <button
+                              onClick={() => openRemoveConfirm(participant)}
+                              disabled={processingParticipantAction === `remove-${getParticipantId(participant)}`}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
+                              title="Remove participant"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                          {isMainReserver && (
+                            <span className="text-gray-400 text-sm px-2">Cannot remove</span>
+                          )}
                         </div>
-                        <button
-                          onClick={() => openRemoveConfirm(participant)}
-                          disabled={processingParticipantAction === `remove-${getParticipantId(participant)}`}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
-                          title="Remove participant"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))
+                      );
+                    })
                   ) : (
                     <div className="text-center py-6 sm:py-8 bg-gray-50 rounded-lg border border-gray-200">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 sm:h-12 sm:w-12 mx-auto text-gray-400 mb-2 sm:mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
