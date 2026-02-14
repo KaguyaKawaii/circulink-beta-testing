@@ -249,6 +249,42 @@ function AnalyticsOverview({ setView, admin }) {
           </div>
         </div>
 
+        {/* Quick Navigation to Specific Analytics */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <button
+            onClick={() => setView("analyticsUsers")}
+            className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-6 hover:from-blue-700 hover:to-blue-800 transition-all cursor-pointer text-left"
+          >
+            <Users size={24} className="text-white mb-3" />
+            <h3 className="text-lg font-semibold text-white">User Analytics</h3>
+            <p className="text-blue-100 text-sm mt-1">View user growth, roles, and activity</p>
+          </button>
+          <button
+            onClick={() => setView("analyticsReservations")}
+            className="bg-gradient-to-r from-green-600 to-green-700 rounded-xl p-6 hover:from-green-700 hover:to-green-800 transition-all cursor-pointer text-left"
+          >
+            <CalendarCheck size={24} className="text-white mb-3" />
+            <h3 className="text-lg font-semibold text-white">Reservation Analytics</h3>
+            <p className="text-green-100 text-sm mt-1">Track booking patterns and trends</p>
+          </button>
+          <button
+            onClick={() => setView("analyticsRooms")}
+            className="bg-gradient-to-r from-purple-600 to-purple-700 rounded-xl p-6 hover:from-purple-700 hover:to-purple-800 transition-all cursor-pointer text-left"
+          >
+            <DoorOpen size={24} className="text-white mb-3" />
+            <h3 className="text-lg font-semibold text-white">Room Analytics</h3>
+            <p className="text-purple-100 text-sm mt-1">Monitor room utilization and popularity</p>
+          </button>
+          <button
+            onClick={() => setView("analyticsEngagement")}
+            className="bg-gradient-to-r from-orange-600 to-orange-700 rounded-xl p-6 hover:from-orange-700 hover:to-orange-800 transition-all cursor-pointer text-left"
+          >
+            <Activity size={24} className="text-white mb-3" />
+            <h3 className="text-lg font-semibold text-white">Engagement Metrics</h3>
+            <p className="text-orange-100 text-sm mt-1">Analyze user engagement and retention</p>
+          </button>
+        </div>
+
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatCard

@@ -68,11 +68,11 @@ import SystemSettings from "./Admin/Settings/SystemSettings.jsx";
 
 /* ---- admin analytics ---- */
 // Comment out until files are created
-// import AnalyticsOverview from "./Admin/Analytics/AnalyticsOverview.jsx";
-// import AnalyticsUsers from "./Admin/Analytics/AnalyticsUsers.jsx";
-// import AnalyticsReservations from "./Admin/Analytics/AnalyticsReservations.jsx";
-// import AnalyticsRooms from "./Admin/Analytics/AnalyticsRooms.jsx";
-// import AnalyticsEngagement from "./Admin/Analytics/AnalyticsEngagement.jsx";
+import AnalyticsOverview from "./Admin/Analytics/AnalyticsOverview.jsx";
+import AnalyticsUsers from "./Admin/Analytics/AnalyticsUsers.jsx";
+import AnalyticsReservations from "./Admin/Analytics/AnalyticsReservations.jsx";
+import AnalyticsRooms from "./Admin/Analytics/AnalyticsRooms.jsx";
+import AnalyticsEngagement from "./Admin/Analytics/AnalyticsEngagement.jsx";
 
 /* ---- staff ---- */
 import StaffNavigation from "./Staff/StaffNavigation.jsx";
@@ -157,10 +157,10 @@ function App() {
       'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 
       'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 
       'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 
-      'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings'
+      'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings',
       // Comment out analytics routes until files are created
-      // 'analyticsOverview', 'analyticsUsers', 'analyticsReservations', 
-      // 'analyticsRooms', 'analyticsEngagement'
+      'analyticsOverview', 'analyticsUsers', 'analyticsReservations', 
+      'analyticsRooms', 'analyticsEngagement'
     ];
     return adminRoutes.includes(viewFromPath);
   };
