@@ -67,8 +67,8 @@ import PasswordSecurity from "./Admin/Settings/PasswordSecurity.jsx";
 import SystemSettings from "./Admin/Settings/SystemSettings.jsx";
 
 /* ---- admin analytics ---- */
-import AnalyticsOverview from "./Admin/Analytics/AnalyticsOverview.jsx";
-// You can create these additional analytics pages later
+// Comment out until files are created
+// import AnalyticsOverview from "./Admin/Analytics/AnalyticsOverview.jsx";
 // import AnalyticsUsers from "./Admin/Analytics/AnalyticsUsers.jsx";
 // import AnalyticsReservations from "./Admin/Analytics/AnalyticsReservations.jsx";
 // import AnalyticsRooms from "./Admin/Analytics/AnalyticsRooms.jsx";
@@ -157,9 +157,10 @@ function App() {
       'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 
       'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 
       'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 
-      'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings',
-      'analyticsOverview', 'analyticsUsers', 'analyticsReservations', 
-      'analyticsRooms', 'analyticsEngagement'
+      'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings'
+      // Comment out analytics routes until files are created
+      // 'analyticsOverview', 'analyticsUsers', 'analyticsReservations', 
+      // 'analyticsRooms', 'analyticsEngagement'
     ];
     return adminRoutes.includes(viewFromPath);
   };
@@ -261,7 +262,7 @@ function App() {
           setViewHistory(["adminLogin"]);
         } else if (currentUserRole === 'admin') {
           // Admin user on admin domain
-          const adminRoutes = ['adminLogin', 'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings', 'analyticsOverview', 'analyticsUsers', 'analyticsReservations', 'analyticsRooms', 'analyticsEngagement'];
+          const adminRoutes = ['adminLogin', 'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings'];
           
           // If trying to access admin route via URL, check if it's allowed
           if (viewFromPath && adminRoutes.includes(viewFromPath)) {
@@ -670,14 +671,12 @@ function App() {
         {view === "passwordSecurity" && renderAdminNavigation(<PasswordSecurity setView={setView} admin={user} />)}
         {view === "systemSettings" && renderAdminNavigation(<SystemSettings setView={setView} admin={user} />)}
 
-        {/* Admin Analytics Pages */}
-        {view === "analyticsOverview" && renderAdminNavigation(<AnalyticsOverview setView={setView} admin={user} />)}
-        {/* Add these when you create the pages
-        {view === "analyticsUsers" && renderAdminNavigation(<AnalyticsUsers setView={setView} admin={user} />)}
-        {view === "analyticsReservations" && renderAdminNavigation(<AnalyticsReservations setView={setView} admin={user} />)}
-        {view === "analyticsRooms" && renderAdminNavigation(<AnalyticsRooms setView={setView} admin={user} />)}
-        {view === "analyticsEngagement" && renderAdminNavigation(<AnalyticsEngagement setView={setView} admin={user} />)}
-        */}
+        {/* Admin Analytics Pages - Commented out until files are created */}
+        {/* {view === "analyticsOverview" && renderAdminNavigation(<AnalyticsOverview setView={setView} admin={user} />)} */}
+        {/* {view === "analyticsUsers" && renderAdminNavigation(<AnalyticsUsers setView={setView} admin={user} />)} */}
+        {/* {view === "analyticsReservations" && renderAdminNavigation(<AnalyticsReservations setView={setView} admin={user} />)} */}
+        {/* {view === "analyticsRooms" && renderAdminNavigation(<AnalyticsRooms setView={setView} admin={user} />)} */}
+        {/* {view === "analyticsEngagement" && renderAdminNavigation(<AnalyticsEngagement setView={setView} admin={user} />)} */}
 
         {/* Logout Modal */}
         {showLogoutModal && (
