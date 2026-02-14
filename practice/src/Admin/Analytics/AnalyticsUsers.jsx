@@ -15,7 +15,7 @@ import {
   PieChart,
   Activity
 } from "lucide-react";
-import api from "../utils/api";
+import api from "../../utils/api";
 
 function AnalyticsUsers({ setView, admin }) {
   const [loading, setLoading] = useState(true);

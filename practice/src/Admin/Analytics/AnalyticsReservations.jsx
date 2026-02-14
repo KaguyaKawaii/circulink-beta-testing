@@ -13,7 +13,7 @@ import {
   BarChart3,
   PieChart
 } from "lucide-react";
-import api from "../utils/api";
+import api from "../../utils/api";
 
 function AnalyticsReservations({ setView, admin }) {
   const [loading, setLoading] = useState(true);
