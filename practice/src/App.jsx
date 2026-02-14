@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { LogOut } from "lucide-react";
@@ -66,6 +65,14 @@ import ArchivedNews from "./Admin/Archive/ArchivedNews.jsx";
 import ProfileSettings from "./Admin/Settings/ProfileSettings.jsx";
 import PasswordSecurity from "./Admin/Settings/PasswordSecurity.jsx";
 import SystemSettings from "./Admin/Settings/SystemSettings.jsx";
+
+/* ---- admin analytics ---- */
+import AnalyticsOverview from "./Admin/Analytics/AnalyticsOverview.jsx";
+// You can create these additional analytics pages later
+// import AnalyticsUsers from "./Admin/Analytics/AnalyticsUsers.jsx";
+// import AnalyticsReservations from "./Admin/Analytics/AnalyticsReservations.jsx";
+// import AnalyticsRooms from "./Admin/Analytics/AnalyticsRooms.jsx";
+// import AnalyticsEngagement from "./Admin/Analytics/AnalyticsEngagement.jsx";
 
 /* ---- staff ---- */
 import StaffNavigation from "./Staff/StaffNavigation.jsx";
@@ -150,7 +157,9 @@ function App() {
       'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 
       'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 
       'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 
-      'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings'
+      'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings',
+      'analyticsOverview', 'analyticsUsers', 'analyticsReservations', 
+      'analyticsRooms', 'analyticsEngagement'
     ];
     return adminRoutes.includes(viewFromPath);
   };
@@ -252,7 +261,7 @@ function App() {
           setViewHistory(["adminLogin"]);
         } else if (currentUserRole === 'admin') {
           // Admin user on admin domain
-          const adminRoutes = ['adminLogin', 'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings'];
+          const adminRoutes = ['adminLogin', 'adminDashboard', 'adminReservation', 'adminRoom', 'adminUsers', 'adminMessage', 'adminReports', 'adminNotifications', 'adminNews', 'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings', 'analyticsOverview', 'analyticsUsers', 'analyticsReservations', 'analyticsRooms', 'analyticsEngagement'];
           
           // If trying to access admin route via URL, check if it's allowed
           if (viewFromPath && adminRoutes.includes(viewFromPath)) {
@@ -647,17 +656,28 @@ function App() {
         {view === "adminMessage" && renderAdminNavigation(<AdminMessages setView={setView} admin={user} />)}
         {view === "adminReports" && renderAdminNavigation(<AdminReports setView={setView} admin={user} />)}
         {view === "adminNotifications" && renderAdminNavigation(<AdminNotification setView={setView} admin={user} />)}
+        {view === "adminNews" && renderAdminNavigation(<AdminNews setView={setView} admin={user} />)}
+        {view === "adminLogs" && renderAdminNavigation(<AdminLogs setView={setView} admin={user} />)}
+
+        {/* Admin Archive Pages */}
         {view === "archivedUsers" && renderAdminNavigation(<ArchivedUsers setView={setView} admin={user} />)}
         {view === "archivedReservations" && renderAdminNavigation(<ArchivedReservations setView={setView} admin={user} />)}
         {view === "archivedReports" && renderAdminNavigation(<ArchivedReports setView={setView} admin={user} />)}
         {view === "archivedNews" && renderAdminNavigation(<ArchivedNews setView={setView} admin={user} />)}
-        {view === "adminNews" && renderAdminNavigation(<AdminNews setView={setView} admin={user} />)}
-        {view === "adminLogs" && renderAdminNavigation(<AdminLogs setView={setView} admin={user} />)}
 
         {/* Admin Settings Pages */}
         {view === "profileSettings" && renderAdminNavigation(<ProfileSettings setView={setView} admin={user} />)}
         {view === "passwordSecurity" && renderAdminNavigation(<PasswordSecurity setView={setView} admin={user} />)}
         {view === "systemSettings" && renderAdminNavigation(<SystemSettings setView={setView} admin={user} />)}
+
+        {/* Admin Analytics Pages */}
+        {view === "analyticsOverview" && renderAdminNavigation(<AnalyticsOverview setView={setView} admin={user} />)}
+        {/* Add these when you create the pages
+        {view === "analyticsUsers" && renderAdminNavigation(<AnalyticsUsers setView={setView} admin={user} />)}
+        {view === "analyticsReservations" && renderAdminNavigation(<AnalyticsReservations setView={setView} admin={user} />)}
+        {view === "analyticsRooms" && renderAdminNavigation(<AnalyticsRooms setView={setView} admin={user} />)}
+        {view === "analyticsEngagement" && renderAdminNavigation(<AnalyticsEngagement setView={setView} admin={user} />)}
+        */}
 
         {/* Logout Modal */}
         {showLogoutModal && (
@@ -696,7 +716,7 @@ function App() {
     );
   }
 
-  // MAIN DOMAIN - Show user/staff content (your existing render logic)
+  // MAIN DOMAIN - Show user/staff content
   return (
     <div>
       {/* Public Pages */}
