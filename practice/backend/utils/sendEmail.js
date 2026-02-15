@@ -1,9 +1,17 @@
-const { Resend } = require("resend");
-const resend = new Resend(process.env.RESEND_API_KEY);
+import { Resend } from "resend";
+
+let resend;
+
+// ✅ Only initialize if API key exists
+if (process.env.RESEND_API_KEY) {
+  resend = new Resend(process.env.RESEND_API_KEY);
+} else {
+  console.warn("⚠️ RESEND_API_KEY missing. Email sending disabled.");
+}
 
 const sendEmail = async (options) => {
   try {
-    // Skip sending emails for local/demo mode
+    // ✅ Skip sending emails if disabled (for local/dev)
     if (process.env.DISABLE_EMAIL === "true") {
       console.log(
         "📧 EMAIL DISABLED - OTP:",
@@ -14,10 +22,15 @@ const sendEmail = async (options) => {
 
     if (!options.to) throw new Error("No recipient email provided");
 
-    // ✅ Use verified sender domain from Resend (works without DNS verification)
+    // ✅ If resend is not initialized, skip safely
+    if (!resend) {
+      console.log("📭 Email skipped (No API Key)");
+      return { messageId: "no-api-key" };
+    }
+
     const { data, error } = await resend.emails.send({
-      from: "USA-FLD <onboarding@resend.dev>", // ✅ Must use resend.dev domain
-      to: "stephenpatingomadero@gmail.com", // recipient (e.g. student@usa.edu.ph)
+      from: "USA-FLD <onboarding@resend.dev>",
+      to: options.to, // ✅ use dynamic recipient
       subject: options.subject,
       html: options.html,
       text: options.text,
@@ -27,18 +40,18 @@ const sendEmail = async (options) => {
 
     console.log(`✅ Email sent via Resend to: ${options.to}`);
     return data;
+
   } catch (error) {
     console.error("❌ Email sending failed:", error.message);
 
-    // Log OTP for fallback (useful in demo/testing)
+    // Log OTP fallback
     const otpMatch = options.text?.match(/\b\d{6}\b/);
     if (otpMatch) {
       console.log(`🔐 OTP CODE: ${otpMatch[0]} (Email failed to send)`);
     }
 
-    // Prevent app crash
     return { messageId: "failed-but-otp-logged" };
   }
 };
 
-module.exports = sendEmail;
+export default sendEmail;

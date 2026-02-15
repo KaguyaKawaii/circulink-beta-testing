@@ -108,7 +108,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/admin/verify-otp`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ adminId, otp }),
@@ -136,7 +136,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_URL}/api/admin/resend-otp`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/resend-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ adminId }),

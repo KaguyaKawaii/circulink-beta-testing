@@ -18,31 +18,28 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const server = http.createServer(app);
 
-// =========================
-// ✅ SAFE GLOBAL CORS (LOCAL + PROD)
-// =========================
-const allowedOrigins = [
-  "http://localhost:5173",
-  "http://localhost:5174",
-  "https://usa-circulink.vercel.app",
-  "https://circulink-admin.vercel.app"
-];
+// ✅ Detect environment
+const isProduction = process.env.NODE_ENV === "production";
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin) return callback(null, true); // allow server-to-server
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-    credentials: true
-  })
-);
+const allowedOrigins = isProduction
+  ? [
+      "https://usa-circulink.vercel.app",
+      "https://circulink-admin.vercel.app"
+    ]
+  : [
+      "http://localhost:5173",
+      "http://localhost:5174"
+    ];
+
+// =========================
+// ✅ CORS CONFIG
+// =========================
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  credentials: true
+}));
 
 app.use(express.json());
 
@@ -52,7 +49,7 @@ app.use(express.json());
 const io = new Server(server, {
   cors: {
     origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true
   },
   transports: ["polling", "websocket"]
@@ -89,8 +86,15 @@ io.on("connection", (socket) => {
   console.log("✅ User connected:", socket.id);
 
   socket.on("join", (data) => {
-    if (data.userId) socket.join(data.userId);
-    if (data.floor) socket.join(data.floor);
+    if (data.userId) {
+      socket.join(data.userId);
+      console.log(`👤 User ${data.userId} joined`);
+    }
+
+    if (data.floor) {
+      socket.join(data.floor);
+      console.log(`🏢 Joined floor ${data.floor}`);
+    }
   });
 
   socket.on("join-user-room", (userId) => {
@@ -123,8 +127,13 @@ io.on("connection", (socket) => {
   socket.on("sendMessage", (msg) => {
     io.to(msg.sender).emit("newMessage", msg);
 
-    if (msg.receiver) io.to(msg.receiver).emit("newMessage", msg);
-    if (msg.floor) io.to(msg.floor).emit("newMessage", msg);
+    if (msg.receiver) {
+      io.to(msg.receiver).emit("newMessage", msg);
+    }
+
+    if (msg.floor) {
+      io.to(msg.floor).emit("newMessage", msg);
+    }
 
     if (msg.receiver === "admin" || msg.sender === "admin") {
       io.to("admin-room").emit("newMessage", msg);
@@ -185,6 +194,7 @@ io.on("connection", (socket) => {
   });
 });
 
+// Make io accessible to routes
 app.set("io", io);
 
 // =========================
@@ -230,10 +240,50 @@ mongoose
   .then(() => {
     console.log("✅ MongoDB connected");
 
+    async function checkExpiredReservationsInternal() {
+      try {
+        const Reservation = (await import("./models/Reservation.js")).default;
+        const currentTime = new Date();
+
+        const expiredReservations = await Reservation.find({
+          endTime: { $lt: currentTime },
+          status: { $in: ["approved", "pending"] }
+        });
+
+        if (expiredReservations.length > 0) {
+          const reservationIds = expiredReservations.map(r => r._id);
+
+          await Reservation.updateMany(
+            { _id: { $in: reservationIds } },
+            { $set: { status: "completed" } }
+          );
+
+          return { success: true, completed: expiredReservations.length };
+        }
+
+        return { success: true, completed: 0 };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
+    }
+
+    cron.schedule("*/5 * * * *", async () => {
+      try {
+        const baseUrl = isProduction
+          ? process.env.VITE_API_URL
+          : `http://localhost:${process.env.PORT}`;
+
+        await axios.post(`${baseUrl}/api/reservations/check-expired`);
+      } catch (err) {
+        await checkExpiredReservationsInternal();
+      }
+    });
+
     const PORT = process.env.PORT || 5000;
 
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
+      console.log(`🌍 Environment: ${process.env.NODE_ENV}`);
     });
   })
   .catch((err) => {
