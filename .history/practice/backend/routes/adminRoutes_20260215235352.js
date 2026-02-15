@@ -21,7 +21,4 @@ router.put("/system/settings", adminController.updateSystemSettings);
 // Dashboard data
 router.get("/summary", adminController.getSummaryCounts);
 
-router.use("/analytics", analyticsRoutes);
-
-
 module.exports = router;

@@ -1,20 +1,28 @@
-// AnalyticsOverview.jsx - Updated version with real API integration
 import { useState, useEffect } from "react";
 import {
+  BarChart3,
+  TrendingUp,
   Users,
   CalendarCheck,
   DoorOpen,
-  Activity,
+  Clock,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
   Download,
+  Calendar,
+  Filter,
   RefreshCw,
   ArrowUp,
   ArrowDown,
+  Activity,
+  PieChart,
 } from "lucide-react";
 import api from "../../utils/api";
 
 function AnalyticsOverview({ setView, admin }) {
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState("month");
+  const [dateRange, setDateRange] = useState("month"); // week, month, year
   const [analyticsData, setAnalyticsData] = useState({
     users: {
       total: 0,
@@ -30,8 +38,6 @@ function AnalyticsOverview({ setView, admin }) {
       rejected: 0,
       completed: 0,
       cancelled: 0,
-      ongoing: 0,
-      expired: 0,
       byRoom: [],
       trend: { percentage: 0, direction: "up" }
     },
@@ -49,8 +55,7 @@ function AnalyticsOverview({ setView, admin }) {
       monthlyActive: 0,
       averageSession: 0,
       retention: 0
-    },
-    recentActivity: []
+    }
   });
 
   useEffect(() => {
@@ -60,45 +65,85 @@ function AnalyticsOverview({ setView, admin }) {
   const fetchAnalyticsData = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/api/admin/analytics/overview?range=${dateRange}`);
-      setAnalyticsData(response.data);
+      // In a real implementation, you would fetch from your API
+      // const response = await api.get(`/api/admin/analytics?range=${dateRange}`);
+      // setAnalyticsData(response.data);
+      
+      // For now, using mock data
+      setTimeout(() => {
+        setAnalyticsData(getMockAnalyticsData(dateRange));
+        setLoading(false);
+      }, 1000);
     } catch (error) {
       console.error("Error fetching analytics:", error);
-      // Show error toast if you have toast system
-    } finally {
       setLoading(false);
     }
   };
 
-  const handleExportData = async (format = "json") => {
-    try {
-      const response = await api.get(`/api/admin/analytics/export?format=${format}&range=${dateRange}`, {
-        responseType: format === "csv" ? "blob" : "json"
-      });
-      
-      if (format === "csv") {
-        // Download CSV file
-        const url = window.URL.createObjectURL(new Blob([response.data]));
-        const link = document.createElement("a");
-        link.href = url;
-        link.setAttribute("download", `analytics-${dateRange}-${new Date().toISOString()}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-      } else {
-        // Download JSON file
-        const dataStr = JSON.stringify(response.data, null, 2);
-        const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-        const exportFileDefaultName = `analytics-${dateRange}-${new Date().toISOString()}.json`;
-        
-        const linkElement = document.createElement('a');
-        linkElement.setAttribute('href', dataUri);
-        linkElement.setAttribute('download', exportFileDefaultName);
-        linkElement.click();
+  const getMockAnalyticsData = (range) => {
+    // Mock data based on date range
+    const multipliers = {
+      week: 1,
+      month: 4,
+      year: 48
+    };
+    
+    const mult = multipliers[range] || 4;
+    
+    return {
+      users: {
+        total: 1250 * mult,
+        active: 890 * mult,
+        new: 145 * mult,
+        byRole: { 
+          student: Math.floor(850 * mult), 
+          faculty: Math.floor(250 * mult), 
+          staff: Math.floor(150 * mult) 
+        },
+        trend: { percentage: 12.5, direction: "up" }
+      },
+      reservations: {
+        total: 3420 * mult,
+        pending: 45 * mult,
+        approved: 210 * mult,
+        rejected: 28 * mult,
+        completed: 3120 * mult,
+        cancelled: 17 * mult,
+        byRoom: [
+          { name: "Room 101", count: 450 },
+          { name: "Room 102", count: 380 },
+          { name: "Room 103", count: 520 },
+          { name: "Room 201", count: 290 },
+          { name: "Room 202", count: 410 }
+        ],
+        trend: { percentage: 8.3, direction: "up" }
+      },
+      rooms: {
+        total: 25,
+        available: 12,
+        occupied: 8,
+        maintenance: 3,
+        utilization: 68,
+        mostBooked: [
+          { name: "Room 103", bookings: 520 },
+          { name: "Room 101", bookings: 450 },
+          { name: "Room 202", bookings: 410 },
+          { name: "Room 102", bookings: 380 }
+        ]
+      },
+      engagement: {
+        dailyActive: 320,
+        weeklyActive: 1850,
+        monthlyActive: 4250,
+        averageSession: 24, // minutes
+        retention: 76 // percentage
       }
-    } catch (error) {
-      console.error("Error exporting data:", error);
-    }
+    };
+  };
+
+  const handleExportData = () => {
+    // Implement export functionality
+    console.log("Exporting analytics data...");
   };
 
   const StatCard = ({ title, value, icon: Icon, trend, color = "blue", subtext }) => (
@@ -106,9 +151,7 @@ function AnalyticsOverview({ setView, admin }) {
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm text-gray-400 mb-1">{title}</p>
-          <p className="text-2xl font-bold text-white">
-            {typeof value === 'number' ? value.toLocaleString() : value}
-          </p>
+          <p className="text-2xl font-bold text-white">{value.toLocaleString()}</p>
           {trend && (
             <div className="flex items-center gap-1 mt-2">
               {trend.direction === "up" ? (
@@ -132,12 +175,12 @@ function AnalyticsOverview({ setView, admin }) {
   );
 
   const ProgressBar = ({ label, value, max, color = "blue" }) => {
-    const percentage = max > 0 ? (value / max) * 100 : 0;
+    const percentage = (value / max) * 100;
     return (
       <div className="space-y-1">
         <div className="flex justify-between text-sm">
           <span className="text-gray-300">{label}</span>
-          <span className="text-gray-400">{value.toLocaleString()}</span>
+          <span className="text-gray-400">{value}</span>
         </div>
         <div className="w-full bg-gray-700 rounded-full h-2">
           <div
@@ -190,37 +233,18 @@ function AnalyticsOverview({ setView, admin }) {
                 </button>
               ))}
             </div>
-            
-            {/* Export Dropdown */}
-            <div className="relative group">
-              <button
-                className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-gray-800 rounded-lg text-gray-300 hover:bg-gray-800 transition-all cursor-pointer"
-              >
-                <Download size={18} />
-                <span>Export</span>
-              </button>
-              <div className="absolute right-0 mt-2 w-48 bg-[#1a1a1a] border border-gray-800 rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
-                <button
-                  onClick={() => handleExportData("json")}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 first:rounded-t-lg"
-                >
-                  Export as JSON
-                </button>
-                <button
-                  onClick={() => handleExportData("csv")}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-800 last:rounded-b-lg"
-                >
-                  Export as CSV
-                </button>
-              </div>
-            </div>
-            
+            <button
+              onClick={handleExportData}
+              className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border border-gray-800 rounded-lg text-gray-300 hover:bg-gray-800 transition-all cursor-pointer"
+            >
+              <Download size={18} />
+              <span>Export</span>
+            </button>
             <button
               onClick={fetchAnalyticsData}
               className="p-2 bg-[#1a1a1a] border border-gray-800 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition-all cursor-pointer"
-              title="Refresh data"
             >
-              <RefreshCw size={18} className={loading ? "animate-spin" : ""} />
+              <RefreshCw size={18} />
             </button>
           </div>
         </div>
@@ -323,21 +347,15 @@ function AnalyticsOverview({ setView, admin }) {
             <div className="mt-6 pt-6 border-t border-gray-800">
               <div className="grid grid-cols-3 gap-4 text-center">
                 <div>
-                  <p className="text-2xl font-bold text-white">
-                    {analyticsData.users.byRole.student.toLocaleString()}
-                  </p>
+                  <p className="text-2xl font-bold text-white">{analyticsData.users.byRole.student}</p>
                   <p className="text-xs text-gray-500">Students</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-white">
-                    {analyticsData.users.byRole.faculty.toLocaleString()}
-                  </p>
+                  <p className="text-2xl font-bold text-white">{analyticsData.users.byRole.faculty}</p>
                   <p className="text-xs text-gray-500">Faculty</p>
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-white">
-                    {analyticsData.users.byRole.staff.toLocaleString()}
-                  </p>
+                  <p className="text-2xl font-bold text-white">{analyticsData.users.byRole.staff}</p>
                   <p className="text-xs text-gray-500">Staff</p>
                 </div>
               </div>
@@ -350,54 +368,30 @@ function AnalyticsOverview({ setView, admin }) {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-gray-300">Pending</span>
-                <span className="text-yellow-500 font-semibold">
-                  {analyticsData.reservations.pending.toLocaleString()}
-                </span>
+                <span className="text-yellow-500 font-semibold">{analyticsData.reservations.pending}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-300">Approved</span>
-                <span className="text-green-500 font-semibold">
-                  {analyticsData.reservations.approved.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-300">Ongoing</span>
-                <span className="text-blue-500 font-semibold">
-                  {analyticsData.reservations.ongoing.toLocaleString()}
-                </span>
+                <span className="text-green-500 font-semibold">{analyticsData.reservations.approved}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-300">Rejected</span>
-                <span className="text-red-500 font-semibold">
-                  {analyticsData.reservations.rejected.toLocaleString()}
-                </span>
+                <span className="text-red-500 font-semibold">{analyticsData.reservations.rejected}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-300">Completed</span>
-                <span className="text-blue-500 font-semibold">
-                  {analyticsData.reservations.completed.toLocaleString()}
-                </span>
+                <span className="text-blue-500 font-semibold">{analyticsData.reservations.completed}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-300">Cancelled</span>
-                <span className="text-gray-500 font-semibold">
-                  {analyticsData.reservations.cancelled.toLocaleString()}
-                </span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-300">Expired</span>
-                <span className="text-gray-500 font-semibold">
-                  {analyticsData.reservations.expired.toLocaleString()}
-                </span>
+                <span className="text-gray-500 font-semibold">{analyticsData.reservations.cancelled}</span>
               </div>
             </div>
             <div className="mt-6 pt-6 border-t border-gray-800">
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">Completion Rate</span>
                 <span className="text-white font-semibold">
-                  {analyticsData.reservations.total > 0 
-                    ? Math.round((analyticsData.reservations.completed / analyticsData.reservations.total) * 100)
-                    : 0}%
+                  {Math.round((analyticsData.reservations.completed / analyticsData.reservations.total) * 100)}%
                 </span>
               </div>
             </div>
@@ -409,24 +403,17 @@ function AnalyticsOverview({ setView, admin }) {
           {/* Most Booked Rooms */}
           <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
             <h2 className="text-lg font-semibold text-white mb-4">Most Booked Rooms</h2>
-            {analyticsData.rooms.mostBooked.length > 0 ? (
-              <div className="space-y-3">
-                {analyticsData.rooms.mostBooked.map((room, index) => (
-                  <div key={index} className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-medium text-gray-500 w-6">#{index + 1}</span>
-                      <span className="text-gray-300">{room.name || room.roomName}</span>
-                      {room.floor && (
-                        <span className="text-xs text-gray-500">({room.floor})</span>
-                      )}
-                    </div>
-                    <span className="text-white font-semibold">{room.bookings} bookings</span>
+            <div className="space-y-3">
+              {analyticsData.rooms.mostBooked.map((room, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-500 w-6">#{index + 1}</span>
+                    <span className="text-gray-300">{room.name}</span>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-400 text-center py-4">No booking data available</p>
-            )}
+                  <span className="text-white font-semibold">{room.bookings} bookings</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Engagement Metrics */}
@@ -435,35 +422,25 @@ function AnalyticsOverview({ setView, admin }) {
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-[#222] p-4 rounded-lg">
                 <p className="text-sm text-gray-400 mb-1">Daily Active</p>
-                <p className="text-xl font-bold text-white">
-                  {analyticsData.engagement.dailyActive.toLocaleString()}
-                </p>
+                <p className="text-xl font-bold text-white">{analyticsData.engagement.dailyActive}</p>
               </div>
               <div className="bg-[#222] p-4 rounded-lg">
                 <p className="text-sm text-gray-400 mb-1">Weekly Active</p>
-                <p className="text-xl font-bold text-white">
-                  {analyticsData.engagement.weeklyActive.toLocaleString()}
-                </p>
+                <p className="text-xl font-bold text-white">{analyticsData.engagement.weeklyActive}</p>
               </div>
               <div className="bg-[#222] p-4 rounded-lg">
                 <p className="text-sm text-gray-400 mb-1">Monthly Active</p>
-                <p className="text-xl font-bold text-white">
-                  {analyticsData.engagement.monthlyActive.toLocaleString()}
-                </p>
+                <p className="text-xl font-bold text-white">{analyticsData.engagement.monthlyActive}</p>
               </div>
               <div className="bg-[#222] p-4 rounded-lg">
                 <p className="text-sm text-gray-400 mb-1">Avg. Session</p>
-                <p className="text-xl font-bold text-white">
-                  {analyticsData.engagement.averageSession}m
-                </p>
+                <p className="text-xl font-bold text-white">{analyticsData.engagement.averageSession}m</p>
               </div>
             </div>
             <div className="mt-4 pt-4 border-t border-gray-800">
               <div className="flex justify-between items-center">
                 <span className="text-gray-400">User Retention</span>
-                <span className="text-green-500 font-semibold">
-                  {analyticsData.engagement.retention}%
-                </span>
+                <span className="text-green-500 font-semibold">{analyticsData.engagement.retention}%</span>
               </div>
             </div>
           </div>
@@ -481,26 +458,17 @@ function AnalyticsOverview({ setView, admin }) {
             </button>
           </div>
           <div className="space-y-3">
-            {analyticsData.recentActivity && analyticsData.recentActivity.length > 0 ? (
-              analyticsData.recentActivity.slice(0, 5).map((activity, index) => (
-                <div key={activity.id || index} className="flex items-center gap-3 p-3 bg-[#222] rounded-lg">
-                  <div className={`w-2 h-2 rounded-full ${
-                    activity.type === "reservation" ? "bg-green-500" :
-                    activity.type === "user" ? "bg-blue-500" : "bg-yellow-500"
-                  }`}></div>
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-300">
-                      {activity.action}: {activity.details}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      {new Date(activity.timestamp).toLocaleString()} by {activity.user}
-                    </p>
-                  </div>
+            {[1, 2, 3, 4, 5].map((item) => (
+              <div key={item} className="flex items-center gap-3 p-3 bg-[#222] rounded-lg">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <div className="flex-1">
+                  <p className="text-sm text-gray-300">
+                    New reservation created for Room 101 by John Doe
+                  </p>
+                  <p className="text-xs text-gray-500">2 minutes ago</p>
                 </div>
-              ))
-            ) : (
-              <p className="text-gray-400 text-center py-4">No recent activity</p>
-            )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
