@@ -52,19 +52,13 @@ function AnalyticsUsers({ setView, admin }) {
   const fetchUserAnalytics = async () => {
     setLoading(true);
     try {
-      // Try to fetch real data from API
-      const response = await api.get(`/analytics/users?range=${dateRange}`);
-      if (response.data) {
-        setUserData(response.data);
-      } else {
-        // Fallback to mock data if API fails
+      // Mock data
+      setTimeout(() => {
         setUserData(getMockUserData(dateRange));
-      }
+        setLoading(false);
+      }, 1000);
     } catch (error) {
       console.error("Error fetching user analytics:", error);
-      // Fallback to mock data on error
-      setUserData(getMockUserData(dateRange));
-    } finally {
       setLoading(false);
     }
   };
@@ -73,10 +67,10 @@ function AnalyticsUsers({ setView, admin }) {
     const mult = range === "week" ? 1 : range === "month" ? 4 : 48;
     
     return {
-      total: Math.floor(1250 * mult),
-      active: Math.floor(980 * mult),
-      new: Math.floor(145 * mult),
-      deleted: Math.floor(23 * mult),
+      total: 1250 * mult,
+      active: 980 * mult,
+      new: 145 * mult,
+      deleted: 23 * mult,
       byRole: {
         student: Math.floor(850 * mult),
         faculty: Math.floor(250 * mult),
@@ -90,15 +84,9 @@ function AnalyticsUsers({ setView, admin }) {
         pending: Math.floor(45 * mult)
       },
       growth: {
-        daily: range === "week" ? [65, 72, 68, 85, 90, 78, 95] : 
-               range === "month" ? [420, 450, 480, 510] : 
-               [1250, 1320, 1380, 1450, 1520, 1580, 1650, 1720, 1800, 1850, 1900, 1950],
-        weekly: range === "week" ? [65, 72, 68, 85, 90, 78, 95] : 
-                range === "month" ? [420, 450, 480, 510] : 
-                [420, 450, 480, 510, 540, 570, 600, 630],
-        monthly: range === "week" ? [1250] : 
-                 range === "month" ? [1250, 1320, 1380, 1450] : 
-                 [1250, 1320, 1380, 1450, 1520, 1580, 1650, 1720, 1800, 1850, 1900, 1950]
+        daily: [65, 72, 68, 85, 90, 78, 95],
+        weekly: [420, 450, 480, 510],
+        monthly: [1250, 1320, 1380, 1450]
       },
       topUsers: [
         { name: "John Doe", email: "john.doe@usa.edu", reservations: 45, role: "student" },
@@ -116,18 +104,16 @@ function AnalyticsUsers({ setView, admin }) {
         <div>
           <p className="text-sm text-gray-400 mb-1">{title}</p>
           <p className="text-2xl font-bold text-white">{value.toLocaleString()}</p>
-          {change !== undefined && (
+          {change && (
             <div className="flex items-center gap-1 mt-2">
               {change > 0 ? (
                 <ArrowUp size={16} className="text-green-500" />
-              ) : change < 0 ? (
+              ) : (
                 <ArrowDown size={16} className="text-red-500" />
-              ) : null}
-              {change !== 0 && (
-                <span className={change > 0 ? "text-green-500" : "text-red-500"}>
-                  {Math.abs(change)}%
-                </span>
               )}
+              <span className={change > 0 ? "text-green-500" : "text-red-500"}>
+                {Math.abs(change)}%
+              </span>
             </div>
           )}
         </div>
@@ -199,24 +185,42 @@ function AnalyticsUsers({ setView, admin }) {
           <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
             <h2 className="text-lg font-semibold text-white mb-4">Users by Role</h2>
             <div className="space-y-4">
-              {Object.entries(userData.byRole).map(([role, count]) => (
-                <div key={role}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-300 capitalize">{role}</span>
-                    <span className="text-white font-medium">{count.toLocaleString()}</span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
-                    <div 
-                      className={`bg-${
-                        role === 'student' ? 'blue' : 
-                        role === 'faculty' ? 'green' : 
-                        role === 'staff' ? 'purple' : 'orange'
-                      }-500 rounded-full h-2`} 
-                      style={{ width: userData.total > 0 ? `${(count / userData.total) * 100}%` : '0%' }}
-                    />
-                  </div>
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-gray-300">Students</span>
+                  <span className="text-white font-medium">{userData.byRole.student}</span>
                 </div>
-              ))}
+                <div className="w-full bg-gray-700 rounded-full h-2">
+                  <div className="bg-blue-500 rounded-full h-2" style={{ width: `${(userData.byRole.student / userData.total) * 100}%` }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-gray-300">Faculty</span>
+                  <span className="text-white font-medium">{userData.byRole.faculty}</span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-2">
+                  <div className="bg-green-500 rounded-full h-2" style={{ width: `${(userData.byRole.faculty / userData.total) * 100}%` }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-gray-300">Staff</span>
+                  <span className="text-white font-medium">{userData.byRole.staff}</span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-2">
+                  <div className="bg-purple-500 rounded-full h-2" style={{ width: `${(userData.byRole.staff / userData.total) * 100}%` }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex justify-between text-sm mb-1">
+                  <span className="text-gray-300">Admin</span>
+                  <span className="text-white font-medium">{userData.byRole.admin}</span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-2">
+                  <div className="bg-orange-500 rounded-full h-2" style={{ width: `${(userData.byRole.admin / userData.total) * 100}%` }}></div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -226,19 +230,19 @@ function AnalyticsUsers({ setView, admin }) {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-gray-300">Active</span>
-                <span className="text-green-500 font-semibold">{userData.byStatus.active.toLocaleString()}</span>
+                <span className="text-green-500 font-semibold">{userData.byStatus.active}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-300">Inactive</span>
-                <span className="text-yellow-500 font-semibold">{userData.byStatus.inactive.toLocaleString()}</span>
+                <span className="text-yellow-500 font-semibold">{userData.byStatus.inactive}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-300">Suspended</span>
-                <span className="text-red-500 font-semibold">{userData.byStatus.suspended.toLocaleString()}</span>
+                <span className="text-red-500 font-semibold">{userData.byStatus.suspended}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-300">Pending</span>
-                <span className="text-blue-500 font-semibold">{userData.byStatus.pending.toLocaleString()}</span>
+                <span className="text-blue-500 font-semibold">{userData.byStatus.pending}</span>
               </div>
             </div>
           </div>
@@ -266,8 +270,7 @@ function AnalyticsUsers({ setView, admin }) {
                       <span className={`px-2 py-1 rounded-full text-xs ${
                         user.role === 'student' ? 'bg-blue-500/20 text-blue-400' :
                         user.role === 'faculty' ? 'bg-green-500/20 text-green-400' :
-                        user.role === 'staff' ? 'bg-purple-500/20 text-purple-400' :
-                        'bg-orange-500/20 text-orange-400'
+                        'bg-purple-500/20 text-purple-400'
                       }`}>
                         {user.role}
                       </span>

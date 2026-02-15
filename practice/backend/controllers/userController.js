@@ -194,8 +194,10 @@ exports.removePicture = async (req, res) => {
         const publicIdWithExtension = urlParts[urlParts.length - 1];
         const publicId = publicIdWithExtension.split('.')[0];
         
-        await cloudinary.uploader.destroy(publicId);
-        console.log("Deleted from Cloudinary:", publicId);
+        // Get the full public_id with folder
+        const fullPublicId = `profile-pictures/${publicId}`;
+        await cloudinary.uploader.destroy(fullPublicId);
+        console.log("Deleted from Cloudinary:", fullPublicId);
       } catch (cloudinaryError) {
         console.error("Error deleting from Cloudinary:", cloudinaryError);
         // Continue anyway - we still want to remove the reference
@@ -220,7 +222,6 @@ exports.removePicture = async (req, res) => {
   }
 };
 
-// 📌 Change Password
 // 📌 Change Password - ENHANCED DEBUGGING
 exports.changePassword = async (req, res) => {
   try {
@@ -370,6 +371,119 @@ exports.unsuspendUser = async (req, res) => {
   }
 };
 
+// ✅ Toggle Verify User with WebSocket Notifications - FIXED VERSION
+exports.toggleVerifyUser = async (req, res) => {
+  try {
+    const { verify } = req.body;
+    const verifyStatus = verify === true || verify === "true";
+    const io = req.io || null;
+    
+    console.log("=== TOGGLE VERIFY DEBUG ===");
+    console.log("User ID:", req.params.id);
+    console.log("Verify status:", verifyStatus);
+    console.log("WebSocket available:", !!io);
+    
+    const user = await User.findById(req.params.id);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    console.log("User found:", user.name, user._id.toString());
+    
+    user.verified = verifyStatus;
+    await user.save();
+
+    // ✅ WebSocket notification to the user
+    if (io) {
+      try {
+        // Dynamically import Notification model to avoid circular dependency
+        const Notification = require("../models/Notification");
+        
+        // Create notification in database
+        const notification = new Notification({
+          userId: user._id,
+          title: `Account ${verifyStatus ? 'Verified' : 'Unverified'}`,
+          message: `Your account has been ${verifyStatus ? 'verified' : 'unverified'}.`,
+          type: "system",
+          status: verifyStatus ? "Verified" : "Unverified",
+          isRead: false,
+          targetRole: "user",
+          userName: user.name,
+          idNumber: user.id_number
+        });
+        await notification.save();
+
+        console.log("✅ Notification created in database:", notification._id);
+
+        // Emit real-time notification to the specific user
+        const userRoom = user._id.toString();
+        console.log("Emitting to user room:", userRoom);
+        
+        io.to(userRoom).emit('notification', {
+          _id: notification._id,
+          title: notification.title,
+          message: notification.message,
+          type: notification.type,
+          status: notification.status,
+          isRead: notification.isRead,
+          createdAt: notification.createdAt
+        });
+
+        console.log("✅ Notification emitted to user");
+
+        // Also emit to admin room for real-time updates
+        io.to('admin').emit('userVerificationUpdated', {
+          userId: user._id,
+          verified: verifyStatus,
+          userName: user.name
+        });
+
+        console.log("✅ Admin update emitted");
+
+      } catch (notifyError) {
+        console.error("❌ Notification error:", notifyError);
+        // Don't fail the whole request if notification fails
+      }
+    } else {
+      console.log("❌ WebSocket (io) not available - notifications skipped");
+    }
+
+    res.json({
+      success: true,
+      message: `User ${verifyStatus ? "verified" : "unverified"} successfully`,
+      user,
+    });
+  } catch (error) {
+    console.error("Toggle Verify Error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || "Failed to toggle verification" 
+    });
+  }
+};
+
+// 📌 Verify User (simple version without notifications)
+exports.verifyUser = async (req, res) => {
+  try {
+    const { verified } = req.body;
+    if (verified === undefined) {
+      return res.status(400).json({ success: false, message: "Verified status is required." });
+    }
+    const updatedUser = await userService.verifyUser(req.params.id, verified);
+    if (!updatedUser) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+    res.json({
+      success: true,
+      message: `User ${verified ? "verified" : "unverified"}.`,
+      user: updatedUser
+    });
+  } catch (err) {
+    console.error("Verify User Error:", err);
+    res.status(400).json({ success: false, message: err.message || "Failed to update verification status." });
+  }
+};
+
 // 📌 Get User By ID
 exports.getUserById = async (req, res) => {
   try {
@@ -408,28 +522,6 @@ exports.searchUsers = async (req, res) => {
   } catch (err) {
     console.error("Search users error:", err);
     res.status(500).json({ success: false, message: "Search failed" });
-  }
-};
-
-// 📌 Verify User
-exports.verifyUser = async (req, res) => {
-  try {
-    const { verified } = req.body;
-    if (verified === undefined) {
-      return res.status(400).json({ success: false, message: "Verified status is required." });
-    }
-    const updatedUser = await userService.verifyUser(req.params.id, verified);
-    if (!updatedUser) {
-      return res.status(404).json({ success: false, message: "User not found." });
-    }
-    res.json({
-      success: true,
-      message: `User ${verified ? "verified" : "unverified"}.`,
-      user: updatedUser
-    });
-  } catch (err) {
-    console.error("Verify User Error:", err);
-    res.status(400).json({ success: false, message: err.message || "Failed to update verification status." });
   }
 };
 
@@ -493,8 +585,8 @@ exports.getUserUnreadCounts = async (req, res) => {
     try {
       const Notification = require("../models/Notification");
       notificationsCount = await Notification.countDocuments({
-        userId: userId, // Fixed: was 'user', should be 'userId' based on your schema
-        isRead: false  // Fixed: was 'read', should be 'isRead' based on your schema
+        userId: userId,
+        isRead: false
       });
     } catch (error) {
       console.log("Notifications not implemented yet, using 0");
@@ -537,7 +629,7 @@ exports.getAllUsersForMessaging = async (req, res) => {
   }
 };
 
-// 📌 Test Cloudinary Configuration (Add this new function)
+// 📌 Test Cloudinary Configuration
 exports.testCloudinary = async (req, res) => {
   try {
     if (!cloudinary) {
@@ -575,96 +667,6 @@ exports.testCloudinary = async (req, res) => {
       success: false,
       message: "Cloudinary test failed",
       error: error.message
-    });
-  }
-};
-
-// ✅ ADD THIS MISSING FUNCTION - Toggle Verify User with WebSocket Notifications
-exports.toggleVerifyUser = async (req, res) => {
-  try {
-    const { verify } = req.body;
-    const verifyStatus = verify === true || verify === "true";
-    const io = req.io || null;
-    
-    console.log("=== TOGGLE VERIFY DEBUG ===");
-    console.log("User ID:", req.params.id);
-    console.log("Verify status:", verifyStatus);
-    console.log("WebSocket available:", !!io);
-    
-    const user = await User.findById(req.params.id);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    console.log("User found:", user.name, user._id.toString());
-    
-    user.verified = verifyStatus;
-    await user.save();
-
-    // ✅ ADDED: WebSocket notification to the user
-    if (io) {
-      try {
-        const Notification = require("../models/Notification");
-        
-        // Create notification in database
-        const notification = new Notification({
-          userId: user._id,
-          title: `Account ${verifyStatus ? 'Verified' : 'Unverified'}`,
-          message: `Your account has been ${verifyStatus ? 'verified' : 'unverified'}.`,
-          type: "system",
-          status: verifyStatus ? "Verified" : "Unverified",
-          isRead: false,
-          targetRole: "user",
-          userName: user.name,
-          idNumber: user.id_number
-        });
-        await notification.save();
-
-        console.log("✅ Notification created in database:", notification._id);
-
-        // Emit real-time notification to the specific user
-        const userRoom = user._id.toString();
-        console.log("Emitting to user room:", userRoom);
-        
-        io.to(userRoom).emit('notification', {
-          _id: notification._id,
-          title: notification.title,
-          message: notification.message,
-          type: notification.type,
-          status: notification.status,
-          isRead: notification.isRead,
-          createdAt: notification.createdAt
-        });
-
-        console.log("✅ Notification emitted to user");
-
-        // Also emit to admin room for real-time updates
-        io.to('admin').emit('userVerificationUpdated', {
-          userId: user._id,
-          verified: verifyStatus,
-          userName: user.name
-        });
-
-        console.log("✅ Admin update emitted");
-
-      } catch (notifyError) {
-        console.error("❌ Notification error:", notifyError);
-        // Don't fail the whole request if notification fails
-      }
-    } else {
-      console.log("❌ WebSocket (io) not available");
-    }
-
-    res.json({
-      success: true,
-      message: `User ${verifyStatus ? "verified" : "unverified"} successfully`,
-      user,
-    });
-  } catch (error) {
-    console.error("Toggle Verify Error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || "Failed to toggle verification" 
     });
   }
 };
