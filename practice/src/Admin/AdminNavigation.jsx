@@ -18,6 +18,10 @@ import {
   Shield,
   Cog,
   AlertTriangle,
+  BarChart3,
+  TrendingUp,
+  PieChart,
+  Activity,
 } from "lucide-react";
 
 function AdminNavigation({ admin, setView, currentView, onLogout }) {
@@ -27,6 +31,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
   );
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   useEffect(() => {
     if (admin && admin.username) {
@@ -121,6 +126,39 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
     },
   ];
 
+  const analyticsOptions = [
+    { 
+      id: "analyticsOverview", 
+      label: "Overview", 
+      icon: BarChart3,
+      svg: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+    },
+    { 
+      id: "analyticsUsers", 
+      label: "User Analytics", 
+      icon: TrendingUp,
+      svg: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path><polyline points="16 8 20 12 16 16"></polyline><line x1="20" y1="12" x2="12" y2="12"></line></svg>
+    },
+    { 
+      id: "analyticsReservations", 
+      label: "Reservation Analytics", 
+      icon: PieChart,
+      svg: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"></path><path d="M22 12A10 10 0 0 0 12 2v10z"></path></svg>
+    },
+    { 
+      id: "analyticsRooms", 
+      label: "Room Analytics", 
+      icon: Activity,
+      svg: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10,17 15,12 10,7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line><polyline points="22 12 18 12 18 8"></polyline></svg>
+    },
+    { 
+      id: "analyticsEngagement", 
+      label: "Engagement Metrics", 
+      icon: Activity,
+      svg: <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9-4-18-3 9H2"></path></svg>
+    },
+  ];
+
   const settingsOptions = [
     { 
       id: "profileSettings", 
@@ -176,6 +214,53 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                   </div>
                 </button>
               ))}
+
+              {/* Analytics Dropdown */}
+              <div>
+                <button
+                  onClick={() => setAnalyticsOpen((prev) => !prev)}
+                  className={`w-full flex items-center justify-between px-4 py-3 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
+                    currentView.startsWith("analytics")
+                      ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
+                      : "text-gray-400 border-transparent hover:bg-gray-800 hover:text-gray-200 hover:border-gray-600"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="text-gray-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                    </div>
+                    <span className="text-sm">Analytics</span>
+                  </div>
+                  <ChevronDown
+                    size={16}
+                    className={`transition-transform duration-200 ${
+                      analyticsOpen ? "rotate-180 text-gray-300" : "text-gray-500"
+                    }`}
+                  />
+                </button>
+
+                {analyticsOpen && (
+                  <div className="flex flex-col bg-[#0a0a0a] pointer-events-auto">
+                    {analyticsOptions.map(({ id, label, svg }) => (
+                      <button
+                        key={id}
+                        ref={(el) => (navRefs.current[id] = el)}
+                        onClick={() => setView(id)}
+                        className={`w-full flex items-center gap-2 px-4 py-2 text-sm transition-all duration-200 cursor-pointer ${
+                          currentView === id
+                            ? "text-white font-medium bg-gray-800 shadow-md"
+                            : "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
+                        }`}
+                      >
+                        <div className="text-gray-300">
+                          {svg}
+                        </div>
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* Archive Dropdown */}
               <div>

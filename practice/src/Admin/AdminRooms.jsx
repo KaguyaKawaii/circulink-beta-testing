@@ -28,7 +28,7 @@ function AdminRooms({ setView, onLogout }) {
   const [isLoading, setIsLoading] = useState(false);
   const [roomName, setRoomName] = useState("");
   const [floor, setFloor] = useState("");
-  const [roomType, setRoomType] = useState("General");
+  const [roomType, setRoomType] = useState("Meeting");
   const [capacity, setCapacity] = useState("");
   const [notes, setNotes] = useState("");
   const [roomImage, setRoomImage] = useState(null);
@@ -44,7 +44,7 @@ function AdminRooms({ setView, onLogout }) {
   const [showImageSelector, setShowImageSelector] = useState(false);
   const mainRef = useRef(null);
 
-  const roomTypes = ["General", "Lab", "Conference", "Lecture", "Meeting", "Special"];
+  const roomTypes = ["Meeting"];
   const floors = ["All Floors", "Ground Floor", "2nd Floor", "4th Floor", "5th Floor"];
 
   useEffect(() => {

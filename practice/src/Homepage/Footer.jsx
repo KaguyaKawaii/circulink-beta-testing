@@ -181,7 +181,7 @@ function Footer() {
             <div className="flex flex-col items-center gap-4 sm:gap-6">
               <div className="text-center">
                 <p className="text-gray-400 text-sm sm:text-base">
-                  © 2025 University of San Agustin - CircuLink. All rights reserved.
+                  © 2026 University of San Agustin - CircuLink. All rights reserved.
                 </p>
               </div>
               

@@ -13,7 +13,7 @@ function Body4() {
       questions: [
         {
           question: "How do I create an account?",
-          answer: "Simply click the Sign Up button and use your university email to register. Verification takes less than 5 minutes."
+          answer: "Simply click the Sign Up button and use your university email to register."
         },
         {
           question: "Who can use CircuLink?",
@@ -27,8 +27,8 @@ function Body4() {
       color: "from-[#CC0000] to-[#990000]",
       questions: [
         {
-          question: "How far in advance can I book?",
-          answer: "Rooms can be reserved up to 7 days in advance. Each booking can be for a maximum of 4 hours."
+          question: "How often am I allowed to reserve a room each week?",
+          answer: "Rooms can be reserved up to 7 days in advance. Users may reserve rooms only twice per week."
         },
         {
           question: "Can I modify or cancel my booking?",

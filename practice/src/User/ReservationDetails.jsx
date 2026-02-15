@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { availableRoomImages } from "../data/roomImages";
+import ReportProblemModal from "./Modals/ReportProblemModal";
+
 
 function ReservationDetails({ reservation, setView, refreshReservations, user }) {
   const [cancelling, setCancelling] = useState(false);
@@ -19,6 +21,8 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   const [showApproveExtensionConfirm, setShowApproveExtensionConfirm] = useState(false);
   const [showRejectExtensionConfirm, setShowRejectExtensionConfirm] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+
 
   // Participant management states
   const [showManageParticipants, setShowManageParticipants] = useState(false);
@@ -983,6 +987,48 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
           )}
         </div>
       </div>
+
+      {/* Footer */}
+      <footer className="mt-auto bg-white border-t border-gray-200">
+        <div className="px-4 sm:px-5 py-3 sm:py-2 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
+          {/* Copyright */}
+          <div className="text-xs sm:text-sm text-gray-500 order-2 sm:order-1 flex items-center gap-1">
+            
+            © {new Date().getFullYear()} <span className="font-semibold">USA-FLD CircuLink</span>
+          </div>
+
+          {/* Report Button */}
+          <button
+            onClick={() => setShowReportModal(true)}
+            className="flex items-center gap-1 text-xs sm:text-sm font-medium text-red-600 hover:text-red-800 transition-all duration-300 cursor-pointer order-1 sm:order-2 hover:gap-2"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-3 w-3 sm:h-4 sm:w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+            Report Problem
+          </button>
+        </div>
+      </footer>
+
+      {/* Modal Components */}
+      {showReportModal && (
+        <ReportProblemModal
+          isOpen={showReportModal}
+          onClose={() => setShowReportModal(false)}
+          user={user}
+        />
+      )}
 
       {/* All Modals with Responsive Improvements */}
       {/* Cancel Confirmation Modal */}

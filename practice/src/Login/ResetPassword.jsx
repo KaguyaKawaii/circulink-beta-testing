@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Loader2, CheckCircle, ArrowLeft, Mail } from "lucide-react";
 import Logo from "../assets/logo.png";
+import Logo2 from "../assets/logo2.png";
+import Logo3 from "../assets/logo3.png";
 import "../index.css";
 
 function ResetPassword({ onBackToLogin }) {
@@ -106,8 +108,10 @@ function ResetPassword({ onBackToLogin }) {
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-200 p-8">
           {/* Header Section */}
           <div className="text-center mb-8">
-            <div className="flex justify-center mb-6">
+            <div className="flex justify-center mb-6 gap-6">
               <img src={Logo} alt="University Logo" className="h-16 w-auto" />
+              <img src={Logo2} alt="University Logo" className="h-16 w-auto" />
+              <img src={Logo3} alt="University Logo" className="h-16 w-auto" />
             </div>
             <h2 className="text-3xl font-bold text-gray-800 mb-2">
               {step === "email" && "Reset Password"}
