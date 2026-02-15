@@ -1,5 +1,8 @@
+// Admin/Login_Admin.jsx
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Loader2, Mail, RotateCcw, Shield, Lock, ArrowLeft } from "lucide-react";
+import { io } from "socket.io-client";
+import api from "../utils/api"; // Import the api utility
 import Logo from "../assets/logo.png";
 import Logo2 from "../assets/logo2.png";
 import Logo3 from "../assets/logo3.png";
@@ -18,6 +21,63 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
   const [remainingAttempts, setRemainingAttempts] = useState(5);
   const [otpCountdown, setOtpCountdown] = useState(0);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [socket, setSocket] = useState(null);
+  
+  // Get API URL from api utility's baseURL
+  const API_URL = api.defaults.baseURL;
+
+  // Initialize Socket.IO with correct path
+  useEffect(() => {
+    console.log("Attempting to connect to Socket.IO at:", API_URL);
+    
+    const newSocket = io(API_URL, {
+      withCredentials: true,
+      transports: ['polling', 'websocket'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      autoConnect: true,
+      forceNew: true,
+      path: '/socket.io/',
+      rejectUnauthorized: false
+    });
+
+    newSocket.on('connect', () => {
+      console.log('✅ Socket connected successfully with ID:', newSocket.id);
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('❌ Socket connection error:', error.message);
+    });
+
+    newSocket.on('connect_timeout', () => {
+      console.error('Socket connection timeout');
+    });
+
+    newSocket.on('error', (error) => {
+      console.error('Socket error:', error);
+    });
+
+    newSocket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
+    });
+
+    newSocket.on('connected', (data) => {
+      console.log('Received connected event:', data);
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      console.log('Cleaning up socket connection');
+      if (newSocket) {
+        newSocket.removeAllListeners();
+        newSocket.disconnect();
+      }
+    };
+  }, [API_URL]);
 
   // Check maintenance mode on component mount
   useEffect(() => {
@@ -34,13 +94,16 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
 
   const checkMaintenanceMode = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/system/maintenance-status`);
-      const data = await response.json();
-      if (data.success) {
-        setMaintenanceMode(data.maintenanceMode);
+      // Using api utility - note the path starts with /api
+      const response = await api.get('/api/system/maintenance-status');
+      console.log('Maintenance mode check:', response.data);
+      
+      if (response.data.success) {
+        setMaintenanceMode(response.data.maintenanceMode);
       }
     } catch (error) {
       console.error('Error checking maintenance mode:', error);
+      // Don't show error to user, just log it
     }
   };
 
@@ -56,38 +119,45 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+      // Using api utility - note the path starts with /api
+      console.log('Attempting login with:', { username });
+      
+      const response = await api.post('/api/admin/login', { 
+        username, 
+        password 
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        if (response.status === 423) {
-          // Account locked
-          setLockUntil(Date.now() + (data.remainingTime * 60 * 1000));
-          setError(data.message);
-        } else {
-          setError(data.message || "Login failed. Please try again.");
-          setRemainingAttempts(data.remainingAttempts || 0);
-        }
-        setLoading(false);
-        return;
-      }
+      console.log('Login response:', response.data);
 
       // OTP required
-      if (data.requiresOTP) {
+      if (response.data.requiresOTP) {
         setRequiresOTP(true);
-        setAdminId(data.adminId);
-        setAdminEmail(data.email);
-        setOtpCountdown(60); // 60 seconds countdown for resend
+        setAdminId(response.data.adminId);
+        setAdminEmail(response.data.email);
+        setOtpCountdown(60);
         setError("");
       }
     } catch (err) {
       console.error("Admin login error:", err);
-      setError("Server error. Please try again later.");
+      
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        // that falls out of the range of 2xx
+        if (err.response.status === 423) {
+          // Account locked
+          setLockUntil(Date.now() + (err.response.data.remainingTime * 60 * 1000));
+          setError(err.response.data.message);
+        } else {
+          setError(err.response.data.message || "Login failed. Please try again.");
+          setRemainingAttempts(err.response.data.remainingAttempts || 0);
+        }
+      } else if (err.request) {
+        // The request was made but no response was received
+        setError("No response from server. Please check your connection.");
+      } else {
+        // Something happened in setting up the request that triggered an Error
+        setError("An error occurred. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -105,25 +175,26 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/verify-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adminId, otp }),
+      const response = await api.post('/api/admin/verify-otp', {
+        adminId,
+        otp
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.message || "Invalid OTP. Please try again.");
-        setLoading(false);
-        return;
-      }
+      console.log('OTP verification response:', response.data);
 
       // Success: bubble admin object up to parent
-      onAdminLoginSuccess(data.admin);
+      onAdminLoginSuccess(response.data.admin);
     } catch (err) {
       console.error("OTP verification error:", err);
-      setError("Server error. Please try again later.");
+      
+      if (err.response) {
+        setError(err.response.data.message || "Invalid OTP. Please try again.");
+      } else if (err.request) {
+        setError("No response from server. Please check your connection.");
+      } else {
+        setError("An error occurred. Please try again.");
+      }
+    } finally {
       setLoading(false);
     }
   };
@@ -133,23 +204,24 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
     setLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/resend-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adminId }),
+      const response = await api.post('/api/admin/resend-otp', {
+        adminId
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError(data.message || "Failed to resend OTP.");
-      } else {
-        setOtpCountdown(60);
-        setError("New OTP sent to your email.");
-      }
+      console.log('Resend OTP response:', response.data);
+      
+      setOtpCountdown(60);
+      setError("New OTP sent to your email.");
     } catch (err) {
       console.error("Resend OTP error:", err);
-      setError("Failed to resend OTP. Please try again.");
+      
+      if (err.response) {
+        setError(err.response.data.message || "Failed to resend OTP.");
+      } else if (err.request) {
+        setError("No response from server. Please check your connection.");
+      } else {
+        setError("Failed to resend OTP. Please try again.");
+      }
     } finally {
       setLoading(false);
     }
@@ -192,8 +264,6 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
                 alt="University of San Agustin Logo" 
                 className="h-40 w-40 bg-white/10 p-6 rounded-full backdrop-blur-sm mx-auto"
               />
-              
-              
             </div>
             <h1 className="text-4xl font-bold text-white mb-4">University of San Agustin</h1>
             <h2 className="text-2xl font-semibold text-white mb-8">Learning Resource Center</h2>
@@ -509,8 +579,6 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
                   </p>
                 </div>
               )}
-
-             
             </form>
           )}
 

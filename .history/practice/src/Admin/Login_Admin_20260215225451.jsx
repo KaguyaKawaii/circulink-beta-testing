@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Loader2, Mail, RotateCcw, Shield, Lock, ArrowLeft } from "lucide-react";
+import { io } from "socket.io-client";
 import Logo from "../assets/logo.png";
 import Logo2 from "../assets/logo2.png";
 import Logo3 from "../assets/logo3.png";
@@ -18,6 +19,67 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
   const [remainingAttempts, setRemainingAttempts] = useState(5);
   const [otpCountdown, setOtpCountdown] = useState(0);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [socket, setSocket] = useState(null);
+  
+  // Fix the API URL construction - remove trailing slash if present
+  const API_URL = (import.meta.env.VITE_API_URL || 
+    (window.location.hostname === "localhost" 
+      ? "http://localhost:5000" 
+      : "https://circulink-beta-testing.onrender.com")).replace(/\/$/, '');
+
+  // Initialize Socket.IO with correct path
+  useEffect(() => {
+    console.log("Attempting to connect to Socket.IO at:", API_URL);
+    
+    const newSocket = io(API_URL, {
+      withCredentials: true,
+      transports: ['polling', 'websocket'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
+      autoConnect: true,
+      forceNew: true,
+      path: '/socket.io/', // Make sure this matches server
+      rejectUnauthorized: false
+    });
+
+    newSocket.on('connect', () => {
+      console.log('✅ Socket connected successfully with ID:', newSocket.id);
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('❌ Socket connection error:', error.message);
+      console.error('Error details:', error);
+    });
+
+    newSocket.on('connect_timeout', () => {
+      console.error('Socket connection timeout');
+    });
+
+    newSocket.on('error', (error) => {
+      console.error('Socket error:', error);
+    });
+
+    newSocket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason);
+    });
+
+    newSocket.on('connected', (data) => {
+      console.log('Received connected event:', data);
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      console.log('Cleaning up socket connection');
+      if (newSocket) {
+        newSocket.removeAllListeners();
+        newSocket.disconnect();
+      }
+    };
+  }, [API_URL]);
 
   // Check maintenance mode on component mount
   useEffect(() => {
@@ -34,7 +96,22 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
 
   const checkMaintenanceMode = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/system/maintenance-status`);
+      // Fix: Remove duplicate /api by using the correct path
+      const url = `${API_URL}/api/system/maintenance-status`;
+      console.log('Checking maintenance mode at:', url);
+      
+      const response = await fetch(url, {
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        console.log('Maintenance mode check failed with status:', response.status);
+        return;
+      }
+      
       const data = await response.json();
       if (data.success) {
         setMaintenanceMode(data.maintenanceMode);
@@ -56,9 +133,14 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/login`, {
+      // Fix: Use correct path without duplicate /api
+      const url = `${API_URL}/api/admin/login`;
+      console.log('Attempting login at:', url);
+      
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({ username, password }),
       });
 
@@ -82,7 +164,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
         setRequiresOTP(true);
         setAdminId(data.adminId);
         setAdminEmail(data.email);
-        setOtpCountdown(60); // 60 seconds countdown for resend
+        setOtpCountdown(60);
         setError("");
       }
     } catch (err) {
@@ -105,9 +187,13 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
     }
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/verify-otp`, {
+      const url = `${API_URL}/api/admin/verify-otp`;
+      console.log('Verifying OTP at:', url);
+      
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({ adminId, otp }),
       });
 
@@ -119,7 +205,6 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
         return;
       }
 
-      // Success: bubble admin object up to parent
       onAdminLoginSuccess(data.admin);
     } catch (err) {
       console.error("OTP verification error:", err);
@@ -133,9 +218,13 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
     setLoading(true);
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/resend-otp`, {
+      const url = `${API_URL}/api/admin/resend-otp`;
+      console.log('Resending OTP at:', url);
+      
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: 'include',
         body: JSON.stringify({ adminId }),
       });
 
@@ -192,8 +281,6 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
                 alt="University of San Agustin Logo" 
                 className="h-40 w-40 bg-white/10 p-6 rounded-full backdrop-blur-sm mx-auto"
               />
-              
-              
             </div>
             <h1 className="text-4xl font-bold text-white mb-4">University of San Agustin</h1>
             <h2 className="text-2xl font-semibold text-white mb-8">Learning Resource Center</h2>
@@ -509,8 +596,6 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
                   </p>
                 </div>
               )}
-
-             
             </form>
           )}
 
