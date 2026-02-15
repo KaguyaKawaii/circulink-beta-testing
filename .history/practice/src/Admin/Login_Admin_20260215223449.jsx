@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Eye, EyeOff, Loader2, Mail, RotateCcw, Shield, Lock, ArrowLeft } from "lucide-react";
-import { io } from "socket.io-client";
 import Logo from "../assets/logo.png";
 import Logo2 from "../assets/logo2.png";
 import Logo3 from "../assets/logo3.png";
@@ -19,72 +18,11 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
   const [remainingAttempts, setRemainingAttempts] = useState(5);
   const [otpCountdown, setOtpCountdown] = useState(0);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [socket, setSocket] = useState(null);
-  
-  const API_URL = import.meta.env.VITE_API_URL
-    ? import.meta.env.VITE_API_URL
-    : window.location.hostname === "localhost"
-      ? "http://localhost:5000"
-      : "https://circulink-beta-testing.onrender.com";
-
-  // Initialize Socket.IO
- // Initialize Socket.IO with better error handling
-useEffect(() => {
-  console.log("Attempting to connect to Socket.IO at:", API_URL);
-  
-  const newSocket = io(API_URL, {
-    withCredentials: true,
-    transports: ['polling', 'websocket'],
-    reconnection: true,
-    reconnectionAttempts: 10,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-    timeout: 20000,
-    autoConnect: true,
-    forceNew: true,
-    path: '/socket.io/'
-  });
-
-  newSocket.on('connect', () => {
-    console.log('✅ Socket connected successfully with ID:', newSocket.id);
-  });
-
-  newSocket.on('connect_error', (error) => {
-    console.error('❌ Socket connection error:', error.message);
-    console.error('Error details:', error);
-    
-    // Don't show error to user, but log it for debugging
-    if (error.message.includes('CORS')) {
-      console.error('CORS error detected - check server configuration');
-    }
-  });
-
-  newSocket.on('connect_timeout', () => {
-    console.error('Socket connection timeout');
-  });
-
-  newSocket.on('error', (error) => {
-    console.error('Socket error:', error);
-  });
-
-  newSocket.on('disconnect', (reason) => {
-    console.log('Socket disconnected:', reason);
-  });
-
-  newSocket.on('connected', (data) => {
-    console.log('Received connected event:', data);
-  });
-
-  setSocket(newSocket);
-
-  return () => {
-    console.log('Cleaning up socket connection');
-    if (newSocket) {
-      newSocket.removeAllListeners();
-      newSocket.disconnect();
-    }
-  };
-}, [API_URL]);
+const API_URL = import.meta.env.VITE_API_URL
+  ? import.meta.env.VITE_API_URL
+  : window.location.hostname === "localhost"
+    ? "http://localhost:5000"
+    : "https://circulink-beta-testing.onrender.com";
 
   // Check maintenance mode on component mount
   useEffect(() => {
@@ -101,12 +39,7 @@ useEffect(() => {
 
   const checkMaintenanceMode = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/system/maintenance-status`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await fetch(`${API_URL}/api/system/maintenance-status`);
       const data = await response.json();
       if (data.success) {
         setMaintenanceMode(data.maintenanceMode);
@@ -131,7 +64,6 @@ useEffect(() => {
       const response = await fetch(`${API_URL}/api/admin/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: 'include',
         body: JSON.stringify({ username, password }),
       });
 
@@ -181,7 +113,6 @@ useEffect(() => {
       const response = await fetch(`${API_URL}/api/admin/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: 'include',
         body: JSON.stringify({ adminId, otp }),
       });
 
@@ -210,7 +141,6 @@ useEffect(() => {
       const response = await fetch(`${API_URL}/api/admin/resend-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: 'include',
         body: JSON.stringify({ adminId }),
       });
 
@@ -267,6 +197,8 @@ useEffect(() => {
                 alt="University of San Agustin Logo" 
                 className="h-40 w-40 bg-white/10 p-6 rounded-full backdrop-blur-sm mx-auto"
               />
+              
+              
             </div>
             <h1 className="text-4xl font-bold text-white mb-4">University of San Agustin</h1>
             <h2 className="text-2xl font-semibold text-white mb-8">Learning Resource Center</h2>
@@ -582,6 +514,8 @@ useEffect(() => {
                   </p>
                 </div>
               )}
+
+             
             </form>
           )}
 

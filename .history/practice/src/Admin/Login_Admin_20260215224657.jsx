@@ -28,63 +28,38 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
       : "https://circulink-beta-testing.onrender.com";
 
   // Initialize Socket.IO
- // Initialize Socket.IO with better error handling
-useEffect(() => {
-  console.log("Attempting to connect to Socket.IO at:", API_URL);
-  
-  const newSocket = io(API_URL, {
-    withCredentials: true,
-    transports: ['polling', 'websocket'],
-    reconnection: true,
-    reconnectionAttempts: 10,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-    timeout: 20000,
-    autoConnect: true,
-    forceNew: true,
-    path: '/socket.io/'
-  });
+  useEffect(() => {
+    const newSocket = io(API_URL, {
+      withCredentials: true,
+      transports: ['polling', 'websocket'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      timeout: 20000,
+      autoConnect: true
+    });
 
-  newSocket.on('connect', () => {
-    console.log('✅ Socket connected successfully with ID:', newSocket.id);
-  });
+    newSocket.on('connect', () => {
+      console.log('Socket connected successfully');
+    });
 
-  newSocket.on('connect_error', (error) => {
-    console.error('❌ Socket connection error:', error.message);
-    console.error('Error details:', error);
-    
-    // Don't show error to user, but log it for debugging
-    if (error.message.includes('CORS')) {
-      console.error('CORS error detected - check server configuration');
-    }
-  });
+    newSocket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error);
+      // Don't show error to user, just log it
+    });
 
-  newSocket.on('connect_timeout', () => {
-    console.error('Socket connection timeout');
-  });
+    newSocket.on('error', (error) => {
+      console.error('Socket error:', error);
+    });
 
-  newSocket.on('error', (error) => {
-    console.error('Socket error:', error);
-  });
+    setSocket(newSocket);
 
-  newSocket.on('disconnect', (reason) => {
-    console.log('Socket disconnected:', reason);
-  });
-
-  newSocket.on('connected', (data) => {
-    console.log('Received connected event:', data);
-  });
-
-  setSocket(newSocket);
-
-  return () => {
-    console.log('Cleaning up socket connection');
-    if (newSocket) {
-      newSocket.removeAllListeners();
-      newSocket.disconnect();
-    }
-  };
-}, [API_URL]);
+    return () => {
+      if (newSocket) {
+        newSocket.disconnect();
+      }
+    };
+  }, [API_URL]);
 
   // Check maintenance mode on component mount
   useEffect(() => {

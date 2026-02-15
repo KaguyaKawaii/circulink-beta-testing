@@ -17,7 +17,7 @@ const app = express();
 const server = http.createServer(app);
 
 // =========================
-// ✅ SIMPLE BUT EFFECTIVE CORS
+// ✅ SMART PRODUCTION CORS
 // =========================
 const allowedOrigins = [
   "http://localhost:5173",
@@ -28,80 +28,71 @@ const allowedOrigins = [
   "https://circulink-beta-testing.onrender.com"
 ];
 
-// CORS middleware for Express - MUST be first
+// CORS middleware for Express
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   
-  // Log all incoming requests for debugging
-  console.log(`${req.method} ${req.url} - Origin: ${origin || 'no origin'}`);
-  
-  // Set CORS headers for all responses
+  // Check if origin is allowed
   if (origin) {
-    if (allowedOrigins.includes(origin) || origin.includes("localhost") || origin.includes("vercel.app")) {
+    if (allowedOrigins.includes(origin) || origin.includes("vercel.app")) {
       res.setHeader("Access-Control-Allow-Origin", origin);
       res.setHeader("Access-Control-Allow-Credentials", "true");
-      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept");
-      res.setHeader("Access-Control-Max-Age", "86400"); // 24 hours
+      res.setHeader(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+      );
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization, X-Requested-With"
+      );
     }
   }
 
   // Handle preflight requests
   if (req.method === "OPTIONS") {
-    console.log("Handling OPTIONS preflight request");
-    return res.sendStatus(204);
+    return res.sendStatus(200);
   }
   
   next();
 });
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json());
 
 // =========================
-// ✅ SOCKET.IO CONFIG WITH EXPLICIT CORS
+// ✅ SOCKET.IO CONFIG WITH IMPROVED CORS
 // =========================
 const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl requests)
-      if (!origin) {
-        console.log("Socket.IO: Allowing request with no origin");
-        return callback(null, true);
-      }
+      if (!origin) return callback(null, true);
 
       // Allow all localhost origins
       if (origin.includes("localhost")) {
-        console.log(`Socket.IO: Allowing localhost origin: ${origin}`);
         return callback(null, true);
       }
 
       // Allow all Vercel preview deployments
       if (origin.includes("vercel.app")) {
-        console.log(`Socket.IO: Allowing Vercel origin: ${origin}`);
         return callback(null, true);
       }
 
       // Check against allowed origins
       if (allowedOrigins.includes(origin)) {
-        console.log(`Socket.IO: Allowing allowed origin: ${origin}`);
         return callback(null, true);
       }
 
-      console.log(`Socket.IO: Blocked origin: ${origin}`);
+      console.log("Blocked origin:", origin);
       return callback(new Error("Not allowed by CORS"), false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"]
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"]
   },
   transports: ["polling", "websocket"],
-  allowEIO3: true,
+  allowEIO3: true, // Allow Engine.IO version 3
   pingTimeout: 60000,
-  pingInterval: 25000,
-  connectTimeout: 45000,
-  maxHttpBufferSize: 1e8, // 100 MB
-  path: "/socket.io/"
+  pingInterval: 25000
 });
 
 // Make io available in routes
@@ -115,56 +106,39 @@ app.use((req, res, next) => {
 // =========================
 app.use(
   "/uploads/profile-pictures",
-  express.static(path.join(__dirname, "uploads/profile-pictures"), {
-    setHeaders: (res, path) => {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-    }
-  })
+  express.static(path.join(__dirname, "uploads/profile-pictures"))
 );
 
 app.use(
   "/uploads/news",
-  express.static(path.join(__dirname, "uploads/news"), {
-    setHeaders: (res, path) => {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-    }
-  })
+  express.static(path.join(__dirname, "uploads/news"))
 );
 
 app.use(
   "/backups",
-  express.static(path.join(__dirname, "backups"), {
-    setHeaders: (res, path) => {
-      res.setHeader("Access-Control-Allow-Origin", "*");
-    }
-  })
+  express.static(path.join(__dirname, "backups"))
 );
 
 // =========================
-// ✅ SOCKET EVENTS WITH DEBUGGING
+// ✅ SOCKET EVENTS
 // =========================
 io.on("connection", (socket) => {
   console.log("✅ User connected:", socket.id);
-  console.log("Socket handshake:", socket.handshake.query);
-  console.log("Socket origin:", socket.handshake.headers.origin);
-
-  // Send a test message to confirm connection
-  socket.emit("connected", { message: "Successfully connected to server" });
 
   socket.on("join", (data) => {
-    console.log(`Socket ${socket.id} joining rooms:`, data);
     if (data.userId) socket.join(data.userId);
     if (data.floor) socket.join(data.floor);
+    console.log(`Socket ${socket.id} joined rooms:`, data);
   });
 
   socket.on("join-user-room", (userId) => {
-    console.log(`Socket ${socket.id} joining user room: user-${userId}`);
     socket.join(`user-${userId}`);
+    console.log(`Socket ${socket.id} joined user room: user-${userId}`);
   });
 
   socket.on("join-admin-room", () => {
-    console.log(`Socket ${socket.id} joining admin room`);
     socket.join("admin-room");
+    console.log(`Socket ${socket.id} joined admin room`);
   });
 
   socket.on("sendMessage", (msg) => {
@@ -188,7 +162,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("error", (error) => {
-    console.error("Socket error:", socket.id, error);
+    console.error("Socket error:", error);
   });
 
   socket.on("disconnect", (reason) => {
@@ -238,29 +212,10 @@ app.use("/api/admin/system", backupRoutes);
 // =========================
 app.get("/health", (req, res) => {
   res.status(200).json({ 
-    success: true,
     status: "OK", 
     message: "Server is running",
     socketIO: "active",
-    environment: process.env.NODE_ENV || "development",
-    timestamp: new Date().toISOString(),
-    cors: {
-      allowedOrigins,
-      currentOrigin: req.headers.origin || "none"
-    }
-  });
-});
-
-// Test endpoint for CORS
-app.get("/test-cors", (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: "CORS is working",
-    origin: req.headers.origin || "no origin",
-    headers: {
-      'access-control-allow-origin': res.getHeader('Access-Control-Allow-Origin'),
-      'access-control-allow-credentials': res.getHeader('Access-Control-Allow-Credentials')
-    }
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -269,33 +224,10 @@ app.get("/test-cors", (req, res) => {
 // =========================
 app.use((err, req, res, next) => {
   console.error("Error:", err.message);
-  console.error("Stack:", err.stack);
-  
-  // Set CORS headers even for errors
-  const origin = req.headers.origin;
-  if (origin && (allowedOrigins.includes(origin) || origin.includes("localhost") || origin.includes("vercel.app"))) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-  }
-  
   res.status(500).json({ 
     success: false, 
     message: "Internal server error",
     error: process.env.NODE_ENV === "development" ? err.message : undefined
-  });
-});
-
-// 404 handler
-app.use((req, res) => {
-  const origin = req.headers.origin;
-  if (origin && (allowedOrigins.includes(origin) || origin.includes("localhost") || origin.includes("vercel.app"))) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-  }
-  
-  res.status(404).json({
-    success: false,
-    message: "Route not found"
   });
 });
 
@@ -311,10 +243,9 @@ mongoose
 
     server.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
-      console.log(`📡 Socket.IO server is ready on path: /socket.io/`);
+      console.log(`📡 Socket.IO server is ready`);
       console.log(`🔧 Environment: ${process.env.NODE_ENV || "development"}`);
       console.log(`🌐 Allowed origins:`, allowedOrigins);
-      console.log(`📍 Server URL: http://localhost:${PORT}`);
     });
   })
   .catch((err) => {
