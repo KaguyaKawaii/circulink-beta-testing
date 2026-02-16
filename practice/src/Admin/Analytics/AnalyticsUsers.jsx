@@ -14,7 +14,6 @@ import {
   Building
 } from "lucide-react";
 import api from "../../utils/api";
-import * as XLSX from 'xlsx';
 
 function AnalyticsUsers({ setView, admin }) {
   const [loading, setLoading] = useState(true);
@@ -103,157 +102,146 @@ function AnalyticsUsers({ setView, admin }) {
     }
   };
 
-  const exportToExcel = () => {
+  // CSV Export Function (no external dependencies)
+  const exportToCSV = () => {
     try {
-      // Create workbook
-      const wb = XLSX.utils.book_new();
-
-      // 1. Summary Sheet
-      const summaryData = [
-        ['USER ANALYTICS REPORT', `Generated: ${new Date().toLocaleString()}`],
-        ['Date Range', dateRange === 'week' ? 'Last 7 days' : dateRange === 'month' ? 'Last 30 days' : 'Last 12 months'],
-        [],
-        ['KEY METRICS'],
-        ['Metric', 'Value'],
-        ['Total Users', userData.total || 0],
-        ['Active Users (7 days)', userData.active || 0],
-        ['New Users', userData.new || 0],
-        ['Deleted/Archived', userData.deleted || 0],
-        ['Retention Rate', `${userData.activityStats?.retentionRate || 0}%`],
-        [],
-        ['REGISTRATION STATISTICS'],
-        ['Period', 'Count'],
-        ['Today', userData.registrationStats?.today || 0],
-        ['This Week', userData.registrationStats?.thisWeek || 0],
-        ['This Month', userData.registrationStats?.thisMonth || 0],
-        ['Average Per Day', userData.registrationStats?.avgPerDay || 0]
-      ];
+      // Create CSV content
+      let csvContent = "";
       
-      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-      XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
+      // Helper to add a row
+      const addRow = (cells) => {
+        csvContent += cells.join(',') + '\n';
+      };
 
-      // 2. Users by Role Sheet
-      const roleData = [
-        ['USERS BY ROLE'],
-        ['Role', 'Count', 'Percentage'],
-        ['Students', userData.byRole?.student || 0, `${userData.total ? Math.round((userData.byRole.student / userData.total) * 100) : 0}%`],
-        ['Faculty', userData.byRole?.faculty || 0, `${userData.total ? Math.round((userData.byRole.faculty / userData.total) * 100) : 0}%`],
-        ['Staff', userData.byRole?.staff || 0, `${userData.total ? Math.round((userData.byRole.staff / userData.total) * 100) : 0}%`],
-        ['Admin', userData.byRole?.admin || 0, `${userData.total ? Math.round((userData.byRole.admin / userData.total) * 100) : 0}%`]
-      ];
-      
-      const roleSheet = XLSX.utils.aoa_to_sheet(roleData);
-      XLSX.utils.book_append_sheet(wb, roleSheet, 'Users by Role');
+      // Helper to escape CSV fields
+      const escapeField = (field) => {
+        if (field === null || field === undefined) return '';
+        const stringField = String(field);
+        if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+          return `"${stringField.replace(/"/g, '""')}"`;
+        }
+        return stringField;
+      };
 
-      // 3. Users by Status Sheet
-      const statusData = [
-        ['USERS BY STATUS'],
-        ['Status', 'Count'],
-        ['Active (7 days)', userData.byStatus?.active || 0],
-        ['Inactive', userData.byStatus?.inactive || 0],
-        ['Suspended', userData.byStatus?.suspended || 0],
-        ['Verified', userData.byStatus?.verified || 0],
-        ['Unverified', userData.byStatus?.unverified || 0],
-        ['Pending', userData.byStatus?.pending || 0]
-      ];
+      // 1. Summary Section
+      addRow(['USER ANALYTICS REPORT', `Generated: ${new Date().toLocaleString()}`]);
+      addRow(['Date Range', dateRange === 'week' ? 'Last 7 days' : dateRange === 'month' ? 'Last 30 days' : 'Last 12 months']);
+      addRow([]);
       
-      const statusSheet = XLSX.utils.aoa_to_sheet(statusData);
-      XLSX.utils.book_append_sheet(wb, statusSheet, 'Users by Status');
-
-      // 4. Departments Sheet
-      const deptData = [
-        ['TOP DEPARTMENTS'],
-        ['Department', 'User Count', 'Percentage']
-      ];
+      // 2. Key Metrics
+      addRow(['KEY METRICS']);
+      addRow(['Metric', 'Value']);
+      addRow(['Total Users', userData.total || 0]);
+      addRow(['Active Users (7 days)', userData.active || 0]);
+      addRow(['New Users', userData.new || 0]);
+      addRow(['Deleted/Archived', userData.deleted || 0]);
+      addRow(['Retention Rate', `${userData.activityStats?.retentionRate || 0}%`]);
+      addRow([]);
       
+      // 3. Registration Statistics
+      addRow(['REGISTRATION STATISTICS']);
+      addRow(['Period', 'Count']);
+      addRow(['Today', userData.registrationStats?.today || 0]);
+      addRow(['This Week', userData.registrationStats?.thisWeek || 0]);
+      addRow(['This Month', userData.registrationStats?.thisMonth || 0]);
+      addRow(['Average Per Day', userData.registrationStats?.avgPerDay || 0]);
+      addRow([]);
+      
+      // 4. Users by Role
+      addRow(['USERS BY ROLE']);
+      addRow(['Role', 'Count', 'Percentage']);
+      addRow(['Students', userData.byRole?.student || 0, `${userData.total ? Math.round((userData.byRole.student / userData.total) * 100) : 0}%`]);
+      addRow(['Faculty', userData.byRole?.faculty || 0, `${userData.total ? Math.round((userData.byRole.faculty / userData.total) * 100) : 0}%`]);
+      addRow(['Staff', userData.byRole?.staff || 0, `${userData.total ? Math.round((userData.byRole.staff / userData.total) * 100) : 0}%`]);
+      addRow(['Admin', userData.byRole?.admin || 0, `${userData.total ? Math.round((userData.byRole.admin / userData.total) * 100) : 0}%`]);
+      addRow([]);
+      
+      // 5. Users by Status
+      addRow(['USERS BY STATUS']);
+      addRow(['Status', 'Count']);
+      addRow(['Active (7 days)', userData.byStatus?.active || 0]);
+      addRow(['Inactive', userData.byStatus?.inactive || 0]);
+      addRow(['Suspended', userData.byStatus?.suspended || 0]);
+      addRow(['Verified', userData.byStatus?.verified || 0]);
+      addRow(['Unverified', userData.byStatus?.unverified || 0]);
+      addRow(['Pending', userData.byStatus?.pending || 0]);
+      addRow([]);
+      
+      // 6. Top Departments
+      addRow(['TOP DEPARTMENTS']);
+      addRow(['Department', 'User Count', 'Percentage']);
       if (userData.departmentStats && userData.departmentStats.length > 0) {
         userData.departmentStats.forEach(dept => {
-          deptData.push([
+          addRow([
             dept.name || 'Unknown',
             dept.count || 0,
             `${userData.total ? Math.round((dept.count / userData.total) * 100) : 0}%`
           ]);
         });
       } else {
-        deptData.push(['No department data available', '', '']);
+        addRow(['No department data available', '', '']);
       }
+      addRow([]);
       
-      const deptSheet = XLSX.utils.aoa_to_sheet(deptData);
-      XLSX.utils.book_append_sheet(wb, deptSheet, 'Departments');
-
-      // 5. Growth Data Sheet
-      const growthData = [
-        ['USER GROWTH', `(${dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : 'Monthly'})`],
-        ['Period', 'New Users']
-      ];
-      
+      // 7. Growth Data
+      addRow(['USER GROWTH', `(${dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : 'Monthly'})`]);
+      addRow(['Period', 'New Users']);
       if (userData.growth?.labels && userData.growth.labels.length > 0) {
         userData.growth.labels.forEach((label, index) => {
-          growthData.push([label, userData.growth?.values?.[index] || 0]);
+          addRow([label, userData.growth?.values?.[index] || 0]);
         });
       } else {
-        growthData.push(['No growth data available', '']);
+        addRow(['No growth data available', '']);
       }
+      addRow([]);
       
-      const growthSheet = XLSX.utils.aoa_to_sheet(growthData);
-      XLSX.utils.book_append_sheet(wb, growthSheet, 'Growth');
-
-      // 6. Most Active Users Sheet
-      const activeUsersData = [
-        ['MOST ACTIVE USERS'],
-        ['Name', 'Email', 'Role', 'Actions Count', 'Last Active']
-      ];
-      
+      // 8. Most Active Users
+      addRow(['MOST ACTIVE USERS']);
+      addRow(['Name', 'Email', 'Role', 'Actions Count', 'Last Active']);
       if (userData.topUsers && userData.topUsers.length > 0) {
         userData.topUsers.forEach(user => {
-          activeUsersData.push([
-            user.name || 'Unknown',
-            user.email || '',
+          addRow([
+            escapeField(user.name || 'Unknown'),
+            escapeField(user.email || ''),
             user.role || 'Unknown',
             user.reservations || 0,
             user.lastActive ? formatDateTime(user.lastActive) : 'Never'
           ]);
         });
       } else {
-        activeUsersData.push(['No active users data available', '', '', '', '']);
+        addRow(['No active users data available', '', '', '', '']);
       }
+      addRow([]);
       
-      const activeSheet = XLSX.utils.aoa_to_sheet(activeUsersData);
-      XLSX.utils.book_append_sheet(wb, activeSheet, 'Most Active Users');
+      // 9. Activity Stats
+      addRow(['ACTIVITY STATISTICS']);
+      addRow(['Metric', 'Value']);
+      addRow(['Active Today', userData.activityStats?.activeToday || 0]);
+      addRow(['Active This Week', userData.activityStats?.activeThisWeek || 0]);
+      addRow(['Active This Month', userData.activityStats?.activeThisMonth || 0]);
+      addRow(['Retention Rate', `${userData.activityStats?.retentionRate || 0}%`]);
+      addRow([]);
+      
+      // 10. Trends
+      addRow(['TRENDS']);
+      addRow(['Period', 'Value', 'Change', 'Direction']);
+      addRow(['Daily', userData.trends?.daily?.value || 0, `${userData.trends?.daily?.percentage || 0}%`, userData.trends?.daily?.direction || 'none']);
+      addRow(['Weekly', userData.trends?.weekly?.value || 0, `${userData.trends?.weekly?.percentage || 0}%`, userData.trends?.weekly?.direction || 'none']);
+      addRow(['Monthly', userData.trends?.monthly?.value || 0, `${userData.trends?.monthly?.percentage || 0}%`, userData.trends?.monthly?.direction || 'none']);
 
-      // 7. Activity Stats Sheet
-      const activityData = [
-        ['ACTIVITY STATISTICS'],
-        ['Metric', 'Value'],
-        ['Active Today', userData.activityStats?.activeToday || 0],
-        ['Active This Week', userData.activityStats?.activeThisWeek || 0],
-        ['Active This Month', userData.activityStats?.activeThisMonth || 0],
-        ['Retention Rate', `${userData.activityStats?.retentionRate || 0}%`]
-      ];
-      
-      const activitySheet = XLSX.utils.aoa_to_sheet(activityData);
-      XLSX.utils.book_append_sheet(wb, activitySheet, 'Activity Stats');
-
-      // 8. Trends Sheet
-      const trendsData = [
-        ['TRENDS'],
-        ['Period', 'Value', 'Change', 'Direction'],
-        ['Daily', userData.trends?.daily?.value || 0, `${userData.trends?.daily?.percentage || 0}%`, userData.trends?.daily?.direction || 'none'],
-        ['Weekly', userData.trends?.weekly?.value || 0, `${userData.trends?.weekly?.percentage || 0}%`, userData.trends?.weekly?.direction || 'none'],
-        ['Monthly', userData.trends?.monthly?.value || 0, `${userData.trends?.monthly?.percentage || 0}%`, userData.trends?.monthly?.direction || 'none']
-      ];
-      
-      const trendsSheet = XLSX.utils.aoa_to_sheet(trendsData);
-      XLSX.utils.book_append_sheet(wb, trendsSheet, 'Trends');
-
-      // Generate filename with current date
-      const filename = `user_analytics_${dateRange}_${new Date().toISOString().split('T')[0]}.xlsx`;
-      
-      // Export the file
-      XLSX.writeFile(wb, filename);
+      // Create download link
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `user_analytics_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
       
     } catch (error) {
-      console.error("Error exporting to Excel:", error);
+      console.error("Error exporting to CSV:", error);
       alert("Failed to export data. Please try again.");
     }
   };
@@ -390,14 +378,14 @@ function AnalyticsUsers({ setView, admin }) {
               ))}
             </div>
             
-            {/* Export to Excel Button */}
+            {/* Export to CSV Button */}
             <button
-              onClick={exportToExcel}
+              onClick={exportToCSV}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
-              title="Export to Excel"
+              title="Export to CSV"
             >
               <Download size={18} />
-              <span>Excel</span>
+              <span>CSV</span>
             </button>
 
             {/* Refresh Button */}
