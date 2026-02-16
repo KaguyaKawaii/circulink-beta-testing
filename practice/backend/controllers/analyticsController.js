@@ -1,3 +1,5 @@
+// controllers/analyticsController.js
+
 const User = require("../models/User");
 const Log = require("../models/Log");
 const Reservation = require("../models/Reservation");
@@ -642,101 +644,97 @@ exports.getAnalyticsOverview = async (req, res) => {
   }
 };
 
-// ================= RESERVATION ANALYTICS =================
+// ================= SIMPLE RESERVATION ANALYTICS =================
+// This version returns just the 4 metrics for the simple dashboard
 exports.getReservationAnalytics = async (req, res) => {
   try {
     const totalReservations = await Reservation.countDocuments();
     const approved = await Reservation.countDocuments({ status: "Approved" });
     const pending = await Reservation.countDocuments({ status: "Pending" });
     const cancelled = await Reservation.countDocuments({ status: "Cancelled" });
+    const completed = await Reservation.countDocuments({ status: "Completed" });
+
+    // Get popular rooms
+    const reservations = await Reservation.find().lean();
+    const roomCounts = {};
+    
+    reservations.forEach(res => {
+      const roomName = res.roomName || "Unknown";
+      roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
+    });
+
+    // Calculate by time of day
+    const byTimeOfDay = {
+      morning: 0,   // 6AM - 11:59AM
+      afternoon: 0, // 12PM - 4:59PM
+      evening: 0    // 5PM - 9PM
+    };
+
+    reservations.forEach(res => {
+      if (res.datetime) {
+        const hour = new Date(res.datetime).getHours();
+        if (hour >= 6 && hour < 12) {
+          byTimeOfDay.morning++;
+        } else if (hour >= 12 && hour < 17) {
+          byTimeOfDay.afternoon++;
+        } else if (hour >= 17 && hour < 22) {
+          byTimeOfDay.evening++;
+        }
+      }
+    });
+
+    // Calculate by day of week
+    const byDayOfWeek = {
+      mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0
+    };
+
+    reservations.forEach(res => {
+      if (res.datetime) {
+        const day = new Date(res.datetime).getDay();
+        const dayMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+        const dayKey = dayMap[day];
+        if (byDayOfWeek.hasOwnProperty(dayKey)) {
+          byDayOfWeek[dayKey]++;
+        }
+      }
+    });
+
+    const popularRooms = Object.entries(roomCounts)
+      .map(([name, count]) => ({ 
+        name, 
+        bookings: count, 
+        utilization: Math.min(Math.round((count / 105) * 100), 100) 
+      }))
+      .sort((a, b) => b.bookings - a.bookings)
+      .slice(0, 5);
 
     res.json({
       success: true,
       data: {
-        totalReservations,
-        approved,
+        total: totalReservations,
         pending,
-        cancelled
+        approved,
+        rejected: 0,
+        completed,
+        cancelled,
+        byTimeOfDay,
+        byDayOfWeek,
+        popularRooms
       }
     });
   } catch (error) {
     console.error("Error in getReservationAnalytics:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch reservation analytics"
+      message: "Failed to fetch reservation analytics",
+      error: error.message
     });
   }
 };
 
-// ================= ROOM ANALYTICS =================
-exports.getRoomAnalytics = async (req, res) => {
-  try {
-    const reservations = await Reservation.find().lean();
-
-    const roomUsage = {};
-
-    reservations.forEach(res => {
-      const room = res.roomName || "Unknown";
-      roomUsage[room] = (roomUsage[room] || 0) + 1;
-    });
-
-    res.json({
-      success: true,
-      data: roomUsage
-    });
-  } catch (error) {
-    console.error("Error in getRoomAnalytics:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch room analytics"
-    });
-  }
-};
-
-// ================= ENGAGEMENT METRICS =================
-exports.getEngagementMetrics = async (req, res) => {
-  try {
-    const totalLogs = await Log.countDocuments();
-
-    res.json({
-      success: true,
-      data: {
-        totalLogs
-      }
-    });
-  } catch (error) {
-    console.error("Error in getEngagementMetrics:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch engagement metrics"
-    });
-  }
-};
-
-// ================= EXPORT ANALYTICS =================
-exports.exportAnalytics = async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      message: "Export feature coming soon"
-    });
-  } catch (error) {
-    console.error("Error in exportAnalytics:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to export analytics"
-    });
-  }
-};
-
-// controllers/analyticsController.js
-
-// Add this to your existing analyticsController.js file
-
-// @desc    Get reservation analytics
-// @route   GET /api/analytics/reservations
-// @access  Public/Admin
-exports.getReservationAnalytics = async (req, res) => {
+// ================= COMPREHENSIVE RESERVATION ANALYTICS =================
+// This version returns detailed analytics with trends and growth data
+exports.getDetailedReservationAnalytics = async (req, res) => {
   try {
     const { range = "month", startDate, endDate } = req.query;
     
@@ -806,10 +804,10 @@ exports.getReservationAnalytics = async (req, res) => {
     });
 
   } catch (error) {
-    console.error("Error in getReservationAnalytics:", error);
+    console.error("Error in getDetailedReservationAnalytics:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch reservation analytics",
+      message: "Failed to fetch detailed reservation analytics",
       error: error.message
     });
   }
@@ -932,8 +930,7 @@ function calculateReservationStats(
   const popularRooms = byRoom.slice(0, 5).map(room => {
     // Calculate utilization rate based on available time slots
     // Assuming 15 hours per day (6AM-9PM) * 7 days = 105 possible slots per week
-    // This is a simplified calculation - adjust based on your actual available hours
-    const totalPossibleSlots = 15 * 7; // hours per day * days per week
+    const totalPossibleSlots = 15 * 7;
     const utilization = Math.min(
       Math.round((room.count / totalPossibleSlots) * 100),
       100
@@ -942,6 +939,8 @@ function calculateReservationStats(
     return {
       name: room.name,
       bookings: room.count,
+      approved: room.approved,
+      completed: room.completed,
       utilization: utilization
     };
   });
@@ -1165,3 +1164,64 @@ function generateReservationGrowthData(
   
   return { labels, values };
 }
+
+// ================= ROOM ANALYTICS =================
+exports.getRoomAnalytics = async (req, res) => {
+  try {
+    const reservations = await Reservation.find().lean();
+
+    const roomUsage = {};
+
+    reservations.forEach(res => {
+      const room = res.roomName || "Unknown";
+      roomUsage[room] = (roomUsage[room] || 0) + 1;
+    });
+
+    res.json({
+      success: true,
+      data: roomUsage
+    });
+  } catch (error) {
+    console.error("Error in getRoomAnalytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch room analytics"
+    });
+  }
+};
+
+// ================= ENGAGEMENT METRICS =================
+exports.getEngagementMetrics = async (req, res) => {
+  try {
+    const totalLogs = await Log.countDocuments();
+
+    res.json({
+      success: true,
+      data: {
+        totalLogs
+      }
+    });
+  } catch (error) {
+    console.error("Error in getEngagementMetrics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch engagement metrics"
+    });
+  }
+};
+
+// ================= EXPORT ANALYTICS =================
+exports.exportAnalytics = async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      message: "Export feature coming soon"
+    });
+  } catch (error) {
+    console.error("Error in exportAnalytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to export analytics"
+    });
+  }
+};
