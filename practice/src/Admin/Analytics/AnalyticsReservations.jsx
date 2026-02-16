@@ -274,9 +274,8 @@ function AnalyticsReservations({ setView, admin }) {
     </div>
   );
 
-  // ==================== CSV EXPORT FUNCTION ====================
+  // ==================== CSV EXPORT FUNCTION (without Unicode blocks) ====================
 
-  // CSV Export Function - Excel Optimized
   const exportToCSV = () => {
     try {
       // Create CSV content with Excel-friendly formatting
@@ -353,28 +352,28 @@ function AnalyticsReservations({ setView, admin }) {
         'TOTAL RESERVATIONS', 
         (reservationData.total || 0).toLocaleString(),
         `${reservationData.trends?.total?.percentage || 0}%`,
-        reservationData.trends?.total?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+        reservationData.trends?.total?.direction === 'up' ? 'Increasing' : 'Decreasing',
         reservationData.trends?.total?.percentage > 0 ? 'Positive' : 'Needs Attention'
       ]);
       addRow([
         'COMPLETED', 
         (reservationData.completed || 0).toLocaleString(),
         `${reservationData.trends?.completed?.percentage || 0}%`,
-        reservationData.trends?.completed?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+        reservationData.trends?.completed?.direction === 'up' ? 'Increasing' : 'Decreasing',
         'Success Rate: ' + Math.round((reservationData.completed / (reservationData.total || 1)) * 100) + '%'
       ]);
       addRow([
         'PENDING', 
         (reservationData.pending || 0).toLocaleString(),
         `${reservationData.trends?.pending?.percentage || 0}%`,
-        reservationData.trends?.pending?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+        reservationData.trends?.pending?.direction === 'up' ? 'Increasing' : 'Decreasing',
         'Awaiting Action'
       ]);
       addRow([
         'CANCELLED', 
         (reservationData.cancelled || 0).toLocaleString(),
         `${reservationData.trends?.cancelled?.percentage || 0}%`,
-        reservationData.trends?.cancelled?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+        reservationData.trends?.cancelled?.direction === 'up' ? 'Increasing' : 'Decreasing',
         'Cancellation Rate: ' + Math.round((reservationData.cancelled / (reservationData.total || 1)) * 100) + '%'
       ]);
       addBlankRow();
@@ -393,37 +392,40 @@ function AnalyticsReservations({ setView, admin }) {
       
       const total = reservationData.total || 1;
       
-      // Status breakdown table with percentages and visual indicators
-      addRow(['Status', 'Count', 'Percentage of Total', 'Visual Bar (50 = 100%)']);
+      // Status breakdown table with percentages
+      addRow(['Status', 'Count', 'Percentage of Total', 'Status Description']);
       
       const statuses = [
-        { label: 'Pending', value: reservationData.pending || 0, color: 'Yellow' },
-        { label: 'Approved', value: reservationData.approved || 0, color: 'Green' },
-        { label: 'Completed', value: reservationData.completed || 0, color: 'Blue' },
-        { label: 'Rejected', value: reservationData.rejected || 0, color: 'Red' },
-        { label: 'Cancelled', value: reservationData.cancelled || 0, color: 'Gray' },
-        { label: 'Expired', value: reservationData.expired || 0, color: 'Orange' },
-        { label: 'Ongoing', value: reservationData.ongoing || 0, color: 'Purple' }
+        { label: 'Pending', value: reservationData.pending || 0, description: 'Awaiting approval' },
+        { label: 'Approved', value: reservationData.approved || 0, description: 'Approved but not started' },
+        { label: 'Completed', value: reservationData.completed || 0, description: 'Successfully finished' },
+        { label: 'Rejected', value: reservationData.rejected || 0, description: 'Not approved' },
+        { label: 'Cancelled', value: reservationData.cancelled || 0, description: 'Cancelled by user' },
+        { label: 'Expired', value: reservationData.expired || 0, description: 'Passed without action' },
+        { label: 'Ongoing', value: reservationData.ongoing || 0, description: 'Currently in progress' }
       ];
 
       statuses.forEach(status => {
         const percentage = Math.round((status.value / total) * 100);
-        const barLength = Math.round(percentage / 2); // 50 characters max
-        const visualBar = '█'.repeat(barLength) + '░'.repeat(50 - barLength);
         
         addRow([
           status.label,
           status.value.toLocaleString(),
           percentage + '%',
-          visualBar + ' (' + percentage + '%)'
+          status.description
         ]);
       });
       addBlankRow();
 
       // Status distribution summary
       addSubHeader('Status Distribution Summary');
-      addRow(['Total Active (Pending + Approved + Ongoing)', (reservationData.pending + reservationData.approved + reservationData.ongoing).toLocaleString()]);
-      addRow(['Total Inactive (Completed + Cancelled + Rejected + Expired)', (reservationData.completed + reservationData.cancelled + reservationData.rejected + reservationData.expired).toLocaleString()]);
+      addRow(['Category', 'Count', 'Percentage']);
+      
+      const activeTotal = reservationData.pending + reservationData.approved + reservationData.ongoing;
+      const inactiveTotal = reservationData.completed + reservationData.cancelled + reservationData.rejected + reservationData.expired;
+      
+      addRow(['Active (Pending + Approved + Ongoing)', activeTotal.toLocaleString(), Math.round((activeTotal / total) * 100) + '%']);
+      addRow(['Inactive (Completed + Cancelled + Rejected + Expired)', inactiveTotal.toLocaleString(), Math.round((inactiveTotal / total) * 100) + '%']);
       addBlankRow();
       addBlankRow();
 
@@ -436,28 +438,27 @@ function AnalyticsReservations({ setView, admin }) {
         thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday'
       };
 
-      addRow(['Day', 'Reservations', 'Percentage', 'Weekly Distribution (50 = 100%)']);
+      addRow(['Day', 'Reservations', 'Percentage', 'Peak Day Indicator']);
+      
+      // Find peak day
+      const peakDay = Object.entries(reservationData.byDayOfWeek || {}).reduce((a, b) => 
+        (b[1] > a[1] ? b : a), ['', 0]);
       
       Object.entries(reservationData.byDayOfWeek || {}).forEach(([day, count]) => {
         const percentage = Math.round((count / totalDays) * 100);
-        const barLength = Math.round(percentage / 2);
-        const visualBar = '█'.repeat(barLength) + '░'.repeat(50 - barLength);
+        const isPeakDay = day === peakDay[0] ? '★ Peak Day' : '';
         
         addRow([
           dayNames[day] || day,
           count.toLocaleString(),
           percentage + '%',
-          visualBar
+          isPeakDay
         ]);
       });
 
-      // Find peak day
-      const peakDay = Object.entries(reservationData.byDayOfWeek || {}).reduce((a, b) => 
-        (b[1] > a[1] ? b : a), ['', 0]);
-      
       if (peakDay[0]) {
         addBlankRow();
-        addRow(['Peak Day:', dayNames[peakDay[0]] || peakDay[0], 'with', peakDay[1].toLocaleString(), 'reservations']);
+        addRow(['Peak Day:', dayNames[peakDay[0]] || peakDay[0], 'with', peakDay[1].toLocaleString(), 'reservations - Busiest day of the week']);
       }
       addBlankRow();
       addBlankRow();
@@ -466,18 +467,20 @@ function AnalyticsReservations({ setView, admin }) {
       addSectionHeader('SECTION 4: FLOOR DISTRIBUTION');
       
       if (reservationData.floorDistribution && reservationData.floorDistribution.length > 0) {
-        addRow(['Floor', 'Reservations', 'Percentage', 'Floor Utilization']);
+        addRow(['Floor', 'Reservations', 'Percentage', 'Ranking']);
         
-        reservationData.floorDistribution.forEach((floor, idx) => {
+        // Sort floors by reservation count descending
+        const sortedFloors = [...reservationData.floorDistribution].sort((a, b) => b.value - a.value);
+        
+        sortedFloors.forEach((floor, idx) => {
           const percentage = Math.round((floor.value / total) * 100);
-          const barLength = Math.round(percentage / 2);
-          const visualBar = '█'.repeat(barLength) + '░'.repeat(50 - barLength);
+          const ranking = idx === 0 ? 'Most Active' : idx === sortedFloors.length - 1 ? 'Least Active' : `#${idx + 1} in activity`;
           
           addRow([
             floor.name || `Floor ${idx + 1}`,
             (floor.value || 0).toLocaleString(),
             percentage + '%',
-            visualBar
+            ranking
           ]);
         });
       } else {
@@ -492,6 +495,9 @@ function AnalyticsReservations({ setView, admin }) {
       if (reservationData.userDepartmentStats && reservationData.userDepartmentStats.length > 0) {
         addRow(['Department', 'Reservations', 'Percentage', 'Activity Level', 'Top Reserver']);
         
+        // Sort departments by reservation count
+        const sortedDepts = [...reservationData.userDepartmentStats].sort((a, b) => b.count - a.count);
+        
         // Create a map of top reserver by department
         const topReserverByDept = {};
         if (reservationData.topReservers) {
@@ -502,15 +508,14 @@ function AnalyticsReservations({ setView, admin }) {
           });
         }
         
-        reservationData.userDepartmentStats.forEach((dept, idx) => {
+        sortedDepts.forEach((dept, idx) => {
           const percentage = Math.round((dept.count / total) * 100);
-          const barLength = Math.round(percentage / 2);
-          const visualBar = '█'.repeat(barLength) + '░'.repeat(50 - barLength);
           
           // Determine activity level
           let activityLevel = 'Low';
           if (percentage > 30) activityLevel = 'High';
           else if (percentage > 15) activityLevel = 'Medium';
+          else if (percentage > 5) activityLevel = 'Low-Medium';
           
           const topReserver = topReserverByDept[dept.name];
           
@@ -518,10 +523,22 @@ function AnalyticsReservations({ setView, admin }) {
             dept.name || 'Unknown',
             (dept.count || 0).toLocaleString(),
             percentage + '%',
-            visualBar + ' (' + activityLevel + ')',
-            topReserver ? topReserver.name + ' (' + topReserver.count + ')' : 'N/A'
+            activityLevel,
+            topReserver ? topReserver.name + ' (' + topReserver.count + ' reservations)' : 'No data'
           ]);
         });
+        
+        addBlankRow();
+        addRow(['Department Activity Summary:']);
+        const highActive = sortedDepts.filter(d => (d.count / total) * 100 > 30).length;
+        const mediumActive = sortedDepts.filter(d => {
+          const pct = (d.count / total) * 100;
+          return pct > 15 && pct <= 30;
+        }).length;
+        addRow(['- High Activity Departments (>30%):', highActive]);
+        addRow(['- Medium Activity Departments (15-30%):', mediumActive]);
+        addRow(['- Low Activity Departments (<15%):', sortedDepts.length - highActive - mediumActive]);
+        
       } else {
         addRow(['No department statistics available for this period']);
       }
@@ -532,12 +549,19 @@ function AnalyticsReservations({ setView, admin }) {
       addSectionHeader('SECTION 6: TOP RESERVERS DETAILS');
       
       if (reservationData.topReservers && reservationData.topReservers.length > 0) {
-        addRow(['Rank', 'Name', 'Department', 'Reservations', 'Percentage', 'Contribution']);
+        addRow(['Rank', 'Name', 'Department', 'Reservations', 'Percentage', 'Contribution Level']);
         
-        reservationData.topReservers.slice(0, 15).forEach((user, index) => {
+        // Sort top reservers by count
+        const sortedTopReservers = [...reservationData.topReservers].sort((a, b) => b.count - a.count);
+        
+        sortedTopReservers.slice(0, 15).forEach((user, index) => {
           const percentage = Math.round((user.count / total) * 100);
-          const barLength = Math.round(percentage / 2);
-          const visualBar = '█'.repeat(barLength) + '░'.repeat(50 - barLength);
+          
+          // Contribution level
+          let contribution = 'Contributor';
+          if (percentage > 20) contribution = 'Top Contributor';
+          else if (percentage > 10) contribution = 'Major Contributor';
+          else if (percentage > 5) contribution = 'Significant Contributor';
           
           addRow([
             '#' + (index + 1),
@@ -545,12 +569,18 @@ function AnalyticsReservations({ setView, admin }) {
             user.department || 'N/A',
             (user.count || 0).toLocaleString(),
             percentage + '%',
-            visualBar
+            contribution
           ]);
         });
         
         addBlankRow();
         addRow(['Note: Top 15 reservers shown based on total reservation count']);
+        
+        // Summary statistics
+        if (sortedTopReservers.length > 0) {
+          const top3Total = sortedTopReservers.slice(0, 3).reduce((sum, u) => sum + u.count, 0);
+          addRow(['Top 3 Reservers Combined:', top3Total.toLocaleString(), 'reservations', `(${Math.round((top3Total / total) * 100)}% of total)`]);
+        }
       } else {
         addRow(['No top reserver data available for this period']);
       }
@@ -561,17 +591,18 @@ function AnalyticsReservations({ setView, admin }) {
       addSectionHeader('SECTION 7: ROOM UTILIZATION & POPULARITY');
       
       if (reservationData.popularRooms && reservationData.popularRooms.length > 0) {
-        addRow(['Rank', 'Room Name', 'Total Bookings', 'Approved', 'Completed', 'Utilization Rate', 'Performance']);
+        addRow(['Rank', 'Room Name', 'Total Bookings', 'Approved', 'Completed', 'Utilization Rate', 'Performance Rating']);
         
-        reservationData.popularRooms.forEach((room, index) => {
-          const barLength = Math.round((room.utilization || 0) / 2);
-          const visualBar = '█'.repeat(barLength) + '░'.repeat(50 - barLength);
-          
-          // Performance rating
-          let performance = 'Low';
+        // Sort by bookings
+        const sortedRooms = [...reservationData.popularRooms].sort((a, b) => b.bookings - a.bookings);
+        
+        sortedRooms.forEach((room, index) => {
+          // Performance rating based on utilization
+          let performance = 'Low Usage';
           if (room.utilization > 80) performance = 'Excellent';
           else if (room.utilization > 60) performance = 'Good';
           else if (room.utilization > 40) performance = 'Average';
+          else if (room.utilization > 20) performance = 'Below Average';
           
           addRow([
             '#' + (index + 1),
@@ -580,9 +611,24 @@ function AnalyticsReservations({ setView, admin }) {
             (room.approved || 0).toLocaleString(),
             (room.completed || 0).toLocaleString(),
             (room.utilization || 0) + '%',
-            performance + ' ' + visualBar
+            performance
           ]);
         });
+        
+        addBlankRow();
+        
+        // Room performance summary
+        addSubHeader('Room Performance Summary');
+        const excellentRooms = sortedRooms.filter(r => r.utilization > 80).length;
+        const goodRooms = sortedRooms.filter(r => r.utilization > 60 && r.utilization <= 80).length;
+        const avgRooms = sortedRooms.filter(r => r.utilization > 40 && r.utilization <= 60).length;
+        const lowRooms = sortedRooms.filter(r => r.utilization <= 40).length;
+        
+        addRow(['Excellent (>80%):', excellentRooms]);
+        addRow(['Good (60-80%):', goodRooms]);
+        addRow(['Average (40-60%):', avgRooms]);
+        addRow(['Low (≤40%):', lowRooms]);
+        
       } else {
         addRow(['No popular rooms data available for this period']);
       }
@@ -593,23 +639,31 @@ function AnalyticsReservations({ setView, admin }) {
       addSectionHeader('SECTION 8: COMPREHENSIVE ROOM DETAILS');
       
       if (reservationData.byRoom && reservationData.byRoom.length > 0) {
-        addRow(['Room Name', 'Total', 'Approved', 'Pending', 'Completed', 'Cancelled', 'Success Rate', 'Notes']);
+        addRow(['Room Name', 'Total', 'Approved', 'Pending', 'Completed', 'Cancelled', 'Success Rate', 'Performance Notes']);
         
-        reservationData.byRoom.slice(0, 20).forEach((room) => {
-          const successRate = room.total > 0 ? Math.round((room.completed / room.total) * 100) : 0;
+        // Sort by total reservations
+        const sortedRoomDetails = [...reservationData.byRoom].sort((a, b) => b.count - a.count);
+        
+        sortedRoomDetails.slice(0, 20).forEach((room) => {
+          const total = room.count || 0;
+          const completed = room.completed || 0;
+          const successRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+          const pending = room.pending || 0;
+          const approved = room.approved || 0;
           
           // Determine room performance note
-          let note = '';
-          if (successRate > 80) note = 'High performing room';
+          let note = 'Normal operation';
+          if (successRate > 80) note = 'High performing room - excellent completion rate';
           else if (successRate < 40) note = 'Low completion rate - review required';
-          else if (room.pending > room.approved) note = 'High pending count - attention needed';
+          else if (pending > approved && pending > 10) note = 'High pending count - attention needed for approvals';
+          else if (room.cancelled > completed) note = 'High cancellation rate - investigate reasons';
           
           addRow([
             room.name || 'Unknown',
-            (room.count || 0).toLocaleString(),
-            (room.approved || 0).toLocaleString(),
-            (room.pending || 0).toLocaleString(),
-            (room.completed || 0).toLocaleString(),
+            total.toLocaleString(),
+            approved.toLocaleString(),
+            pending.toLocaleString(),
+            completed.toLocaleString(),
             (room.cancelled || 0).toLocaleString(),
             successRate + '%',
             note
@@ -631,7 +685,7 @@ function AnalyticsReservations({ setView, admin }) {
       addBlankRow();
       
       if (reservationData.growth?.labels && reservationData.growth.labels.length > 0) {
-        addRow(['Period', 'New Reservations', 'Growth Trend', 'Change from Previous']);
+        addRow(['Period', 'New Reservations', 'Change', 'Change %', 'Trend Direction']);
         
         const values = reservationData.growth.values || [];
         const labels = reservationData.growth.labels || [];
@@ -642,21 +696,20 @@ function AnalyticsReservations({ setView, admin }) {
           const change = value - prevValue;
           const changePercent = prevValue > 0 ? Math.round((change / prevValue) * 100) : 0;
           
-          // Visual trend indicator
-          let trendIndicator = '→ Stable';
-          if (change > 0) trendIndicator = '↑ Growing (+' + changePercent + '%)';
-          else if (change < 0) trendIndicator = '↓ Declining (' + changePercent + '%)';
+          // Trend direction
+          let trendDirection = 'Stable';
+          if (change > 0) trendDirection = 'Growing ↑';
+          else if (change < 0) trendDirection = 'Declining ↓';
           
-          // Sparkline-like visual
-          const max = Math.max(...values, 1);
-          const barLength = Math.round((value / max) * 30);
-          const visualBar = '█'.repeat(barLength) + '░'.repeat(30 - barLength);
+          const changeDisplay = change > 0 ? '+' + change.toLocaleString() : change.toLocaleString();
+          const changePercentDisplay = changePercent > 0 ? '+' + changePercent + '%' : changePercent + '%';
           
           addRow([
             label,
             value.toLocaleString(),
-            visualBar,
-            trendIndicator
+            changeDisplay,
+            changePercentDisplay,
+            trendDirection
           ]);
         });
         
@@ -668,12 +721,12 @@ function AnalyticsReservations({ setView, admin }) {
           const growthPercent = firstValue > 0 ? Math.round((totalGrowth / firstValue) * 100) : 0;
           
           addBlankRow();
-          addRow(['OVERALL GROWTH:', 
-            totalGrowth > 0 ? '+' + totalGrowth.toLocaleString() : totalGrowth.toLocaleString(),
-            'reservations',
-            '(' + (growthPercent > 0 ? '+' : '') + growthPercent + '%)',
-            totalGrowth > 0 ? '📈 Positive Trend' : '📉 Negative Trend'
-          ]);
+          addRow(['OVERALL GROWTH SUMMARY:']);
+          addRow(['Period Start:', labels[0], values[0].toLocaleString(), 'reservations']);
+          addRow(['Period End:', labels[labels.length - 1], lastValue.toLocaleString(), 'reservations']);
+          addRow(['Total Change:', totalGrowth > 0 ? '+' + totalGrowth.toLocaleString() : totalGrowth.toLocaleString(), 'reservations']);
+          addRow(['Growth Rate:', (growthPercent > 0 ? '+' : '') + growthPercent + '%']);
+          addRow(['Overall Trend:', totalGrowth > 0 ? '📈 Positive Growth Trend' : '📉 Negative Decline Trend']);
         }
       } else {
         addRow(['No growth data available for this period']);
@@ -682,49 +735,133 @@ function AnalyticsReservations({ setView, admin }) {
       addBlankRow();
 
       // ==================== SECTION 10: EXECUTIVE SUMMARY ====================
-      addSectionHeader('SECTION 10: EXECUTIVE SUMMARY & INSIGHTS');
+      addSectionHeader('SECTION 10: EXECUTIVE SUMMARY & KEY INSIGHTS');
       
       // Calculate key metrics for insights
       const completionRate = total > 0 ? Math.round((reservationData.completed / total) * 100) : 0;
       const approvalRate = total > 0 ? Math.round(((reservationData.approved + reservationData.completed) / total) * 100) : 0;
       const cancellationRate = total > 0 ? Math.round((reservationData.cancelled / total) * 100) : 0;
+      const pendingRate = total > 0 ? Math.round((reservationData.pending / total) * 100) : 0;
       
-      addRow(['Metric', 'Value', 'Benchmark', 'Status']);
-      addRow(['Completion Rate', completionRate + '%', '70%', completionRate >= 70 ? '✅ Good' : '⚠️ Needs Improvement']);
-      addRow(['Approval Rate', approvalRate + '%', '80%', approvalRate >= 80 ? '✅ Good' : '⚠️ Needs Improvement']);
-      addRow(['Cancellation Rate', cancellationRate + '%', '10%', cancellationRate <= 10 ? '✅ Good' : '⚠️ High Cancellations']);
+      addRow(['Performance Metric', 'Current Value', 'Industry Benchmark', 'Status', 'Action Required']);
+      addRow([
+        'Completion Rate', 
+        completionRate + '%', 
+        '70%', 
+        completionRate >= 70 ? 'Meets Benchmark' : 'Below Benchmark',
+        completionRate >= 70 ? 'Maintain current practices' : 'Focus on improving completion rates'
+      ]);
+      addRow([
+        'Approval Rate', 
+        approvalRate + '%', 
+        '80%', 
+        approvalRate >= 80 ? 'Meets Benchmark' : 'Below Benchmark',
+        approvalRate >= 80 ? 'Good approval efficiency' : 'Review approval process'
+      ]);
+      addRow([
+        'Cancellation Rate', 
+        cancellationRate + '%', 
+        '10%', 
+        cancellationRate <= 10 ? 'Meets Benchmark' : 'Above Benchmark',
+        cancellationRate <= 10 ? 'Acceptable cancellation level' : 'Investigate cancellation reasons'
+      ]);
+      addRow([
+        'Pending Rate', 
+        pendingRate + '%', 
+        '15%', 
+        pendingRate <= 15 ? 'Meets Benchmark' : 'Above Benchmark',
+        pendingRate <= 15 ? 'Normal pending queue' : 'Clear pending reservations'
+      ]);
       addBlankRow();
       
-      // Key insights
-      addSubHeader('Key Insights');
+      // Key insights section
+      addSubHeader('Key Insights & Recommendations');
       
       // Peak day insight
       if (peakDay[0]) {
-        addRow(['• Peak Day:', dayNames[peakDay[0]] || peakDay[0], `with ${peakDay[1]} reservations - Consider allocating more resources`]);
+        addRow([
+          '• Peak Day Analysis:',
+          `${dayNames[peakDay[0]] || peakDay[0]} is the busiest day with ${peakDay[1]} reservations`,
+          'Recommendation: Consider allocating additional resources on this day'
+        ]);
+      }
+      
+      // Slow day insight
+      const slowDay = Object.entries(reservationData.byDayOfWeek || {}).reduce((a, b) => 
+        (b[1] < a[1] ? b : a), ['', Infinity]);
+      if (slowDay[0] && slowDay[1] < totalDays / 7) {
+        addRow([
+          '• Low Activity Day:',
+          `${dayNames[slowDay[0]] || slowDay[0]} has only ${slowDay[1]} reservations`,
+          'Recommendation: Consider promotions or maintenance on this day'
+        ]);
       }
       
       // Top department insight
       if (reservationData.userDepartmentStats && reservationData.userDepartmentStats.length > 0) {
-        const topDept = reservationData.userDepartmentStats[0];
-        addRow(['• Top Department:', topDept.name, `with ${topDept.count} reservations (${Math.round((topDept.count / total) * 100)}% of total)`]);
+        const sortedDepts = [...reservationData.userDepartmentStats].sort((a, b) => b.count - a.count);
+        const topDept = sortedDepts[0];
+        const deptPercentage = Math.round((topDept.count / total) * 100);
+        addRow([
+          '• Top Department:',
+          `${topDept.name} leads with ${topDept.count} reservations (${deptPercentage}% of total)`,
+          'Recommendation: Engage with department for best practices'
+        ]);
+        
+        // Low performing departments
+        const lowDepts = sortedDepts.filter(d => (d.count / total) * 100 < 5);
+        if (lowDepts.length > 0) {
+          addRow([
+            '• Low Activity Departments:',
+            `${lowDepts.length} departments have <5% of total reservations`,
+            'Recommendation: Reach out to understand barriers'
+          ]);
+        }
       }
       
       // Top room insight
       if (reservationData.popularRooms && reservationData.popularRooms.length > 0) {
-        const topRoom = reservationData.popularRooms[0];
-        addRow(['• Most Popular Room:', topRoom.name, `with ${topRoom.bookings} bookings and ${topRoom.utilization}% utilization`]);
+        const sortedRooms = [...reservationData.popularRooms].sort((a, b) => b.bookings - a.bookings);
+        const topRoom = sortedRooms[0];
+        addRow([
+          '• Most Popular Room:',
+          `${topRoom.name} with ${topRoom.bookings} bookings and ${topRoom.utilization}% utilization`,
+          'Recommendation: Ensure this room is well-maintained'
+        ]);
         
         // Low utilization rooms
-        const lowUtilRooms = reservationData.popularRooms.filter(r => r.utilization < 30);
+        const lowUtilRooms = sortedRooms.filter(r => r.utilization < 30);
         if (lowUtilRooms.length > 0) {
-          addRow(['• Underutilized Rooms:', lowUtilRooms.length, 'rooms with <30% utilization - Consider promotion']);
+          addRow([
+            '• Underutilized Rooms:',
+            `${lowUtilRooms.length} rooms with <30% utilization`,
+            'Recommendation: Consider marketing or repurposing these rooms'
+          ]);
+        }
+      }
+      
+      // Top reserver insight
+      if (reservationData.topReservers && reservationData.topReservers.length > 0) {
+        const sortedTop = [...reservationData.topReservers].sort((a, b) => b.count - a.count);
+        const topReserver = sortedTop[0];
+        if (topReserver) {
+          addRow([
+            '• Top Reserver:',
+            `${topReserver.name} from ${topReserver.department || 'N/A'} with ${topReserver.count} reservations`,
+            'Recommendation: Recognize top users'
+          ]);
         }
       }
       
       // Growth insight
       if (reservationData.trends?.total) {
         const trend = reservationData.trends.total;
-        addRow(['• Overall Trend:', trend.direction === 'up' ? '📈 Positive growth' : '📉 Negative trend', `with ${trend.percentage}% change`]);
+        const growthStatus = trend.direction === 'up' ? 'positive' : 'negative';
+        addRow([
+          '• Overall Trend:',
+          `${trend.direction === 'up' ? 'Growth' : 'Decline'} of ${trend.percentage}% compared to previous period`,
+          `Recommendation: ${trend.direction === 'up' ? 'Continue current strategies' : 'Investigate causes of decline'}`
+        ]);
       }
       
       addBlankRow();
