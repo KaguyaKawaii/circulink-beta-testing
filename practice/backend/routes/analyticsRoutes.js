@@ -1,8 +1,8 @@
+// routes/analyticsRoutes.js
+
 const express = require("express");
 const router = express.Router();
 const analyticsController = require("../controllers/analyticsController");
-
-
 
 // User analytics
 router.get("/users", analyticsController.getUserAnalytics);
@@ -10,8 +10,8 @@ router.get("/users", analyticsController.getUserAnalytics);
 // Overview analytics
 router.get("/overview", analyticsController.getAnalyticsOverview);
 
-// Reservation analytics
-router.get("/reservations", analyticsController.getReservationAnalytics);
+// Reservation analytics - SIMPLE version (just 4 metrics)
+router.get("/reservations", analyticsController.getReservationAnalyticsSimple);
 
 // Room analytics
 router.get("/rooms", analyticsController.getRoomAnalytics);
