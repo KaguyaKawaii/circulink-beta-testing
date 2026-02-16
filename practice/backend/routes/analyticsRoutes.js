@@ -2,8 +2,7 @@ const express = require("express");
 const router = express.Router();
 const analyticsController = require("../controllers/analyticsController");
 
-// All analytics routes should be protected and admin-only
-router.use(protect, admin);
+
 
 // User analytics
 router.get("/users", analyticsController.getUserAnalytics);
