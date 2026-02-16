@@ -20,7 +20,9 @@ import {
   Award,
   GraduationCap,
   UserCog,
-  Building
+  Building,
+  ChevronDown,
+  X
 } from "lucide-react";
 import api from "../../utils/api";
 
@@ -125,8 +127,11 @@ function AnalyticsUsers({ setView, admin }) {
       admin: activeUsers.filter(u => u.role?.toLowerCase() === 'admin').length
     };
 
-    const sevenDaysAgo = new Date(now.setDate(now.getDate() - 7));
-    const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const thirtyDaysAgo = new Date(now);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     
     const byStatus = {
       active: activeUsers.filter(u => u.lastLogin && new Date(u.lastLogin) > sevenDaysAgo).length,
@@ -223,7 +228,7 @@ function AnalyticsUsers({ setView, admin }) {
 
   const getCountForPeriod = (users, period, offset) => {
     const now = new Date();
-    let startDate = new Date();
+    let startDate = new Date(now);
     
     switch(period) {
       case 'day':
@@ -246,7 +251,7 @@ function AnalyticsUsers({ setView, admin }) {
 
   const getActiveCount = (users, logs, period) => {
     const now = new Date();
-    let cutoff = new Date();
+    let cutoff = new Date(now);
     
     switch(period) {
       case 'day': cutoff.setDate(now.getDate() - 1); break;
@@ -257,7 +262,7 @@ function AnalyticsUsers({ setView, admin }) {
     
     const activeUserIds = new Set(
       logs
-        .filter(log => new Date(log.createdAt) >= cutoff)
+        .filter(log => log.createdAt && new Date(log.createdAt) >= cutoff)
         .map(log => log.userId?._id || log.userId)
         .filter(id => id)
     );
@@ -299,6 +304,7 @@ function AnalyticsUsers({ setView, admin }) {
     const retained = cohort.filter(u => {
       const userLogs = logs.filter(log => 
         (log.userId?._id === u._id || log.userId === u._id) &&
+        log.createdAt &&
         new Date(log.createdAt) >= thirtyDaysAgo
       );
       return userLogs.length > 0;
@@ -315,12 +321,14 @@ function AnalyticsUsers({ setView, admin }) {
     switch(range) {
       case 'week':
         for (let i = 6; i >= 0; i--) {
-          const date = new Date();
+          const date = new Date(now);
           date.setDate(now.getDate() - i);
           labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
           
-          const dayStart = new Date(date.setHours(0,0,0,0));
-          const dayEnd = new Date(date.setHours(23,59,59,999));
+          const dayStart = new Date(date);
+          dayStart.setHours(0,0,0,0);
+          const dayEnd = new Date(date);
+          dayEnd.setHours(23,59,59,999);
           
           const count = users.filter(u => 
             u.createdAt && 
@@ -334,9 +342,9 @@ function AnalyticsUsers({ setView, admin }) {
       case 'month':
         for (let i = 3; i >= 0; i--) {
           labels.push(`Week ${4-i}`);
-          const weekStart = new Date();
+          const weekStart = new Date(now);
           weekStart.setDate(now.getDate() - (i * 7 + 6));
-          const weekEnd = new Date();
+          const weekEnd = new Date(now);
           weekEnd.setDate(now.getDate() - (i * 7));
           
           const count = users.filter(u => 
@@ -350,7 +358,7 @@ function AnalyticsUsers({ setView, admin }) {
         
       case 'year':
         for (let i = 11; i >= 0; i--) {
-          const date = new Date();
+          const date = new Date(now);
           date.setMonth(now.getMonth() - i);
           labels.push(date.toLocaleDateString('en-US', { month: 'short' }));
           
@@ -369,9 +377,9 @@ function AnalyticsUsers({ setView, admin }) {
       default:
         for (let i = 3; i >= 0; i--) {
           labels.push(`Week ${4-i}`);
-          const weekStart = new Date();
+          const weekStart = new Date(now);
           weekStart.setDate(now.getDate() - (i * 7 + 6));
-          const weekEnd = new Date();
+          const weekEnd = new Date(now);
           weekEnd.setDate(now.getDate() - (i * 7));
           
           const count = users.filter(u => 
@@ -397,7 +405,7 @@ function AnalyticsUsers({ setView, admin }) {
     });
     
     const userActions = users.map(user => ({
-      ...user.toObject ? user.toObject() : user,
+      ...(user.toObject ? user.toObject() : user),
       actionCount: userActionCount[user._id] || 0
     }));
     
@@ -432,23 +440,23 @@ function AnalyticsUsers({ setView, admin }) {
     const mult = range === "week" ? 1 : range === "month" ? 4 : 48;
     
     return {
-      total: 1250 * mult,
-      active: 980 * mult,
-      new: 145 * mult,
-      deleted: 23 * mult,
+      total: 1250,
+      active: 980,
+      new: 145,
+      deleted: 23,
       byRole: {
-        student: Math.floor(850 * mult),
-        faculty: Math.floor(250 * mult),
-        staff: Math.floor(120 * mult),
-        admin: Math.floor(30 * mult)
+        student: 850,
+        faculty: 250,
+        staff: 120,
+        admin: 30
       },
       byStatus: {
-        active: Math.floor(980 * mult),
-        inactive: Math.floor(180 * mult),
-        suspended: Math.floor(45 * mult),
-        pending: Math.floor(45 * mult),
-        verified: Math.floor(1100 * mult),
-        unverified: Math.floor(150 * mult)
+        active: 980,
+        inactive: 180,
+        suspended: 45,
+        pending: 45,
+        verified: 1100,
+        unverified: 150
       },
       byDepartment: [
         { name: "Computer Science", count: 450 },
@@ -471,11 +479,11 @@ function AnalyticsUsers({ setView, admin }) {
         monthly: { value: 145, percentage: 15.2, direction: 'up' }
       },
       topUsers: [
-        { name: "John Doe", email: "john.doe@usa.edu", reservations: 45, role: "student", lastActive: new Date() },
-        { name: "Jane Smith", email: "jane.smith@usa.edu", reservations: 38, role: "faculty", lastActive: new Date() },
-        { name: "Bob Johnson", email: "bob.j@usa.edu", reservations: 32, role: "student", lastActive: new Date() },
-        { name: "Alice Brown", email: "alice.b@usa.edu", reservations: 28, role: "staff", lastActive: new Date() },
-        { name: "Charlie Wilson", email: "charlie.w@usa.edu", reservations: 24, role: "student", lastActive: new Date() }
+        { id: 1, name: "John Doe", email: "john.doe@usa.edu", reservations: 45, role: "student", lastActive: new Date() },
+        { id: 2, name: "Jane Smith", email: "jane.smith@usa.edu", reservations: 38, role: "faculty", lastActive: new Date() },
+        { id: 3, name: "Bob Johnson", email: "bob.j@usa.edu", reservations: 32, role: "student", lastActive: new Date() },
+        { id: 4, name: "Alice Brown", email: "alice.b@usa.edu", reservations: 28, role: "staff", lastActive: new Date() },
+        { id: 5, name: "Charlie Wilson", email: "charlie.w@usa.edu", reservations: 24, role: "student", lastActive: new Date() }
       ],
       registrationStats: {
         today: 12,
@@ -490,10 +498,10 @@ function AnalyticsUsers({ setView, admin }) {
         retentionRate: 68
       },
       roleDistribution: [
-        { name: "student", value: 850 * mult },
-        { name: "faculty", value: 250 * mult },
-        { name: "staff", value: 120 * mult },
-        { name: "admin", value: 30 * mult }
+        { name: "student", value: 850 },
+        { name: "faculty", value: 250 },
+        { name: "staff", value: 120 },
+        { name: "admin", value: 30 }
       ],
       departmentStats: [
         { name: "Computer Science", count: 450 },
@@ -527,36 +535,67 @@ function AnalyticsUsers({ setView, admin }) {
     }
   };
 
-  const StatCard = ({ title, value, icon: Icon, trend, color = "blue" }) => (
-    <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600 font-medium">{title}</p>
-          <p className="text-2xl font-bold text-gray-800">
-            {typeof value === 'number' ? value.toLocaleString() : value}
-          </p>
-          {trend && trend.percentage > 0 && (
-            <div className="flex items-center gap-1 mt-1">
-              {trend.direction === 'up' ? (
-                <ArrowUp size={16} className="text-green-500" />
-              ) : trend.direction === 'down' ? (
-                <ArrowDown size={16} className="text-red-500" />
-              ) : null}
-              <span className={trend.direction === 'up' ? "text-green-500 text-sm" : "text-red-500 text-sm"}>
-                {trend.percentage}%
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="p-2">
-          <Icon className={`text-${color}-500`} size={20} />
+  const StatCard = ({ title, value, icon: Icon, trend, color = "blue" }) => {
+    // Determine color class based on color prop
+    const getColorClass = (colorName) => {
+      const colorMap = {
+        blue: "text-blue-500",
+        green: "text-green-500",
+        purple: "text-purple-500",
+        yellow: "text-yellow-500",
+        orange: "text-orange-500",
+        red: "text-red-500",
+        indigo: "text-indigo-500"
+      };
+      return colorMap[colorName] || "text-blue-500";
+    };
+
+    return (
+      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600 font-medium">{title}</p>
+            <p className="text-2xl font-bold text-gray-800">
+              {typeof value === 'number' ? value.toLocaleString() : value}
+            </p>
+            {trend && trend.percentage > 0 && (
+              <div className="flex items-center gap-1 mt-1">
+                {trend.direction === 'up' ? (
+                  <ArrowUp size={16} className="text-green-500" />
+                ) : trend.direction === 'down' ? (
+                  <ArrowDown size={16} className="text-red-500" />
+                ) : null}
+                <span className={trend.direction === 'up' ? "text-green-500 text-sm" : "text-red-500 text-sm"}>
+                  {trend.percentage}%
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="p-2">
+            <Icon className={getColorClass(color)} size={20} />
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const ProgressBar = ({ label, value, total, color = "blue", showValue = true }) => {
     const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+    
+    // Determine color class based on color prop
+    const getBgColorClass = (colorName) => {
+      const colorMap = {
+        blue: "bg-blue-500",
+        green: "bg-green-500",
+        purple: "bg-purple-500",
+        orange: "bg-orange-500",
+        yellow: "bg-yellow-500",
+        red: "bg-red-500",
+        indigo: "bg-indigo-500"
+      };
+      return colorMap[colorName] || "bg-blue-500";
+    };
+
     return (
       <div>
         <div className="flex justify-between text-sm mb-1">
@@ -565,7 +604,7 @@ function AnalyticsUsers({ setView, admin }) {
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div 
-            className={`bg-${color}-500 rounded-full h-2 transition-all duration-300`}
+            className={`${getBgColorClass(color)} rounded-full h-2 transition-all duration-300`}
             style={{ width: `${percentage}%` }}
           />
         </div>
