@@ -5,26 +5,20 @@ import {
   RefreshCw,
   ArrowUp,
   ArrowDown,
-  Search,
   Activity,
   UserCheck,
   UserX,
   Award,
   GraduationCap,
   UserCog,
-  Building,
-  ChevronDown,
-  X,
-  Calendar,
-  Clock,
-  TrendingUp
+  Building
 } from "lucide-react";
 import api from "../../utils/api";
+import * as XLSX from 'xlsx';
 
 function AnalyticsUsers({ setView, admin }) {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("month");
-  const [search, setSearch] = useState("");
   const [userData, setUserData] = useState({
     total: 0,
     active: 0,
@@ -74,7 +68,6 @@ function AnalyticsUsers({ setView, admin }) {
   const fetchUserAnalytics = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch real data from your backend API
       const response = await api.get(`/analytics/users?range=${dateRange}`);
       
       if (response.data && response.data.success) {
@@ -82,12 +75,9 @@ function AnalyticsUsers({ setView, admin }) {
         console.log("Analytics data loaded for range:", dateRange);
       } else {
         console.error("API returned unsuccessful response:", response.data);
-        // Fallback to empty data
-        setUserData(prev => ({...prev}));
       }
     } catch (error) {
       console.error("Error fetching user analytics:", error);
-      // Show error state but don't crash
     } finally {
       setLoading(false);
     }
@@ -110,6 +100,161 @@ function AnalyticsUsers({ setView, admin }) {
       });
     } catch (error) {
       return "Invalid date";
+    }
+  };
+
+  const exportToExcel = () => {
+    try {
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+
+      // 1. Summary Sheet
+      const summaryData = [
+        ['USER ANALYTICS REPORT', `Generated: ${new Date().toLocaleString()}`],
+        ['Date Range', dateRange === 'week' ? 'Last 7 days' : dateRange === 'month' ? 'Last 30 days' : 'Last 12 months'],
+        [],
+        ['KEY METRICS'],
+        ['Metric', 'Value'],
+        ['Total Users', userData.total || 0],
+        ['Active Users (7 days)', userData.active || 0],
+        ['New Users', userData.new || 0],
+        ['Deleted/Archived', userData.deleted || 0],
+        ['Retention Rate', `${userData.activityStats?.retentionRate || 0}%`],
+        [],
+        ['REGISTRATION STATISTICS'],
+        ['Period', 'Count'],
+        ['Today', userData.registrationStats?.today || 0],
+        ['This Week', userData.registrationStats?.thisWeek || 0],
+        ['This Month', userData.registrationStats?.thisMonth || 0],
+        ['Average Per Day', userData.registrationStats?.avgPerDay || 0]
+      ];
+      
+      const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
+
+      // 2. Users by Role Sheet
+      const roleData = [
+        ['USERS BY ROLE'],
+        ['Role', 'Count', 'Percentage'],
+        ['Students', userData.byRole?.student || 0, `${userData.total ? Math.round((userData.byRole.student / userData.total) * 100) : 0}%`],
+        ['Faculty', userData.byRole?.faculty || 0, `${userData.total ? Math.round((userData.byRole.faculty / userData.total) * 100) : 0}%`],
+        ['Staff', userData.byRole?.staff || 0, `${userData.total ? Math.round((userData.byRole.staff / userData.total) * 100) : 0}%`],
+        ['Admin', userData.byRole?.admin || 0, `${userData.total ? Math.round((userData.byRole.admin / userData.total) * 100) : 0}%`]
+      ];
+      
+      const roleSheet = XLSX.utils.aoa_to_sheet(roleData);
+      XLSX.utils.book_append_sheet(wb, roleSheet, 'Users by Role');
+
+      // 3. Users by Status Sheet
+      const statusData = [
+        ['USERS BY STATUS'],
+        ['Status', 'Count'],
+        ['Active (7 days)', userData.byStatus?.active || 0],
+        ['Inactive', userData.byStatus?.inactive || 0],
+        ['Suspended', userData.byStatus?.suspended || 0],
+        ['Verified', userData.byStatus?.verified || 0],
+        ['Unverified', userData.byStatus?.unverified || 0],
+        ['Pending', userData.byStatus?.pending || 0]
+      ];
+      
+      const statusSheet = XLSX.utils.aoa_to_sheet(statusData);
+      XLSX.utils.book_append_sheet(wb, statusSheet, 'Users by Status');
+
+      // 4. Departments Sheet
+      const deptData = [
+        ['TOP DEPARTMENTS'],
+        ['Department', 'User Count', 'Percentage']
+      ];
+      
+      if (userData.departmentStats && userData.departmentStats.length > 0) {
+        userData.departmentStats.forEach(dept => {
+          deptData.push([
+            dept.name || 'Unknown',
+            dept.count || 0,
+            `${userData.total ? Math.round((dept.count / userData.total) * 100) : 0}%`
+          ]);
+        });
+      } else {
+        deptData.push(['No department data available', '', '']);
+      }
+      
+      const deptSheet = XLSX.utils.aoa_to_sheet(deptData);
+      XLSX.utils.book_append_sheet(wb, deptSheet, 'Departments');
+
+      // 5. Growth Data Sheet
+      const growthData = [
+        ['USER GROWTH', `(${dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : 'Monthly'})`],
+        ['Period', 'New Users']
+      ];
+      
+      if (userData.growth?.labels && userData.growth.labels.length > 0) {
+        userData.growth.labels.forEach((label, index) => {
+          growthData.push([label, userData.growth?.values?.[index] || 0]);
+        });
+      } else {
+        growthData.push(['No growth data available', '']);
+      }
+      
+      const growthSheet = XLSX.utils.aoa_to_sheet(growthData);
+      XLSX.utils.book_append_sheet(wb, growthSheet, 'Growth');
+
+      // 6. Most Active Users Sheet
+      const activeUsersData = [
+        ['MOST ACTIVE USERS'],
+        ['Name', 'Email', 'Role', 'Actions Count', 'Last Active']
+      ];
+      
+      if (userData.topUsers && userData.topUsers.length > 0) {
+        userData.topUsers.forEach(user => {
+          activeUsersData.push([
+            user.name || 'Unknown',
+            user.email || '',
+            user.role || 'Unknown',
+            user.reservations || 0,
+            user.lastActive ? formatDateTime(user.lastActive) : 'Never'
+          ]);
+        });
+      } else {
+        activeUsersData.push(['No active users data available', '', '', '', '']);
+      }
+      
+      const activeSheet = XLSX.utils.aoa_to_sheet(activeUsersData);
+      XLSX.utils.book_append_sheet(wb, activeSheet, 'Most Active Users');
+
+      // 7. Activity Stats Sheet
+      const activityData = [
+        ['ACTIVITY STATISTICS'],
+        ['Metric', 'Value'],
+        ['Active Today', userData.activityStats?.activeToday || 0],
+        ['Active This Week', userData.activityStats?.activeThisWeek || 0],
+        ['Active This Month', userData.activityStats?.activeThisMonth || 0],
+        ['Retention Rate', `${userData.activityStats?.retentionRate || 0}%`]
+      ];
+      
+      const activitySheet = XLSX.utils.aoa_to_sheet(activityData);
+      XLSX.utils.book_append_sheet(wb, activitySheet, 'Activity Stats');
+
+      // 8. Trends Sheet
+      const trendsData = [
+        ['TRENDS'],
+        ['Period', 'Value', 'Change', 'Direction'],
+        ['Daily', userData.trends?.daily?.value || 0, `${userData.trends?.daily?.percentage || 0}%`, userData.trends?.daily?.direction || 'none'],
+        ['Weekly', userData.trends?.weekly?.value || 0, `${userData.trends?.weekly?.percentage || 0}%`, userData.trends?.weekly?.direction || 'none'],
+        ['Monthly', userData.trends?.monthly?.value || 0, `${userData.trends?.monthly?.percentage || 0}%`, userData.trends?.monthly?.direction || 'none']
+      ];
+      
+      const trendsSheet = XLSX.utils.aoa_to_sheet(trendsData);
+      XLSX.utils.book_append_sheet(wb, trendsSheet, 'Trends');
+
+      // Generate filename with current date
+      const filename = `user_analytics_${dateRange}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      
+      // Export the file
+      XLSX.writeFile(wb, filename);
+      
+    } catch (error) {
+      console.error("Error exporting to Excel:", error);
+      alert("Failed to export data. Please try again.");
     }
   };
 
@@ -189,15 +334,15 @@ function AnalyticsUsers({ setView, admin }) {
   };
 
   const userStats = {
-    total: userData.total,
-    students: userData.byRole.student,
-    faculty: userData.byRole.faculty,
-    staff: userData.byRole.staff,
-    staffOffice: userData.byRole.admin,
-    verified: userData.byStatus.verified,
-    unverified: userData.byStatus.unverified,
-    suspended: userData.byStatus.suspended,
-    active: userData.byStatus.active,
+    total: userData.total || 0,
+    students: userData.byRole?.student || 0,
+    faculty: userData.byRole?.faculty || 0,
+    staff: userData.byRole?.staff || 0,
+    staffOffice: userData.byRole?.admin || 0,
+    verified: userData.byStatus?.verified || 0,
+    unverified: userData.byStatus?.unverified || 0,
+    suspended: userData.byStatus?.suspended || 0,
+    active: userData.byStatus?.active || 0,
   };
 
   if (loading) {
@@ -244,9 +389,18 @@ function AnalyticsUsers({ setView, admin }) {
                 </button>
               ))}
             </div>
-            <button className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer">
+            
+            {/* Export to Excel Button */}
+            <button
+              onClick={exportToExcel}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+              title="Export to Excel"
+            >
               <Download size={18} />
+              <span>Excel</span>
             </button>
+
+            {/* Refresh Button */}
             <button 
               onClick={fetchUserAnalytics}
               className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
@@ -338,24 +492,6 @@ function AnalyticsUsers({ setView, admin }) {
           </div>
         </div>
 
-        {/* Search and Refresh */}
-        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
-          <div className="flex flex-col md:flex-row md:items-center gap-4">
-            <SearchInput search={search} setSearch={setSearch} />
-            
-            <button
-              onClick={() => {
-                setSearch("");
-                fetchUserAnalytics();
-              }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
-            >
-              <RefreshCw size={16} />
-              <span>Refresh</span>
-            </button>
-          </div>
-        </div>
-
         {/* Analytics Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* By Role */}
@@ -364,26 +500,26 @@ function AnalyticsUsers({ setView, admin }) {
             <div className="space-y-4">
               <ProgressBar 
                 label="Students" 
-                value={userData.byRole.student} 
-                total={userData.total} 
+                value={userData.byRole?.student || 0} 
+                total={userData.total || 1} 
                 color="blue"
               />
               <ProgressBar 
                 label="Faculty" 
-                value={userData.byRole.faculty} 
-                total={userData.total} 
+                value={userData.byRole?.faculty || 0} 
+                total={userData.total || 1} 
                 color="green"
               />
               <ProgressBar 
                 label="Staff" 
-                value={userData.byRole.staff} 
-                total={userData.total} 
+                value={userData.byRole?.staff || 0} 
+                total={userData.total || 1} 
                 color="purple"
               />
               <ProgressBar 
                 label="Admin" 
-                value={userData.byRole.admin} 
-                total={userData.total} 
+                value={userData.byRole?.admin || 0} 
+                total={userData.total || 1} 
                 color="orange"
               />
             </div>
@@ -395,23 +531,23 @@ function AnalyticsUsers({ setView, admin }) {
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Active (7d)</span>
-                <span className="text-green-600 font-semibold">{userData.byStatus.active.toLocaleString()}</span>
+                <span className="text-green-600 font-semibold">{(userData.byStatus?.active || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Inactive</span>
-                <span className="text-yellow-600 font-semibold">{userData.byStatus.inactive.toLocaleString()}</span>
+                <span className="text-yellow-600 font-semibold">{(userData.byStatus?.inactive || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Suspended</span>
-                <span className="text-red-600 font-semibold">{userData.byStatus.suspended.toLocaleString()}</span>
+                <span className="text-red-600 font-semibold">{(userData.byStatus?.suspended || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Verified</span>
-                <span className="text-blue-600 font-semibold">{userData.byStatus.verified.toLocaleString()}</span>
+                <span className="text-blue-600 font-semibold">{(userData.byStatus?.verified || 0).toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-gray-600">Unverified</span>
-                <span className="text-orange-600 font-semibold">{userData.byStatus.unverified.toLocaleString()}</span>
+                <span className="text-orange-600 font-semibold">{(userData.byStatus?.unverified || 0).toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -420,15 +556,19 @@ function AnalyticsUsers({ setView, admin }) {
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Top Departments</h2>
             <div className="space-y-4">
-              {userData.departmentStats?.slice(0, 5).map((dept, idx) => (
-                <ProgressBar 
-                  key={idx}
-                  label={dept.name} 
-                  value={dept.count} 
-                  total={userData.total} 
-                  color={idx === 0 ? "blue" : idx === 1 ? "green" : idx === 2 ? "purple" : "orange"}
-                />
-              ))}
+              {userData.departmentStats && userData.departmentStats.length > 0 ? (
+                userData.departmentStats.slice(0, 5).map((dept, idx) => (
+                  <ProgressBar 
+                    key={idx}
+                    label={dept.name || 'Unknown'} 
+                    value={dept.count || 0} 
+                    total={userData.total || 1} 
+                    color={idx === 0 ? "blue" : idx === 1 ? "green" : idx === 2 ? "purple" : "orange"}
+                  />
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-4">No department data available</p>
+              )}
             </div>
           </div>
         </div>
@@ -439,23 +579,29 @@ function AnalyticsUsers({ setView, admin }) {
             User Growth - {dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : 'Monthly'}
           </h2>
           <div className="h-64 flex items-end justify-between gap-2">
-            {userData.growth?.values?.map((value, index) => {
-              const max = Math.max(...userData.growth.values, 1);
-              const height = max > 0 ? (value / max) * 100 : 0;
-              return (
-                <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                  <div 
-                    className="w-full bg-[#CC0000]/20 rounded-t relative group"
-                    style={{ height: `${height}%`, minHeight: '4px' }}
-                  >
-                    <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                      {value} new users
+            {userData.growth?.values && userData.growth.values.length > 0 ? (
+              userData.growth.values.map((value, index) => {
+                const max = Math.max(...userData.growth.values, 1);
+                const height = max > 0 ? (value / max) * 100 : 0;
+                return (
+                  <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                    <div 
+                      className="w-full bg-[#CC0000]/20 rounded-t relative group"
+                      style={{ height: `${height}%`, minHeight: '4px' }}
+                    >
+                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                        {value} new users
+                      </div>
                     </div>
+                    <span className="text-xs text-gray-600">{userData.growth.labels?.[index] || ''}</span>
                   </div>
-                  <span className="text-xs text-gray-600">{userData.growth.labels?.[index]}</span>
-                </div>
-              );
-            })}
+                );
+              })
+            ) : (
+              <div className="w-full text-center text-gray-500 py-12">
+                No growth data available for this period
+              </div>
+            )}
           </div>
         </div>
 
@@ -497,27 +643,28 @@ function AnalyticsUsers({ setView, admin }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {userData.topUsers?.map((user, index) => (
-                  <tr key={user.id || index} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-800">{user.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.email}</td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                        user.role?.toLowerCase() === 'student' ? 'bg-green-100 text-green-800' :
-                        user.role?.toLowerCase() === 'faculty' ? 'bg-purple-100 text-purple-800' :
-                        user.role?.toLowerCase() === 'staff' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-blue-100 text-blue-800'
-                      }`}>
-                        {user.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.reservations}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-600">
-                      {user.lastActive ? formatDateTime(user.lastActive) : 'Never'}
-                    </td>
-                  </tr>
-                ))}
-                {(!userData.topUsers || userData.topUsers.length === 0) && (
+                {userData.topUsers && userData.topUsers.length > 0 ? (
+                  userData.topUsers.map((user, index) => (
+                    <tr key={user.id || index} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-800">{user.name || 'Unknown'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.email || ''}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                          user.role?.toLowerCase() === 'student' ? 'bg-green-100 text-green-800' :
+                          user.role?.toLowerCase() === 'faculty' ? 'bg-purple-100 text-purple-800' :
+                          user.role?.toLowerCase() === 'staff' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {user.role || 'Unknown'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.reservations || 0}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">
+                        {user.lastActive ? formatDateTime(user.lastActive) : 'Never'}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
                   <tr>
                     <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
                       No user activity data available
@@ -530,30 +677,6 @@ function AnalyticsUsers({ setView, admin }) {
         </div>
       </div>
     </main>
-  );
-}
-
-// SearchInput component
-function SearchInput({ search, setSearch }) {
-  return (
-    <div className="relative flex-1">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search users..."
-        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-0"
-      />
-      {search && (
-        <button
-          onClick={() => setSearch("")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-        >
-          <X size={16} />
-        </button>
-      )}
-    </div>
   );
 }
 
