@@ -913,7 +913,7 @@ function AnalyticsUsers({ setView, admin }) {
                   <th className="px-6 py-3 text-left font-medium">Email</th>
                   <th className="px-6 py-3 text-left font-medium">Role</th>
                   <th className="px-6 py-3 text-left font-medium">Actions</th>
-                  <th className="px-6 py-3 text-left font-medium">Last Active</th>
+                 
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -932,9 +932,7 @@ function AnalyticsUsers({ setView, admin }) {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.reservations}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-600">
-                      {user.lastActive ? formatPHDateTime(user.lastActive) : 'Never'}
-                    </td>
+                    
                   </tr>
                 ))}
                 {userData.topUsers.length === 0 && (
@@ -953,29 +951,7 @@ function AnalyticsUsers({ setView, admin }) {
   );
 }
 
-// Helper components
-function SearchInput({ search, setSearch }) {
-  return (
-    <div className="relative flex-1">
-      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-      <input
-        type="text"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search analytics..."
-        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-0"
-      />
-      {search && (
-        <button
-          onClick={() => setSearch("")}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
-        >
-          <X size={16} />
-        </button>
-      )}
-    </div>
-  );
-}
+
 
 function FilterDropdown({ value, setValue, label, options }) {
   return (
