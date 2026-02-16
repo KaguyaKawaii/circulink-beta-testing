@@ -471,3 +471,114 @@ function getDepartmentStats(users) {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 }
+
+// ================= OVERVIEW ANALYTICS =================
+exports.getAnalyticsOverview = async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments({ archived: { $ne: true } });
+    const totalReservations = await Reservation.countDocuments();
+    const totalLogs = await Log.countDocuments();
+
+    res.json({
+      success: true,
+      data: {
+        totalUsers,
+        totalReservations,
+        totalActivityLogs: totalLogs
+      }
+    });
+  } catch (error) {
+    console.error("Error in getAnalyticsOverview:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch overview analytics"
+    });
+  }
+};
+
+// ================= RESERVATION ANALYTICS =================
+exports.getReservationAnalytics = async (req, res) => {
+  try {
+    const totalReservations = await Reservation.countDocuments();
+    const approved = await Reservation.countDocuments({ status: "Approved" });
+    const pending = await Reservation.countDocuments({ status: "Pending" });
+    const cancelled = await Reservation.countDocuments({ status: "Cancelled" });
+
+    res.json({
+      success: true,
+      data: {
+        totalReservations,
+        approved,
+        pending,
+        cancelled
+      }
+    });
+  } catch (error) {
+    console.error("Error in getReservationAnalytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch reservation analytics"
+    });
+  }
+};
+
+// ================= ROOM ANALYTICS =================
+exports.getRoomAnalytics = async (req, res) => {
+  try {
+    const reservations = await Reservation.find().lean();
+
+    const roomUsage = {};
+
+    reservations.forEach(res => {
+      const room = res.roomName || "Unknown";
+      roomUsage[room] = (roomUsage[room] || 0) + 1;
+    });
+
+    res.json({
+      success: true,
+      data: roomUsage
+    });
+  } catch (error) {
+    console.error("Error in getRoomAnalytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch room analytics"
+    });
+  }
+};
+
+// ================= ENGAGEMENT METRICS =================
+exports.getEngagementMetrics = async (req, res) => {
+  try {
+    const totalLogs = await Log.countDocuments();
+
+    res.json({
+      success: true,
+      data: {
+        totalLogs
+      }
+    });
+  } catch (error) {
+    console.error("Error in getEngagementMetrics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch engagement metrics"
+    });
+  }
+};
+
+// ================= EXPORT ANALYTICS =================
+exports.exportAnalytics = async (req, res) => {
+  try {
+    res.json({
+      success: true,
+      message: "Export feature coming soon"
+    });
+  } catch (error) {
+    console.error("Error in exportAnalytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to export analytics"
+    });
+  }
+};
