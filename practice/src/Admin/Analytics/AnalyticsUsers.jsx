@@ -459,6 +459,7 @@ function AnalyticsUsers({ setView, admin }) {
                'Real-time user data from database'}
             </p>
           </div>
+          <div>
           {/* Export to CSV Button */}
             <button
               onClick={exportToCSV}
@@ -477,6 +478,7 @@ function AnalyticsUsers({ setView, admin }) {
             >
               <RefreshCw size={18} />
             </button>
+            </div>
         </div>
       </header>
 
