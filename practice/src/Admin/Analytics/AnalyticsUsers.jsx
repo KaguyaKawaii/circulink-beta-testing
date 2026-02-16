@@ -17,13 +17,17 @@ import {
   UserCheck,
   UserX,
   Clock,
-  Award
+  Award,
+  GraduationCap,
+  UserCog,
+  Building
 } from "lucide-react";
 import api from "../../utils/api";
 
 function AnalyticsUsers({ setView, admin }) {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("month");
+  const [search, setSearch] = useState("");
   const [userData, setUserData] = useState({
     total: 0,
     active: 0,
@@ -73,59 +77,47 @@ function AnalyticsUsers({ setView, admin }) {
   const fetchUserAnalytics = useCallback(async () => {
     setLoading(true);
     try {
-      // Fetch real analytics data from API
       const response = await api.get(`/analytics/users?range=${dateRange}`);
       if (response.data && response.data.success) {
         setUserData(response.data.data);
       } else {
-        // If API fails or returns no data, fetch from multiple endpoints and calculate
         await fetchAndCalculateStats();
       }
     } catch (error) {
       console.error("Error fetching user analytics:", error);
-      // Try to fetch from multiple endpoints as fallback
       await fetchAndCalculateStats();
     } finally {
       setLoading(false);
     }
   }, [dateRange]);
 
-  // Fallback function to fetch and calculate stats from multiple endpoints
   const fetchAndCalculateStats = async () => {
     try {
-      // Fetch users
       const usersRes = await api.get('/users/all');
       const users = usersRes.data?.users || [];
       
-      // Fetch archived users
       const archivedRes = await api.get('/users/archived');
       const archived = archivedRes.data?.users || [];
       
-      // Fetch logs for activity data
       const logsRes = await api.get('/logs?limit=1000');
       const logs = logsRes.data?.logs || [];
 
-      // Calculate statistics
       const stats = calculateUserStats(users, archived, logs, dateRange);
       setUserData(stats);
       
     } catch (error) {
       console.error("Error fetching data for calculations:", error);
-      // Final fallback to mock data
       setUserData(getMockUserData(dateRange));
     }
   };
 
-  // Statistical calculation function
   const calculateUserStats = (users, archived, logs, range) => {
     const now = new Date();
     const startDate = getStartDate(range);
     const previousStartDate = getPreviousStartDate(range);
     
-    // Filter active users (non-archived)
     const activeUsers = users.filter(u => !u.archived);
     
-    // Calculate by role
     const byRole = {
       student: activeUsers.filter(u => u.role?.toLowerCase() === 'student').length,
       faculty: activeUsers.filter(u => u.role?.toLowerCase() === 'faculty').length,
@@ -133,10 +125,8 @@ function AnalyticsUsers({ setView, admin }) {
       admin: activeUsers.filter(u => u.role?.toLowerCase() === 'admin').length
     };
 
-    // Calculate by status
-    const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
     const sevenDaysAgo = new Date(now.setDate(now.getDate() - 7));
-    const oneDayAgo = new Date(now.setDate(now.getDate() - 1));
+    const thirtyDaysAgo = new Date(now.setDate(now.getDate() - 30));
     
     const byStatus = {
       active: activeUsers.filter(u => u.lastLogin && new Date(u.lastLogin) > sevenDaysAgo).length,
@@ -147,7 +137,6 @@ function AnalyticsUsers({ setView, admin }) {
       unverified: activeUsers.filter(u => !u.verified).length
     };
 
-    // Calculate growth trends
     const newUsers = activeUsers.filter(u => 
       u.createdAt && new Date(u.createdAt) >= startDate
     ).length;
@@ -158,7 +147,6 @@ function AnalyticsUsers({ setView, admin }) {
       new Date(u.createdAt) < startDate
     ).length;
 
-    // Calculate trends
     const trends = {
       daily: calculateTrend(
         getCountForPeriod(activeUsers, 'day', 1),
@@ -171,7 +159,6 @@ function AnalyticsUsers({ setView, admin }) {
       monthly: calculateTrend(newUsers, previousNewUsers)
     };
 
-    // Calculate registration stats
     const registrationStats = {
       today: getCountForPeriod(activeUsers, 'day', 1),
       thisWeek: getCountForPeriod(activeUsers, 'week', 1),
@@ -179,7 +166,6 @@ function AnalyticsUsers({ setView, admin }) {
       avgPerDay: Math.round(getCountForPeriod(activeUsers, 'month', 1) / 30)
     };
 
-    // Calculate activity stats
     const activityStats = {
       activeToday: getActiveCount(activeUsers, logs, 'day'),
       activeThisWeek: getActiveCount(activeUsers, logs, 'week'),
@@ -187,16 +173,9 @@ function AnalyticsUsers({ setView, admin }) {
       retentionRate: calculateRetentionRate(activeUsers, logs)
     };
 
-    // Generate growth data for chart
     const growth = generateGrowthData(activeUsers, range);
-
-    // Get top users by activity
     const topUsers = getTopUsers(activeUsers, logs);
-
-    // Get department distribution
     const departmentStats = getDepartmentStats(activeUsers);
-
-    // Get role distribution for pie chart
     const roleDistribution = Object.entries(byRole).map(([name, value]) => ({
       name,
       value
@@ -220,7 +199,6 @@ function AnalyticsUsers({ setView, admin }) {
     };
   };
 
-  // Helper functions for calculations
   const getStartDate = (range) => {
     const date = new Date();
     switch(range) {
@@ -277,7 +255,6 @@ function AnalyticsUsers({ setView, admin }) {
       default: cutoff.setDate(now.getDate() - 7);
     }
     
-    // Get unique users from logs within period
     const activeUserIds = new Set(
       logs
         .filter(log => new Date(log.createdAt) >= cutoff)
@@ -311,7 +288,6 @@ function AnalyticsUsers({ setView, admin }) {
     const sixtyDaysAgo = new Date();
     sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
     
-    // Users who joined 30-60 days ago
     const cohort = users.filter(u => 
       u.createdAt && 
       new Date(u.createdAt) >= sixtyDaysAgo && 
@@ -320,7 +296,6 @@ function AnalyticsUsers({ setView, admin }) {
     
     if (cohort.length === 0) return 0;
     
-    // Users who were active in last 30 days
     const retained = cohort.filter(u => {
       const userLogs = logs.filter(log => 
         (log.userId?._id === u._id || log.userId === u._id) &&
@@ -412,7 +387,6 @@ function AnalyticsUsers({ setView, admin }) {
   };
 
   const getTopUsers = (users, logs) => {
-    // Count user actions from logs
     const userActionCount = {};
     
     logs.forEach(log => {
@@ -422,7 +396,6 @@ function AnalyticsUsers({ setView, admin }) {
       }
     });
     
-    // Sort users by action count
     const userActions = users.map(user => ({
       ...user.toObject ? user.toObject() : user,
       actionCount: userActionCount[user._id] || 0
@@ -455,7 +428,6 @@ function AnalyticsUsers({ setView, admin }) {
       .slice(0, 5);
   };
 
-  // Mock data as fallback
   const getMockUserData = (range) => {
     const mult = range === "week" ? 1 : range === "month" ? 4 : 48;
     
@@ -537,29 +509,47 @@ function AnalyticsUsers({ setView, admin }) {
     fetchUserAnalytics();
   }, [fetchUserAnalytics]);
 
+  const formatPHDateTime = (date) => {
+    if (!date) return "—";
+    try {
+      return new Date(date).toLocaleString("en-PH", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "Invalid date";
+    }
+  };
+
   const StatCard = ({ title, value, icon: Icon, trend, color = "blue" }) => (
-    <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-      <div className="flex items-start justify-between">
+    <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
+      <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm text-gray-400 mb-1">{title}</p>
-          <p className="text-2xl font-bold text-white">
+          <p className="text-sm text-gray-600 font-medium">{title}</p>
+          <p className="text-2xl font-bold text-gray-800">
             {typeof value === 'number' ? value.toLocaleString() : value}
           </p>
           {trend && trend.percentage > 0 && (
-            <div className="flex items-center gap-1 mt-2">
+            <div className="flex items-center gap-1 mt-1">
               {trend.direction === 'up' ? (
                 <ArrowUp size={16} className="text-green-500" />
               ) : trend.direction === 'down' ? (
                 <ArrowDown size={16} className="text-red-500" />
               ) : null}
-              <span className={trend.direction === 'up' ? "text-green-500" : "text-red-500"}>
+              <span className={trend.direction === 'up' ? "text-green-500 text-sm" : "text-red-500 text-sm"}>
                 {trend.percentage}%
               </span>
             </div>
           )}
         </div>
-        <div className={`p-3 bg-${color}-500/10 rounded-lg`}>
-          <Icon size={24} className={`text-${color}-500`} />
+        <div className="p-2">
+          <Icon className={`text-${color}-500`} size={20} />
         </div>
       </div>
     </div>
@@ -570,10 +560,10 @@ function AnalyticsUsers({ setView, admin }) {
     return (
       <div>
         <div className="flex justify-between text-sm mb-1">
-          <span className="text-gray-300 capitalize">{label}</span>
-          {showValue && <span className="text-white font-medium">{value.toLocaleString()}</span>}
+          <span className="text-gray-600 capitalize">{label}</span>
+          {showValue && <span className="text-gray-800 font-medium">{value.toLocaleString()}</span>}
         </div>
-        <div className="w-full bg-gray-700 rounded-full h-2">
+        <div className="w-full bg-gray-200 rounded-full h-2">
           <div 
             className={`bg-${color}-500 rounded-full h-2 transition-all duration-300`}
             style={{ width: `${percentage}%` }}
@@ -583,109 +573,177 @@ function AnalyticsUsers({ setView, admin }) {
     );
   };
 
+  const userStats = {
+    total: userData.total,
+    students: userData.byRole.student,
+    faculty: userData.byRole.faculty,
+    staff: userData.byRole.staff,
+    staffOffice: userData.byRole.admin,
+    verified: userData.byStatus.verified,
+    unverified: userData.byStatus.unverified,
+    suspended: userData.byStatus.suspended,
+    active: userData.byStatus.active,
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0a0a0a] pl-[250px]">
-        <div className="p-8 flex items-center justify-center h-screen">
-          <RefreshCw size={40} className="animate-spin text-red-500" />
+      <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
+        <div className="flex items-center justify-center h-screen">
+          <RefreshCw size={40} className="animate-spin text-[#CC0000]" />
         </div>
-      </div>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] pl-[250px]">
-      <div className="p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+    <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white px-6 py-4 border-b border-gray-200">
+        <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-white mb-2">User Analytics</h1>
-            <p className="text-gray-400">Detailed analysis of user behavior and demographics</p>
+            <h1 className="text-2xl font-bold text-[#CC0000]">
+              User Analytics
+            </h1>
+            <p className="text-gray-600">Detailed analysis of user behavior and demographics</p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex bg-[#1a1a1a] rounded-lg p-1 border border-gray-800">
+          <div className="flex items-center space-x-4">
+            <div className="flex bg-gray-100 rounded-lg p-1">
               {["week", "month", "year"].map((range) => (
                 <button
                   key={range}
                   onClick={() => setDateRange(range)}
                   className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer ${
                     dateRange === range
-                      ? "bg-red-600 text-white"
-                      : "text-gray-400 hover:text-white hover:bg-gray-800"
+                      ? "bg-[#CC0000] text-white"
+                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
                   }`}
                 >
                   {range.charAt(0).toUpperCase() + range.slice(1)}
                 </button>
               ))}
             </div>
-            <button className="p-2 bg-[#1a1a1a] border border-gray-800 rounded-lg text-gray-400 hover:text-white">
+            <button className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer">
               <Download size={18} />
             </button>
             <button 
               onClick={fetchUserAnalytics}
-              className="p-2 bg-[#1a1a1a] border border-gray-800 rounded-lg text-gray-400 hover:text-white"
+              className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
             >
               <RefreshCw size={18} />
             </button>
           </div>
         </div>
+      </header>
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard 
-            title="Total Users" 
-            value={userData.total} 
-            icon={Users} 
-            trend={userData.trends?.monthly}
-            color="blue" 
-          />
-          <StatCard 
-            title="Active Users" 
-            value={userData.active} 
-            icon={Activity} 
-            trend={userData.trends?.weekly}
-            color="green" 
-          />
-          <StatCard 
-            title="New Users" 
-            value={userData.new} 
-            icon={UserPlus} 
-            trend={userData.trends?.daily}
-            color="purple" 
-          />
-          <StatCard 
-            title="Retention Rate" 
-            value={`${userData.activityStats?.retentionRate || 0}%`} 
-            icon={Award} 
-            color="yellow" 
-          />
+      {/* Main Content */}
+      <div className="p-6">
+        {/* User Statistics Cards */}
+        <div className="flex flex-col gap-4 mb-6 w-full">
+          {/* Role Statistics Section */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">User Roles</h2>
+            <div className="flex flex-wrap gap-4">
+              <StatCard 
+                title="Total Users" 
+                value={userStats.total} 
+                icon={Users} 
+                trend={userData.trends?.monthly}
+                color="blue" 
+              />
+              <StatCard 
+                title="Students" 
+                value={userStats.students} 
+                icon={GraduationCap} 
+                color="green" 
+              />
+              <StatCard 
+                title="Faculty" 
+                value={userStats.faculty} 
+                icon={UserCog} 
+                color="purple" 
+              />
+              <StatCard 
+                title="Staff" 
+                value={userStats.staff} 
+                icon={UserCheck} 
+                color="yellow" 
+              />
+              <StatCard 
+                title="Staff Office" 
+                value={userStats.staffOffice} 
+                icon={Building} 
+                color="indigo" 
+              />
+            </div>
+          </div>
+
+          {/* Status Statistics Section */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Account Status</h2>
+            <div className="flex flex-wrap gap-4">
+              <StatCard 
+                title="Verified" 
+                value={userStats.verified} 
+                icon={UserCheck} 
+                color="green" 
+              />
+              <StatCard 
+                title="Unverified" 
+                value={userStats.unverified} 
+                icon={UserX} 
+                color="red" 
+              />
+              <StatCard 
+                title="Suspended" 
+                value={userStats.suspended} 
+                icon={UserX} 
+                color="orange" 
+              />
+              <StatCard 
+                title="Active" 
+                value={userStats.active} 
+                icon={UserCheck} 
+                color="blue" 
+              />
+              <StatCard 
+                title="Retention Rate" 
+                value={`${userData.activityStats?.retentionRate || 0}%`} 
+                icon={Award} 
+                color="yellow" 
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Registration Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-[#1a1a1a] rounded-xl p-4 border border-gray-800">
-            <p className="text-sm text-gray-400 mb-1">Today</p>
-            <p className="text-xl font-bold text-white">{userData.registrationStats?.today || 0}</p>
-          </div>
-          <div className="bg-[#1a1a1a] rounded-xl p-4 border border-gray-800">
-            <p className="text-sm text-gray-400 mb-1">This Week</p>
-            <p className="text-xl font-bold text-white">{userData.registrationStats?.thisWeek || 0}</p>
-          </div>
-          <div className="bg-[#1a1a1a] rounded-xl p-4 border border-gray-800">
-            <p className="text-sm text-gray-400 mb-1">This Month</p>
-            <p className="text-xl font-bold text-white">{userData.registrationStats?.thisMonth || 0}</p>
-          </div>
-          <div className="bg-[#1a1a1a] rounded-xl p-4 border border-gray-800">
-            <p className="text-sm text-gray-400 mb-1">Avg. Per Day</p>
-            <p className="text-xl font-bold text-white">{userData.registrationStats?.avgPerDay || 0}</p>
+        {/* Filters */}
+        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
+          <div className="flex flex-col md:flex-row md:items-center gap-4">
+            <SearchInput search={search} setSearch={setSearch} />
+            <FilterDropdown 
+              value={dateRange} 
+              setValue={setDateRange} 
+              label="Date Range" 
+              options={["week", "month", "year"]} 
+            />
+
+            <button
+              onClick={() => {
+                setSearch("");
+                fetchUserAnalytics();
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+            >
+              <RefreshCw size={16} />
+              <span>Refresh</span>
+            </button>
           </div>
         </div>
 
-        {/* User Distribution */}
+        {/* Analytics Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* By Role */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4">Users by Role</h2>
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Users by Role</h2>
             <div className="space-y-4">
               <ProgressBar 
                 label="Students" 
@@ -715,35 +773,35 @@ function AnalyticsUsers({ setView, admin }) {
           </div>
 
           {/* By Status */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4">Users by Status</h2>
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Users by Status</h2>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-gray-300">Active</span>
-                <span className="text-green-500 font-semibold">{userData.byStatus.active.toLocaleString()}</span>
+                <span className="text-gray-600">Active</span>
+                <span className="text-green-600 font-semibold">{userData.byStatus.active.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-300">Inactive</span>
-                <span className="text-yellow-500 font-semibold">{userData.byStatus.inactive.toLocaleString()}</span>
+                <span className="text-gray-600">Inactive</span>
+                <span className="text-yellow-600 font-semibold">{userData.byStatus.inactive.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-300">Suspended</span>
-                <span className="text-red-500 font-semibold">{userData.byStatus.suspended.toLocaleString()}</span>
+                <span className="text-gray-600">Suspended</span>
+                <span className="text-red-600 font-semibold">{userData.byStatus.suspended.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-300">Verified</span>
-                <span className="text-blue-500 font-semibold">{userData.byStatus.verified.toLocaleString()}</span>
+                <span className="text-gray-600">Verified</span>
+                <span className="text-blue-600 font-semibold">{userData.byStatus.verified.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-gray-300">Unverified</span>
-                <span className="text-orange-500 font-semibold">{userData.byStatus.unverified.toLocaleString()}</span>
+                <span className="text-gray-600">Unverified</span>
+                <span className="text-orange-600 font-semibold">{userData.byStatus.unverified.toLocaleString()}</span>
               </div>
             </div>
           </div>
 
           {/* Top Departments */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4">Top Departments</h2>
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Top Departments</h2>
             <div className="space-y-4">
               {userData.departmentStats?.slice(0, 5).map((dept, idx) => (
                 <ProgressBar 
@@ -759,8 +817,8 @@ function AnalyticsUsers({ setView, admin }) {
         </div>
 
         {/* Growth Chart */}
-        <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800 mb-8">
-          <h2 className="text-lg font-semibold text-white mb-4">User Growth</h2>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">User Growth</h2>
           <div className="h-64 flex items-end justify-between gap-2">
             {userData.growth?.values?.map((value, index) => {
               const max = Math.max(...userData.growth.values);
@@ -768,60 +826,133 @@ function AnalyticsUsers({ setView, admin }) {
               return (
                 <div key={index} className="flex-1 flex flex-col items-center gap-2">
                   <div 
-                    className="w-full bg-red-500/20 rounded-t relative group"
+                    className="w-full bg-[#CC0000]/20 rounded-t relative group"
                     style={{ height: `${height}%` }}
                   >
                     <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
                       {value} users
                     </div>
                   </div>
-                  <span className="text-xs text-gray-400">{userData.growth.labels?.[index]}</span>
+                  <span className="text-xs text-gray-600">{userData.growth.labels?.[index]}</span>
                 </div>
               );
             })}
           </div>
         </div>
 
-        {/* Top Users */}
-        <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-          <h2 className="text-lg font-semibold text-white mb-4">Most Active Users</h2>
+        {/* Registration Stats */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Registration Statistics</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <p className="text-sm text-gray-600 font-medium mb-1">Today</p>
+              <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.today || 0}</p>
+            </div>
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <p className="text-sm text-gray-600 font-medium mb-1">This Week</p>
+              <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.thisWeek || 0}</p>
+            </div>
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <p className="text-sm text-gray-600 font-medium mb-1">This Month</p>
+              <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.thisMonth || 0}</p>
+            </div>
+            <div className="bg-white p-4 rounded-lg border border-gray-200">
+              <p className="text-sm text-gray-600 font-medium mb-1">Avg. Per Day</p>
+              <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.avgPerDay || 0}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Most Active Users */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Most Active Users</h2>
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-800">
-                  <th className="text-left py-3 text-sm font-medium text-gray-400">User</th>
-                  <th className="text-left py-3 text-sm font-medium text-gray-400">Email</th>
-                  <th className="text-left py-3 text-sm font-medium text-gray-400">Role</th>
-                  <th className="text-left py-3 text-sm font-medium text-gray-400">Actions</th>
-                  <th className="text-left py-3 text-sm font-medium text-gray-400">Last Active</th>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left font-medium">User</th>
+                  <th className="px-6 py-3 text-left font-medium">Email</th>
+                  <th className="px-6 py-3 text-left font-medium">Role</th>
+                  <th className="px-6 py-3 text-left font-medium">Actions</th>
+                  <th className="px-6 py-3 text-left font-medium">Last Active</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-200">
                 {userData.topUsers.map((user, index) => (
-                  <tr key={user.id || index} className="border-b border-gray-800/50 hover:bg-gray-800/20">
-                    <td className="py-3 text-white">{user.name}</td>
-                    <td className="py-3 text-gray-400">{user.email}</td>
-                    <td className="py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        user.role === 'student' ? 'bg-blue-500/20 text-blue-400' :
-                        user.role === 'faculty' ? 'bg-green-500/20 text-green-400' :
-                        user.role === 'staff' ? 'bg-purple-500/20 text-purple-400' :
-                        'bg-orange-500/20 text-orange-400'
+                  <tr key={user.id || index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-800">{user.name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                        user.role === 'student' ? 'bg-green-100 text-green-800' :
+                        user.role === 'faculty' ? 'bg-purple-100 text-purple-800' :
+                        user.role === 'staff' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-blue-100 text-blue-800'
                       }`}>
-                        {user.role}
+                        {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                       </span>
                     </td>
-                    <td className="py-3 text-white font-medium">{user.reservations}</td>
-                    <td className="py-3 text-gray-400">
-                      {user.lastActive ? new Date(user.lastActive).toLocaleDateString() : 'Never'}
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.reservations}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-600">
+                      {user.lastActive ? formatPHDateTime(user.lastActive) : 'Never'}
                     </td>
                   </tr>
                 ))}
+                {userData.topUsers.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                      No user activity data available
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
+    </main>
+  );
+}
+
+// Helper components
+function SearchInput({ search, setSearch }) {
+  return (
+    <div className="relative flex-1">
+      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search analytics..."
+        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-0"
+      />
+      {search && (
+        <button
+          onClick={() => setSearch("")}
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+        >
+          <X size={16} />
+        </button>
+      )}
+    </div>
+  );
+}
+
+function FilterDropdown({ value, setValue, label, options }) {
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="appearance-none pl-4 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 cursor-pointer outline-0"
+      >
+        {options.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt === "All" ? `All ${label}` : opt.charAt(0).toUpperCase() + opt.slice(1)}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
     </div>
   );
 }
