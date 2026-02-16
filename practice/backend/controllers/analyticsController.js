@@ -1,39 +1,52 @@
-// controllers/analyticsController.js
 const User = require("../models/User");
-const Reservation = require("../models/Reservation");
-const Room = require("../models/Room");
 const Log = require("../models/Log");
-const mongoose = require("mongoose");
+const Reservation = require("../models/Reservation");
 
-// ================== USER ANALYTICS ==================
-// GET /analytics/users?range=week|month|year
+// @desc    Get user analytics
+// @route   GET /api/analytics/users
+// @access  Public
 exports.getUserAnalytics = async (req, res) => {
   try {
     const { range = "month" } = req.query;
     
-    // Fetch all users (excluding passwords)
-    const users = await User.find().select('-password').lean();
+    // Get date ranges
+    const now = new Date();
+    const startDate = getStartDate(range);
+    const previousStartDate = getPreviousStartDate(range);
+    
+    // Fetch all users (non-archived)
+    const users = await User.find({ archived: { $ne: true } })
+      .select('-password')
+      .lean();
     
     // Fetch archived users
-    const archivedUsers = await User.find({ archived: true }).lean();
-    
-    // Fetch logs for activity data (last 1000)
-    const logs = await Log.find()
-      .sort({ createdAt: -1 })
-      .limit(1000)
-      .populate('userId', 'name email')
+    const archivedUsers = await User.find({ archived: true })
+      .select('-password')
       .lean();
+    
+    // Fetch logs for activity data (last 3 months)
+    const threeMonthsAgo = new Date();
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    
+    const logs = await Log.find({
+      createdAt: { $gte: threeMonthsAgo }
+    }).lean();
+    
+    // Fetch reservations for activity data (last 3 months)
+    const reservations = await Reservation.find({
+      createdAt: { $gte: threeMonthsAgo }
+    }).lean();
 
     // Calculate statistics
-    const stats = calculateUserStats(users, archivedUsers, logs, range);
+    const stats = calculateUserStats(users, archivedUsers, logs, reservations, range, startDate, previousStartDate);
 
     res.json({
       success: true,
-      data: stats,
-      message: "User analytics fetched successfully"
+      data: stats
     });
+
   } catch (error) {
-    console.error("Error fetching user analytics:", error);
+    console.error("Error in getUserAnalytics:", error);
     res.status(500).json({
       success: false,
       message: "Failed to fetch user analytics",
@@ -42,144 +55,103 @@ exports.getUserAnalytics = async (req, res) => {
   }
 };
 
-// ================== ANALYTICS OVERVIEW ==================
-exports.getAnalyticsOverview = async (req, res) => {
-  try {
-    const { range = "month" } = req.query;
-    
-    // Calculate date ranges
-    const now = new Date();
-    let startDate, previousStartDate;
-    
-    switch(range) {
-      case "week":
-        startDate = new Date(now.setDate(now.getDate() - 7));
-        previousStartDate = new Date(now.setDate(now.getDate() - 14));
-        break;
-      case "month":
-        startDate = new Date(now.setMonth(now.getMonth() - 1));
-        previousStartDate = new Date(now.setMonth(now.getMonth() - 2));
-        break;
-      case "year":
-        startDate = new Date(now.setFullYear(now.getFullYear() - 1));
-        previousStartDate = new Date(now.setFullYear(now.getFullYear() - 2));
-        break;
-      default:
-        startDate = new Date(now.setMonth(now.getMonth() - 1));
-        previousStartDate = new Date(now.setMonth(now.getMonth() - 2));
-    }
-
-    // Fetch all data in parallel
-    const [
-      totalUsers,
-      activeUsers,
-      newUsers,
-      usersByRole,
-      previousPeriodUsers,
-      totalReservations,
-      pendingReservations,
-      approvedReservations,
-      completedReservations,
-      totalRooms,
-      availableRooms
-    ] = await Promise.all([
-      User.countDocuments({ archived: { $ne: true } }),
-      User.countDocuments({ 
-        lastLogin: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } 
-      }),
-      User.countDocuments({ createdAt: { $gte: startDate } }),
-      User.aggregate([{ $group: { _id: "$role", count: { $sum: 1 } } }]),
-      User.countDocuments({ createdAt: { $gte: previousStartDate, $lt: startDate } }),
-      Reservation.countDocuments({ createdAt: { $gte: startDate } }),
-      Reservation.countDocuments({ status: "Pending", createdAt: { $gte: startDate } }),
-      Reservation.countDocuments({ status: "Approved", createdAt: { $gte: startDate } }),
-      Reservation.countDocuments({ status: "Completed", createdAt: { $gte: startDate } }),
-      Room.countDocuments(),
-      Room.countDocuments({ status: "available" })
-    ]);
-
-    // Calculate trends
-    const userTrend = calculateTrend(newUsers, previousPeriodUsers);
-
-    // Format response
-    const overviewData = {
-      users: {
-        total: totalUsers,
-        active: activeUsers,
-        new: newUsers,
-        byRole: usersByRole.reduce((acc, item) => {
-          acc[item._id?.toLowerCase() || 'other'] = item.count;
-          return acc;
-        }, {}),
-        trend: userTrend
-      },
-      reservations: {
-        total: totalReservations,
-        pending: pendingReservations,
-        approved: approvedReservations,
-        completed: completedReservations
-      },
-      rooms: {
-        total: totalRooms,
-        available: availableRooms,
-        occupied: totalRooms - availableRooms
-      }
-    };
-
-    res.json(overviewData);
-  } catch (error) {
-    console.error("Analytics overview error:", error);
-    res.status(500).json({ 
-      message: "Failed to fetch analytics data", 
-      error: error.message 
-    });
+// Helper function to get start date based on range
+function getStartDate(range) {
+  const date = new Date();
+  switch(range) {
+    case 'week':
+      date.setDate(date.getDate() - 7);
+      break;
+    case 'month':
+      date.setMonth(date.getMonth() - 1);
+      break;
+    case 'year':
+      date.setFullYear(date.getFullYear() - 1);
+      break;
+    default:
+      date.setMonth(date.getMonth() - 1);
   }
-};
+  return date;
+}
 
-// ================== HELPER FUNCTIONS ==================
+// Helper function to get previous period start date
+function getPreviousStartDate(range) {
+  const date = new Date();
+  switch(range) {
+    case 'week':
+      date.setDate(date.getDate() - 14);
+      break;
+    case 'month':
+      date.setMonth(date.getMonth() - 2);
+      break;
+    case 'year':
+      date.setFullYear(date.getFullYear() - 2);
+      break;
+    default:
+      date.setMonth(date.getMonth() - 2);
+  }
+  return date;
+}
 
-function calculateUserStats(users, archivedUsers, logs, range) {
+// Main calculation function
+function calculateUserStats(users, archivedUsers, logs, reservations, range, startDate, previousStartDate) {
   const now = new Date();
-  const startDate = getStartDate(range);
-  const previousStartDate = getPreviousStartDate(range);
-  
-  // Filter active users (non-archived)
-  const activeUsers = users.filter(u => !u.archived);
-  
-  // Calculate by role
-  const byRole = {
-    student: activeUsers.filter(u => u.role?.toLowerCase() === 'student').length,
-    faculty: activeUsers.filter(u => u.role?.toLowerCase() === 'faculty').length,
-    staff: activeUsers.filter(u => u.role?.toLowerCase() === 'staff').length,
-    admin: activeUsers.filter(u => u.role?.toLowerCase() === 'admin').length
-  };
-
-  // Calculate date ranges for status
-  const thirtyDaysAgo = new Date();
+  const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   
-  const sevenDaysAgo = new Date();
+  const sevenDaysAgo = new Date(now);
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   
-  const oneDayAgo = new Date();
+  const oneDayAgo = new Date(now);
   oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-  
-  // Calculate by status
+
+  // Calculate by role
+  const byRole = {
+    student: users.filter(u => u.role?.toLowerCase() === 'student').length,
+    faculty: users.filter(u => u.role?.toLowerCase() === 'faculty').length,
+    staff: users.filter(u => u.role?.toLowerCase() === 'staff').length,
+    admin: users.filter(u => u.role?.toLowerCase() === 'admin').length
+  };
+
+  // Calculate by status - UPDATED to work with your Log schema
+  const activeUsers = users.filter(u => {
+    const userLogs = logs.filter(log => 
+      log.userId?.toString() === u._id.toString() || log.id_number === u.id_number
+    );
+    // Check if any log in the last 7 days
+    const hasRecentActivity = userLogs.some(log => 
+      log.createdAt && new Date(log.createdAt) > sevenDaysAgo
+    );
+    return hasRecentActivity;
+  });
+
+  const inactiveUsers = users.filter(u => {
+    const userLogs = logs.filter(log => 
+      log.userId?.toString() === u._id.toString() || log.id_number === u.id_number
+    );
+    if (userLogs.length === 0) return true;
+    // Check if all logs are older than 30 days
+    const hasRecentActivity = userLogs.some(log => 
+      log.createdAt && new Date(log.createdAt) > thirtyDaysAgo
+    );
+    return !hasRecentActivity;
+  });
+
   const byStatus = {
-    active: activeUsers.filter(u => u.lastLogin && new Date(u.lastLogin) > sevenDaysAgo).length,
-    inactive: activeUsers.filter(u => !u.lastLogin || new Date(u.lastLogin) <= thirtyDaysAgo).length,
-    suspended: activeUsers.filter(u => u.suspended).length,
-    pending: activeUsers.filter(u => !u.verified).length,
-    verified: activeUsers.filter(u => u.verified).length,
-    unverified: activeUsers.filter(u => !u.verified).length
+    active: activeUsers.length,
+    inactive: inactiveUsers.length,
+    suspended: users.filter(u => u.suspended).length,
+    pending: users.filter(u => !u.verified).length,
+    verified: users.filter(u => u.verified).length,
+    unverified: users.filter(u => !u.verified).length
   };
 
   // Calculate new users
-  const newUsers = activeUsers.filter(u => 
+  const newUsers = users.filter(u => 
     u.createdAt && new Date(u.createdAt) >= startDate
   ).length;
   
-  const previousNewUsers = activeUsers.filter(u => 
+  const previousNewUsers = users.filter(u => 
     u.createdAt && 
     new Date(u.createdAt) >= previousStartDate && 
     new Date(u.createdAt) < startDate
@@ -188,49 +160,49 @@ function calculateUserStats(users, archivedUsers, logs, range) {
   // Calculate trends
   const trends = {
     daily: calculateTrend(
-      getCountForPeriod(activeUsers, 'day', 1),
-      getCountForPeriod(activeUsers, 'day', 2)
+      getCountForPeriod(users, 'day', 1),
+      getCountForPeriod(users, 'day', 2)
     ),
     weekly: calculateTrend(
-      getCountForPeriod(activeUsers, 'week', 1),
-      getCountForPeriod(activeUsers, 'week', 2)
+      getCountForPeriod(users, 'week', 1),
+      getCountForPeriod(users, 'week', 2)
     ),
     monthly: calculateTrend(newUsers, previousNewUsers)
   };
 
-  // Registration stats
+  // Calculate registration stats
   const registrationStats = {
-    today: getCountForPeriod(activeUsers, 'day', 1),
-    thisWeek: getCountForPeriod(activeUsers, 'week', 1),
-    thisMonth: getCountForPeriod(activeUsers, 'month', 1),
-    avgPerDay: Math.round(getCountForPeriod(activeUsers, 'month', 1) / 30) || 0
+    today: getCountForPeriod(users, 'day', 1),
+    thisWeek: getCountForPeriod(users, 'week', 1),
+    thisMonth: getCountForPeriod(users, 'month', 1),
+    avgPerDay: Math.round(getCountForPeriod(users, 'month', 1) / 30) || 0
   };
 
-  // Activity stats
+  // Calculate activity stats - UPDATED to work with your Log schema
   const activityStats = {
-    activeToday: getActiveCount(activeUsers, logs, 'day'),
-    activeThisWeek: getActiveCount(activeUsers, logs, 'week'),
-    activeThisMonth: getActiveCount(activeUsers, logs, 'month'),
-    retentionRate: calculateRetentionRate(activeUsers, logs)
+    activeToday: getActiveCount(users, logs, reservations, 'day'),
+    activeThisWeek: getActiveCount(users, logs, reservations, 'week'),
+    activeThisMonth: getActiveCount(users, logs, reservations, 'month'),
+    retentionRate: calculateRetentionRate(users, logs)
   };
 
-  // Growth data for chart
-  const growth = generateGrowthData(activeUsers, range);
+  // Generate growth data
+  const growth = generateGrowthData(users, range);
 
-  // Top users by activity
-  const topUsers = getTopUsers(activeUsers, logs);
+  // Get top users - UPDATED to work with your Log schema
+  const topUsers = getTopUsers(users, logs, reservations);
 
-  // Department stats
-  const departmentStats = getDepartmentStats(activeUsers);
+  // Get department stats
+  const departmentStats = getDepartmentStats(users);
 
-  // Role distribution for pie chart
+  // Get role distribution
   const roleDistribution = Object.entries(byRole).map(([name, value]) => ({
-    name,
+    name: name.charAt(0).toUpperCase() + name.slice(1),
     value
   }));
 
   return {
-    total: activeUsers.length,
+    total: users.length,
     active: byStatus.active,
     new: newUsers,
     deleted: archivedUsers.length,
@@ -247,28 +219,7 @@ function calculateUserStats(users, archivedUsers, logs, range) {
   };
 }
 
-function getStartDate(range) {
-  const date = new Date();
-  switch(range) {
-    case 'week': date.setDate(date.getDate() - 7); break;
-    case 'month': date.setMonth(date.getMonth() - 1); break;
-    case 'year': date.setFullYear(date.getFullYear() - 1); break;
-    default: date.setMonth(date.getMonth() - 1);
-  }
-  return date;
-}
-
-function getPreviousStartDate(range) {
-  const date = new Date();
-  switch(range) {
-    case 'week': date.setDate(date.getDate() - 14); break;
-    case 'month': date.setMonth(date.getMonth() - 2); break;
-    case 'year': date.setFullYear(date.getFullYear() - 2); break;
-    default: date.setMonth(date.getMonth() - 2);
-  }
-  return date;
-}
-
+// Helper: Get count for period
 function getCountForPeriod(users, period, offset) {
   const now = new Date();
   let startDate = new Date();
@@ -292,31 +243,46 @@ function getCountForPeriod(users, period, offset) {
   ).length;
 }
 
-function getActiveCount(users, logs, period) {
+// Helper: Get active count - UPDATED to work with your Log schema
+function getActiveCount(users, logs, reservations, period) {
   const now = new Date();
   let cutoff = new Date();
   
   switch(period) {
-    case 'day': cutoff.setDate(now.getDate() - 1); break;
-    case 'week': cutoff.setDate(now.getDate() - 7); break;
-    case 'month': cutoff.setMonth(now.getMonth() - 1); break;
-    default: cutoff.setDate(now.getDate() - 7);
+    case 'day':
+      cutoff.setDate(now.getDate() - 1);
+      break;
+    case 'week':
+      cutoff.setDate(now.getDate() - 7);
+      break;
+    case 'month':
+      cutoff.setMonth(now.getMonth() - 1);
+      break;
+    default:
+      cutoff.setDate(now.getDate() - 7);
   }
   
-  // Get unique users from logs within period
-  const activeUserIds = new Set();
-  logs.forEach(log => {
-    if (new Date(log.createdAt) >= cutoff) {
-      const userId = log.userId?._id || log.userId;
-      if (userId) {
-        activeUserIds.add(userId.toString());
-      }
-    }
-  });
+  // Get active users from logs
+  const activeFromLogs = new Set(
+    logs
+      .filter(log => log.createdAt && new Date(log.createdAt) >= cutoff)
+      .map(log => log.userId?.toString() || log.id_number)
+      .filter(id => id)
+  );
   
-  return activeUserIds.size;
+  // Get active users from reservations
+  const activeFromReservations = new Set(
+    reservations
+      .filter(res => res.createdAt && new Date(res.createdAt) >= cutoff)
+      .map(res => res.userId?.toString())
+      .filter(id => id)
+  );
+  
+  // Combine both sets
+  return new Set([...activeFromLogs, ...activeFromReservations]).size;
 }
 
+// Helper: Calculate trend
 function calculateTrend(current, previous) {
   if (previous === 0) {
     return {
@@ -333,11 +299,13 @@ function calculateTrend(current, previous) {
   };
 }
 
+// Helper: Calculate retention rate - UPDATED to work with your Log schema
 function calculateRetentionRate(users, logs) {
-  const thirtyDaysAgo = new Date();
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   
-  const sixtyDaysAgo = new Date();
+  const sixtyDaysAgo = new Date(now);
   sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
   
   // Users who joined 30-60 days ago
@@ -351,17 +319,17 @@ function calculateRetentionRate(users, logs) {
   
   // Users who were active in last 30 days
   const retained = cohort.filter(u => {
-    const userLogs = logs.filter(log => {
-      const userId = log.userId?._id || log.userId;
-      return userId?.toString() === u._id.toString() && 
-             new Date(log.createdAt) >= thirtyDaysAgo;
-    });
+    const userLogs = logs.filter(log => 
+      (log.userId?.toString() === u._id.toString() || log.id_number === u.id_number) &&
+      log.createdAt && new Date(log.createdAt) >= thirtyDaysAgo
+    );
     return userLogs.length > 0;
   });
   
   return Math.round((retained.length / cohort.length) * 100);
 }
 
+// Helper: Generate growth data
 function generateGrowthData(users, range) {
   const labels = [];
   const values = [];
@@ -370,7 +338,7 @@ function generateGrowthData(users, range) {
   switch(range) {
     case 'week':
       for (let i = 6; i >= 0; i--) {
-        const date = new Date();
+        const date = new Date(now);
         date.setDate(now.getDate() - i);
         labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
         
@@ -387,12 +355,14 @@ function generateGrowthData(users, range) {
       break;
       
     case 'month':
+      // Group by weeks
       for (let i = 3; i >= 0; i--) {
-        labels.push(`Week ${4-i}`);
-        const weekEnd = new Date();
+        const weekEnd = new Date(now);
         weekEnd.setDate(now.getDate() - (i * 7));
         const weekStart = new Date(weekEnd);
         weekStart.setDate(weekEnd.getDate() - 6);
+        
+        labels.push(`Week ${4-i}`);
         
         const count = users.filter(u => 
           u.createdAt && 
@@ -405,7 +375,7 @@ function generateGrowthData(users, range) {
       
     case 'year':
       for (let i = 11; i >= 0; i--) {
-        const date = new Date();
+        const date = new Date(now);
         date.setMonth(now.getMonth() - i);
         labels.push(date.toLocaleDateString('en-US', { month: 'short' }));
         
@@ -423,11 +393,12 @@ function generateGrowthData(users, range) {
       
     default:
       for (let i = 3; i >= 0; i--) {
-        labels.push(`Week ${4-i}`);
-        const weekEnd = new Date();
+        const weekEnd = new Date(now);
         weekEnd.setDate(now.getDate() - (i * 7));
         const weekStart = new Date(weekEnd);
         weekStart.setDate(weekEnd.getDate() - 6);
+        
+        labels.push(`Week ${4-i}`);
         
         const count = users.filter(u => 
           u.createdAt && 
@@ -441,37 +412,52 @@ function generateGrowthData(users, range) {
   return { labels, values };
 }
 
-function getTopUsers(users, logs, limit = 5) {
-  // Count user actions from logs
+// Helper: Get top users - UPDATED to work with your Log schema
+function getTopUsers(users, logs, reservations) {
+  // Count user actions
   const userActionCount = {};
   
+  // Count from logs
   logs.forEach(log => {
-    const userId = log.userId?._id || log.userId;
+    const userId = log.userId?.toString();
+    const idNumber = log.id_number;
+    
     if (userId) {
-      const id = userId.toString();
-      userActionCount[id] = (userActionCount[id] || 0) + 1;
+      userActionCount[userId] = (userActionCount[userId] || 0) + 1;
+    } else if (idNumber) {
+      // Find user by id_number
+      const user = users.find(u => u.id_number === idNumber);
+      if (user) {
+        userActionCount[user._id.toString()] = (userActionCount[user._id.toString()] || 0) + 1;
+      }
     }
   });
   
-  // Sort users by action count
+  // Count from reservations
+  reservations.forEach(res => {
+    const userId = res.userId?.toString();
+    if (userId) {
+      userActionCount[userId] = (userActionCount[userId] || 0) + 1;
+    }
+  });
+  
+  // Map users with action counts
   const usersWithActions = users.map(user => ({
-    ...user,
-    actionCount: userActionCount[user._id.toString()] || 0
+    id: user._id,
+    name: user.name || 'Unknown',
+    email: user.email || '',
+    role: user.role || 'student',
+    reservations: userActionCount[user._id.toString()] || 0,
+    lastActive: user.lastLogin || user.updatedAt
   }));
   
+  // Sort and return top 5
   return usersWithActions
-    .sort((a, b) => b.actionCount - a.actionCount)
-    .slice(0, limit)
-    .map(user => ({
-      id: user._id,
-      name: user.name || 'Unknown',
-      email: user.email || '',
-      role: user.role?.toLowerCase() || 'student',
-      reservations: user.actionCount,
-      lastActive: user.lastLogin || user.updatedAt
-    }));
+    .sort((a, b) => b.reservations - a.reservations)
+    .slice(0, 5);
 }
 
+// Helper: Get department stats
 function getDepartmentStats(users) {
   const deptCount = {};
   
@@ -484,196 +470,4 @@ function getDepartmentStats(users) {
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
-}
-
-// ================== OTHER ANALYTICS ENDPOINTS ==================
-
-exports.getReservationAnalytics = async (req, res) => {
-  try {
-    const { range = "month" } = req.query;
-    
-    // Implementation for reservation analytics
-    const startDate = getStartDate(range);
-    
-    const reservations = await Reservation.find({ 
-      createdAt: { $gte: startDate } 
-    }).lean();
-    
-    // Calculate stats
-    const byStatus = {
-      pending: reservations.filter(r => r.status === 'Pending').length,
-      approved: reservations.filter(r => r.status === 'Approved').length,
-      rejected: reservations.filter(r => r.status === 'Rejected').length,
-      completed: reservations.filter(r => r.status === 'Completed').length,
-      cancelled: reservations.filter(r => r.status === 'Cancelled').length
-    };
-    
-    // Get popular rooms
-    const roomCounts = {};
-    reservations.forEach(r => {
-      const roomKey = `${r.roomName} (${r.location})`;
-      roomCounts[roomKey] = (roomCounts[roomKey] || 0) + 1;
-    });
-    
-    const popularRooms = Object.entries(roomCounts)
-      .map(([name, count]) => ({ name, count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-    
-    res.json({
-      success: true,
-      data: {
-        total: reservations.length,
-        byStatus,
-        popularRooms,
-        trends: generateReservationTrends(reservations, range)
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-exports.getRoomAnalytics = async (req, res) => {
-  try {
-    const rooms = await Room.find().lean();
-    const reservations = await Reservation.find({ 
-      status: { $in: ['Completed', 'Approved', 'Ongoing'] }
-    }).lean();
-    
-    // Calculate room utilization
-    const roomUtilization = rooms.map(room => {
-      const roomReservations = reservations.filter(r => 
-        r.roomName === room.name && r.location === room.location
-      );
-      return {
-        name: room.name,
-        location: room.location,
-        totalBookings: roomReservations.length,
-        status: room.status,
-        utilization: roomReservations.length > 0 ? 'High' : 'Low'
-      };
-    });
-    
-    res.json({
-      success: true,
-      data: {
-        total: rooms.length,
-        byStatus: {
-          available: rooms.filter(r => r.status === 'available').length,
-          occupied: rooms.filter(r => r.status === 'occupied').length,
-          maintenance: rooms.filter(r => r.status === 'maintenance').length
-        },
-        utilization: roomUtilization,
-        popular: roomUtilization.sort((a, b) => b.totalBookings - a.totalBookings).slice(0, 5)
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-exports.getEngagementMetrics = async (req, res) => {
-  try {
-    const { range = "month" } = req.query;
-    const startDate = getStartDate(range);
-    
-    const logs = await Log.find({ createdAt: { $gte: startDate } }).lean();
-    
-    // Calculate metrics
-    const uniqueUsers = new Set();
-    const actionsByType = {};
-    
-    logs.forEach(log => {
-      if (log.userId) uniqueUsers.add(log.userId.toString());
-      const action = log.action || 'other';
-      actionsByType[action] = (actionsByType[action] || 0) + 1;
-    });
-    
-    res.json({
-      success: true,
-      data: {
-        totalActions: logs.length,
-        uniqueUsers: uniqueUsers.size,
-        actionsByType,
-        averagePerUser: uniqueUsers.size ? (logs.length / uniqueUsers.size).toFixed(1) : 0
-      }
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-exports.exportAnalytics = async (req, res) => {
-  try {
-    const { format = "json", range = "month" } = req.query;
-    
-    // Gather all analytics data
-    const users = await exports.getUserAnalytics({ query: { range } }, {
-      json: (data) => data,
-      status: () => ({ json: () => {} })
-    });
-    
-    if (format === "csv") {
-      // Convert to CSV
-      const csv = convertToCSV(users);
-      res.setHeader("Content-Type", "text/csv");
-      res.setHeader("Content-Disposition", "attachment; filename=analytics.csv");
-      return res.send(csv);
-    } else {
-      res.json(users);
-    }
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// Helper for generating trends
-function generateReservationTrends(reservations, range) {
-  const trends = [];
-  const now = new Date();
-  
-  if (range === 'week') {
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(now.getDate() - i);
-      const dayStr = date.toLocaleDateString('en-US', { weekday: 'short' });
-      
-      const count = reservations.filter(r => {
-        const rDate = new Date(r.createdAt);
-        return rDate.toDateString() === date.toDateString();
-      }).length;
-      
-      trends.push({ label: dayStr, value: count });
-    }
-  } else if (range === 'month') {
-    for (let i = 3; i >= 0; i--) {
-      trends.push({ 
-        label: `Week ${4-i}`, 
-        value: Math.floor(Math.random() * 50) + 20 // Replace with actual calculation
-      });
-    }
-  }
-  
-  return trends;
-}
-
-function convertToCSV(data) {
-  const flatten = (obj, prefix = '') => {
-    return Object.keys(obj).reduce((acc, k) => {
-      const pre = prefix.length ? prefix + '.' : '';
-      if (typeof obj[k] === 'object' && obj[k] !== null && !Array.isArray(obj[k])) {
-        Object.assign(acc, flatten(obj[k], pre + k));
-      } else {
-        acc[pre + k] = obj[k];
-      }
-      return acc;
-    }, {});
-  };
-  
-  const flat = flatten(data);
-  const headers = Object.keys(flat).join(',');
-  const values = Object.values(flat).map(v => `"${v}"`).join(',');
-  
-  return `${headers}\n${values}`;
 }

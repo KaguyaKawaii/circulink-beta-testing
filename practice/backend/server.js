@@ -30,6 +30,7 @@ import availabilityRoutes from "./routes/availabilityRoutes.js";
 import systemRoutes from "./routes/system.js";
 import backupRoutes from "./routes/backupRoutes.js";
 import announcementRoutes from './routes/announcement.js';
+import analyticsRoutes from "./routes/analyticsRoutes.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -254,6 +255,7 @@ app.use("/api", availabilityRoutes);
 app.use("/api/system", systemRoutes);
 app.use("/api/announcements", announcementRoutes);
 app.use("/api/admin/system", backupRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 // Database connection + Start Server
 mongoose
