@@ -459,115 +459,7 @@ function AnalyticsUsers({ setView, admin }) {
                'Real-time user data from database'}
             </p>
           </div>
-          <div className="flex items-center space-x-4">
-            {/* Date Range Selector */}
-            <div className="flex bg-gray-100 rounded-lg p-1 relative">
-              {["week", "month", "year"].map((range) => (
-                <button
-                  key={range}
-                  onClick={() => {
-                    setDateRange(range);
-                    setShowCustomDate(false);
-                  }}
-                  className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer ${
-                    dateRange === range && !showCustomDate
-                      ? "bg-[#CC0000] text-white"
-                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
-                  }`}
-                >
-                  {range === 'week' ? 'Week' : 
-                   range === 'month' ? 'Month' : 
-                   'Year'}
-                </button>
-              ))}
-              
-              {/* Custom Date Button */}
-              <button
-                onClick={() => setShowCustomDate(!showCustomDate)}
-                className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-                  showCustomDate || dateRange === 'custom'
-                    ? "bg-[#CC0000] text-white"
-                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
-                }`}
-              >
-                <Calendar size={14} />
-                <span>Custom</span>
-              </button>
-
-              {/* Custom Date Range Picker */}
-              {showCustomDate && (
-                <div 
-                  ref={calendarRef}
-                  className="absolute top-12 right-0 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-50 w-72"
-                >
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-sm font-semibold text-gray-700">Select Date Range</h3>
-                    <button
-                      onClick={() => setShowCustomDate(false)}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                  <div className="flex flex-col gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Start Date</label>
-                      <input
-                        type="date"
-                        value={customStartDate}
-                        onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
-                        max={customEndDate || undefined}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">End Date</label>
-                      <input
-                        type="date"
-                        value={customEndDate}
-                        onChange={(e) => setCustomEndDate(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
-                        min={customStartDate || undefined}
-                      />
-                    </div>
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        onClick={handleCustomDateApply}
-                        className="flex-1 bg-[#CC0000] text-white text-sm py-2 rounded-lg hover:bg-[#990000] transition-colors"
-                      >
-                        Apply
-                      </button>
-                      <button
-                        onClick={handleCustomDateClear}
-                        className="flex-1 bg-gray-200 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-300 transition-colors"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Export to CSV Button */}
-            <button
-              onClick={exportToCSV}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
-              title="Export to CSV"
-            >
-              <Download size={18} />
-              <span>CSV</span>
-            </button>
-
-            {/* Refresh Button */}
-            <button 
-              onClick={fetchUserAnalytics}
-              className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
-              title="Refresh Data"
-            >
-              <RefreshCw size={18} />
-            </button>
-          </div>
+          
         </div>
       </header>
 
@@ -759,6 +651,115 @@ function AnalyticsUsers({ setView, admin }) {
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
             User Growth - {dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : dateRange === 'year' ? 'Monthly' : 'Custom Period'}
           </h2>
+          <div className="flex items-center space-x-4">
+            {/* Date Range Selector */}
+            <div className="flex bg-gray-100 rounded-lg p-1 relative">
+              {["week", "month", "year"].map((range) => (
+                <button
+                  key={range}
+                  onClick={() => {
+                    setDateRange(range);
+                    setShowCustomDate(false);
+                  }}
+                  className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer ${
+                    dateRange === range && !showCustomDate
+                      ? "bg-[#CC0000] text-white"
+                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
+                  }`}
+                >
+                  {range === 'week' ? 'Week' : 
+                   range === 'month' ? 'Month' : 
+                   'Year'}
+                </button>
+              ))}
+              
+              {/* Custom Date Button */}
+              <button
+                onClick={() => setShowCustomDate(!showCustomDate)}
+                className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                  showCustomDate || dateRange === 'custom'
+                    ? "bg-[#CC0000] text-white"
+                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
+                }`}
+              >
+                <Calendar size={14} />
+                <span>Custom</span>
+              </button>
+
+              {/* Custom Date Range Picker */}
+              {showCustomDate && (
+                <div 
+                  ref={calendarRef}
+                  className="absolute top-12 right-0 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-50 w-72"
+                >
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-semibold text-gray-700">Select Date Range</h3>
+                    <button
+                      onClick={() => setShowCustomDate(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                        max={customEndDate || undefined}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">End Date</label>
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                        min={customStartDate || undefined}
+                      />
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={handleCustomDateApply}
+                        className="flex-1 bg-[#CC0000] text-white text-sm py-2 rounded-lg hover:bg-[#990000] transition-colors"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        onClick={handleCustomDateClear}
+                        className="flex-1 bg-gray-200 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Export to CSV Button */}
+            <button
+              onClick={exportToCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+              title="Export to CSV"
+            >
+              <Download size={18} />
+              <span>CSV</span>
+            </button>
+
+            {/* Refresh Button */}
+            <button 
+              onClick={fetchUserAnalytics}
+              className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
+              title="Refresh Data"
+            >
+              <RefreshCw size={18} />
+            </button>
+          </div>
           {loading ? (
             <div className="h-64 flex items-end justify-between gap-2 animate-pulse">
               {Array(7).fill(0).map((_, i) => (
