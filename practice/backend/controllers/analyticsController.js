@@ -7,12 +7,31 @@ const Reservation = require("../models/Reservation");
 // @access  Public
 exports.getUserAnalytics = async (req, res) => {
   try {
-    const { range = "month" } = req.query;
+    const { range = "month", startDate, endDate } = req.query;
     
     // Get date ranges
-    const now = new Date();
-    const startDate = getStartDate(range);
-    const previousStartDate = getPreviousStartDate(range);
+    let startDateObj, previousStartDateObj;
+    let isCustomRange = false;
+    
+    if (startDate && endDate) {
+      // Custom date range
+      isCustomRange = true;
+      startDateObj = new Date(startDate);
+      startDateObj.setHours(0, 0, 0, 0);
+      
+      const endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999);
+      
+      // For custom range, we need to calculate previous period of same length
+      const rangeLength = endDateObj - startDateObj;
+      previousStartDateObj = new Date(startDateObj - rangeLength);
+      
+      console.log(`Custom range: ${startDateObj} to ${endDateObj}`);
+    } else {
+      // Predefined ranges
+      startDateObj = getStartDate(range);
+      previousStartDateObj = getPreviousStartDate(range);
+    }
     
     // Fetch all users (non-archived)
     const users = await User.find({ archived: { $ne: true } })
@@ -24,21 +43,55 @@ exports.getUserAnalytics = async (req, res) => {
       .select('-password')
       .lean();
     
-    // Fetch logs for activity data (last 3 months)
-    const threeMonthsAgo = new Date();
-    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    // Fetch logs for activity data - adjust based on range
+    let logsQuery = {};
+    if (isCustomRange) {
+      // For custom range, get logs within that range plus some buffer for calculations
+      const bufferStart = new Date(previousStartDateObj);
+      logsQuery = {
+        createdAt: { $gte: bufferStart }
+      };
+    } else {
+      // For predefined ranges, get last 3 months
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      logsQuery = {
+        createdAt: { $gte: threeMonthsAgo }
+      };
+    }
     
-    const logs = await Log.find({
-      createdAt: { $gte: threeMonthsAgo }
-    }).lean();
+    const logs = await Log.find(logsQuery).lean();
     
-    // Fetch reservations for activity data (last 3 months)
-    const reservations = await Reservation.find({
-      createdAt: { $gte: threeMonthsAgo }
-    }).lean();
+    // Fetch reservations similarly
+    let reservationsQuery = {};
+    if (isCustomRange) {
+      const bufferStart = new Date(previousStartDateObj);
+      reservationsQuery = {
+        createdAt: { $gte: bufferStart }
+      };
+    } else {
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+      reservationsQuery = {
+        createdAt: { $gte: threeMonthsAgo }
+      };
+    }
+    
+    const reservations = await Reservation.find(reservationsQuery).lean();
 
     // Calculate statistics
-    const stats = calculateUserStats(users, archivedUsers, logs, reservations, range, startDate, previousStartDate);
+    const stats = calculateUserStats(
+      users, 
+      archivedUsers, 
+      logs, 
+      reservations, 
+      range, 
+      startDateObj, 
+      previousStartDateObj,
+      isCustomRange,
+      startDate,
+      endDate
+    );
 
     res.json({
       success: true,
@@ -93,8 +146,8 @@ function getPreviousStartDate(range) {
   return date;
 }
 
-// Main calculation function
-function calculateUserStats(users, archivedUsers, logs, reservations, range, startDate, previousStartDate) {
+// Main calculation function - UPDATED to handle custom ranges
+function calculateUserStats(users, archivedUsers, logs, reservations, range, startDate, previousStartDate, isCustomRange, customStart, customEnd) {
   const now = new Date();
   const thirtyDaysAgo = new Date(now);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -113,7 +166,7 @@ function calculateUserStats(users, archivedUsers, logs, reservations, range, sta
     admin: users.filter(u => u.role?.toLowerCase() === 'admin').length
   };
 
-  // Calculate by status - UPDATED to work with your Log schema
+  // Calculate by status
   const activeUsers = users.filter(u => {
     const userLogs = logs.filter(log => 
       log.userId?.toString() === u._id.toString() || log.id_number === u.id_number
@@ -146,16 +199,43 @@ function calculateUserStats(users, archivedUsers, logs, reservations, range, sta
     unverified: users.filter(u => !u.verified).length
   };
 
-  // Calculate new users
-  const newUsers = users.filter(u => 
-    u.createdAt && new Date(u.createdAt) >= startDate
-  ).length;
+  // Calculate new users based on date range
+  let newUsers = 0;
+  let previousNewUsers = 0;
   
-  const previousNewUsers = users.filter(u => 
-    u.createdAt && 
-    new Date(u.createdAt) >= previousStartDate && 
-    new Date(u.createdAt) < startDate
-  ).length;
+  if (isCustomRange && customStart && customEnd) {
+    // For custom range, count users created between start and end
+    const endDateObj = new Date(customEnd);
+    endDateObj.setHours(23, 59, 59, 999);
+    
+    newUsers = users.filter(u => 
+      u.createdAt && 
+      new Date(u.createdAt) >= startDate && 
+      new Date(u.createdAt) <= endDateObj
+    ).length;
+    
+    // Previous period of same length
+    const rangeLength = endDateObj - startDate;
+    const prevPeriodStart = new Date(startDate - rangeLength);
+    const prevPeriodEnd = new Date(startDate - 1);
+    
+    previousNewUsers = users.filter(u => 
+      u.createdAt && 
+      new Date(u.createdAt) >= prevPeriodStart && 
+      new Date(u.createdAt) <= prevPeriodEnd
+    ).length;
+  } else {
+    // Predefined ranges
+    newUsers = users.filter(u => 
+      u.createdAt && new Date(u.createdAt) >= startDate
+    ).length;
+    
+    previousNewUsers = users.filter(u => 
+      u.createdAt && 
+      new Date(u.createdAt) >= previousStartDate && 
+      new Date(u.createdAt) < startDate
+    ).length;
+  }
 
   // Calculate trends
   const trends = {
@@ -178,7 +258,7 @@ function calculateUserStats(users, archivedUsers, logs, reservations, range, sta
     avgPerDay: Math.round(getCountForPeriod(users, 'month', 1) / 30) || 0
   };
 
-  // Calculate activity stats - UPDATED to work with your Log schema
+  // Calculate activity stats
   const activityStats = {
     activeToday: getActiveCount(users, logs, reservations, 'day'),
     activeThisWeek: getActiveCount(users, logs, reservations, 'week'),
@@ -186,10 +266,10 @@ function calculateUserStats(users, archivedUsers, logs, reservations, range, sta
     retentionRate: calculateRetentionRate(users, logs)
   };
 
-  // Generate growth data
-  const growth = generateGrowthData(users, range);
+  // Generate growth data - UPDATED for custom ranges
+  const growth = generateGrowthData(users, range, isCustomRange, startDate, customStart, customEnd);
 
-  // Get top users - UPDATED to work with your Log schema
+  // Get top users
   const topUsers = getTopUsers(users, logs, reservations);
 
   // Get department stats
@@ -243,7 +323,7 @@ function getCountForPeriod(users, period, offset) {
   ).length;
 }
 
-// Helper: Get active count - UPDATED to work with your Log schema
+// Helper: Get active count
 function getActiveCount(users, logs, reservations, period) {
   const now = new Date();
   let cutoff = new Date();
@@ -299,7 +379,7 @@ function calculateTrend(current, previous) {
   };
 }
 
-// Helper: Calculate retention rate - UPDATED to work with your Log schema
+// Helper: Calculate retention rate
 function calculateRetentionRate(users, logs) {
   const now = new Date();
   const thirtyDaysAgo = new Date(now);
@@ -329,18 +409,26 @@ function calculateRetentionRate(users, logs) {
   return Math.round((retained.length / cohort.length) * 100);
 }
 
-// Helper: Generate growth data
-function generateGrowthData(users, range) {
+// Helper: Generate growth data - UPDATED for custom ranges
+function generateGrowthData(users, range, isCustomRange, startDate, customStart, customEnd) {
   const labels = [];
   const values = [];
   const now = new Date();
   
-  switch(range) {
-    case 'week':
-      for (let i = 6; i >= 0; i--) {
-        const date = new Date(now);
-        date.setDate(now.getDate() - i);
-        labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+  if (isCustomRange && customStart && customEnd) {
+    // For custom range, create appropriate intervals based on range length
+    const start = new Date(customStart);
+    const end = new Date(customEnd);
+    end.setHours(23, 59, 59, 999);
+    
+    const rangeDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+    
+    if (rangeDays <= 14) {
+      // Less than 2 weeks: show daily
+      for (let i = 0; i <= rangeDays; i++) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + i);
+        labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
         
         const dayStart = new Date(date.setHours(0,0,0,0));
         const dayEnd = new Date(date.setHours(23,59,59,999));
@@ -352,17 +440,16 @@ function generateGrowthData(users, range) {
         ).length;
         values.push(count);
       }
-      break;
-      
-    case 'month':
-      // Group by weeks
-      for (let i = 3; i >= 0; i--) {
-        const weekEnd = new Date(now);
-        weekEnd.setDate(now.getDate() - (i * 7));
-        const weekStart = new Date(weekEnd);
-        weekStart.setDate(weekEnd.getDate() - 6);
+    } else if (rangeDays <= 60) {
+      // 2 weeks to 2 months: show weekly
+      const weeks = Math.ceil(rangeDays / 7);
+      for (let i = 0; i < weeks; i++) {
+        const weekStart = new Date(start);
+        weekStart.setDate(start.getDate() + (i * 7));
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
         
-        labels.push(`Week ${4-i}`);
+        labels.push(`Week ${i+1}`);
         
         const count = users.filter(u => 
           u.createdAt && 
@@ -371,16 +458,17 @@ function generateGrowthData(users, range) {
         ).length;
         values.push(count);
       }
-      break;
-      
-    case 'year':
-      for (let i = 11; i >= 0; i--) {
-        const date = new Date(now);
-        date.setMonth(now.getMonth() - i);
-        labels.push(date.toLocaleDateString('en-US', { month: 'short' }));
+    } else {
+      // More than 2 months: show monthly
+      const months = Math.ceil(rangeDays / 30);
+      for (let i = 0; i < months; i++) {
+        const monthStart = new Date(start);
+        monthStart.setMonth(start.getMonth() + i);
+        const monthEnd = new Date(monthStart);
+        monthEnd.setMonth(monthStart.getMonth() + 1);
+        monthEnd.setDate(0);
         
-        const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
-        const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+        labels.push(monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
         
         const count = users.filter(u => 
           u.createdAt && 
@@ -389,30 +477,88 @@ function generateGrowthData(users, range) {
         ).length;
         values.push(count);
       }
-      break;
-      
-    default:
-      for (let i = 3; i >= 0; i--) {
-        const weekEnd = new Date(now);
-        weekEnd.setDate(now.getDate() - (i * 7));
-        const weekStart = new Date(weekEnd);
-        weekStart.setDate(weekEnd.getDate() - 6);
+    }
+  } else {
+    // Predefined ranges (week, month, year)
+    switch(range) {
+      case 'week':
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(now);
+          date.setDate(now.getDate() - i);
+          labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+          
+          const dayStart = new Date(date.setHours(0,0,0,0));
+          const dayEnd = new Date(date.setHours(23,59,59,999));
+          
+          const count = users.filter(u => 
+            u.createdAt && 
+            new Date(u.createdAt) >= dayStart && 
+            new Date(u.createdAt) <= dayEnd
+          ).length;
+          values.push(count);
+        }
+        break;
         
-        labels.push(`Week ${4-i}`);
+      case 'month':
+        // Group by weeks
+        for (let i = 3; i >= 0; i--) {
+          const weekEnd = new Date(now);
+          weekEnd.setDate(now.getDate() - (i * 7));
+          const weekStart = new Date(weekEnd);
+          weekStart.setDate(weekEnd.getDate() - 6);
+          
+          labels.push(`Week ${4-i}`);
+          
+          const count = users.filter(u => 
+            u.createdAt && 
+            new Date(u.createdAt) >= weekStart && 
+            new Date(u.createdAt) <= weekEnd
+          ).length;
+          values.push(count);
+        }
+        break;
         
-        const count = users.filter(u => 
-          u.createdAt && 
-          new Date(u.createdAt) >= weekStart && 
-          new Date(u.createdAt) <= weekEnd
-        ).length;
-        values.push(count);
-      }
+      case 'year':
+        for (let i = 11; i >= 0; i--) {
+          const date = new Date(now);
+          date.setMonth(now.getMonth() - i);
+          labels.push(date.toLocaleDateString('en-US', { month: 'short' }));
+          
+          const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+          const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+          
+          const count = users.filter(u => 
+            u.createdAt && 
+            new Date(u.createdAt) >= monthStart && 
+            new Date(u.createdAt) <= monthEnd
+          ).length;
+          values.push(count);
+        }
+        break;
+        
+      default:
+        for (let i = 3; i >= 0; i--) {
+          const weekEnd = new Date(now);
+          weekEnd.setDate(now.getDate() - (i * 7));
+          const weekStart = new Date(weekEnd);
+          weekStart.setDate(weekEnd.getDate() - 6);
+          
+          labels.push(`Week ${4-i}`);
+          
+          const count = users.filter(u => 
+            u.createdAt && 
+            new Date(u.createdAt) >= weekStart && 
+            new Date(u.createdAt) <= weekEnd
+          ).length;
+          values.push(count);
+        }
+    }
   }
   
   return { labels, values };
 }
 
-// Helper: Get top users - UPDATED to work with your Log schema
+// Helper: Get top users
 function getTopUsers(users, logs, reservations) {
   // Count user actions
   const userActionCount = {};
