@@ -1,28 +1,23 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Users,
-  TrendingUp,
-  UserPlus,
-  UserMinus,
-  Calendar,
   Download,
   RefreshCw,
   ArrowUp,
   ArrowDown,
   Search,
-  Filter,
-  BarChart3,
-  PieChart,
   Activity,
   UserCheck,
   UserX,
-  Clock,
   Award,
   GraduationCap,
   UserCog,
   Building,
   ChevronDown,
-  X
+  X,
+  Calendar,
+  Clock,
+  TrendingUp
 } from "lucide-react";
 import api from "../../utils/api";
 
@@ -79,143 +74,41 @@ function AnalyticsUsers({ setView, admin }) {
   const fetchUserAnalytics = useCallback(async () => {
     setLoading(true);
     try {
-      // Try to fetch real data from API
+      // Fetch real data from your backend API
       const response = await api.get(`/analytics/users?range=${dateRange}`);
+      
       if (response.data && response.data.success) {
         setUserData(response.data.data);
+        console.log("Analytics data loaded for range:", dateRange);
       } else {
-        // If API fails, use mock data with the selected date range
-        setUserData(getMockUserData(dateRange));
+        console.error("API returned unsuccessful response:", response.data);
+        // Fallback to empty data
+        setUserData(prev => ({...prev}));
       }
     } catch (error) {
       console.error("Error fetching user analytics:", error);
-      // Use mock data with the selected date range
-      setUserData(getMockUserData(dateRange));
+      // Show error state but don't crash
     } finally {
       setLoading(false);
     }
   }, [dateRange]);
 
-  const getMockUserData = (range) => {
-    // Adjust numbers based on selected range to show filtering works
-    let multiplier = 1;
-    let growthData;
-    
-    switch(range) {
-      case 'week':
-        multiplier = 0.25;
-        growthData = {
-          labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-          values: [15, 22, 18, 25, 30, 28, 35]
-        };
-        break;
-      case 'month':
-        multiplier = 1;
-        growthData = {
-          labels: ["Week 1", "Week 2", "Week 3", "Week 4"],
-          values: [120, 150, 180, 210]
-        };
-        break;
-      case 'year':
-        multiplier = 12;
-        growthData = {
-          labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-          values: [125, 132, 138, 145, 152, 158, 165, 172, 180, 185, 190, 195]
-        };
-        break;
-      default:
-        multiplier = 1;
-        growthData = {
-          labels: ["Week 1", "Week 2", "Week 3", "Week 4"],
-          values: [120, 150, 180, 210]
-        };
-    }
-    
-    return {
-      total: Math.round(1250 * multiplier),
-      active: Math.round(980 * multiplier),
-      new: Math.round(145 * multiplier),
-      deleted: Math.round(23 * multiplier),
-      byRole: {
-        student: Math.round(850 * multiplier),
-        faculty: Math.round(250 * multiplier),
-        staff: Math.round(120 * multiplier),
-        admin: Math.round(30 * multiplier)
-      },
-      byStatus: {
-        active: Math.round(980 * multiplier),
-        inactive: Math.round(180 * multiplier),
-        suspended: Math.round(45 * multiplier),
-        pending: Math.round(45 * multiplier),
-        verified: Math.round(1100 * multiplier),
-        unverified: Math.round(150 * multiplier)
-      },
-      byDepartment: [
-        { name: "Computer Science", count: Math.round(450 * multiplier) },
-        { name: "Engineering", count: Math.round(320 * multiplier) },
-        { name: "Business", count: Math.round(280 * multiplier) },
-        { name: "Nursing", count: Math.round(150 * multiplier) },
-        { name: "Education", count: Math.round(120 * multiplier) }
-      ],
-      growth: growthData,
-      trends: {
-        daily: { value: Math.round(65 * multiplier), percentage: 12.5, direction: 'up' },
-        weekly: { value: Math.round(420 * multiplier), percentage: 8.3, direction: 'up' },
-        monthly: { value: Math.round(145 * multiplier), percentage: 15.2, direction: 'up' }
-      },
-      topUsers: [
-        { id: 1, name: "John Doe", email: "john.doe@usa.edu", reservations: Math.round(45 * multiplier), role: "student", lastActive: new Date() },
-        { id: 2, name: "Jane Smith", email: "jane.smith@usa.edu", reservations: Math.round(38 * multiplier), role: "faculty", lastActive: new Date() },
-        { id: 3, name: "Bob Johnson", email: "bob.j@usa.edu", reservations: Math.round(32 * multiplier), role: "student", lastActive: new Date() },
-        { id: 4, name: "Alice Brown", email: "alice.b@usa.edu", reservations: Math.round(28 * multiplier), role: "staff", lastActive: new Date() },
-        { id: 5, name: "Charlie Wilson", email: "charlie.w@usa.edu", reservations: Math.round(24 * multiplier), role: "student", lastActive: new Date() }
-      ],
-      registrationStats: {
-        today: Math.round(12 * multiplier),
-        thisWeek: Math.round(78 * multiplier),
-        thisMonth: Math.round(312 * multiplier),
-        avgPerDay: Math.round(10 * multiplier)
-      },
-      activityStats: {
-        activeToday: Math.round(234 * multiplier),
-        activeThisWeek: Math.round(890 * multiplier),
-        activeThisMonth: Math.round(1150 * multiplier),
-        retentionRate: 68
-      },
-      roleDistribution: [
-        { name: "student", value: Math.round(850 * multiplier) },
-        { name: "faculty", value: Math.round(250 * multiplier) },
-        { name: "staff", value: Math.round(120 * multiplier) },
-        { name: "admin", value: Math.round(30 * multiplier) }
-      ],
-      departmentStats: [
-        { name: "Computer Science", count: Math.round(450 * multiplier) },
-        { name: "Engineering", count: Math.round(320 * multiplier) },
-        { name: "Business", count: Math.round(280 * multiplier) },
-        { name: "Nursing", count: Math.round(150 * multiplier) },
-        { name: "Education", count: Math.round(120 * multiplier) }
-      ]
-    };
-  };
-
   useEffect(() => {
     fetchUserAnalytics();
   }, [fetchUserAnalytics]);
 
-  const formatPHDateTime = (date) => {
+  const formatDateTime = (date) => {
     if (!date) return "—";
     try {
-      return new Date(date).toLocaleString("en-PH", {
-        timeZone: "Asia/Manila",
+      return new Date(date).toLocaleString("en-US", {
         year: "numeric",
-        month: "long",
+        month: "short",
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
       });
     } catch (error) {
-      console.error("Error formatting date:", error);
       return "Invalid date";
     }
   };
@@ -307,10 +200,6 @@ function AnalyticsUsers({ setView, admin }) {
     active: userData.byStatus.active,
   };
 
-  // Debug: Log current date range and data to verify filtering works
-  console.log("Current date range:", dateRange);
-  console.log("Current total users:", userData.total);
-
   if (loading) {
     return (
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
@@ -333,11 +222,11 @@ function AnalyticsUsers({ setView, admin }) {
             <p className="text-gray-600">
               {dateRange === 'week' ? 'Last 7 days' : 
                dateRange === 'month' ? 'Last 30 days' : 
-               'Last 12 months'} - Detailed analysis of user behavior and demographics
+               'Last 12 months'} - Real-time user data from database
             </p>
           </div>
           <div className="flex items-center space-x-4">
-            {/* Date Range Selector - This is the main control */}
+            {/* Date Range Selector */}
             <div className="flex bg-gray-100 rounded-lg p-1">
               {["week", "month", "year"].map((range) => (
                 <button
@@ -361,6 +250,7 @@ function AnalyticsUsers({ setView, admin }) {
             <button 
               onClick={fetchUserAnalytics}
               className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
+              title="Refresh Data"
             >
               <RefreshCw size={18} />
             </button>
@@ -402,7 +292,7 @@ function AnalyticsUsers({ setView, admin }) {
                 color="yellow" 
               />
               <StatCard 
-                title="Staff Office" 
+                title="Admin" 
                 value={userStats.staffOffice} 
                 icon={Building} 
                 color="indigo" 
@@ -433,9 +323,9 @@ function AnalyticsUsers({ setView, admin }) {
                 color="orange" 
               />
               <StatCard 
-                title="Active" 
+                title="Active (7d)" 
                 value={userStats.active} 
-                icon={UserCheck} 
+                icon={Activity} 
                 color="blue" 
               />
               <StatCard 
@@ -448,7 +338,7 @@ function AnalyticsUsers({ setView, admin }) {
           </div>
         </div>
 
-        {/* Search and Refresh - Removed duplicate date dropdown */}
+        {/* Search and Refresh */}
         <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
           <div className="flex flex-col md:flex-row md:items-center gap-4">
             <SearchInput search={search} setSearch={setSearch} />
@@ -504,7 +394,7 @@ function AnalyticsUsers({ setView, admin }) {
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Users by Status</h2>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-gray-600">Active</span>
+                <span className="text-gray-600">Active (7d)</span>
                 <span className="text-green-600 font-semibold">{userData.byStatus.active.toLocaleString()}</span>
               </div>
               <div className="flex justify-between items-center">
@@ -550,16 +440,16 @@ function AnalyticsUsers({ setView, admin }) {
           </h2>
           <div className="h-64 flex items-end justify-between gap-2">
             {userData.growth?.values?.map((value, index) => {
-              const max = Math.max(...userData.growth.values);
+              const max = Math.max(...userData.growth.values, 1);
               const height = max > 0 ? (value / max) * 100 : 0;
               return (
                 <div key={index} className="flex-1 flex flex-col items-center gap-2">
                   <div 
                     className="w-full bg-[#CC0000]/20 rounded-t relative group"
-                    style={{ height: `${height}%` }}
+                    style={{ height: `${height}%`, minHeight: '4px' }}
                   >
-                    <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                      {value} users
+                    <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                      {value} new users
                     </div>
                   </div>
                   <span className="text-xs text-gray-600">{userData.growth.labels?.[index]}</span>
@@ -603,29 +493,33 @@ function AnalyticsUsers({ setView, admin }) {
                   <th className="px-6 py-3 text-left font-medium">Email</th>
                   <th className="px-6 py-3 text-left font-medium">Role</th>
                   <th className="px-6 py-3 text-left font-medium">Actions</th>
+                  <th className="px-6 py-3 text-left font-medium">Last Active</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {userData.topUsers.map((user, index) => (
+                {userData.topUsers?.map((user, index) => (
                   <tr key={user.id || index} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap text-gray-800">{user.name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.email}</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                        user.role === 'student' ? 'bg-green-100 text-green-800' :
-                        user.role === 'faculty' ? 'bg-purple-100 text-purple-800' :
-                        user.role === 'staff' ? 'bg-yellow-100 text-yellow-800' :
+                        user.role?.toLowerCase() === 'student' ? 'bg-green-100 text-green-800' :
+                        user.role?.toLowerCase() === 'faculty' ? 'bg-purple-100 text-purple-800' :
+                        user.role?.toLowerCase() === 'staff' ? 'bg-yellow-100 text-yellow-800' :
                         'bg-blue-100 text-blue-800'
                       }`}>
-                        {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                        {user.role}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.reservations}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-600">
+                      {user.lastActive ? formatDateTime(user.lastActive) : 'Never'}
+                    </td>
                   </tr>
                 ))}
-                {userData.topUsers.length === 0 && (
+                {(!userData.topUsers || userData.topUsers.length === 0) && (
                   <tr>
-                    <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
                       No user activity data available
                     </td>
                   </tr>
@@ -648,7 +542,7 @@ function SearchInput({ search, setSearch }) {
         type="text"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search analytics..."
+        placeholder="Search users..."
         className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-0"
       />
       {search && (
