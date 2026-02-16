@@ -14,7 +14,8 @@ import {
   Calendar,
   X,
   MapPin,
-  AlertCircle
+  AlertCircle,
+  Building
 } from "lucide-react";
 import api from "../../utils/api";
 
@@ -34,11 +35,6 @@ function AnalyticsReservations({ setView, admin }) {
     expired: 0,
     ongoing: 0,
     byRoom: [],
-    byTimeOfDay: {
-      morning: 0,
-      afternoon: 0,
-      evening: 0
-    },
     byDayOfWeek: {
       mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0
     },
@@ -57,7 +53,9 @@ function AnalyticsReservations({ setView, admin }) {
     floorDistribution: [],
     avgGroupSize: 0,
     totalParticipants: 0,
-    previousTotal: 0
+    previousTotal: 0,
+    userDepartmentStats: [],
+    topReservers: []
   });
 
   const calendarRef = useRef(null);
@@ -262,18 +260,7 @@ function AnalyticsReservations({ setView, admin }) {
       addRow(['Ongoing', reservationData.ongoing || 0, `${Math.round((reservationData.ongoing / total) * 100)}%`]);
       addRow([]);
       
-      // 4. Peak Hours
-      addRow(['PEAK HOURS']);
-      addRow(['Time Slot', 'Number of Reservations', 'Percentage']);
-      const totalTime = (reservationData.byTimeOfDay?.morning || 0) + 
-                       (reservationData.byTimeOfDay?.afternoon || 0) + 
-                       (reservationData.byTimeOfDay?.evening || 0) || 1;
-      addRow(['Morning (8AM-12PM)', reservationData.byTimeOfDay?.morning || 0, `${Math.round((reservationData.byTimeOfDay.morning / totalTime) * 100)}%`]);
-      addRow(['Afternoon (12PM-5PM)', reservationData.byTimeOfDay?.afternoon || 0, `${Math.round((reservationData.byTimeOfDay.afternoon / totalTime) * 100)}%`]);
-      addRow(['Evening (5PM-9PM)', reservationData.byTimeOfDay?.evening || 0, `${Math.round((reservationData.byTimeOfDay.evening / totalTime) * 100)}%`]);
-      addRow([]);
-      
-      // 5. Day of Week Distribution
+      // 4. Day of Week Distribution
       addRow(['DAY OF WEEK DISTRIBUTION']);
       addRow(['Day', 'Reservations', 'Percentage']);
       const totalDays = Object.values(reservationData.byDayOfWeek || {}).reduce((a, b) => a + b, 0) || 1;
@@ -286,7 +273,7 @@ function AnalyticsReservations({ setView, admin }) {
       addRow(['Sunday', reservationData.byDayOfWeek?.sun || 0, `${Math.round((reservationData.byDayOfWeek.sun / totalDays) * 100)}%`]);
       addRow([]);
       
-      // 6. Popular Rooms
+      // 5. Popular Rooms
       addRow(['MOST POPULAR ROOMS']);
       addRow(['Room', 'Total Bookings', 'Approved', 'Completed', 'Utilization']);
       if (reservationData.popularRooms && reservationData.popularRooms.length > 0) {
@@ -304,7 +291,7 @@ function AnalyticsReservations({ setView, admin }) {
       }
       addRow([]);
       
-      // 7. Floor Distribution
+      // 6. Floor Distribution
       addRow(['FLOOR DISTRIBUTION']);
       addRow(['Floor', 'Reservations', 'Percentage']);
       if (reservationData.floorDistribution && reservationData.floorDistribution.length > 0) {
@@ -320,13 +307,46 @@ function AnalyticsReservations({ setView, admin }) {
       }
       addRow([]);
       
-      // 8. Additional Stats
+      // 7. Department Reservation Statistics
+      addRow(['DEPARTMENT RESERVATION STATISTICS']);
+      addRow(['Department', 'Reservations', 'Percentage']);
+      if (reservationData.userDepartmentStats && reservationData.userDepartmentStats.length > 0) {
+        reservationData.userDepartmentStats.forEach(dept => {
+          addRow([
+            dept.name || 'Unknown',
+            dept.count || 0,
+            `${Math.round((dept.count / total) * 100)}%`
+          ]);
+        });
+      } else {
+        addRow(['No department data available', '', '']);
+      }
+      addRow([]);
+      
+      // 8. Top Reservers by Department
+      addRow(['TOP RESERVERS']);
+      addRow(['Name', 'Department', 'Reservations', 'Percentage']);
+      if (reservationData.topReservers && reservationData.topReservers.length > 0) {
+        reservationData.topReservers.forEach(user => {
+          addRow([
+            escapeField(user.name || 'Unknown'),
+            escapeField(user.department || 'Unknown'),
+            user.count || 0,
+            `${Math.round((user.count / total) * 100)}%`
+          ]);
+        });
+      } else {
+        addRow(['No top reserver data available', '', '', '']);
+      }
+      addRow([]);
+      
+      // 9. Additional Stats
       addRow(['ADDITIONAL STATISTICS']);
       addRow(['Average Group Size', reservationData.avgGroupSize || 0]);
       addRow(['Total Participants', reservationData.totalParticipants || 0]);
       addRow(['Previous Period Total', reservationData.previousTotal || 0]);
       
-      // 9. Growth Data
+      // 10. Growth Data
       addRow([]);
       addRow(['RESERVATION GROWTH', `(${dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : 'Monthly'})`]);
       addRow(['Period', 'New Reservations']);
@@ -745,36 +765,32 @@ function AnalyticsReservations({ setView, admin }) {
             )}
           </div>
 
-          {/* Peak Hours */}
+          {/* Department Reservation Statistics */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Peak Hours</h2>
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Reservations by Department</h2>
             {loading ? (
               <div className="space-y-4">
                 <ProgressBarSkeleton />
                 <ProgressBarSkeleton />
                 <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
               </div>
             ) : (
-              <div className="space-y-4">
-                <ProgressBar 
-                  label="Morning (8AM-12PM)" 
-                  value={reservationData.byTimeOfDay?.morning || 0} 
-                  total={totalReservations || 1} 
-                  color="blue"
-                />
-                <ProgressBar 
-                  label="Afternoon (12PM-5PM)" 
-                  value={reservationData.byTimeOfDay?.afternoon || 0} 
-                  total={totalReservations || 1} 
-                  color="green"
-                />
-                <ProgressBar 
-                  label="Evening (5PM-9PM)" 
-                  value={reservationData.byTimeOfDay?.evening || 0} 
-                  total={totalReservations || 1} 
-                  color="purple"
-                />
-              </div>
+              reservationData.userDepartmentStats && reservationData.userDepartmentStats.length > 0 ? (
+                <div className="space-y-4">
+                  {reservationData.userDepartmentStats.slice(0, 5).map((dept, idx) => (
+                    <ProgressBar 
+                      key={idx}
+                      label={dept.name || 'Unknown'} 
+                      value={dept.count || 0} 
+                      total={reservationData.total || 1} 
+                      color={idx === 0 ? "blue" : idx === 1 ? "green" : idx === 2 ? "purple" : "orange"}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="text-gray-500 text-center py-4">No department data available</p>
+              )
             )}
           </div>
 
@@ -946,6 +962,61 @@ function AnalyticsReservations({ setView, admin }) {
                     <tr>
                       <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
                         No popular rooms data available
+                      </td>
+                    </tr>
+                  )
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Top Reservers by Department */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Top Reservers by Department</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left font-medium">Name</th>
+                  <th className="px-6 py-3 text-left font-medium">Department</th>
+                  <th className="px-6 py-3 text-left font-medium">Reservations</th>
+                  <th className="px-6 py-3 text-left font-medium">Percentage</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {loading ? (
+                  <>
+                    <TableRowSkeleton cols={4} />
+                    <TableRowSkeleton cols={4} />
+                    <TableRowSkeleton cols={4} />
+                    <TableRowSkeleton cols={4} />
+                    <TableRowSkeleton cols={4} />
+                  </>
+                ) : (
+                  reservationData.topReservers && reservationData.topReservers.length > 0 ? (
+                    reservationData.topReservers.map((user, index) => (
+                      <tr key={index} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.name}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.department || 'N/A'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.count}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <div className="w-24 bg-gray-200 rounded-full h-2">
+                              <div 
+                                className="bg-blue-500 rounded-full h-2" 
+                                style={{ width: `${Math.round((user.count / totalReservations) * 100)}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-gray-600 text-sm">{Math.round((user.count / totalReservations) * 100)}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
+                        No top reserver data available
                       </td>
                     </tr>
                   )
