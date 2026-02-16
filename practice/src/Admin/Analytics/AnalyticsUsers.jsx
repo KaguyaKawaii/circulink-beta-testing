@@ -459,7 +459,7 @@ function AnalyticsUsers({ setView, admin }) {
                'Real-time user data from database'}
             </p>
           </div>
-          <div>
+          <div className="flex justify-center items-center gap-6">
           {/* Export to CSV Button */}
             <button
               onClick={exportToCSV}
