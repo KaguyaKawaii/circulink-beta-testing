@@ -11,13 +11,17 @@ import {
   Award,
   GraduationCap,
   UserCog,
-  Building
+  Building,
+  Calendar
 } from "lucide-react";
 import api from "../../utils/api";
 
 function AnalyticsUsers({ setView, admin }) {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("month");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const [showCustomDate, setShowCustomDate] = useState(false);
   const [userData, setUserData] = useState({
     total: 0,
     active: 0,
@@ -67,7 +71,14 @@ function AnalyticsUsers({ setView, admin }) {
   const fetchUserAnalytics = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/analytics/users?range=${dateRange}`);
+      let url = `/analytics/users?range=${dateRange}`;
+      
+      // Add custom date parameters if custom range is selected
+      if (dateRange === "custom" && customStartDate && customEndDate) {
+        url = `/analytics/users?startDate=${customStartDate}&endDate=${customEndDate}`;
+      }
+      
+      const response = await api.get(url);
       
       if (response.data && response.data.success) {
         setUserData(response.data.data);
@@ -80,7 +91,7 @@ function AnalyticsUsers({ setView, admin }) {
     } finally {
       setLoading(false);
     }
-  }, [dateRange]);
+  }, [dateRange, customStartDate, customEndDate]);
 
   useEffect(() => {
     fetchUserAnalytics();
@@ -99,6 +110,29 @@ function AnalyticsUsers({ setView, admin }) {
       });
     } catch (error) {
       return "Invalid date";
+    }
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "";
+    try {
+      return new Date(date).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric"
+      });
+    } catch (error) {
+      return "";
+    }
+  };
+
+  const handleCustomDateApply = () => {
+    if (customStartDate && customEndDate) {
+      setDateRange("custom");
+      setShowCustomDate(false);
+      fetchUserAnalytics();
+    } else {
+      alert("Please select both start and end dates");
     }
   };
 
@@ -123,9 +157,16 @@ function AnalyticsUsers({ setView, admin }) {
         return stringField;
       };
 
+      // Get date range description
+      let rangeDescription = "";
+      if (dateRange === "week") rangeDescription = "Last 7 days";
+      else if (dateRange === "month") rangeDescription = "Last 30 days";
+      else if (dateRange === "year") rangeDescription = "Last 12 months";
+      else if (dateRange === "custom") rangeDescription = `${formatDate(customStartDate)} to ${formatDate(customEndDate)}`;
+
       // 1. Summary Section
       addRow(['USER ANALYTICS REPORT', `Generated: ${new Date().toLocaleString()}`]);
-      addRow(['Date Range', dateRange === 'week' ? 'Last 7 days' : dateRange === 'month' ? 'Last 30 days' : 'Last 12 months']);
+      addRow(['Date Range', rangeDescription]);
       addRow([]);
       
       // 2. Key Metrics
@@ -147,13 +188,12 @@ function AnalyticsUsers({ setView, admin }) {
       addRow(['Average Per Day', userData.registrationStats?.avgPerDay || 0]);
       addRow([]);
       
-      // 4. Users by Role
+      // 4. Users by Role (Admin removed)
       addRow(['USERS BY ROLE']);
       addRow(['Role', 'Count', 'Percentage']);
       addRow(['Students', userData.byRole?.student || 0, `${userData.total ? Math.round((userData.byRole.student / userData.total) * 100) : 0}%`]);
       addRow(['Faculty', userData.byRole?.faculty || 0, `${userData.total ? Math.round((userData.byRole.faculty / userData.total) * 100) : 0}%`]);
       addRow(['Staff', userData.byRole?.staff || 0, `${userData.total ? Math.round((userData.byRole.staff / userData.total) * 100) : 0}%`]);
-      addRow(['Admin', userData.byRole?.admin || 0, `${userData.total ? Math.round((userData.byRole.admin / userData.total) * 100) : 0}%`]);
       addRow([]);
       
       // 5. Users by Status
@@ -195,21 +235,20 @@ function AnalyticsUsers({ setView, admin }) {
       }
       addRow([]);
       
-      // 8. Most Active Users
+      // 8. Most Active Users (Last Active column removed)
       addRow(['MOST ACTIVE USERS']);
-      addRow(['Name', 'Email', 'Role', 'Actions Count', 'Last Active']);
+      addRow(['Name', 'Email', 'Role', 'Actions Count']);
       if (userData.topUsers && userData.topUsers.length > 0) {
         userData.topUsers.forEach(user => {
           addRow([
             escapeField(user.name || 'Unknown'),
             escapeField(user.email || ''),
             user.role || 'Unknown',
-            user.reservations || 0,
-            user.lastActive ? formatDateTime(user.lastActive) : 'Never'
+            user.reservations || 0
           ]);
         });
       } else {
-        addRow(['No active users data available', '', '', '', '']);
+        addRow(['No active users data available', '', '', '']);
       }
       addRow([]);
       
@@ -326,7 +365,6 @@ function AnalyticsUsers({ setView, admin }) {
     students: userData.byRole?.student || 0,
     faculty: userData.byRole?.faculty || 0,
     staff: userData.byRole?.staff || 0,
-    staffOffice: userData.byRole?.admin || 0,
     verified: userData.byStatus?.verified || 0,
     unverified: userData.byStatus?.unverified || 0,
     suspended: userData.byStatus?.suspended || 0,
@@ -355,7 +393,9 @@ function AnalyticsUsers({ setView, admin }) {
             <p className="text-gray-600">
               {dateRange === 'week' ? 'Last 7 days' : 
                dateRange === 'month' ? 'Last 30 days' : 
-               'Last 12 months'} - Real-time user data from database
+               dateRange === 'year' ? 'Last 12 months' : 
+               dateRange === 'custom' ? `${formatDate(customStartDate)} to ${formatDate(customEndDate)}` : 
+               'Real-time user data from database'}
             </p>
           </div>
           <div className="flex items-center space-x-4">
@@ -364,9 +404,12 @@ function AnalyticsUsers({ setView, admin }) {
               {["week", "month", "year"].map((range) => (
                 <button
                   key={range}
-                  onClick={() => setDateRange(range)}
+                  onClick={() => {
+                    setDateRange(range);
+                    setShowCustomDate(false);
+                  }}
                   className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer ${
-                    dateRange === range
+                    dateRange === range && !showCustomDate
                       ? "bg-[#CC0000] text-white"
                       : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
                   }`}
@@ -376,7 +419,61 @@ function AnalyticsUsers({ setView, admin }) {
                    'Year'}
                 </button>
               ))}
+              
+              {/* Custom Date Button */}
+              <button
+                onClick={() => setShowCustomDate(!showCustomDate)}
+                className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                  showCustomDate || dateRange === 'custom'
+                    ? "bg-[#CC0000] text-white"
+                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
+                }`}
+              >
+                <Calendar size={14} />
+                <span>Custom</span>
+              </button>
             </div>
+
+            {/* Custom Date Range Picker */}
+            {showCustomDate && (
+              <div className="absolute top-20 right-40 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-50">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Date Range</h3>
+                <div className="flex flex-col gap-3">
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">End Date</label>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full"
+                    />
+                  </div>
+                  <div className="flex gap-2 mt-2">
+                    <button
+                      onClick={handleCustomDateApply}
+                      className="flex-1 bg-[#CC0000] text-white text-sm py-2 rounded-lg hover:bg-[#990000] transition-colors"
+                    >
+                      Apply
+                    </button>
+                    <button
+                      onClick={() => setShowCustomDate(false)}
+                      className="flex-1 bg-gray-200 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             
             {/* Export to CSV Button */}
             <button
@@ -404,7 +501,7 @@ function AnalyticsUsers({ setView, admin }) {
       <div className="p-6">
         {/* User Statistics Cards */}
         <div className="flex flex-col gap-4 mb-6 w-full">
-          {/* Role Statistics Section */}
+          {/* Role Statistics Section - Admin removed */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">User Roles</h2>
             <div className="flex flex-wrap gap-4">
@@ -432,12 +529,6 @@ function AnalyticsUsers({ setView, admin }) {
                 value={userStats.staff} 
                 icon={UserCheck} 
                 color="yellow" 
-              />
-              <StatCard 
-                title="Admin" 
-                value={userStats.staffOffice} 
-                icon={Building} 
-                color="indigo" 
               />
             </div>
           </div>
@@ -482,7 +573,7 @@ function AnalyticsUsers({ setView, admin }) {
 
         {/* Analytics Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* By Role */}
+          {/* By Role - Admin removed */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Users by Role</h2>
             <div className="space-y-4">
@@ -503,12 +594,6 @@ function AnalyticsUsers({ setView, admin }) {
                 value={userData.byRole?.staff || 0} 
                 total={userData.total || 1} 
                 color="purple"
-              />
-              <ProgressBar 
-                label="Admin" 
-                value={userData.byRole?.admin || 0} 
-                total={userData.total || 1} 
-                color="orange"
               />
             </div>
           </div>
@@ -616,7 +701,7 @@ function AnalyticsUsers({ setView, admin }) {
           </div>
         </div>
 
-        {/* Most Active Users */}
+        {/* Most Active Users - Last Active column removed */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Most Active Users</h2>
           <div className="overflow-x-auto">
@@ -627,7 +712,6 @@ function AnalyticsUsers({ setView, admin }) {
                   <th className="px-6 py-3 text-left font-medium">Email</th>
                   <th className="px-6 py-3 text-left font-medium">Role</th>
                   <th className="px-6 py-3 text-left font-medium">Actions</th>
-                  <th className="px-6 py-3 text-left font-medium">Last Active</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
@@ -647,14 +731,11 @@ function AnalyticsUsers({ setView, admin }) {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.reservations || 0}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">
-                        {user.lastActive ? formatDateTime(user.lastActive) : 'Never'}
-                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                    <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
                       No user activity data available
                     </td>
                   </tr>
