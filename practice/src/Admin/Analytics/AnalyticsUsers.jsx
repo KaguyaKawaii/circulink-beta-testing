@@ -285,7 +285,7 @@ function AnalyticsUsers({ setView, admin }) {
     }
   };
 
-  const StatCard = ({ title, value, icon: Icon, trend, color = "blue" }) => {
+  const StatCard = ({ title, value, icon: Icon, trend, color = "blue", isLoading = false }) => {
     const getColorClass = (colorName) => {
       const colorMap = {
         blue: "text-blue-500",
@@ -298,6 +298,22 @@ function AnalyticsUsers({ setView, admin }) {
       };
       return colorMap[colorName] || "text-blue-500";
     };
+
+    if (isLoading) {
+      return (
+        <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
+              <div className="h-8 bg-gray-300 rounded w-16"></div>
+            </div>
+            <div className="p-2">
+              <div className="w-5 h-5 bg-gray-300 rounded"></div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
@@ -328,7 +344,43 @@ function AnalyticsUsers({ setView, admin }) {
     );
   };
 
-  const ProgressBar = ({ label, value, total, color = "blue", showValue = true }) => {
+  const ProgressBarSkeleton = () => (
+    <div className="animate-pulse">
+      <div className="flex justify-between mb-1">
+        <div className="h-4 bg-gray-200 rounded w-24"></div>
+        <div className="h-4 bg-gray-200 rounded w-12"></div>
+      </div>
+      <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="bg-gray-300 rounded-full h-2 w-3/4"></div>
+      </div>
+    </div>
+  );
+
+  const TableRowSkeleton = ({ cols }) => (
+    <tr className="animate-pulse">
+      {Array(cols).fill(0).map((_, i) => (
+        <td key={i} className="px-6 py-4 whitespace-nowrap">
+          <div className="h-4 bg-gray-200 rounded w-24"></div>
+        </td>
+      ))}
+    </tr>
+  );
+
+  const StatCardSkeleton = () => (
+    <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
+          <div className="h-8 bg-gray-300 rounded w-16"></div>
+        </div>
+        <div className="p-2">
+          <div className="w-5 h-5 bg-gray-300 rounded"></div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const ProgressBar = ({ label, value, total, color = "blue", showValue = true, isLoading = false }) => {
     const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
     
     const getBgColorClass = (colorName) => {
@@ -343,6 +395,10 @@ function AnalyticsUsers({ setView, admin }) {
       };
       return colorMap[colorName] || "bg-blue-500";
     };
+
+    if (isLoading) {
+      return <ProgressBarSkeleton />;
+    }
 
     return (
       <div>
@@ -370,16 +426,6 @@ function AnalyticsUsers({ setView, admin }) {
     suspended: userData.byStatus?.suspended || 0,
     active: userData.byStatus?.active || 0,
   };
-
-  if (loading) {
-    return (
-      <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
-        <div className="flex items-center justify-center h-screen">
-          <RefreshCw size={40} className="animate-spin text-[#CC0000]" />
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
@@ -511,24 +557,28 @@ function AnalyticsUsers({ setView, admin }) {
                 icon={Users} 
                 trend={userData.trends?.monthly}
                 color="blue" 
+                isLoading={loading}
               />
               <StatCard 
                 title="Students" 
                 value={userStats.students} 
                 icon={GraduationCap} 
                 color="green" 
+                isLoading={loading}
               />
               <StatCard 
                 title="Faculty" 
                 value={userStats.faculty} 
                 icon={UserCog} 
                 color="purple" 
+                isLoading={loading}
               />
               <StatCard 
                 title="Staff" 
                 value={userStats.staff} 
                 icon={UserCheck} 
                 color="yellow" 
+                isLoading={loading}
               />
             </div>
           </div>
@@ -542,30 +592,35 @@ function AnalyticsUsers({ setView, admin }) {
                 value={userStats.verified} 
                 icon={UserCheck} 
                 color="green" 
+                isLoading={loading}
               />
               <StatCard 
                 title="Unverified" 
                 value={userStats.unverified} 
                 icon={UserX} 
                 color="red" 
+                isLoading={loading}
               />
               <StatCard 
                 title="Suspended" 
                 value={userStats.suspended} 
                 icon={UserX} 
                 color="orange" 
+                isLoading={loading}
               />
               <StatCard 
                 title="Active (7d)" 
                 value={userStats.active} 
                 icon={Activity} 
                 color="blue" 
+                isLoading={loading}
               />
               <StatCard 
                 title="Retention Rate" 
                 value={`${userData.activityStats?.retentionRate || 0}%`} 
                 icon={Award} 
                 color="yellow" 
+                isLoading={loading}
               />
             </div>
           </div>
@@ -582,18 +637,21 @@ function AnalyticsUsers({ setView, admin }) {
                 value={userData.byRole?.student || 0} 
                 total={userData.total || 1} 
                 color="blue"
+                isLoading={loading}
               />
               <ProgressBar 
                 label="Faculty" 
                 value={userData.byRole?.faculty || 0} 
                 total={userData.total || 1} 
                 color="green"
+                isLoading={loading}
               />
               <ProgressBar 
                 label="Staff" 
                 value={userData.byRole?.staff || 0} 
                 total={userData.total || 1} 
                 color="purple"
+                isLoading={loading}
               />
             </div>
           </div>
@@ -602,26 +660,38 @@ function AnalyticsUsers({ setView, admin }) {
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Users by Status</h2>
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Active (7d)</span>
-                <span className="text-green-600 font-semibold">{(userData.byStatus?.active || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Inactive</span>
-                <span className="text-yellow-600 font-semibold">{(userData.byStatus?.inactive || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Suspended</span>
-                <span className="text-red-600 font-semibold">{(userData.byStatus?.suspended || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Verified</span>
-                <span className="text-blue-600 font-semibold">{(userData.byStatus?.verified || 0).toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Unverified</span>
-                <span className="text-orange-600 font-semibold">{(userData.byStatus?.unverified || 0).toLocaleString()}</span>
-              </div>
+              {loading ? (
+                <>
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Active (7d)</span>
+                    <span className="text-green-600 font-semibold">{(userData.byStatus?.active || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Inactive</span>
+                    <span className="text-yellow-600 font-semibold">{(userData.byStatus?.inactive || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Suspended</span>
+                    <span className="text-red-600 font-semibold">{(userData.byStatus?.suspended || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Verified</span>
+                    <span className="text-blue-600 font-semibold">{(userData.byStatus?.verified || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600">Unverified</span>
+                    <span className="text-orange-600 font-semibold">{(userData.byStatus?.unverified || 0).toLocaleString()}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -629,18 +699,28 @@ function AnalyticsUsers({ setView, admin }) {
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Top Departments</h2>
             <div className="space-y-4">
-              {userData.departmentStats && userData.departmentStats.length > 0 ? (
-                userData.departmentStats.slice(0, 5).map((dept, idx) => (
-                  <ProgressBar 
-                    key={idx}
-                    label={dept.name || 'Unknown'} 
-                    value={dept.count || 0} 
-                    total={userData.total || 1} 
-                    color={idx === 0 ? "blue" : idx === 1 ? "green" : idx === 2 ? "purple" : "orange"}
-                  />
-                ))
+              {loading ? (
+                <>
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                </>
               ) : (
-                <p className="text-gray-500 text-center py-4">No department data available</p>
+                userData.departmentStats && userData.departmentStats.length > 0 ? (
+                  userData.departmentStats.slice(0, 5).map((dept, idx) => (
+                    <ProgressBar 
+                      key={idx}
+                      label={dept.name || 'Unknown'} 
+                      value={dept.count || 0} 
+                      total={userData.total || 1} 
+                      color={idx === 0 ? "blue" : idx === 1 ? "green" : idx === 2 ? "purple" : "orange"}
+                    />
+                  ))
+                ) : (
+                  <p className="text-gray-500 text-center py-4">No department data available</p>
+                )
               )}
             </div>
           </div>
@@ -651,53 +731,87 @@ function AnalyticsUsers({ setView, admin }) {
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
             User Growth - {dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : 'Monthly'}
           </h2>
-          <div className="h-64 flex items-end justify-between gap-2">
-            {userData.growth?.values && userData.growth.values.length > 0 ? (
-              userData.growth.values.map((value, index) => {
-                const max = Math.max(...userData.growth.values, 1);
-                const height = max > 0 ? (value / max) * 100 : 0;
-                return (
-                  <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                    <div 
-                      className="w-full bg-[#CC0000]/20 rounded-t relative group"
-                      style={{ height: `${height}%`, minHeight: '4px' }}
-                    >
-                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                        {value} new users
+          {loading ? (
+            <div className="h-64 flex items-end justify-between gap-2 animate-pulse">
+              {Array(7).fill(0).map((_, i) => (
+                <div key={i} className="flex-1 flex flex-col items-center gap-2">
+                  <div className="w-full bg-gray-200 rounded-t h-32"></div>
+                  <div className="h-3 bg-gray-200 rounded w-8"></div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="h-64 flex items-end justify-between gap-2">
+              {userData.growth?.values && userData.growth.values.length > 0 ? (
+                userData.growth.values.map((value, index) => {
+                  const max = Math.max(...userData.growth.values, 1);
+                  const height = max > 0 ? (value / max) * 100 : 0;
+                  return (
+                    <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                      <div 
+                        className="w-full bg-[#CC0000]/20 rounded-t relative group"
+                        style={{ height: `${height}%`, minHeight: '4px' }}
+                      >
+                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                          {value} new users
+                        </div>
                       </div>
+                      <span className="text-xs text-gray-600">{userData.growth.labels?.[index] || ''}</span>
                     </div>
-                    <span className="text-xs text-gray-600">{userData.growth.labels?.[index] || ''}</span>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="w-full text-center text-gray-500 py-12">
-                No growth data available for this period
-              </div>
-            )}
-          </div>
+                  );
+                })
+              ) : (
+                <div className="w-full text-center text-gray-500 py-12">
+                  No growth data available for this period
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Registration Stats */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Registration Statistics</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <p className="text-sm text-gray-600 font-medium mb-1">Today</p>
-              <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.today || 0}</p>
-            </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <p className="text-sm text-gray-600 font-medium mb-1">This Week</p>
-              <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.thisWeek || 0}</p>
-            </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <p className="text-sm text-gray-600 font-medium mb-1">This Month</p>
-              <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.thisMonth || 0}</p>
-            </div>
-            <div className="bg-white p-4 rounded-lg border border-gray-200">
-              <p className="text-sm text-gray-600 font-medium mb-1">Avg. Per Day</p>
-              <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.avgPerDay || 0}</p>
-            </div>
+            {loading ? (
+              <>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
+                  <div className="h-8 bg-gray-300 rounded w-12"></div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
+                  <div className="h-8 bg-gray-300 rounded w-12"></div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
+                  <div className="h-8 bg-gray-300 rounded w-12"></div>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
+                  <div className="h-8 bg-gray-300 rounded w-12"></div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <p className="text-sm text-gray-600 font-medium mb-1">Today</p>
+                  <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.today || 0}</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <p className="text-sm text-gray-600 font-medium mb-1">This Week</p>
+                  <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.thisWeek || 0}</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <p className="text-sm text-gray-600 font-medium mb-1">This Month</p>
+                  <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.thisMonth || 0}</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg border border-gray-200">
+                  <p className="text-sm text-gray-600 font-medium mb-1">Avg. Per Day</p>
+                  <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.avgPerDay || 0}</p>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -715,30 +829,40 @@ function AnalyticsUsers({ setView, admin }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {userData.topUsers && userData.topUsers.length > 0 ? (
-                  userData.topUsers.map((user, index) => (
-                    <tr key={user.id || index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-800">{user.name || 'Unknown'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.email || ''}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                          user.role?.toLowerCase() === 'student' ? 'bg-green-100 text-green-800' :
-                          user.role?.toLowerCase() === 'faculty' ? 'bg-purple-100 text-purple-800' :
-                          user.role?.toLowerCase() === 'staff' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {user.role || 'Unknown'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.reservations || 0}</td>
-                    </tr>
-                  ))
+                {loading ? (
+                  <>
+                    <TableRowSkeleton cols={4} />
+                    <TableRowSkeleton cols={4} />
+                    <TableRowSkeleton cols={4} />
+                    <TableRowSkeleton cols={4} />
+                    <TableRowSkeleton cols={4} />
+                  </>
                 ) : (
-                  <tr>
-                    <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
-                      No user activity data available
-                    </td>
-                  </tr>
+                  userData.topUsers && userData.topUsers.length > 0 ? (
+                    userData.topUsers.map((user, index) => (
+                      <tr key={user.id || index} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap text-gray-800">{user.name || 'Unknown'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.email || ''}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                            user.role?.toLowerCase() === 'student' ? 'bg-green-100 text-green-800' :
+                            user.role?.toLowerCase() === 'faculty' ? 'bg-purple-100 text-purple-800' :
+                            user.role?.toLowerCase() === 'staff' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {user.role || 'Unknown'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.reservations || 0}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
+                        No user activity data available
+                      </td>
+                    </tr>
+                  )
                 )}
               </tbody>
             </table>
