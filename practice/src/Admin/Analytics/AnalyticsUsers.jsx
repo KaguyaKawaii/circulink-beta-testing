@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Users,
   Download,
@@ -12,7 +12,8 @@ import {
   GraduationCap,
   UserCog,
   Building,
-  Calendar
+  Calendar,
+  X
 } from "lucide-react";
 import api from "../../utils/api";
 
@@ -68,6 +69,8 @@ function AnalyticsUsers({ setView, admin }) {
     departmentStats: []
   });
 
+  const calendarRef = useRef(null);
+
   const fetchUserAnalytics = useCallback(async () => {
     setLoading(true);
     try {
@@ -96,6 +99,20 @@ function AnalyticsUsers({ setView, admin }) {
   useEffect(() => {
     fetchUserAnalytics();
   }, [fetchUserAnalytics]);
+
+  // Close calendar when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (calendarRef.current && !calendarRef.current.contains(event.target)) {
+        setShowCustomDate(false);
+      }
+    }
+    
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const formatDateTime = (date) => {
     if (!date) return "—";
@@ -128,12 +145,24 @@ function AnalyticsUsers({ setView, admin }) {
 
   const handleCustomDateApply = () => {
     if (customStartDate && customEndDate) {
+      // Validate that start date is before end date
+      if (new Date(customStartDate) > new Date(customEndDate)) {
+        alert("Start date must be before end date");
+        return;
+      }
+      
       setDateRange("custom");
       setShowCustomDate(false);
-      fetchUserAnalytics();
+      // fetchUserAnalytics will be triggered by the useEffect
     } else {
       alert("Please select both start and end dates");
     }
+  };
+
+  const handleCustomDateClear = () => {
+    setCustomStartDate("");
+    setCustomEndDate("");
+    setShowCustomDate(false);
   };
 
   // CSV Export Function (no external dependencies)
@@ -366,20 +395,6 @@ function AnalyticsUsers({ setView, admin }) {
     </tr>
   );
 
-  const StatCardSkeleton = () => (
-    <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
-      <div className="flex items-center justify-between">
-        <div className="flex-1">
-          <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-          <div className="h-8 bg-gray-300 rounded w-16"></div>
-        </div>
-        <div className="p-2">
-          <div className="w-5 h-5 bg-gray-300 rounded"></div>
-        </div>
-      </div>
-    </div>
-  );
-
   const ProgressBar = ({ label, value, total, color = "blue", showValue = true, isLoading = false }) => {
     const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
     
@@ -440,13 +455,13 @@ function AnalyticsUsers({ setView, admin }) {
               {dateRange === 'week' ? 'Last 7 days' : 
                dateRange === 'month' ? 'Last 30 days' : 
                dateRange === 'year' ? 'Last 12 months' : 
-               dateRange === 'custom' ? `${formatDate(customStartDate)} to ${formatDate(customEndDate)}` : 
+               dateRange === 'custom' && customStartDate && customEndDate ? `${formatDate(customStartDate)} to ${formatDate(customEndDate)}` : 
                'Real-time user data from database'}
             </p>
           </div>
           <div className="flex items-center space-x-4">
             {/* Date Range Selector */}
-            <div className="flex bg-gray-100 rounded-lg p-1">
+            <div className="flex bg-gray-100 rounded-lg p-1 relative">
               {["week", "month", "year"].map((range) => (
                 <button
                   key={range}
@@ -478,48 +493,61 @@ function AnalyticsUsers({ setView, admin }) {
                 <Calendar size={14} />
                 <span>Custom</span>
               </button>
-            </div>
 
-            {/* Custom Date Range Picker */}
-            {showCustomDate && (
-              <div className="absolute top-20 right-40 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-50">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Select Date Range</h3>
-                <div className="flex flex-col gap-3">
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">Start Date</label>
-                    <input
-                      type="date"
-                      value={customStartDate}
-                      onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs text-gray-600 mb-1">End Date</label>
-                    <input
-                      type="date"
-                      value={customEndDate}
-                      onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full"
-                    />
-                  </div>
-                  <div className="flex gap-2 mt-2">
-                    <button
-                      onClick={handleCustomDateApply}
-                      className="flex-1 bg-[#CC0000] text-white text-sm py-2 rounded-lg hover:bg-[#990000] transition-colors"
-                    >
-                      Apply
-                    </button>
+              {/* Custom Date Range Picker */}
+              {showCustomDate && (
+                <div 
+                  ref={calendarRef}
+                  className="absolute top-12 right-0 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-50 w-72"
+                >
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-semibold text-gray-700">Select Date Range</h3>
                     <button
                       onClick={() => setShowCustomDate(false)}
-                      className="flex-1 bg-gray-200 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                      className="text-gray-400 hover:text-gray-600"
                     >
-                      Cancel
+                      <X size={16} />
                     </button>
                   </div>
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                        max={customEndDate || undefined}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">End Date</label>
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                        min={customStartDate || undefined}
+                      />
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={handleCustomDateApply}
+                        className="flex-1 bg-[#CC0000] text-white text-sm py-2 rounded-lg hover:bg-[#990000] transition-colors"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        onClick={handleCustomDateClear}
+                        className="flex-1 bg-gray-200 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
             
             {/* Export to CSV Button */}
             <button
@@ -729,7 +757,7 @@ function AnalyticsUsers({ setView, admin }) {
         {/* Growth Chart */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
-            User Growth - {dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : 'Monthly'}
+            User Growth - {dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : dateRange === 'year' ? 'Monthly' : 'Custom Period'}
           </h2>
           {loading ? (
             <div className="h-64 flex items-end justify-between gap-2 animate-pulse">
