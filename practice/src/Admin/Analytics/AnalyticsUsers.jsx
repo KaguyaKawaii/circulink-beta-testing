@@ -459,7 +459,24 @@ function AnalyticsUsers({ setView, admin }) {
                'Real-time user data from database'}
             </p>
           </div>
-          
+          {/* Export to CSV Button */}
+            <button
+              onClick={exportToCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+              title="Export to CSV"
+            >
+              <Download size={18} />
+              <span>CSV</span>
+            </button>
+
+            {/* Refresh Button */}
+            <button 
+              onClick={fetchUserAnalytics}
+              className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
+              title="Refresh Data"
+            >
+              <RefreshCw size={18} />
+            </button>
         </div>
       </header>
 
@@ -651,6 +668,7 @@ function AnalyticsUsers({ setView, admin }) {
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
             User Growth - {dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : dateRange === 'year' ? 'Monthly' : 'Custom Period'}
           </h2>
+          <div className="flex justify-around items-center">
           <div className="flex items-center space-x-4">
             {/* Date Range Selector */}
             <div className="flex bg-gray-100 rounded-lg p-1 relative">
@@ -741,24 +759,8 @@ function AnalyticsUsers({ setView, admin }) {
               )}
             </div>
             
-            {/* Export to CSV Button */}
-            <button
-              onClick={exportToCSV}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
-              title="Export to CSV"
-            >
-              <Download size={18} />
-              <span>CSV</span>
-            </button>
-
-            {/* Refresh Button */}
-            <button 
-              onClick={fetchUserAnalytics}
-              className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
-              title="Refresh Data"
-            >
-              <RefreshCw size={18} />
-            </button>
+            
+          </div>
           </div>
           {loading ? (
             <div className="h-64 flex items-end justify-between gap-2 animate-pulse">
