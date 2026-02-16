@@ -648,14 +648,40 @@ exports.getAnalyticsOverview = async (req, res) => {
 // This version returns just the 4 metrics for the simple dashboard
 exports.getReservationAnalytics = async (req, res) => {
   try {
-    const totalReservations = await Reservation.countDocuments();
-    const approved = await Reservation.countDocuments({ status: "Approved" });
-    const pending = await Reservation.countDocuments({ status: "Pending" });
-    const cancelled = await Reservation.countDocuments({ status: "Cancelled" });
-    const completed = await Reservation.countDocuments({ status: "Completed" });
+    const { range = "month", startDate, endDate } = req.query;
+    
+    // Get date range for filtering
+    let startDateObj;
+    if (startDate && endDate) {
+      startDateObj = new Date(startDate);
+      startDateObj.setHours(0, 0, 0, 0);
+      const endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999);
+    } else {
+      startDateObj = getStartDate(range);
+    }
+
+    // Build query based on date range
+    let query = {};
+    if (startDate && endDate) {
+      const endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999);
+      query.createdAt = { $gte: new Date(startDate), $lte: endDateObj };
+    } else {
+      query.createdAt = { $gte: startDateObj };
+    }
+
+    const totalReservations = await Reservation.countDocuments(query);
+    const approved = await Reservation.countDocuments({ ...query, status: "Approved" });
+    const pending = await Reservation.countDocuments({ ...query, status: "Pending" });
+    const cancelled = await Reservation.countDocuments({ ...query, status: "Cancelled" });
+    const completed = await Reservation.countDocuments({ ...query, status: "Completed" });
+    const rejected = await Reservation.countDocuments({ ...query, status: "Rejected" });
+    const expired = await Reservation.countDocuments({ ...query, status: "Expired" });
+    const ongoing = await Reservation.countDocuments({ ...query, status: "Ongoing" });
 
     // Get popular rooms
-    const reservations = await Reservation.find().lean();
+    const reservations = await Reservation.find(query).lean();
     const roomCounts = {};
     
     reservations.forEach(res => {
@@ -714,9 +740,11 @@ exports.getReservationAnalytics = async (req, res) => {
         total: totalReservations,
         pending,
         approved,
-        rejected: 0,
+        rejected,
         completed,
         cancelled,
+        expired,
+        ongoing,
         byTimeOfDay,
         byDayOfWeek,
         popularRooms
@@ -787,8 +815,8 @@ exports.getDetailedReservationAnalytics = async (req, res) => {
     // Fetch all reservations for additional stats (by room, by time, etc.)
     const allReservations = await Reservation.find({}).lean();
 
-    // Calculate statistics
-    const stats = calculateReservationStats(
+    // Calculate statistics (now async)
+    const stats = await calculateReservationStats(
       reservations,
       previousReservations,
       allReservations,
@@ -813,8 +841,8 @@ exports.getDetailedReservationAnalytics = async (req, res) => {
   }
 };
 
-// Helper function to calculate reservation statistics
-function calculateReservationStats(
+// Updated calculateReservationStats function (now async)
+async function calculateReservationStats(
   reservations, 
   previousReservations, 
   allReservations,
@@ -975,6 +1003,55 @@ function calculateReservationStats(
     ? Math.round((totalParticipants / allReservations.length) * 10) / 10
     : 0;
 
+  // ===== NEW: Calculate user department statistics =====
+  // Get unique user IDs from reservations
+  const userIds = [...new Set(allReservations.map(r => r.userId?.toString()).filter(id => id))];
+  
+  // Fetch user data for these users
+  const users = await User.find({ _id: { $in: userIds } }).select('name department').lean();
+  
+  // Create a map of user id to user data
+  const userMap = {};
+  users.forEach(user => {
+    userMap[user._id.toString()] = user;
+  });
+
+  // Calculate reservations by department
+  const deptCount = {};
+  allReservations.forEach(res => {
+    const userId = res.userId?.toString();
+    if (userId && userMap[userId]) {
+      const dept = userMap[userId].department || 'Other';
+      deptCount[dept] = (deptCount[dept] || 0) + 1;
+    }
+  });
+
+  const userDepartmentStats = Object.entries(deptCount)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  // ===== NEW: Calculate top reservers =====
+  const userReservationCount = {};
+  allReservations.forEach(res => {
+    const userId = res.userId?.toString();
+    if (userId) {
+      userReservationCount[userId] = (userReservationCount[userId] || 0) + 1;
+    }
+  });
+
+  const topReservers = Object.entries(userReservationCount)
+    .map(([userId, count]) => {
+      const user = userMap[userId];
+      return {
+        name: user?.name || 'Unknown',
+        department: user?.department || 'Unknown',
+        count: count
+      };
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
   // Calculate by purpose
   const byPurpose = {};
   allReservations.forEach(res => {
@@ -1006,7 +1083,9 @@ function calculateReservationStats(
     avgGroupSize,
     purposeDistribution,
     totalParticipants,
-    previousTotal
+    previousTotal,
+    userDepartmentStats,
+    topReservers
   };
 }
 
