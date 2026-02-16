@@ -60,7 +60,6 @@ function AnalyticsReservations({ setView, admin }) {
     },
     floorDistribution: [],
     avgGroupSize: 0,
-    purposeDistribution: [],
     totalParticipants: 0,
     previousTotal: 0
   });
@@ -70,27 +69,49 @@ function AnalyticsReservations({ setView, admin }) {
   const fetchReservationAnalytics = useCallback(async () => {
     setLoading(true);
     try {
-      let url = `/analytics/reservations?range=${dateRange}`;
+      let url = `/analytics/reservations/detailed?range=${dateRange}`;
       
       // Add custom date parameters if custom range is selected
+      if (dateRange === "custom" && customStartDate && customEndDate) {
+        url = `/analytics/reservations/detailed?startDate=${customStartDate}&endDate=${customEndDate}`;
+      }
+      
+      console.log("Fetching analytics from:", url);
+      const response = await api.get(url);
+      
+      if (response.data && response.data.success) {
+        setReservationData(response.data.data);
+        console.log("Reservation analytics data loaded:", response.data.data);
+      } else {
+        console.error("API returned unsuccessful response:", response.data);
+        // Fallback to simple endpoint if detailed fails
+        await fetchSimpleAnalytics();
+      }
+    } catch (error) {
+      console.error("Error fetching detailed analytics:", error);
+      // Fallback to simple endpoint
+      await fetchSimpleAnalytics();
+    } finally {
+      setLoading(false);
+    }
+  }, [dateRange, customStartDate, customEndDate]);
+
+  const fetchSimpleAnalytics = async () => {
+    try {
+      let url = `/analytics/reservations?range=${dateRange}`;
       if (dateRange === "custom" && customStartDate && customEndDate) {
         url = `/analytics/reservations?startDate=${customStartDate}&endDate=${customEndDate}`;
       }
       
       const response = await api.get(url);
-      
       if (response.data && response.data.success) {
         setReservationData(response.data.data);
-        console.log("Reservation analytics data loaded for range:", dateRange, response.data.data);
-      } else {
-        console.error("API returned unsuccessful response:", response.data);
+        console.log("Simple analytics loaded:", response.data.data);
       }
     } catch (error) {
-      console.error("Error fetching reservation analytics:", error);
-    } finally {
-      setLoading(false);
+      console.error("Error fetching simple analytics:", error);
     }
-  }, [dateRange, customStartDate, customEndDate]);
+  };
 
   useEffect(() => {
     fetchReservationAnalytics();
@@ -149,7 +170,6 @@ function AnalyticsReservations({ setView, admin }) {
       
       setDateRange("custom");
       setShowCustomDate(false);
-      // fetchReservationAnalytics will be triggered by the useEffect
     } else {
       alert("Please select both start and end dates");
     }
@@ -159,6 +179,7 @@ function AnalyticsReservations({ setView, admin }) {
     setCustomStartDate("");
     setCustomEndDate("");
     setShowCustomDate(false);
+    setDateRange("month");
   };
 
   // CSV Export Function
@@ -303,29 +324,13 @@ function AnalyticsReservations({ setView, admin }) {
       }
       addRow([]);
       
-      // 8. Purpose Distribution
-      addRow(['RESERVATION PURPOSES']);
-      addRow(['Purpose', 'Count', 'Percentage']);
-      if (reservationData.purposeDistribution && reservationData.purposeDistribution.length > 0) {
-        reservationData.purposeDistribution.forEach(purpose => {
-          addRow([
-            purpose.name || 'Other',
-            purpose.value || 0,
-            `${Math.round((purpose.value / total) * 100)}%`
-          ]);
-        });
-      } else {
-        addRow(['No purpose data available', '', '']);
-      }
-      addRow([]);
-      
-      // 9. Additional Stats
+      // 8. Additional Stats
       addRow(['ADDITIONAL STATISTICS']);
       addRow(['Average Group Size', reservationData.avgGroupSize || 0]);
       addRow(['Total Participants', reservationData.totalParticipants || 0]);
       addRow(['Previous Period Total', reservationData.previousTotal || 0]);
       
-      // 10. Growth Data
+      // 9. Growth Data
       addRow([]);
       addRow(['RESERVATION GROWTH', `(${dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : 'Monthly'})`]);
       addRow(['Period', 'New Reservations']);
@@ -649,6 +654,10 @@ function AnalyticsReservations({ setView, admin }) {
         {/* Additional Stats Row */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-[#1a1a1a] rounded-xl p-4 border border-gray-800">
+            <p className="text-sm text-gray-400 mb-1">Approved</p>
+            <p className="text-xl font-bold text-white">{reservationData.approved?.toLocaleString() || 0}</p>
+          </div>
+          <div className="bg-[#1a1a1a] rounded-xl p-4 border border-gray-800">
             <p className="text-sm text-gray-400 mb-1">Rejected</p>
             <p className="text-xl font-bold text-white">{reservationData.rejected?.toLocaleString() || 0}</p>
           </div>
@@ -660,13 +669,9 @@ function AnalyticsReservations({ setView, admin }) {
             <p className="text-sm text-gray-400 mb-1">Ongoing</p>
             <p className="text-xl font-bold text-white">{reservationData.ongoing?.toLocaleString() || 0}</p>
           </div>
-          <div className="bg-[#1a1a1a] rounded-xl p-4 border border-gray-800">
-            <p className="text-sm text-gray-400 mb-1">Avg. Group Size</p>
-            <p className="text-xl font-bold text-white">{reservationData.avgGroupSize || 0}</p>
-          </div>
         </div>
 
-        {/* Reservation Status and Peak Hours */}
+        {/* Reservation Status */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800 lg:col-span-2">
             <h2 className="text-lg font-semibold text-white mb-4">Reservation Status Breakdown</h2>
@@ -753,46 +758,17 @@ function AnalyticsReservations({ setView, admin }) {
           </div>
 
           <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4">Peak Hours</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">Average Group Size</h2>
             {loading ? (
-              <div className="space-y-3">
-                <ProgressBarSkeleton />
-                <ProgressBarSkeleton />
-                <ProgressBarSkeleton />
+              <div className="h-32 flex items-center justify-center">
+                <RefreshCw size={24} className="animate-spin text-red-500" />
               </div>
             ) : (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Morning (8AM-12PM)</span>
-                  <span className="text-white font-semibold">{reservationData.byTimeOfDay?.morning || 0}</span>
-                </div>
-                <div className="w-full bg-gray-800 rounded-full h-2">
-                  <div 
-                    className="bg-blue-500 rounded-full h-2"
-                    style={{ width: `${Math.round(((reservationData.byTimeOfDay?.morning || 0) / totalTimeSlots) * 100)}%` }}
-                  />
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Afternoon (12PM-5PM)</span>
-                  <span className="text-white font-semibold">{reservationData.byTimeOfDay?.afternoon || 0}</span>
-                </div>
-                <div className="w-full bg-gray-800 rounded-full h-2">
-                  <div 
-                    className="bg-green-500 rounded-full h-2"
-                    style={{ width: `${Math.round(((reservationData.byTimeOfDay?.afternoon || 0) / totalTimeSlots) * 100)}%` }}
-                  />
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-300">Evening (5PM-9PM)</span>
-                  <span className="text-white font-semibold">{reservationData.byTimeOfDay?.evening || 0}</span>
-                </div>
-                <div className="w-full bg-gray-800 rounded-full h-2">
-                  <div 
-                    className="bg-purple-500 rounded-full h-2"
-                    style={{ width: `${Math.round(((reservationData.byTimeOfDay?.evening || 0) / totalTimeSlots) * 100)}%` }}
-                  />
+              <div className="text-center">
+                <div className="text-5xl font-bold text-red-500 mb-2">{reservationData.avgGroupSize || 0}</div>
+                <p className="text-gray-400">people per reservation</p>
+                <div className="mt-4 text-sm text-gray-500">
+                  Total Participants: {reservationData.totalParticipants?.toLocaleString() || 0}
                 </div>
               </div>
             )}
@@ -946,9 +922,8 @@ function AnalyticsReservations({ setView, admin }) {
           </div>
         </div>
 
-        {/* Floor Distribution and Purpose Distribution */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Floor Distribution */}
+        {/* Floor Distribution */}
+        <div className="grid grid-cols-1 lg:grid-cols-1 gap-6 mb-8">
           <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
             <h2 className="text-lg font-semibold text-white mb-4">Reservations by Floor</h2>
             {loading ? (
@@ -972,35 +947,6 @@ function AnalyticsReservations({ setView, admin }) {
                   ))
                 ) : (
                   <p className="text-gray-500 text-center py-4">No floor distribution data available</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Purpose Distribution */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4">Reservation Purposes</h2>
-            {loading ? (
-              <div className="space-y-4">
-                <ProgressBarSkeleton />
-                <ProgressBarSkeleton />
-                <ProgressBarSkeleton />
-                <ProgressBarSkeleton />
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {reservationData.purposeDistribution && reservationData.purposeDistribution.length > 0 ? (
-                  reservationData.purposeDistribution.map((purpose, index) => (
-                    <ProgressBar 
-                      key={index}
-                      label={purpose.name} 
-                      value={purpose.value} 
-                      total={reservationData.total || 1} 
-                      color={index === 0 ? "blue" : index === 1 ? "green" : index === 2 ? "purple" : "orange"}
-                    />
-                  ))
-                ) : (
-                  <p className="text-gray-500 text-center py-4">No purpose data available</p>
                 )}
               </div>
             )}
