@@ -22,10 +22,13 @@ router.get("/rooms", analyticsController.getRoomAnalytics);
 // Detailed room analytics with trends and growth data
 router.get("/rooms/detailed", analyticsController.getDetailedRoomAnalytics);
 
-// Engagement metrics
+// routes/analyticsRoutes.js
+// This is already correct - keep it as is
 router.get("/engagement", analyticsController.getEngagementMetrics);
 
 // Export analytics
 router.get("/export", analyticsController.exportAnalytics);
+
+
 
 module.exports = router;
