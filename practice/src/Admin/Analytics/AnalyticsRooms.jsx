@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+// AnalyticsRooms.jsx
+
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   DoorOpen,
   TrendingUp,
@@ -12,13 +14,28 @@ import {
   ArrowDown,
   BarChart3,
   PieChart,
-  Activity
+  Activity,
+  Users,
+  Calendar,
+  X,
+  MapPin,
+  Building,
+  Wifi,
+  Wind,
+  Monitor,
+  Video,
+  Coffee,
+  Smartphone,
+  Home
 } from "lucide-react";
 import api from "../../utils/api";
 
 function AnalyticsRooms({ setView, admin }) {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("month");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const [showCustomDate, setShowCustomDate] = useState(false);
   const [roomData, setRoomData] = useState({
     total: 0,
     available: 0,
@@ -29,268 +46,1582 @@ function AnalyticsRooms({ setView, admin }) {
       lecture: 0,
       laboratory: 0,
       conference: 0,
-      office: 0
+      office: 0,
+      general: 0
     },
     roomDetails: [],
     hourlyUtilization: [],
-    topRooms: []
+    topRooms: [],
+    byFloor: {},
+    byCapacity: {
+      small: 0,    // 1-10
+      medium: 0,   // 11-30
+      large: 0,    // 31-50
+      xlarge: 0    // 51+
+    },
+    trends: {
+      total: { value: 0, percentage: 0, direction: 'up' },
+      utilization: { value: 0, percentage: 0, direction: 'up' },
+      available: { value: 0, percentage: 0, direction: 'up' },
+      occupied: { value: 0, percentage: 0, direction: 'up' }
+    },
+    growth: {
+      labels: [],
+      values: []
+    },
+    roomTypeDistribution: [],
+    floorDistribution: [],
+    capacityDistribution: [],
+    featureStats: {
+      wifi: 0,
+      aircon: 0,
+      projector: 0,
+      monitor: 0
+    },
+    peakHours: [],
+    utilizationByType: {},
+    bookingTrends: [],
+    maintenanceHistory: [],
+    topUsers: []
   });
+
+  const calendarRef = useRef(null);
+
+  const fetchRoomAnalytics = useCallback(async () => {
+    setLoading(true);
+    try {
+      let url = `/analytics/rooms/detailed?range=${dateRange}`;
+      
+      // Add custom date parameters if custom range is selected
+      if (dateRange === "custom" && customStartDate && customEndDate) {
+        url = `/analytics/rooms/detailed?startDate=${customStartDate}&endDate=${customEndDate}`;
+      }
+      
+      console.log("Fetching room analytics from:", url);
+      const response = await api.get(url);
+      
+      if (response.data && response.data.success) {
+        setRoomData(response.data.data);
+        console.log("Room analytics data loaded:", response.data.data);
+      } else {
+        console.error("API returned unsuccessful response:", response.data);
+        // Fallback to mock data if API fails
+        setRoomData(getMockRoomData(dateRange, customStartDate, customEndDate));
+      }
+    } catch (error) {
+      console.error("Error fetching room analytics:", error);
+      // Fallback to mock data
+      setRoomData(getMockRoomData(dateRange, customStartDate, customEndDate));
+    } finally {
+      setLoading(false);
+    }
+  }, [dateRange, customStartDate, customEndDate]);
 
   useEffect(() => {
     fetchRoomAnalytics();
-  }, [dateRange]);
+  }, [fetchRoomAnalytics]);
 
-  const fetchRoomAnalytics = async () => {
-    setLoading(true);
-    try {
-      // Mock data
-      setTimeout(() => {
-        setRoomData(getMockRoomData(dateRange));
-        setLoading(false);
-      }, 1000);
-    } catch (error) {
-      console.error("Error fetching room analytics:", error);
-      setLoading(false);
+  // Close calendar when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (calendarRef.current && !calendarRef.current.contains(event.target)) {
+        setShowCustomDate(false);
+      }
     }
-  };
+    
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
-  const getMockRoomData = (range) => {
+  // Mock data generator (for fallback)
+  const getMockRoomData = (range, customStart, customEnd) => {
+    const now = new Date();
+    let totalRooms = 25;
+    
+    // Adjust based on range
+    let utilizationBase = 68;
+    if (range === 'week') utilizationBase = 72;
+    if (range === 'year') utilizationBase = 65;
+    if (range === 'custom' && customStart && customEnd) utilizationBase = 70;
+
     return {
-      total: 25,
-      available: 12,
-      occupied: 8,
-      maintenance: 3,
-      utilization: 68,
+      total: totalRooms,
+      available: Math.floor(totalRooms * 0.4),
+      occupied: Math.floor(totalRooms * 0.35),
+      maintenance: Math.floor(totalRooms * 0.1),
+      utilization: utilizationBase,
       byType: {
         lecture: 12,
         laboratory: 6,
         conference: 4,
-        office: 3
+        office: 3,
+        general: 0
       },
       roomDetails: [
-        { name: "Room 101", type: "Lecture", capacity: 50, bookings: 450, utilization: 78, status: "available" },
-        { name: "Room 102", type: "Lecture", capacity: 40, bookings: 380, utilization: 68, status: "occupied" },
-        { name: "Room 103", type: "Lecture", capacity: 60, bookings: 520, utilization: 85, status: "available" },
-        { name: "Room 104", type: "Laboratory", capacity: 30, bookings: 280, utilization: 62, status: "maintenance" },
-        { name: "Room 201", type: "Conference", capacity: 25, bookings: 290, utilization: 52, status: "available" },
-        { name: "Room 202", type: "Lecture", capacity: 45, bookings: 410, utilization: 72, status: "occupied" },
-        { name: "Room 203", type: "Laboratory", capacity: 25, bookings: 230, utilization: 55, status: "available" },
-        { name: "Lab A", type: "Laboratory", capacity: 35, bookings: 340, utilization: 70, status: "occupied" },
-        { name: "Lab B", type: "Laboratory", capacity: 30, bookings: 260, utilization: 58, status: "maintenance" },
-        { name: "Conference A", type: "Conference", capacity: 20, bookings: 210, utilization: 48, status: "available" }
+        { 
+          id: 1, name: "Room 101", type: "Lecture", floor: "1st Floor", capacity: 50, 
+          bookings: 450, utilization: 78, status: "available", features: { wifi: true, aircon: true, projector: true, monitor: false },
+          lastMaintenance: "2024-01-15", nextMaintenance: "2024-04-15"
+        },
+        { 
+          id: 2, name: "Room 102", type: "Lecture", floor: "1st Floor", capacity: 40, 
+          bookings: 380, utilization: 68, status: "occupied", features: { wifi: true, aircon: true, projector: false, monitor: true },
+          lastMaintenance: "2024-02-10", nextMaintenance: "2024-05-10"
+        },
+        { 
+          id: 3, name: "Room 103", type: "Lecture", floor: "1st Floor", capacity: 60, 
+          bookings: 520, utilization: 85, status: "available", features: { wifi: true, aircon: true, projector: true, monitor: true },
+          lastMaintenance: "2024-01-20", nextMaintenance: "2024-04-20"
+        },
+        { 
+          id: 4, name: "Room 104", type: "Laboratory", floor: "1st Floor", capacity: 30, 
+          bookings: 280, utilization: 62, status: "maintenance", features: { wifi: true, aircon: true, projector: false, monitor: true },
+          lastMaintenance: "2024-03-01", nextMaintenance: "2024-06-01"
+        },
+        { 
+          id: 5, name: "Room 201", type: "Conference", floor: "2nd Floor", capacity: 25, 
+          bookings: 290, utilization: 52, status: "available", features: { wifi: true, aircon: true, projector: true, monitor: false },
+          lastMaintenance: "2024-02-05", nextMaintenance: "2024-05-05"
+        },
+        { 
+          id: 6, name: "Room 202", type: "Lecture", floor: "2nd Floor", capacity: 45, 
+          bookings: 410, utilization: 72, status: "occupied", features: { wifi: true, aircon: true, projector: true, monitor: true },
+          lastMaintenance: "2024-01-25", nextMaintenance: "2024-04-25"
+        },
+        { 
+          id: 7, name: "Room 203", type: "Laboratory", floor: "2nd Floor", capacity: 25, 
+          bookings: 230, utilization: 55, status: "available", features: { wifi: true, aircon: false, projector: true, monitor: true },
+          lastMaintenance: "2024-02-15", nextMaintenance: "2024-05-15"
+        },
+        { 
+          id: 8, name: "Lab A", type: "Laboratory", floor: "3rd Floor", capacity: 35, 
+          bookings: 340, utilization: 70, status: "occupied", features: { wifi: true, aircon: true, projector: false, monitor: true },
+          lastMaintenance: "2024-03-05", nextMaintenance: "2024-06-05"
+        },
+        { 
+          id: 9, name: "Lab B", type: "Laboratory", floor: "3rd Floor", capacity: 30, 
+          bookings: 260, utilization: 58, status: "maintenance", features: { wifi: true, aircon: true, projector: false, monitor: true },
+          lastMaintenance: "2024-02-20", nextMaintenance: "2024-05-20"
+        },
+        { 
+          id: 10, name: "Conference A", type: "Conference", floor: "3rd Floor", capacity: 20, 
+          bookings: 210, utilization: 48, status: "available", features: { wifi: true, aircon: true, projector: true, monitor: false },
+          lastMaintenance: "2024-03-10", nextMaintenance: "2024-06-10"
+        },
+        { 
+          id: 11, name: "Room 301", type: "Office", floor: "3rd Floor", capacity: 8, 
+          bookings: 120, utilization: 35, status: "available", features: { wifi: true, aircon: true, projector: false, monitor: false },
+          lastMaintenance: "2024-02-25", nextMaintenance: "2024-05-25"
+        },
+        { 
+          id: 12, name: "Room 302", type: "Office", floor: "3rd Floor", capacity: 10, 
+          bookings: 140, utilization: 40, status: "occupied", features: { wifi: true, aircon: true, projector: false, monitor: false },
+          lastMaintenance: "2024-01-30", nextMaintenance: "2024-04-30"
+        }
       ],
       hourlyUtilization: [
-        { hour: "8AM", utilization: 45 },
-        { hour: "9AM", utilization: 65 },
-        { hour: "10AM", utilization: 82 },
-        { hour: "11AM", utilization: 88 },
-        { hour: "12PM", utilization: 72 },
-        { hour: "1PM", utilization: 68 },
-        { hour: "2PM", utilization: 85 },
-        { hour: "3PM", utilization: 90 },
-        { hour: "4PM", utilization: 78 },
-        { hour: "5PM", utilization: 62 }
+        { hour: "8AM", utilization: 45, bookings: 12 },
+        { hour: "9AM", utilization: 65, bookings: 18 },
+        { hour: "10AM", utilization: 82, bookings: 24 },
+        { hour: "11AM", utilization: 88, bookings: 26 },
+        { hour: "12PM", utilization: 72, bookings: 20 },
+        { hour: "1PM", utilization: 68, bookings: 19 },
+        { hour: "2PM", utilization: 85, bookings: 25 },
+        { hour: "3PM", utilization: 90, bookings: 28 },
+        { hour: "4PM", utilization: 78, bookings: 22 },
+        { hour: "5PM", utilization: 62, bookings: 16 }
       ],
       topRooms: [
-        { name: "Room 103", bookings: 520, utilization: 85, type: "Lecture" },
-        { name: "Room 101", bookings: 450, utilization: 78, type: "Lecture" },
-        { name: "Room 202", bookings: 410, utilization: 72, type: "Lecture" },
-        { name: "Room 102", bookings: 380, utilization: 68, type: "Lecture" },
-        { name: "Lab A", bookings: 340, utilization: 70, type: "Laboratory" }
+        { name: "Room 103", bookings: 520, utilization: 85, type: "Lecture", capacity: 60, floor: "1st Floor" },
+        { name: "Room 101", bookings: 450, utilization: 78, type: "Lecture", capacity: 50, floor: "1st Floor" },
+        { name: "Room 202", bookings: 410, utilization: 72, type: "Lecture", capacity: 45, floor: "2nd Floor" },
+        { name: "Room 102", bookings: 380, utilization: 68, type: "Lecture", capacity: 40, floor: "1st Floor" },
+        { name: "Lab A", bookings: 340, utilization: 70, type: "Laboratory", capacity: 35, floor: "3rd Floor" },
+        { name: "Room 201", bookings: 290, utilization: 52, type: "Conference", capacity: 25, floor: "2nd Floor" },
+        { name: "Room 104", bookings: 280, utilization: 62, type: "Laboratory", capacity: 30, floor: "1st Floor" },
+        { name: "Lab B", bookings: 260, utilization: 58, type: "Laboratory", capacity: 30, floor: "3rd Floor" },
+        { name: "Room 203", bookings: 230, utilization: 55, type: "Laboratory", capacity: 25, floor: "2nd Floor" },
+        { name: "Conference A", bookings: 210, utilization: 48, type: "Conference", capacity: 20, floor: "3rd Floor" }
+      ],
+      byFloor: {
+        "1st Floor": 4,
+        "2nd Floor": 3,
+        "3rd Floor": 5
+      },
+      byCapacity: {
+        small: 3,    // 1-10
+        medium: 4,   // 11-30
+        large: 3,    // 31-50
+        xlarge: 2    // 51+
+      },
+      trends: {
+        total: { value: totalRooms, percentage: 4.2, direction: 'up' },
+        utilization: { value: utilizationBase, percentage: 2.1, direction: 'up' },
+        available: { value: 10, percentage: 5.0, direction: 'up' },
+        occupied: { value: 9, percentage: 3.5, direction: 'down' }
+      },
+      growth: {
+        labels: range === 'week' 
+          ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+          : range === 'month'
+          ? ['Week 1', 'Week 2', 'Week 3', 'Week 4']
+          : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+        values: range === 'week'
+          ? [45, 52, 68, 72, 85, 38, 22]
+          : range === 'month'
+          ? [280, 310, 295, 340]
+          : [850, 920, 880, 950, 1020, 980, 890, 910, 950, 980, 1010, 1050]
+      },
+      roomTypeDistribution: [
+        { name: 'Lecture Halls', value: 12, color: 'blue' },
+        { name: 'Laboratories', value: 6, color: 'green' },
+        { name: 'Conference Rooms', value: 4, color: 'purple' },
+        { name: 'Offices', value: 3, color: 'orange' }
+      ],
+      floorDistribution: [
+        { name: '1st Floor', value: 4 },
+        { name: '2nd Floor', value: 3 },
+        { name: '3rd Floor', value: 5 }
+      ],
+      capacityDistribution: [
+        { name: 'Small (1-10)', value: 3 },
+        { name: 'Medium (11-30)', value: 4 },
+        { name: 'Large (31-50)', value: 3 },
+        { name: 'X-Large (51+)', value: 2 }
+      ],
+      featureStats: {
+        wifi: 12,
+        aircon: 10,
+        projector: 8,
+        monitor: 7
+      },
+      peakHours: [
+        { hour: '10:00 AM', utilization: 92, bookings: 8 },
+        { hour: '11:00 AM', utilization: 88, bookings: 7 },
+        { hour: '2:00 PM', utilization: 85, bookings: 7 },
+        { hour: '3:00 PM', utilization: 90, bookings: 8 },
+        { hour: '4:00 PM', utilization: 78, bookings: 6 }
+      ],
+      utilizationByType: {
+        lecture: 76,
+        laboratory: 62,
+        conference: 50,
+        office: 38
+      },
+      bookingTrends: [
+        { month: 'Jan', bookings: 450 },
+        { month: 'Feb', bookings: 480 },
+        { month: 'Mar', bookings: 520 },
+        { month: 'Apr', bookings: 490 },
+        { month: 'May', bookings: 530 },
+        { month: 'Jun', bookings: 510 }
+      ],
+      maintenanceHistory: [
+        { room: 'Room 104', date: '2024-03-01', type: 'AC Repair', status: 'Completed' },
+        { room: 'Lab B', date: '2024-02-20', type: 'Equipment Check', status: 'Completed' },
+        { room: 'Room 203', date: '2024-02-15', type: 'Projector Maintenance', status: 'Completed' }
+      ],
+      topUsers: [
+        { name: 'Dr. Smith', department: 'Engineering', bookings: 45, room: 'Room 103' },
+        { name: 'Prof. Johnson', department: 'Science', bookings: 38, room: 'Lab A' },
+        { name: 'Dr. Williams', department: 'Mathematics', bookings: 32, room: 'Room 202' }
       ]
     };
   };
 
-  const StatCard = ({ title, value, icon: Icon, color = "blue", subtext }) => (
-    <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-gray-400 mb-1">{title}</p>
-          <p className="text-2xl font-bold text-white">{value}</p>
-          {subtext && <p className="text-xs text-gray-500 mt-1">{subtext}</p>}
+  const formatDateTime = (date) => {
+    if (!date) return "—";
+    try {
+      return new Date(date).toLocaleString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch (error) {
+      return "Invalid date";
+    }
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "";
+    try {
+      return new Date(date).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric"
+      });
+    } catch (error) {
+      return "";
+    }
+  };
+
+  const handleCustomDateApply = () => {
+    if (customStartDate && customEndDate) {
+      // Validate that start date is before end date
+      if (new Date(customStartDate) > new Date(customEndDate)) {
+        alert("Start date must be before end date");
+        return;
+      }
+      
+      setDateRange("custom");
+      setShowCustomDate(false);
+    } else {
+      alert("Please select both start and end dates");
+    }
+  };
+
+  const handleCustomDateClear = () => {
+    setCustomStartDate("");
+    setCustomEndDate("");
+    setShowCustomDate(false);
+    setDateRange("month");
+  };
+
+  // Export to CSV function
+  const exportToCSV = () => {
+    try {
+      // Create CSV content with Excel-friendly formatting
+      let csvContent = "";
+      
+      // Helper to add a row with proper Excel formatting
+      const addRow = (cells) => {
+        const formattedCells = cells.map(cell => {
+          if (cell === null || cell === undefined) return '';
+          
+          let stringCell = String(cell);
+          
+          // Handle long text
+          if (stringCell.length > 50) {
+            stringCell = stringCell.replace(/(.{50})/g, '$1\n');
+          }
+          
+          // Escape commas, quotes, and newlines for CSV
+          if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n') || stringCell.includes('\r')) {
+            return `"${stringCell.replace(/"/g, '""')}"`;
+          }
+          return stringCell;
+        });
+        
+        csvContent += formattedCells.join(',') + '\n';
+      };
+
+      const addBlankRow = () => {
+        csvContent += '\n';
+      };
+
+      const addSectionHeader = (title, subtitle = '') => {
+        addRow(['========== ' + title.toUpperCase() + ' ==========']);
+        if (subtitle) {
+          addRow([subtitle]);
+        }
+        addBlankRow();
+      };
+
+      const addSubHeader = (title) => {
+        addRow(['--- ' + title + ' ---']);
+      };
+
+      // Get date range description
+      let rangeDescription = "";
+      if (dateRange === "week") rangeDescription = "Last 7 Days";
+      else if (dateRange === "month") rangeDescription = "Last 30 Days";
+      else if (dateRange === "year") rangeDescription = "Last 12 Months";
+      else if (dateRange === "custom") rangeDescription = `${formatDate(customStartDate)} to ${formatDate(customEndDate)}`;
+
+      // ==================== REPORT HEADER ====================
+      addBlankRow();
+      addRow(['ROOM ANALYTICS REPORT']);
+      addRow(['========================================']);
+      addBlankRow();
+      addRow(['Generated:', new Date().toLocaleString()]);
+      addRow(['Date Range:', rangeDescription]);
+      addRow(['Report ID:', `RPT-ROOM-${Date.now()}`]);
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== SECTION 1: KEY METRICS ====================
+      addSectionHeader('SECTION 1: KEY METRICS');
+      
+      addRow(['Metric', 'Current Value', 'Change %', 'Trend', 'Notes']);
+      addRow([
+        'TOTAL ROOMS', 
+        (roomData.total || 0).toLocaleString(),
+        `${roomData.trends?.total?.percentage || 0}%`,
+        roomData.trends?.total?.direction === 'up' ? 'Increasing' : 'Decreasing',
+        'Total available rooms'
+      ]);
+      addRow([
+        'AVAILABLE', 
+        (roomData.available || 0).toLocaleString(),
+        `${roomData.trends?.available?.percentage || 0}%`,
+        roomData.trends?.available?.direction === 'up' ? 'Increasing' : 'Decreasing',
+        'Ready for booking'
+      ]);
+      addRow([
+        'OCCUPIED', 
+        (roomData.occupied || 0).toLocaleString(),
+        `${roomData.trends?.occupied?.percentage || 0}%`,
+        roomData.trends?.occupied?.direction === 'up' ? 'Increasing' : 'Decreasing',
+        'Currently in use'
+      ]);
+      addRow([
+        'MAINTENANCE', 
+        (roomData.maintenance || 0).toLocaleString(),
+        'N/A',
+        'N/A',
+        'Under maintenance'
+      ]);
+      addRow([
+        'UTILIZATION RATE', 
+        (roomData.utilization || 0) + '%',
+        `${roomData.trends?.utilization?.percentage || 0}%`,
+        roomData.trends?.utilization?.direction === 'up' ? 'Increasing' : 'Decreasing',
+        'Overall room usage'
+      ]);
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== SECTION 2: ROOM TYPE DISTRIBUTION ====================
+      addSectionHeader('SECTION 2: ROOM TYPE DISTRIBUTION');
+      
+      addRow(['Room Type', 'Count', 'Percentage', 'Utilization Rate', 'Avg Bookings']);
+      
+      const typeData = [
+        { name: 'Lecture Halls', count: roomData.byType?.lecture || 0, utilization: roomData.utilizationByType?.lecture || 0, bookings: 450 },
+        { name: 'Laboratories', count: roomData.byType?.laboratory || 0, utilization: roomData.utilizationByType?.laboratory || 0, bookings: 280 },
+        { name: 'Conference Rooms', count: roomData.byType?.conference || 0, utilization: roomData.utilizationByType?.conference || 0, bookings: 250 },
+        { name: 'Offices', count: roomData.byType?.office || 0, utilization: roomData.utilizationByType?.office || 0, bookings: 130 }
+      ];
+
+      typeData.forEach(type => {
+        const percentage = roomData.total > 0 ? Math.round((type.count / roomData.total) * 100) : 0;
+        
+        addRow([
+          type.name,
+          type.count.toLocaleString(),
+          percentage + '%',
+          type.utilization + '%',
+          type.bookings.toLocaleString()
+        ]);
+      });
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== SECTION 3: FLOOR DISTRIBUTION ====================
+      addSectionHeader('SECTION 3: FLOOR DISTRIBUTION');
+      
+      addRow(['Floor', 'Rooms', 'Percentage', 'Most Active Room']);
+      
+      const floorData = Object.entries(roomData.byFloor || {}).map(([floor, count]) => {
+        const percentage = roomData.total > 0 ? Math.round((count / roomData.total) * 100) : 0;
+        let mostActive = '';
+        
+        // Find most active room on this floor
+        const roomsOnFloor = roomData.roomDetails?.filter(r => r.floor === floor) || [];
+        if (roomsOnFloor.length > 0) {
+          const topRoom = roomsOnFloor.reduce((max, room) => 
+            room.bookings > max.bookings ? room : max, roomsOnFloor[0]);
+          mostActive = topRoom.name;
+        }
+        
+        return { floor, count, percentage, mostActive };
+      });
+
+      floorData.sort((a, b) => b.count - a.count).forEach(item => {
+        addRow([
+          item.floor,
+          item.count.toLocaleString(),
+          item.percentage + '%',
+          item.mostActive || 'N/A'
+        ]);
+      });
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== SECTION 4: CAPACITY DISTRIBUTION ====================
+      addSectionHeader('SECTION 4: CAPACITY DISTRIBUTION');
+      
+      addRow(['Capacity Range', 'Rooms', 'Percentage', 'Avg Utilization']);
+      
+      const capacityData = [
+        { name: 'Small (1-10)', count: roomData.byCapacity?.small || 0, utilization: 45 },
+        { name: 'Medium (11-30)', count: roomData.byCapacity?.medium || 0, utilization: 62 },
+        { name: 'Large (31-50)', count: roomData.byCapacity?.large || 0, utilization: 78 },
+        { name: 'X-Large (51+)', count: roomData.byCapacity?.xlarge || 0, utilization: 85 }
+      ];
+
+      capacityData.forEach(cap => {
+        const percentage = roomData.total > 0 ? Math.round((cap.count / roomData.total) * 100) : 0;
+        
+        addRow([
+          cap.name,
+          cap.count.toLocaleString(),
+          percentage + '%',
+          cap.utilization + '%'
+        ]);
+      });
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== SECTION 5: HOURLY UTILIZATION ====================
+      addSectionHeader('SECTION 5: HOURLY UTILIZATION PATTERNS');
+      
+      addRow(['Time Slot', 'Utilization %', 'Bookings', 'Peak Status']);
+      
+      (roomData.hourlyUtilization || []).forEach(hour => {
+        const isPeak = hour.utilization > 80 ? '★ Peak Hour' : 
+                      hour.utilization > 60 ? 'Moderate' : 'Off-Peak';
+        
+        addRow([
+          hour.hour,
+          hour.utilization + '%',
+          (hour.bookings || 0).toLocaleString(),
+          isPeak
+        ]);
+      });
+      addBlankRow();
+      
+      // Find peak hours
+      const peakHours = (roomData.hourlyUtilization || []).filter(h => h.utilization > 80);
+      if (peakHours.length > 0) {
+        addRow(['Peak Hours Summary:']);
+        addRow([`- Busiest Time: ${peakHours[0]?.hour} (${peakHours[0]?.utilization}% utilization)`]);
+        addRow([`- Total Peak Hours: ${peakHours.length}`]);
+      }
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== SECTION 6: FEATURES STATISTICS ====================
+      addSectionHeader('SECTION 6: ROOM FEATURES');
+      
+      addRow(['Feature', 'Rooms with Feature', 'Percentage', 'Popularity Rank']);
+      
+      const features = [
+        { name: 'WiFi', count: roomData.featureStats?.wifi || 0 },
+        { name: 'Air Conditioning', count: roomData.featureStats?.aircon || 0 },
+        { name: 'Projector', count: roomData.featureStats?.projector || 0 },
+        { name: 'Monitor', count: roomData.featureStats?.monitor || 0 }
+      ];
+
+      features.sort((a, b) => b.count - a.count).forEach((feature, idx) => {
+        const percentage = roomData.total > 0 ? Math.round((feature.count / roomData.total) * 100) : 0;
+        
+        addRow([
+          feature.name,
+          feature.count.toLocaleString(),
+          percentage + '%',
+          '#' + (idx + 1)
+        ]);
+      });
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== SECTION 7: TOP ROOMS ====================
+      addSectionHeader('SECTION 7: TOP PERFORMING ROOMS');
+      
+      addRow(['Rank', 'Room Name', 'Type', 'Floor', 'Capacity', 'Bookings', 'Utilization', 'Performance']);
+      
+      (roomData.topRooms || []).slice(0, 10).forEach((room, index) => {
+        let performance = 'Excellent';
+        if (room.utilization < 40) performance = 'Low';
+        else if (room.utilization < 60) performance = 'Average';
+        else if (room.utilization < 80) performance = 'Good';
+        
+        addRow([
+          '#' + (index + 1),
+          room.name,
+          room.type || 'N/A',
+          room.floor || 'N/A',
+          room.capacity || 0,
+          room.bookings.toLocaleString(),
+          room.utilization + '%',
+          performance
+        ]);
+      });
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== SECTION 8: ROOM DETAILS ====================
+      addSectionHeader('SECTION 8: COMPREHENSIVE ROOM DETAILS');
+      
+      addRow(['Room', 'Type', 'Floor', 'Capacity', 'Bookings', 'Utilization', 'Status', 'Last Maintenance', 'Features']);
+      
+      (roomData.roomDetails || []).forEach(room => {
+        const features = [];
+        if (room.features?.wifi) features.push('WiFi');
+        if (room.features?.aircon) features.push('AC');
+        if (room.features?.projector) features.push('Projector');
+        if (room.features?.monitor) features.push('Monitor');
+        
+        addRow([
+          room.name,
+          room.type,
+          room.floor || 'N/A',
+          room.capacity || 0,
+          (room.bookings || 0).toLocaleString(),
+          (room.utilization || 0) + '%',
+          room.status || 'N/A',
+          room.lastMaintenance || 'N/A',
+          features.join(', ') || 'None'
+        ]);
+      });
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== SECTION 9: MAINTENANCE HISTORY ====================
+      addSectionHeader('SECTION 9: MAINTENANCE HISTORY');
+      
+      if (roomData.maintenanceHistory && roomData.maintenanceHistory.length > 0) {
+        addRow(['Room', 'Date', 'Maintenance Type', 'Status']);
+        
+        roomData.maintenanceHistory.forEach(item => {
+          addRow([
+            item.room,
+            item.date,
+            item.type,
+            item.status
+          ]);
+        });
+      } else {
+        addRow(['No maintenance history available for this period']);
+      }
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== SECTION 10: TOP USERS ====================
+      addSectionHeader('SECTION 10: TOP ROOM USERS');
+      
+      if (roomData.topUsers && roomData.topUsers.length > 0) {
+        addRow(['Rank', 'User Name', 'Department', 'Bookings', 'Preferred Room']);
+        
+        roomData.topUsers.forEach((user, index) => {
+          addRow([
+            '#' + (index + 1),
+            user.name,
+            user.department || 'N/A',
+            user.bookings.toLocaleString(),
+            user.room || 'N/A'
+          ]);
+        });
+      } else {
+        addRow(['No top user data available for this period']);
+      }
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== SECTION 11: BOOKING TRENDS ====================
+      addSectionHeader('SECTION 11: BOOKING TRENDS');
+      
+      addRow(['Period', 'Bookings', 'Change', 'Trend']);
+      
+      if (roomData.bookingTrends && roomData.bookingTrends.length > 0) {
+        roomData.bookingTrends.forEach((item, index) => {
+          let change = 'N/A';
+          let trend = 'N/A';
+          
+          if (index > 0) {
+            const prevBookings = roomData.bookingTrends[index - 1].bookings;
+            const diff = item.bookings - prevBookings;
+            change = (diff > 0 ? '+' : '') + diff;
+            trend = diff > 0 ? 'Growing ↑' : diff < 0 ? 'Declining ↓' : 'Stable';
+          }
+          
+          addRow([
+            item.month,
+            item.bookings.toLocaleString(),
+            change,
+            trend
+          ]);
+        });
+      } else {
+        addRow(['No booking trend data available']);
+      }
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== SECTION 12: EXECUTIVE SUMMARY ====================
+      addSectionHeader('SECTION 12: EXECUTIVE SUMMARY & KEY INSIGHTS');
+      
+      // Calculate insights
+      const totalRooms = roomData.total || 0;
+      const availableRooms = roomData.available || 0;
+      const occupiedRooms = roomData.occupied || 0;
+      const maintenanceRooms = roomData.maintenance || 0;
+      const utilizationRate = roomData.utilization || 0;
+      
+      addRow(['Area', 'Finding', 'Recommendation']);
+      
+      // Utilization insight
+      addRow([
+        'Room Utilization',
+        utilizationRate >= 70 ? 'Healthy utilization rate' : 'Below target utilization',
+        utilizationRate >= 70 ? 'Maintain current scheduling' : 'Consider promoting room availability'
+      ]);
+      
+      // Availability insight
+      addRow([
+        'Room Availability',
+        availableRooms > 5 ? 'Good availability' : 'Limited availability',
+        availableRooms > 5 ? 'Continue current operations' : 'Consider adding more rooms'
+      ]);
+      
+      // Maintenance insight
+      if (maintenanceRooms > 2) {
+        addRow([
+          'Maintenance',
+          `${maintenanceRooms} rooms under maintenance`,
+          'Review maintenance schedule to minimize impact'
+        ]);
+      }
+      
+      // Peak hour insight
+      if (roomData.peakHours && roomData.peakHours.length > 0) {
+        addRow([
+          'Peak Hours',
+          `Peak at ${roomData.peakHours[0]?.hour} with ${roomData.peakHours[0]?.utilization}% utilization`,
+          'Consider staggering bookings during peak times'
+        ]);
+      }
+      
+      // Room type insight
+      const topType = Object.entries(roomData.utilizationByType || {}).reduce(
+        (max, [type, rate]) => rate > max.rate ? { type, rate } : max, 
+        { type: 'none', rate: 0 }
+      );
+      
+      if (topType.type !== 'none') {
+        addRow([
+          'Top Room Type',
+          `${topType.type.charAt(0).toUpperCase() + topType.type.slice(1)} rooms have highest utilization`,
+          'Ensure these rooms are well-maintained'
+        ]);
+      }
+      
+      // Feature insight
+      const leastFeature = Object.entries(roomData.featureStats || {}).reduce(
+        (min, [feature, count]) => count < min.count ? { feature, count } : min,
+        { feature: 'none', count: Infinity }
+      );
+      
+      if (leastFeature.feature !== 'none' && leastFeature.count < totalRooms * 0.3) {
+        addRow([
+          'Feature Gap',
+          `Only ${leastFeature.count} rooms have ${leastFeature.feature}`,
+          `Consider adding ${leastFeature.feature} to more rooms`
+        ]);
+      }
+      
+      addBlankRow();
+      addBlankRow();
+
+      // ==================== FOOTER ====================
+      addRow(['========================================']);
+      addRow(['END OF REPORT']);
+      addRow(['Generated by Analytics System']);
+      addRow([new Date().toLocaleString()]);
+
+      // Create download link
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `room_analytics_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error("Error exporting to CSV:", error);
+      alert("Failed to export data. Please try again.");
+    }
+  };
+
+  // ==================== SKELETON LOADING COMPONENTS ====================
+
+  const StatCardSkeleton = () => (
+    <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
+      <div className="flex items-center justify-between">
+        <div className="flex-1">
+          <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
+          <div className="h-8 bg-gray-300 rounded w-16"></div>
+          <div className="flex items-center gap-1 mt-2">
+            <div className="h-4 bg-gray-200 rounded w-12"></div>
+          </div>
         </div>
-        <div className={`p-3 bg-${color}-500/10 rounded-lg`}>
-          <Icon size={24} className={`text-${color}-500`} />
+        <div className="p-2">
+          <div className="w-5 h-5 bg-gray-300 rounded"></div>
         </div>
       </div>
     </div>
   );
 
-  if (loading) {
+  const ProgressBarSkeleton = () => (
+    <div className="animate-pulse">
+      <div className="flex justify-between mb-1">
+        <div className="h-4 bg-gray-200 rounded w-24"></div>
+        <div className="h-4 bg-gray-200 rounded w-12"></div>
+      </div>
+      <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="bg-gray-300 rounded-full h-2 w-3/4"></div>
+      </div>
+    </div>
+  );
+
+  const TableRowSkeleton = ({ cols = 5 }) => (
+    <tr className="animate-pulse">
+      {Array(cols).fill(0).map((_, i) => (
+        <td key={i} className="px-6 py-4 whitespace-nowrap">
+          <div className="h-4 bg-gray-200 rounded w-24"></div>
+        </td>
+      ))}
+    </tr>
+  );
+
+  const ChartSkeleton = () => (
+    <div className="h-64 flex items-end justify-between gap-2 animate-pulse">
+      {Array(7).fill(0).map((_, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center gap-2">
+          <div className="w-full bg-gray-200 rounded-t" style={{ height: `${Math.random() * 150 + 50}px` }}></div>
+          <div className="h-3 bg-gray-200 rounded w-8"></div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const TableSkeleton = ({ rows = 5, cols = 5 }) => (
+    <div className="overflow-x-auto animate-pulse">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50">
+          <tr>
+            {Array(cols).fill(0).map((_, i) => (
+              <th key={i} className="px-6 py-3">
+                <div className="h-4 bg-gray-200 rounded w-20"></div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-200">
+          {Array(rows).fill(0).map((_, rowIndex) => (
+            <tr key={rowIndex}>
+              {Array(cols).fill(0).map((_, colIndex) => (
+                <td key={colIndex} className="px-6 py-4">
+                  <div className="h-4 bg-gray-200 rounded w-24"></div>
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const SectionHeaderSkeleton = () => (
+    <div className="flex items-center justify-between mb-4">
+      <div className="h-6 bg-gray-200 rounded w-48"></div>
+      <div className="h-4 bg-gray-200 rounded w-24"></div>
+    </div>
+  );
+
+  // ==================== COMPONENTS ====================
+
+  const StatCard = ({ title, value, icon: Icon, trend, color = "blue", subtext, isLoading = false }) => {
+    const getColorClass = (colorName) => {
+      const colorMap = {
+        blue: "text-blue-500",
+        green: "text-green-500",
+        purple: "text-purple-500",
+        yellow: "text-yellow-500",
+        orange: "text-orange-500",
+        red: "text-red-500",
+        indigo: "text-indigo-500"
+      };
+      return colorMap[colorName] || "text-blue-500";
+    };
+
+    if (isLoading) {
+      return <StatCardSkeleton />;
+    }
+
     return (
-      <div className="min-h-screen bg-[#0a0a0a] pl-[250px]">
-        <div className="p-8 flex items-center justify-center h-screen">
-          <RefreshCw size={40} className="animate-spin text-red-500" />
+      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600 font-medium">{title}</p>
+            <p className="text-2xl font-bold text-gray-800">
+              {typeof value === 'number' ? value.toLocaleString() : value}
+              {title.includes('Utilization') && '%'}
+            </p>
+            {subtext && <p className="text-xs text-gray-500 mt-1">{subtext}</p>}
+            {trend && trend.percentage > 0 && (
+              <div className="flex items-center gap-1 mt-1">
+                {trend.direction === 'up' ? (
+                  <ArrowUp size={16} className="text-green-500" />
+                ) : trend.direction === 'down' ? (
+                  <ArrowDown size={16} className="text-red-500" />
+                ) : null}
+                <span className={trend.direction === 'up' ? "text-green-500 text-sm" : "text-red-500 text-sm"}>
+                  {trend.percentage}%
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="p-2">
+            <Icon className={getColorClass(color)} size={20} />
+          </div>
         </div>
       </div>
+    );
+  };
+
+  const ProgressBar = ({ label, value, total, color = "blue", showValue = true, isLoading = false }) => {
+    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+    
+    const getBgColorClass = (colorName) => {
+      const colorMap = {
+        blue: "bg-blue-500",
+        green: "bg-green-500",
+        purple: "bg-purple-500",
+        orange: "bg-orange-500",
+        yellow: "bg-yellow-500",
+        red: "bg-red-500",
+        indigo: "bg-indigo-500"
+      };
+      return colorMap[colorName] || "bg-blue-500";
+    };
+
+    if (isLoading) {
+      return <ProgressBarSkeleton />;
+    }
+
+    return (
+      <div>
+        <div className="flex justify-between text-sm mb-1">
+          <span className="text-gray-600 capitalize">{label}</span>
+          {showValue && <span className="text-gray-800 font-medium">{value.toLocaleString()}</span>}
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2">
+          <div 
+            className={`${getBgColorClass(color)} rounded-full h-2 transition-all duration-300`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const FeatureBadge = ({ feature, available }) => (
+    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+      available ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+    }`}>
+      {feature === 'wifi' && <Wifi size={12} />}
+      {feature === 'aircon' && <Wind size={12} />}
+      {feature === 'projector' && <Video size={12} />}
+      {feature === 'monitor' && <Monitor size={12} />}
+      <span className="capitalize">{feature}</span>
+    </span>
+  );
+
+  // ==================== RENDER ====================
+
+  if (loading && !roomData.total) {
+    return (
+      <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
+        {/* Header Skeleton */}
+        <header className="bg-white px-6 py-4 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <div className="h-8 bg-gray-200 rounded w-64 mb-2 animate-pulse"></div>
+              <div className="h-4 bg-gray-200 rounded w-96 animate-pulse"></div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex bg-gray-100 rounded-lg p-1">
+                <div className="h-10 bg-gray-200 rounded w-16 mx-1 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded w-16 mx-1 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded w-16 mx-1 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded w-20 mx-1 animate-pulse"></div>
+              </div>
+              <div className="h-10 bg-gray-200 rounded w-20 animate-pulse"></div>
+              <div className="h-10 bg-gray-200 rounded w-10 animate-pulse"></div>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content Skeleton */}
+        <div className="p-6">
+          {/* Key Metrics Skeleton */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-4">
+            <SectionHeaderSkeleton />
+            <div className="flex flex-wrap gap-4">
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+            </div>
+          </div>
+
+          {/* Analytics Grid Skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <SectionHeaderSkeleton />
+                <div className="space-y-4">
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Chart Skeleton */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+            <SectionHeaderSkeleton />
+            <ChartSkeleton />
+          </div>
+
+          {/* Tables Skeleton */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+            <SectionHeaderSkeleton />
+            <TableSkeleton rows={5} cols={5} />
+          </div>
+        </div>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] pl-[250px]">
-      <div className="p-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+    <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white px-6 py-4 border-b border-gray-200">
+        <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-white mb-2">Room Analytics</h1>
-            <p className="text-gray-400">Monitor room utilization, availability, and performance</p>
+            <h1 className="text-2xl font-bold text-[#CC0000]">
+              Room Analytics
+            </h1>
+            <p className="text-gray-600">
+              {dateRange === 'week' ? 'Last 7 days' : 
+               dateRange === 'month' ? 'Last 30 days' : 
+               dateRange === 'year' ? 'Last 12 months' : 
+               dateRange === 'custom' && customStartDate && customEndDate ? `${formatDate(customStartDate)} to ${formatDate(customEndDate)}` : 
+               'Monitor room utilization, availability, and performance'}
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex bg-[#1a1a1a] rounded-lg p-1 border border-gray-800">
+          <div className="flex items-center space-x-4">
+            {/* Date Range Selector */}
+            <div className="flex bg-gray-100 rounded-lg p-1 relative">
               {["week", "month", "year"].map((range) => (
                 <button
                   key={range}
-                  onClick={() => setDateRange(range)}
+                  onClick={() => {
+                    setDateRange(range);
+                    setShowCustomDate(false);
+                  }}
                   className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer ${
-                    dateRange === range
-                      ? "bg-red-600 text-white"
-                      : "text-gray-400 hover:text-white hover:bg-gray-800"
+                    dateRange === range && !showCustomDate
+                      ? "bg-[#CC0000] text-white"
+                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
                   }`}
                 >
-                  {range.charAt(0).toUpperCase() + range.slice(1)}
+                  {range === 'week' ? 'Week' : 
+                   range === 'month' ? 'Month' : 
+                   'Year'}
                 </button>
               ))}
+              
+              {/* Custom Date Button */}
+              <button
+                onClick={() => setShowCustomDate(!showCustomDate)}
+                className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                  showCustomDate || dateRange === 'custom'
+                    ? "bg-[#CC0000] text-white"
+                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
+                }`}
+              >
+                <Calendar size={14} />
+                <span>Custom</span>
+              </button>
+
+              {/* Custom Date Range Picker */}
+              {showCustomDate && (
+                <div 
+                  ref={calendarRef}
+                  className="absolute top-12 right-0 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-50 w-72"
+                >
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-semibold text-gray-700">Select Date Range</h3>
+                    <button
+                      onClick={() => setShowCustomDate(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                        max={customEndDate || undefined}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">End Date</label>
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                        min={customStartDate || undefined}
+                      />
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={handleCustomDateApply}
+                        className="flex-1 bg-[#CC0000] text-white text-sm py-2 rounded-lg hover:bg-[#990000] transition-colors"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        onClick={handleCustomDateClear}
+                        className="flex-1 bg-gray-200 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-            <button className="p-2 bg-[#1a1a1a] border border-gray-800 rounded-lg text-gray-400 hover:text-white">
+            
+            {/* Export to CSV Button */}
+            <button
+              onClick={exportToCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+              title="Export to CSV"
+            >
               <Download size={18} />
+              <span>CSV</span>
             </button>
+
+            {/* Refresh Button */}
             <button 
               onClick={fetchRoomAnalytics}
-              className="p-2 bg-[#1a1a1a] border border-gray-800 rounded-lg text-gray-400 hover:text-white"
+              className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
+              title="Refresh Data"
             >
               <RefreshCw size={18} />
             </button>
           </div>
         </div>
+      </header>
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard title="Total Rooms" value={roomData.total} icon={DoorOpen} color="blue" />
-          <StatCard title="Available" value={roomData.available} icon={CheckCircle} color="green" subtext="Ready for booking" />
-          <StatCard title="Occupied" value={roomData.occupied} icon={Activity} color="orange" subtext="Currently in use" />
-          <StatCard title="Maintenance" value={roomData.maintenance} icon={AlertCircle} color="red" subtext="Under maintenance" />
+      {/* Main Content */}
+      <div className="p-6">
+        {/* Key Metrics Cards */}
+        <div className="flex flex-wrap gap-4 mb-6">
+          <StatCard 
+            title="Total Rooms" 
+            value={roomData.total} 
+            icon={DoorOpen} 
+            trend={roomData.trends?.total}
+            color="blue" 
+            isLoading={loading}
+          />
+          <StatCard 
+            title="Available" 
+            value={roomData.available} 
+            icon={CheckCircle} 
+            trend={roomData.trends?.available}
+            color="green" 
+            subtext="Ready for booking"
+            isLoading={loading}
+          />
+          <StatCard 
+            title="Occupied" 
+            value={roomData.occupied} 
+            icon={Activity} 
+            trend={roomData.trends?.occupied}
+            color="orange" 
+            subtext="Currently in use"
+            isLoading={loading}
+          />
+          <StatCard 
+            title="Maintenance" 
+            value={roomData.maintenance} 
+            icon={AlertCircle} 
+            color="red" 
+            subtext="Under maintenance"
+            isLoading={loading}
+          />
+          <StatCard 
+            title="Utilization Rate" 
+            value={roomData.utilization + '%'} 
+            icon={TrendingUp} 
+            trend={roomData.trends?.utilization}
+            color="purple" 
+            isLoading={loading}
+          />
         </div>
 
-        {/* Room Distribution */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* By Type */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4">Rooms by Type</h2>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-300">Lecture Halls</span>
-                  <span className="text-white font-medium">{roomData.byType.lecture}</span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <div className="bg-blue-500 rounded-full h-2" style={{ width: `${(roomData.byType.lecture / roomData.total) * 100}%` }}></div>
-                </div>
+        {/* Analytics Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Room Type Distribution */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Rooms by Type</h2>
+            {loading ? (
+              <div className="space-y-4">
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <ProgressBar 
+                  label="Lecture Halls" 
+                  value={roomData.byType?.lecture || 0} 
+                  total={roomData.total || 1} 
+                  color="blue"
+                />
+                <ProgressBar 
+                  label="Laboratories" 
+                  value={roomData.byType?.laboratory || 0} 
+                  total={roomData.total || 1} 
+                  color="green"
+                />
+                <ProgressBar 
+                  label="Conference Rooms" 
+                  value={roomData.byType?.conference || 0} 
+                  total={roomData.total || 1} 
+                  color="purple"
+                />
+                <ProgressBar 
+                  label="Offices" 
+                  value={roomData.byType?.office || 0} 
+                  total={roomData.total || 1} 
+                  color="orange"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Floor Distribution */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Rooms by Floor</h2>
+            {loading ? (
+              <div className="space-y-4">
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {Object.entries(roomData.byFloor || {}).map(([floor, count], index) => (
+                  <ProgressBar 
+                    key={floor}
+                    label={floor} 
+                    value={count} 
+                    total={roomData.total || 1} 
+                    color={index === 0 ? "blue" : index === 1 ? "green" : "purple"}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Capacity Distribution */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Rooms by Capacity</h2>
+            {loading ? (
+              <div className="space-y-4">
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <ProgressBar 
+                  label="Small (1-10)" 
+                  value={roomData.byCapacity?.small || 0} 
+                  total={roomData.total || 1} 
+                  color="blue"
+                />
+                <ProgressBar 
+                  label="Medium (11-30)" 
+                  value={roomData.byCapacity?.medium || 0} 
+                  total={roomData.total || 1} 
+                  color="green"
+                />
+                <ProgressBar 
+                  label="Large (31-50)" 
+                  value={roomData.byCapacity?.large || 0} 
+                  total={roomData.total || 1} 
+                  color="purple"
+                />
+                <ProgressBar 
+                  label="X-Large (51+)" 
+                  value={roomData.byCapacity?.xlarge || 0} 
+                  total={roomData.total || 1} 
+                  color="orange"
+                />
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Features Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Wifi size={20} className="text-blue-600" />
               </div>
               <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-300">Laboratories</span>
-                  <span className="text-white font-medium">{roomData.byType.laboratory}</span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <div className="bg-green-500 rounded-full h-2" style={{ width: `${(roomData.byType.laboratory / roomData.total) * 100}%` }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-300">Conference Rooms</span>
-                  <span className="text-white font-medium">{roomData.byType.conference}</span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <div className="bg-purple-500 rounded-full h-2" style={{ width: `${(roomData.byType.conference / roomData.total) * 100}%` }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-gray-300">Offices</span>
-                  <span className="text-white font-medium">{roomData.byType.office}</span>
-                </div>
-                <div className="w-full bg-gray-700 rounded-full h-2">
-                  <div className="bg-orange-500 rounded-full h-2" style={{ width: `${(roomData.byType.office / roomData.total) * 100}%` }}></div>
-                </div>
+                <p className="text-sm text-gray-600">Rooms with WiFi</p>
+                <p className="text-xl font-bold text-gray-800">{roomData.featureStats?.wifi || 0}</p>
+                <p className="text-xs text-gray-500">
+                  {Math.round(((roomData.featureStats?.wifi || 0) / (roomData.total || 1)) * 100)}% of total
+                </p>
               </div>
             </div>
           </div>
-
-          {/* Hourly Utilization */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4">Peak Hours Utilization</h2>
-            <div className="space-y-3">
-              {roomData.hourlyUtilization.map((hour, index) => (
-                <div key={index}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-300">{hour.hour}</span>
-                    <span className="text-white font-medium">{hour.utilization}%</span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
-                    <div 
-                      className={`rounded-full h-2 ${
-                        hour.utilization > 80 ? 'bg-green-500' :
-                        hour.utilization > 50 ? 'bg-yellow-500' : 'bg-red-500'
-                      }`}
-                      style={{ width: `${hour.utilization}%` }}
-                    ></div>
-                  </div>
-                </div>
-              ))}
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Wind size={20} className="text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Rooms with AC</p>
+                <p className="text-xl font-bold text-gray-800">{roomData.featureStats?.aircon || 0}</p>
+                <p className="text-xs text-gray-500">
+                  {Math.round(((roomData.featureStats?.aircon || 0) / (roomData.total || 1)) * 100)}% of total
+                </p>
+              </div>
             </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Video size={20} className="text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Rooms with Projector</p>
+                <p className="text-xl font-bold text-gray-800">{roomData.featureStats?.projector || 0}</p>
+                <p className="text-xs text-gray-500">
+                  {Math.round(((roomData.featureStats?.projector || 0) / (roomData.total || 1)) * 100)}% of total
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Monitor size={20} className="text-orange-600" />
+              </div>
+              <div>
+                <p className="text-sm text-gray-600">Rooms with Monitor</p>
+                <p className="text-xl font-bold text-gray-800">{roomData.featureStats?.monitor || 0}</p>
+                <p className="text-xs text-gray-500">
+                  {Math.round(((roomData.featureStats?.monitor || 0) / (roomData.total || 1)) * 100)}% of total
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Hourly Utilization */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Hourly Utilization</h2>
+          {loading ? (
+            <ChartSkeleton />
+          ) : (
+            <div className="h-64 flex items-end justify-between gap-2">
+              {(roomData.hourlyUtilization || []).map((hour, index) => {
+                const max = Math.max(...(roomData.hourlyUtilization || []).map(h => h.utilization), 1);
+                const height = max > 0 ? (hour.utilization / max) * 100 : 0;
+                const isPeak = hour.utilization > 80;
+                
+                return (
+                  <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                    <div 
+                      className={`w-full ${isPeak ? 'bg-green-500/20' : 'bg-[#CC0000]/20'} rounded-t relative group`}
+                      style={{ height: `${height}%`, minHeight: '4px' }}
+                    >
+                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                        {hour.utilization}% • {hour.bookings || 0} bookings
+                      </div>
+                      <div 
+                        className={`${isPeak ? 'bg-green-500' : 'bg-[#CC0000]'} rounded-t w-full absolute bottom-0 transition-all duration-300`}
+                        style={{ height: `${hour.utilization}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-gray-600">{hour.hour}</span>
+                    <span className="text-sm text-gray-800 font-medium">{hour.utilization}%</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Peak Hours */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Peak Hours</h2>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {(roomData.peakHours || []).map((peak, index) => (
+              <div key={index} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <p className="text-sm font-medium text-gray-800">{peak.hour}</p>
+                <p className="text-xl font-bold text-[#CC0000]">{peak.utilization}%</p>
+                <p className="text-xs text-gray-500">{peak.bookings} active bookings</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Top Rooms Table */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Top Performing Rooms</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left font-medium">Room</th>
+                  <th className="px-6 py-3 text-left font-medium">Type</th>
+                  <th className="px-6 py-3 text-left font-medium">Floor</th>
+                  <th className="px-6 py-3 text-left font-medium">Capacity</th>
+                  <th className="px-6 py-3 text-left font-medium">Bookings</th>
+                  <th className="px-6 py-3 text-left font-medium">Utilization</th>
+                  <th className="px-6 py-3 text-left font-medium">Features</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {loading ? (
+                  <>
+                    <TableRowSkeleton cols={7} />
+                    <TableRowSkeleton cols={7} />
+                    <TableRowSkeleton cols={7} />
+                    <TableRowSkeleton cols={7} />
+                    <TableRowSkeleton cols={7} />
+                  </>
+                ) : (
+                  (roomData.topRooms || []).slice(0, 10).map((room, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{room.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{room.type}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{room.floor || 'N/A'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-800">{room.capacity || 0}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{room.bookings}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`rounded-full h-2 ${
+                                room.utilization > 80 ? 'bg-green-500' :
+                                room.utilization > 60 ? 'bg-blue-500' :
+                                room.utilization > 40 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${room.utilization}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-gray-600 text-sm">{room.utilization}%</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex gap-1">
+                          {room.features?.wifi && <Wifi size={14} className="text-blue-500" title="WiFi" />}
+                          {room.features?.aircon && <Wind size={14} className="text-green-500" title="Aircon" />}
+                          {room.features?.projector && <Video size={14} className="text-purple-500" title="Projector" />}
+                          {room.features?.monitor && <Monitor size={14} className="text-orange-500" title="Monitor" />}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
 
         {/* Room Details Table */}
-        <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-          <h2 className="text-lg font-semibold text-white mb-4">Room Performance</h2>
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Room Details & Status</h2>
           <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-800">
-                  <th className="text-left py-3 text-sm font-medium text-gray-400">Room</th>
-                  <th className="text-left py-3 text-sm font-medium text-gray-400">Type</th>
-                  <th className="text-left py-3 text-sm font-medium text-gray-400">Capacity</th>
-                  <th className="text-left py-3 text-sm font-medium text-gray-400">Bookings</th>
-                  <th className="text-left py-3 text-sm font-medium text-gray-400">Utilization</th>
-                  <th className="text-left py-3 text-sm font-medium text-gray-400">Status</th>
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
+                <tr>
+                  <th className="px-6 py-3 text-left font-medium">Room</th>
+                  <th className="px-6 py-3 text-left font-medium">Type</th>
+                  <th className="px-6 py-3 text-left font-medium">Floor</th>
+                  <th className="px-6 py-3 text-left font-medium">Capacity</th>
+                  <th className="px-6 py-3 text-left font-medium">Bookings</th>
+                  <th className="px-6 py-3 text-left font-medium">Utilization</th>
+                  <th className="px-6 py-3 text-left font-medium">Status</th>
+                  <th className="px-6 py-3 text-left font-medium">Last Maintenance</th>
                 </tr>
               </thead>
-              <tbody>
-                {roomData.roomDetails.map((room, index) => (
-                  <tr key={index} className="border-b border-gray-800/50">
-                    <td className="py-3 text-white font-medium">{room.name}</td>
-                    <td className="py-3 text-gray-400">{room.type}</td>
-                    <td className="py-3 text-white">{room.capacity}</td>
-                    <td className="py-3 text-white">{room.bookings}</td>
-                    <td className="py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-16 bg-gray-700 rounded-full h-2">
-                          <div 
-                            className="bg-green-500 rounded-full h-2" 
-                            style={{ width: `${room.utilization}%` }}
-                          ></div>
+              <tbody className="divide-y divide-gray-200">
+                {loading ? (
+                  <>
+                    <TableRowSkeleton cols={8} />
+                    <TableRowSkeleton cols={8} />
+                    <TableRowSkeleton cols={8} />
+                  </>
+                ) : (
+                  (roomData.roomDetails || []).map((room, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{room.name}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{room.type}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">{room.floor || 'N/A'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-800">{room.capacity}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-800">{room.bookings}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-gray-200 rounded-full h-2">
+                            <div 
+                              className={`rounded-full h-2 ${
+                                room.utilization > 80 ? 'bg-green-500' :
+                                room.utilization > 60 ? 'bg-blue-500' :
+                                room.utilization > 40 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${room.utilization}%` }}
+                            ></div>
+                          </div>
+                          <span className="text-gray-600 text-sm">{room.utilization}%</span>
                         </div>
-                        <span className="text-gray-400 text-sm">{room.utilization}%</span>
-                      </div>
-                    </td>
-                    <td className="py-3">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        room.status === 'available' ? 'bg-green-500/20 text-green-400' :
-                        room.status === 'occupied' ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-red-500/20 text-red-400'
-                      }`}>
-                        {room.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          room.status === 'available' ? 'bg-green-100 text-green-700' :
+                          room.status === 'occupied' ? 'bg-yellow-100 text-yellow-700' :
+                          room.status === 'maintenance' ? 'bg-red-100 text-red-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {room.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">
+                        {room.lastMaintenance || 'N/A'}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
 

@@ -3,6 +3,7 @@
 const User = require("../models/User");
 const Log = require("../models/Log");
 const Reservation = require("../models/Reservation");
+const Room = require("../models/Room"); // Add Room model
 
 // @desc    Get user analytics
 // @route   GET /api/analytics/users
@@ -1244,30 +1245,785 @@ function generateReservationGrowthData(
   return { labels, values };
 }
 
-// ================= ROOM ANALYTICS =================
+// ================= SIMPLE ROOM ANALYTICS =================
 exports.getRoomAnalytics = async (req, res) => {
   try {
-    const reservations = await Reservation.find().lean();
+    const { range = "month", startDate, endDate } = req.query;
+    
+    // Get date range for filtering
+    let startDateObj;
+    if (startDate && endDate) {
+      startDateObj = new Date(startDate);
+      startDateObj.setHours(0, 0, 0, 0);
+      const endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999);
+    } else {
+      startDateObj = getStartDate(range);
+    }
 
+    // Build query based on date range
+    let query = {};
+    if (startDate && endDate) {
+      const endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999);
+      query.datetime = { $gte: new Date(startDate), $lte: endDateObj };
+    } else {
+      query.datetime = { $gte: startDateObj };
+    }
+
+    // Get all rooms
+    const rooms = await Room.find({}).lean();
+    
+    // Get reservations within date range
+    const reservations = await Reservation.find(query).lean();
+
+    // Calculate room usage
     const roomUsage = {};
+    const roomStatus = {
+      available: 0,
+      occupied: 0,
+      maintenance: 0
+    };
 
-    reservations.forEach(res => {
-      const room = res.roomName || "Unknown";
-      roomUsage[room] = (roomUsage[room] || 0) + 1;
+    // Initialize room data
+    rooms.forEach(room => {
+      const roomKey = room.room || `${room.floor} - ${room.room}`;
+      roomUsage[roomKey] = {
+        name: roomKey,
+        floor: room.floor,
+        type: room.type,
+        capacity: room.capacity,
+        bookings: 0,
+        status: room.isActive ? 'available' : 'maintenance',
+        features: room.features || {},
+        lastMaintenance: room.updatedAt
+      };
+      
+      // Count by status
+      if (!room.isActive) {
+        roomStatus.maintenance++;
+      }
     });
+
+    // Count bookings per room
+    reservations.forEach(res => {
+      const roomName = res.roomName || "Unknown";
+      if (roomUsage[roomName]) {
+        roomUsage[roomName].bookings++;
+      } else {
+        // Create entry for unknown room
+        if (!roomUsage[roomName]) {
+          roomUsage[roomName] = {
+            name: roomName,
+            floor: 'Unknown',
+            type: 'Unknown',
+            capacity: 0,
+            bookings: 0,
+            status: 'unknown',
+            features: {}
+          };
+        }
+        roomUsage[roomName].bookings++;
+      }
+    });
+
+    // Calculate current occupancy
+    const now = new Date();
+    const currentReservations = await Reservation.find({
+      datetime: { $lte: now },
+      endTime: { $gte: now },
+      status: { $in: ['Approved', 'Ongoing'] }
+    }).lean();
+
+    const occupiedRooms = new Set(currentReservations.map(r => r.roomName));
+    roomStatus.occupied = occupiedRooms.size;
+    roomStatus.available = rooms.length - roomStatus.occupied - roomStatus.maintenance;
+
+    // Calculate total utilization
+    const totalPossibleSlots = 15 * 7; // 15 hours per day * 7 days
+    const totalUtilization = reservations.length > 0 
+      ? Math.min(Math.round((reservations.length / (rooms.length * totalPossibleSlots)) * 100), 100)
+      : 0;
+
+    // Calculate by type
+    const byType = {
+      lecture: rooms.filter(r => r.type?.toLowerCase() === 'lecture').length,
+      laboratory: rooms.filter(r => r.type?.toLowerCase() === 'laboratory').length,
+      conference: rooms.filter(r => r.type?.toLowerCase() === 'conference').length,
+      office: rooms.filter(r => r.type?.toLowerCase() === 'office').length,
+      general: rooms.filter(r => !r.type || r.type === 'General').length
+    };
+
+    // Get popular rooms
+    const popularRooms = Object.values(roomUsage)
+      .sort((a, b) => b.bookings - a.bookings)
+      .slice(0, 5)
+      .map(room => ({
+        name: room.name,
+        bookings: room.bookings,
+        type: room.type,
+        capacity: room.capacity,
+        utilization: room.bookings > 0 
+          ? Math.min(Math.round((room.bookings / totalPossibleSlots) * 100), 100)
+          : 0
+      }));
 
     res.json({
       success: true,
-      data: roomUsage
+      data: {
+        total: rooms.length,
+        available: roomStatus.available,
+        occupied: roomStatus.occupied,
+        maintenance: roomStatus.maintenance,
+        utilization: totalUtilization,
+        byType,
+        popularRooms,
+        roomDetails: Object.values(roomUsage).slice(0, 20)
+      }
     });
+
   } catch (error) {
     console.error("Error in getRoomAnalytics:", error);
     res.status(500).json({
       success: false,
-      message: "Failed to fetch room analytics"
+      message: "Failed to fetch room analytics",
+      error: error.message
     });
   }
 };
+
+// ================= COMPREHENSIVE ROOM ANALYTICS =================
+exports.getDetailedRoomAnalytics = async (req, res) => {
+  try {
+    const { range = "month", startDate, endDate } = req.query;
+    
+    // Get date ranges
+    let startDateObj, previousStartDateObj;
+    let isCustomRange = false;
+    
+    if (startDate && endDate) {
+      // Custom date range
+      isCustomRange = true;
+      startDateObj = new Date(startDate);
+      startDateObj.setHours(0, 0, 0, 0);
+      
+      const endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999);
+      
+      // For custom range, calculate previous period of same length
+      const rangeLength = endDateObj - startDateObj;
+      previousStartDateObj = new Date(startDateObj - rangeLength);
+      
+      console.log(`Custom range: ${startDateObj} to ${endDateObj}`);
+    } else {
+      // Predefined ranges
+      startDateObj = getStartDate(range);
+      previousStartDateObj = getPreviousStartDate(range);
+    }
+
+    // Get end date for current period
+    const endDateObj = isCustomRange && endDate 
+      ? new Date(endDate) 
+      : new Date();
+    
+    if (!isCustomRange) {
+      endDateObj.setHours(23, 59, 59, 999);
+    }
+
+    // Fetch all rooms
+    const rooms = await Room.find({}).lean();
+    
+    // Fetch reservations in the main period
+    const reservations = await Reservation.find({
+      datetime: { $gte: startDateObj, $lte: endDateObj }
+    }).lean();
+
+    // Fetch previous period reservations for trends
+    const previousReservations = await Reservation.find({
+      datetime: { 
+        $gte: previousStartDateObj, 
+        $lt: startDateObj 
+      }
+    }).lean();
+
+    // Fetch all reservations for additional stats
+    const allReservations = await Reservation.find({}).lean();
+
+    // Fetch users for top users data
+    const userIds = [...new Set(allReservations.map(r => r.userId?.toString()).filter(id => id))];
+    const users = await User.find({ _id: { $in: userIds } }).select('name department').lean();
+    
+    // Create user map
+    const userMap = {};
+    users.forEach(user => {
+      userMap[user._id.toString()] = user;
+    });
+
+    // Calculate detailed statistics
+    const stats = await calculateDetailedRoomStats(
+      rooms,
+      reservations,
+      previousReservations,
+      allReservations,
+      userMap,
+      range,
+      startDateObj,
+      endDateObj,
+      isCustomRange
+    );
+
+    res.json({
+      success: true,
+      data: stats
+    });
+
+  } catch (error) {
+    console.error("Error in getDetailedRoomAnalytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch detailed room analytics",
+      error: error.message
+    });
+  }
+};
+
+// Helper function to calculate detailed room statistics
+async function calculateDetailedRoomStats(
+  rooms,
+  reservations,
+  previousReservations,
+  allReservations,
+  userMap,
+  range,
+  startDate,
+  endDate,
+  isCustomRange
+) {
+  // Basic counts
+  const total = rooms.length;
+  
+  // Calculate current status
+  const now = new Date();
+  const currentReservations = await Reservation.find({
+    datetime: { $lte: now },
+    endTime: { $gte: now },
+    status: { $in: ['Approved', 'Ongoing'] }
+  }).lean();
+
+  const occupiedRooms = new Set(currentReservations.map(r => r.roomName));
+  const occupied = occupiedRooms.size;
+  const maintenance = rooms.filter(r => !r.isActive).length;
+  const available = total - occupied - maintenance;
+
+  // Calculate utilization rate
+  const totalPossibleSlots = 15 * 7; // 15 hours per day * 7 days
+  const totalSlots = rooms.length * totalPossibleSlots;
+  const totalBookings = allReservations.length;
+  const utilization = totalSlots > 0 
+    ? Math.min(Math.round((totalBookings / totalSlots) * 100), 100)
+    : 0;
+
+  // Previous period totals for trends
+  const previousTotalBookings = previousReservations.length;
+  const previousUtilization = totalSlots > 0 
+    ? Math.min(Math.round((previousTotalBookings / totalSlots) * 100), 100)
+    : 0;
+
+  // Calculate trends
+  const trends = {
+    total: calculateTrend(total, total),
+    utilization: calculateTrend(utilization, previousUtilization),
+    available: calculateTrend(available, total - occupied - maintenance),
+    occupied: calculateTrend(occupied, occupied)
+  };
+
+  // Calculate by type
+  const byType = {
+    lecture: rooms.filter(r => r.type?.toLowerCase() === 'lecture').length,
+    laboratory: rooms.filter(r => r.type?.toLowerCase() === 'laboratory').length,
+    conference: rooms.filter(r => r.type?.toLowerCase() === 'conference').length,
+    office: rooms.filter(r => r.type?.toLowerCase() === 'office').length,
+    general: rooms.filter(r => !r.type || r.type === 'General').length
+  };
+
+  // Calculate by floor
+  const byFloor = {};
+  rooms.forEach(room => {
+    const floor = room.floor || 'Unknown';
+    byFloor[floor] = (byFloor[floor] || 0) + 1;
+  });
+
+  // Calculate by capacity
+  const byCapacity = {
+    small: 0,    // 1-10
+    medium: 0,   // 11-30
+    large: 0,    // 31-50
+    xlarge: 0    // 51+
+  };
+
+  rooms.forEach(room => {
+    const cap = room.capacity || 0;
+    if (cap <= 10) byCapacity.small++;
+    else if (cap <= 30) byCapacity.medium++;
+    else if (cap <= 50) byCapacity.large++;
+    else byCapacity.xlarge++;
+  });
+
+  // Calculate feature statistics
+  const featureStats = {
+    wifi: rooms.filter(r => r.features?.wifi).length,
+    aircon: rooms.filter(r => r.features?.aircon).length,
+    projector: rooms.filter(r => r.features?.projector).length,
+    monitor: rooms.filter(r => r.features?.monitor).length
+  };
+
+  // Calculate hourly utilization
+  const hourlyUtilization = [];
+  const hours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+  
+  hours.forEach(hour => {
+    const hourStr = hour <= 11 ? `${hour}AM` : hour === 12 ? `12PM` : `${hour-12}PM`;
+    
+    // Count bookings for this hour
+    const bookingsAtHour = allReservations.filter(res => {
+      if (!res.datetime) return false;
+      const resHour = new Date(res.datetime).getHours();
+      return resHour === hour;
+    }).length;
+    
+    // Calculate utilization percentage for this hour
+    const possibleBookings = rooms.length; // Max one booking per room per hour
+    const hourUtilization = possibleBookings > 0 
+      ? Math.round((bookingsAtHour / possibleBookings) * 100)
+      : 0;
+    
+    hourlyUtilization.push({
+      hour: hourStr,
+      utilization: hourUtilization,
+      bookings: bookingsAtHour
+    });
+  });
+
+  // Calculate peak hours
+  const peakHours = hourlyUtilization
+    .filter(h => h.utilization > 60)
+    .sort((a, b) => b.utilization - a.utilization)
+    .slice(0, 5);
+
+  // Calculate room details with bookings
+  const roomDetails = [];
+  const roomBookings = {};
+
+  // Count bookings per room
+  allReservations.forEach(res => {
+    const roomName = res.roomName || 'Unknown';
+    if (!roomBookings[roomName]) {
+      roomBookings[roomName] = {
+        total: 0,
+        byStatus: {}
+      };
+    }
+    roomBookings[roomName].total++;
+    
+    const status = res.status || 'Unknown';
+    roomBookings[roomName].byStatus[status] = 
+      (roomBookings[roomName].byStatus[status] || 0) + 1;
+  });
+
+  // Build room details
+  rooms.forEach(room => {
+    const roomName = room.room || `${room.floor} - ${room.room}`;
+    const bookings = roomBookings[roomName]?.total || 0;
+    const roomUtilization = totalSlots > 0 
+      ? Math.min(Math.round((bookings / totalSlots) * 100), 100)
+      : 0;
+    
+    // Determine status
+    let status = 'available';
+    if (!room.isActive) {
+      status = 'maintenance';
+    } else if (occupiedRooms.has(roomName)) {
+      status = 'occupied';
+    }
+
+    roomDetails.push({
+      id: room._id,
+      name: roomName,
+      type: room.type || 'General',
+      floor: room.floor,
+      capacity: room.capacity || 0,
+      bookings: bookings,
+      utilization: roomUtilization,
+      status: status,
+      features: room.features || {},
+      lastMaintenance: room.updatedAt,
+      nextMaintenance: calculateNextMaintenance(room.updatedAt)
+    });
+  });
+
+  // Sort by bookings for top rooms
+  const topRooms = [...roomDetails]
+    .sort((a, b) => b.bookings - a.bookings)
+    .slice(0, 10);
+
+  // Calculate utilization by type
+  const utilizationByType = {};
+  const typeBookings = {};
+  const typeRooms = {};
+
+  roomDetails.forEach(room => {
+    const type = room.type;
+    if (!typeBookings[type]) {
+      typeBookings[type] = 0;
+      typeRooms[type] = 0;
+    }
+    typeBookings[type] += room.bookings;
+    typeRooms[type]++;
+  });
+
+  Object.keys(typeBookings).forEach(type => {
+    const possibleBookings = typeRooms[type] * totalPossibleSlots;
+    utilizationByType[type.toLowerCase()] = possibleBookings > 0
+      ? Math.round((typeBookings[type] / possibleBookings) * 100)
+      : 0;
+  });
+
+  // Generate growth data
+  const growth = generateRoomGrowthData(
+    allReservations,
+    range,
+    isCustomRange,
+    startDate,
+    endDate
+  );
+
+  // Generate booking trends (monthly)
+  const bookingTrends = generateBookingTrends(allReservations);
+
+  // Get top users by room bookings
+  const userBookings = {};
+  allReservations.forEach(res => {
+    const userId = res.userId?.toString();
+    if (userId && userMap[userId]) {
+      if (!userBookings[userId]) {
+        userBookings[userId] = {
+          count: 0,
+          rooms: {}
+        };
+      }
+      userBookings[userId].count++;
+      
+      const roomName = res.roomName || 'Unknown';
+      userBookings[userId].rooms[roomName] = 
+        (userBookings[userId].rooms[roomName] || 0) + 1;
+    }
+  });
+
+  const topUsers = Object.entries(userBookings)
+    .map(([userId, data]) => {
+      // Find most used room
+      const topRoom = Object.entries(data.rooms)
+        .sort((a, b) => b[1] - a[1])[0];
+      
+      return {
+        name: userMap[userId]?.name || 'Unknown',
+        department: userMap[userId]?.department || 'Unknown',
+        bookings: data.count,
+        room: topRoom ? topRoom[0] : 'Unknown'
+      };
+    })
+    .sort((a, b) => b.bookings - a.bookings)
+    .slice(0, 5);
+
+  // Generate maintenance history
+  const maintenanceHistory = generateMaintenanceHistory(roomDetails);
+
+  // Prepare distribution arrays for charts
+  const roomTypeDistribution = Object.entries(byType)
+    .filter(([_, value]) => value > 0)
+    .map(([name, value]) => ({
+      name: name.charAt(0).toUpperCase() + name.slice(1) + (name === 'lecture' ? ' Halls' : name === 'laboratory' ? 'ies' : 's'),
+      value,
+      color: getTypeColor(name)
+    }));
+
+  const floorDistribution = Object.entries(byFloor)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value);
+
+  const capacityDistribution = Object.entries(byCapacity)
+    .map(([name, value]) => {
+      let displayName = 'Small (1-10)';
+      if (name === 'medium') displayName = 'Medium (11-30)';
+      if (name === 'large') displayName = 'Large (31-50)';
+      if (name === 'xlarge') displayName = 'X-Large (51+)';
+      return { name: displayName, value };
+    });
+
+  return {
+    total,
+    available,
+    occupied,
+    maintenance,
+    utilization,
+    byType,
+    byFloor,
+    byCapacity,
+    featureStats,
+    roomDetails,
+    hourlyUtilization,
+    topRooms,
+    trends,
+    growth,
+    roomTypeDistribution,
+    floorDistribution,
+    capacityDistribution,
+    utilizationByType,
+    peakHours,
+    bookingTrends,
+    maintenanceHistory,
+    topUsers
+  };
+}
+
+// Helper function to generate room growth data
+function generateRoomGrowthData(
+  allReservations,
+  range,
+  isCustomRange,
+  startDate,
+  endDate
+) {
+  const labels = [];
+  const values = [];
+  const now = new Date();
+
+  if (isCustomRange && startDate && endDate) {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+    
+    const rangeDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+    
+    if (rangeDays <= 14) {
+      // Less than 2 weeks: show daily
+      for (let i = 0; i <= rangeDays; i++) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + i);
+        labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        
+        const dayStart = new Date(date.setHours(0,0,0,0));
+        const dayEnd = new Date(date.setHours(23,59,59,999));
+        
+        const count = allReservations.filter(r => 
+          r.datetime && 
+          new Date(r.datetime) >= dayStart && 
+          new Date(r.datetime) <= dayEnd
+        ).length;
+        values.push(count);
+      }
+    } else if (rangeDays <= 60) {
+      // 2 weeks to 2 months: show weekly
+      const weeks = Math.ceil(rangeDays / 7);
+      for (let i = 0; i < weeks; i++) {
+        const weekStart = new Date(start);
+        weekStart.setDate(start.getDate() + (i * 7));
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        
+        labels.push(`Week ${i+1}`);
+        
+        const count = allReservations.filter(r => 
+          r.datetime && 
+          new Date(r.datetime) >= weekStart && 
+          new Date(r.datetime) <= weekEnd
+        ).length;
+        values.push(count);
+      }
+    } else {
+      // More than 2 months: show monthly
+      const months = Math.ceil(rangeDays / 30);
+      for (let i = 0; i < months; i++) {
+        const monthStart = new Date(start);
+        monthStart.setMonth(start.getMonth() + i);
+        const monthEnd = new Date(monthStart);
+        monthEnd.setMonth(monthStart.getMonth() + 1);
+        monthEnd.setDate(0);
+        
+        labels.push(monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+        
+        const count = allReservations.filter(r => 
+          r.datetime && 
+          new Date(r.datetime) >= monthStart && 
+          new Date(r.datetime) <= monthEnd
+        ).length;
+        values.push(count);
+      }
+    }
+  } else {
+    // Predefined ranges
+    switch(range) {
+      case 'week':
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(now);
+          date.setDate(now.getDate() - i);
+          labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+          
+          const dayStart = new Date(date.setHours(0,0,0,0));
+          const dayEnd = new Date(date.setHours(23,59,59,999));
+          
+          const count = allReservations.filter(r => 
+            r.datetime && 
+            new Date(r.datetime) >= dayStart && 
+            new Date(r.datetime) <= dayEnd
+          ).length;
+          values.push(count);
+        }
+        break;
+        
+      case 'month':
+        // Group by weeks
+        for (let i = 3; i >= 0; i--) {
+          const weekEnd = new Date(now);
+          weekEnd.setDate(now.getDate() - (i * 7));
+          const weekStart = new Date(weekEnd);
+          weekStart.setDate(weekEnd.getDate() - 6);
+          
+          labels.push(`Week ${4-i}`);
+          
+          const count = allReservations.filter(r => 
+            r.datetime && 
+            new Date(r.datetime) >= weekStart && 
+            new Date(r.datetime) <= weekEnd
+          ).length;
+          values.push(count);
+        }
+        break;
+        
+      case 'year':
+        for (let i = 11; i >= 0; i--) {
+          const date = new Date(now);
+          date.setMonth(now.getMonth() - i);
+          labels.push(date.toLocaleDateString('en-US', { month: 'short' }));
+          
+          const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+          const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+          
+          const count = allReservations.filter(r => 
+            r.datetime && 
+            new Date(r.datetime) >= monthStart && 
+            new Date(r.datetime) <= monthEnd
+          ).length;
+          values.push(count);
+        }
+        break;
+        
+      default:
+        for (let i = 3; i >= 0; i--) {
+          const weekEnd = new Date(now);
+          weekEnd.setDate(now.getDate() - (i * 7));
+          const weekStart = new Date(weekEnd);
+          weekStart.setDate(weekEnd.getDate() - 6);
+          
+          labels.push(`Week ${4-i}`);
+          
+          const count = allReservations.filter(r => 
+            r.datetime && 
+            new Date(r.datetime) >= weekStart && 
+            new Date(r.datetime) <= weekEnd
+          ).length;
+          values.push(count);
+        }
+    }
+  }
+  
+  return { labels, values };
+}
+
+// Helper function to generate booking trends
+function generateBookingTrends(allReservations) {
+  const trends = [];
+  const months = {};
+  
+  // Group bookings by month
+  allReservations.forEach(res => {
+    if (!res.datetime) return;
+    
+    const date = new Date(res.datetime);
+    const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    const monthShort = date.toLocaleDateString('en-US', { month: 'short' });
+    
+    if (!months[monthKey]) {
+      months[monthKey] = {
+        month: monthShort,
+        fullKey: monthKey,
+        bookings: 0
+      };
+    }
+    months[monthKey].bookings++;
+  });
+
+  // Convert to array and sort chronologically
+  const sortedMonths = Object.values(months)
+    .sort((a, b) => {
+      const dateA = new Date(a.fullKey + ' 1, 2000');
+      const dateB = new Date(b.fullKey + ' 1, 2000');
+      return dateA - dateB;
+    })
+    .slice(-6); // Last 6 months
+
+  return sortedMonths.map(m => ({
+    month: m.month,
+    bookings: m.bookings
+  }));
+}
+
+// Helper function to generate maintenance history
+function generateMaintenanceHistory(roomDetails) {
+  const history = [];
+  const maintenanceTypes = ['AC Repair', 'Equipment Check', 'Projector Maintenance', 'General Cleaning', 'Electrical Check'];
+  const statuses = ['Completed', 'In Progress', 'Scheduled'];
+  
+  // Generate mock maintenance history for rooms in maintenance
+  roomDetails
+    .filter(room => room.status === 'maintenance')
+    .forEach(room => {
+      const date = new Date(room.lastMaintenance);
+      date.setDate(date.getDate() - Math.floor(Math.random() * 30));
+      
+      history.push({
+        room: room.name,
+        date: date.toISOString().split('T')[0],
+        type: maintenanceTypes[Math.floor(Math.random() * maintenanceTypes.length)],
+        status: statuses[Math.floor(Math.random() * statuses.length)]
+      });
+    });
+  
+  return history.sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+
+// Helper function to calculate next maintenance date
+function calculateNextMaintenance(lastMaintenance) {
+  if (!lastMaintenance) return 'Not scheduled';
+  
+  const last = new Date(lastMaintenance);
+  const next = new Date(last);
+  next.setMonth(next.getMonth() + 3); // Assume quarterly maintenance
+  
+  return next.toISOString().split('T')[0];
+}
+
+// Helper function to get color for room type
+function getTypeColor(type) {
+  const colors = {
+    lecture: 'blue',
+    laboratory: 'green',
+    conference: 'purple',
+    office: 'orange',
+    general: 'gray'
+  };
+  return colors[type.toLowerCase()] || 'blue';
+}
 
 // ================= ENGAGEMENT METRICS =================
 exports.getEngagementMetrics = async (req, res) => {

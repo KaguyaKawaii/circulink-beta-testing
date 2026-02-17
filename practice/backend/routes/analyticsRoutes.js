@@ -10,15 +10,17 @@ router.get("/users", analyticsController.getUserAnalytics);
 // Overview analytics
 router.get("/overview", analyticsController.getAnalyticsOverview);
 
-// Reservation analytics - SIMPLE version (just 4 metrics + popular rooms)
-// This matches the getReservationAnalytics function in the controller
+// Reservation analytics - SIMPLE version
 router.get("/reservations", analyticsController.getReservationAnalytics);
 
-// Detailed reservation analytics with trends and growth data (optional)
+// Detailed reservation analytics with trends and growth data
 router.get("/reservations/detailed", analyticsController.getDetailedReservationAnalytics);
 
-// Room analytics
+// Room analytics - SIMPLE version
 router.get("/rooms", analyticsController.getRoomAnalytics);
+
+// Detailed room analytics with trends and growth data
+router.get("/rooms/detailed", analyticsController.getDetailedRoomAnalytics);
 
 // Engagement metrics
 router.get("/engagement", analyticsController.getEngagementMetrics);
