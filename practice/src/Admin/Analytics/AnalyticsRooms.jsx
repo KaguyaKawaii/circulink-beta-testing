@@ -54,10 +54,10 @@ function AnalyticsRooms({ setView, admin }) {
     topRooms: [],
     byFloor: {},
     byCapacity: {
-      small: 0,    // 1-10
-      medium: 0,   // 11-30
-      large: 0,    // 31-50
-      xlarge: 0    // 51+
+      small: 0,    // 4-6 pax
+      medium: 0,   // 7-8 pax
+      large: 0,    // 9-10 pax
+      xlarge: 0    // 11+ pax
     },
     trends: {
       total: { value: 0, percentage: 0, direction: 'up' },
@@ -161,62 +161,62 @@ function AnalyticsRooms({ setView, admin }) {
       },
       roomDetails: [
         { 
-          id: 1, name: "Room 101", type: "Lecture", floor: "1st Floor", capacity: 50, 
+          id: 1, name: "Room 101", type: "Lecture", floor: "1st Floor", capacity: 6, 
           bookings: 450, utilization: 78, status: "available", features: { wifi: true, aircon: true, projector: true, monitor: false },
           lastMaintenance: "2024-01-15 10:30:45", nextMaintenance: "2024-04-15"
         },
         { 
-          id: 2, name: "Room 102", type: "Lecture", floor: "1st Floor", capacity: 40, 
+          id: 2, name: "Room 102", type: "Lecture", floor: "1st Floor", capacity: 4, 
           bookings: 380, utilization: 68, status: "occupied", features: { wifi: true, aircon: true, projector: false, monitor: true },
           lastMaintenance: "2024-02-10 14:22:30", nextMaintenance: "2024-05-10"
         },
         { 
-          id: 3, name: "Room 103", type: "Lecture", floor: "1st Floor", capacity: 60, 
+          id: 3, name: "Room 103", type: "Lecture", floor: "1st Floor", capacity: 8, 
           bookings: 520, utilization: 85, status: "available", features: { wifi: true, aircon: true, projector: true, monitor: true },
           lastMaintenance: "2024-01-20 09:15:00", nextMaintenance: "2024-04-20"
         },
         { 
-          id: 4, name: "Room 104", type: "Laboratory", floor: "1st Floor", capacity: 30, 
+          id: 4, name: "Room 104", type: "Laboratory", floor: "1st Floor", capacity: 5, 
           bookings: 280, utilization: 62, status: "maintenance", features: { wifi: true, aircon: true, projector: false, monitor: true },
           lastMaintenance: "2024-03-01 11:45:20", nextMaintenance: "2024-06-01"
         },
         { 
-          id: 5, name: "Room 201", type: "Conference", floor: "2nd Floor", capacity: 25, 
+          id: 5, name: "Room 201", type: "Conference", floor: "2nd Floor", capacity: 7, 
           bookings: 290, utilization: 52, status: "available", features: { wifi: true, aircon: true, projector: true, monitor: false },
           lastMaintenance: "2024-02-05 13:10:55", nextMaintenance: "2024-05-05"
         },
         { 
-          id: 6, name: "Room 202", type: "Lecture", floor: "2nd Floor", capacity: 45, 
+          id: 6, name: "Room 202", type: "Lecture", floor: "2nd Floor", capacity: 6, 
           bookings: 410, utilization: 72, status: "occupied", features: { wifi: true, aircon: true, projector: true, monitor: true },
           lastMaintenance: "2024-01-25 16:30:10", nextMaintenance: "2024-04-25"
         },
         { 
-          id: 7, name: "Room 203", type: "Laboratory", floor: "2nd Floor", capacity: 25, 
+          id: 7, name: "Room 203", type: "Laboratory", floor: "2nd Floor", capacity: 4, 
           bookings: 230, utilization: 55, status: "available", features: { wifi: true, aircon: false, projector: true, monitor: true },
           lastMaintenance: "2024-02-15 08:45:30", nextMaintenance: "2024-05-15"
         },
         { 
-          id: 8, name: "Lab A", type: "Laboratory", floor: "3rd Floor", capacity: 35, 
+          id: 8, name: "Lab A", type: "Laboratory", floor: "3rd Floor", capacity: 8, 
           bookings: 340, utilization: 70, status: "occupied", features: { wifi: true, aircon: true, projector: false, monitor: true },
           lastMaintenance: "2024-03-05 10:20:15", nextMaintenance: "2024-06-05"
         },
         { 
-          id: 9, name: "Lab B", type: "Laboratory", floor: "3rd Floor", capacity: 30, 
+          id: 9, name: "Lab B", type: "Laboratory", floor: "3rd Floor", capacity: 7, 
           bookings: 260, utilization: 58, status: "maintenance", features: { wifi: true, aircon: true, projector: false, monitor: true },
           lastMaintenance: "2024-02-20 15:40:25", nextMaintenance: "2024-05-20"
         },
         { 
-          id: 10, name: "Conference A", type: "Conference", floor: "3rd Floor", capacity: 20, 
+          id: 10, name: "Conference A", type: "Conference", floor: "3rd Floor", capacity: 5, 
           bookings: 210, utilization: 48, status: "available", features: { wifi: true, aircon: true, projector: true, monitor: false },
           lastMaintenance: "2024-03-10 12:05:50", nextMaintenance: "2024-06-10"
         },
         { 
-          id: 11, name: "Room 301", type: "Office", floor: "3rd Floor", capacity: 8, 
+          id: 11, name: "Room 301", type: "Office", floor: "3rd Floor", capacity: 4, 
           bookings: 120, utilization: 35, status: "available", features: { wifi: true, aircon: true, projector: false, monitor: false },
           lastMaintenance: "2024-02-25 09:30:00", nextMaintenance: "2024-05-25"
         },
         { 
-          id: 12, name: "Room 302", type: "Office", floor: "3rd Floor", capacity: 10, 
+          id: 12, name: "Room 302", type: "Office", floor: "3rd Floor", capacity: 6, 
           bookings: 140, utilization: 40, status: "occupied", features: { wifi: true, aircon: true, projector: false, monitor: false },
           lastMaintenance: "2024-01-30 14:55:40", nextMaintenance: "2024-04-30"
         }
@@ -234,16 +234,16 @@ function AnalyticsRooms({ setView, admin }) {
         { hour: "5PM", utilization: 62, bookings: 16 }
       ],
       topRooms: [
-        { name: "Room 103", bookings: 520, utilization: 85, type: "Lecture", capacity: 60, floor: "1st Floor" },
-        { name: "Room 101", bookings: 450, utilization: 78, type: "Lecture", capacity: 50, floor: "1st Floor" },
-        { name: "Room 202", bookings: 410, utilization: 72, type: "Lecture", capacity: 45, floor: "2nd Floor" },
-        { name: "Room 102", bookings: 380, utilization: 68, type: "Lecture", capacity: 40, floor: "1st Floor" },
-        { name: "Lab A", bookings: 340, utilization: 70, type: "Laboratory", capacity: 35, floor: "3rd Floor" },
-        { name: "Room 201", bookings: 290, utilization: 52, type: "Conference", capacity: 25, floor: "2nd Floor" },
-        { name: "Room 104", bookings: 280, utilization: 62, type: "Laboratory", capacity: 30, floor: "1st Floor" },
-        { name: "Lab B", bookings: 260, utilization: 58, type: "Laboratory", capacity: 30, floor: "3rd Floor" },
-        { name: "Room 203", bookings: 230, utilization: 55, type: "Laboratory", capacity: 25, floor: "2nd Floor" },
-        { name: "Conference A", bookings: 210, utilization: 48, type: "Conference", capacity: 20, floor: "3rd Floor" }
+        { name: "Room 103", bookings: 520, utilization: 85, type: "Lecture", capacity: 8, floor: "1st Floor", features: { wifi: true, aircon: true, projector: true, monitor: true } },
+        { name: "Room 101", bookings: 450, utilization: 78, type: "Lecture", capacity: 6, floor: "1st Floor", features: { wifi: true, aircon: true, projector: true, monitor: false } },
+        { name: "Room 202", bookings: 410, utilization: 72, type: "Lecture", capacity: 6, floor: "2nd Floor", features: { wifi: true, aircon: true, projector: true, monitor: true } },
+        { name: "Room 102", bookings: 380, utilization: 68, type: "Lecture", capacity: 4, floor: "1st Floor", features: { wifi: true, aircon: true, projector: false, monitor: true } },
+        { name: "Lab A", bookings: 340, utilization: 70, type: "Laboratory", capacity: 8, floor: "3rd Floor", features: { wifi: true, aircon: true, projector: false, monitor: true } },
+        { name: "Room 201", bookings: 290, utilization: 52, type: "Conference", capacity: 7, floor: "2nd Floor", features: { wifi: true, aircon: true, projector: true, monitor: false } },
+        { name: "Room 104", bookings: 280, utilization: 62, type: "Laboratory", capacity: 5, floor: "1st Floor", features: { wifi: true, aircon: true, projector: false, monitor: true } },
+        { name: "Lab B", bookings: 260, utilization: 58, type: "Laboratory", capacity: 7, floor: "3rd Floor", features: { wifi: true, aircon: true, projector: false, monitor: true } },
+        { name: "Room 203", bookings: 230, utilization: 55, type: "Laboratory", capacity: 4, floor: "2nd Floor", features: { wifi: true, aircon: false, projector: true, monitor: true } },
+        { name: "Conference A", bookings: 210, utilization: 48, type: "Conference", capacity: 5, floor: "3rd Floor", features: { wifi: true, aircon: true, projector: true, monitor: false } }
       ],
       byFloor: {
         "1st Floor": 4,
@@ -251,10 +251,10 @@ function AnalyticsRooms({ setView, admin }) {
         "3rd Floor": 5
       },
       byCapacity: {
-        small: 3,    // 1-10
-        medium: 4,   // 11-30
-        large: 3,    // 31-50
-        xlarge: 2    // 51+
+        small: 13,    // 4-6 pax
+        medium: 0,    // 7-8 pax
+        large: 0,     // 9-10 pax
+        xlarge: 0     // 11+ pax
       },
       trends: {
         total: { value: totalRooms, percentage: 4.2, direction: 'up' },
@@ -286,10 +286,10 @@ function AnalyticsRooms({ setView, admin }) {
         { name: '3rd Floor', value: 5 }
       ],
       capacityDistribution: [
-        { name: 'Small (1-10)', value: 3 },
-        { name: 'Medium (11-30)', value: 4 },
-        { name: 'Large (31-50)', value: 3 },
-        { name: 'X-Large (51+)', value: 2 }
+        { name: '4-6 pax', value: 13 },
+        { name: '7-8 pax', value: 0 },
+        { name: '9-10 pax', value: 0 },
+        { name: '11+ pax', value: 0 }
       ],
       featureStats: {
         wifi: 12,
@@ -519,33 +519,8 @@ function AnalyticsRooms({ setView, admin }) {
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 3: CAPACITY DISTRIBUTION ====================
-      addSectionHeader('SECTION 3: CAPACITY DISTRIBUTION');
-      
-      addRow(['Capacity Range', 'Rooms', 'Percentage', 'Avg Utilization']);
-      
-      const capacityData = [
-        { name: 'Small (1-10)', count: roomData.byCapacity?.small || 0, utilization: 45 },
-        { name: 'Medium (11-30)', count: roomData.byCapacity?.medium || 0, utilization: 62 },
-        { name: 'Large (31-50)', count: roomData.byCapacity?.large || 0, utilization: 78 },
-        { name: 'X-Large (51+)', count: roomData.byCapacity?.xlarge || 0, utilization: 85 }
-      ];
-
-      capacityData.forEach(cap => {
-        const percentage = roomData.total > 0 ? Math.round((cap.count / roomData.total) * 100) : 0;
-        
-        addRow([
-          cap.name,
-          cap.count.toLocaleString(),
-          percentage + '%',
-          cap.utilization + '%'
-        ]);
-      });
-      addBlankRow();
-      addBlankRow();
-
-      // ==================== SECTION 4: HOURLY UTILIZATION ====================
-      addSectionHeader('SECTION 4: HOURLY UTILIZATION PATTERNS');
+      // ==================== SECTION 3: HOURLY UTILIZATION ====================
+      addSectionHeader('SECTION 3: HOURLY UTILIZATION PATTERNS');
       
       addRow(['Time Slot', 'Utilization %', 'Bookings', 'Peak Status']);
       
@@ -572,8 +547,8 @@ function AnalyticsRooms({ setView, admin }) {
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 5: FEATURES STATISTICS ====================
-      addSectionHeader('SECTION 5: ROOM FEATURES');
+      // ==================== SECTION 4: FEATURES STATISTICS ====================
+      addSectionHeader('SECTION 4: ROOM FEATURES');
       
       addRow(['Feature', 'Rooms with Feature', 'Percentage', 'Popularity Rank']);
       
@@ -597,8 +572,8 @@ function AnalyticsRooms({ setView, admin }) {
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 6: TOP ROOMS ====================
-      addSectionHeader('SECTION 6: TOP PERFORMING ROOMS');
+      // ==================== SECTION 5: TOP ROOMS ====================
+      addSectionHeader('SECTION 5: TOP PERFORMING ROOMS');
       
       addRow(['Rank', 'Room Name', 'Type', 'Floor', 'Capacity', 'Bookings', 'Utilization', 'Performance']);
       
@@ -622,8 +597,8 @@ function AnalyticsRooms({ setView, admin }) {
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 7: ROOM DETAILS ====================
-      addSectionHeader('SECTION 7: COMPREHENSIVE ROOM DETAILS');
+      // ==================== SECTION 6: ROOM DETAILS ====================
+      addSectionHeader('SECTION 6: COMPREHENSIVE ROOM DETAILS');
       
       addRow(['Room', 'Type', 'Floor', 'Capacity', 'Bookings', 'Utilization', 'Status', 'Last Maintenance', 'Features']);
       
@@ -649,8 +624,8 @@ function AnalyticsRooms({ setView, admin }) {
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 8: MAINTENANCE HISTORY ====================
-      addSectionHeader('SECTION 8: MAINTENANCE HISTORY');
+      // ==================== SECTION 7: MAINTENANCE HISTORY ====================
+      addSectionHeader('SECTION 7: MAINTENANCE HISTORY');
       
       if (roomData.maintenanceHistory && roomData.maintenanceHistory.length > 0) {
         addRow(['Room', 'Date & Time', 'Maintenance Type', 'Status']);
@@ -669,8 +644,8 @@ function AnalyticsRooms({ setView, admin }) {
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 9: TOP USERS ====================
-      addSectionHeader('SECTION 9: TOP ROOM USERS');
+      // ==================== SECTION 8: TOP USERS ====================
+      addSectionHeader('SECTION 8: TOP ROOM USERS');
       
       if (roomData.topUsers && roomData.topUsers.length > 0) {
         addRow(['Rank', 'User Name', 'Department', 'Bookings', 'Preferred Room']);
@@ -690,8 +665,8 @@ function AnalyticsRooms({ setView, admin }) {
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 10: BOOKING TRENDS ====================
-      addSectionHeader('SECTION 10: BOOKING TRENDS');
+      // ==================== SECTION 9: BOOKING TRENDS ====================
+      addSectionHeader('SECTION 9: BOOKING TRENDS');
       
       addRow(['Period', 'Bookings', 'Change', 'Trend']);
       
@@ -720,8 +695,8 @@ function AnalyticsRooms({ setView, admin }) {
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 11: EXECUTIVE SUMMARY ====================
-      addSectionHeader('SECTION 11: EXECUTIVE SUMMARY & KEY INSIGHTS');
+      // ==================== SECTION 10: EXECUTIVE SUMMARY ====================
+      addSectionHeader('SECTION 10: EXECUTIVE SUMMARY & KEY INSIGHTS');
       
       // Calculate insights
       const totalRooms = roomData.total || 0;
@@ -955,7 +930,7 @@ function AnalyticsRooms({ setView, admin }) {
     return (
       <div>
         <div className="flex justify-between text-sm mb-1">
-          <span className="text-gray-600 capitalize">{label}</span>
+          <span className="text-gray-600">{label}</span>
           {showValue && <span className="text-gray-800 font-medium">{value.toLocaleString()}</span>}
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
@@ -1018,19 +993,14 @@ function AnalyticsRooms({ setView, admin }) {
             </div>
           </div>
 
-          {/* Analytics Grid Skeleton */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            {[1, 2].map((i) => (
-              <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <SectionHeaderSkeleton />
-                <div className="space-y-4">
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                </div>
-              </div>
-            ))}
+          {/* Floor Distribution Skeleton - Single column now */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+            <SectionHeaderSkeleton />
+            <div className="space-y-4">
+              <ProgressBarSkeleton />
+              <ProgressBarSkeleton />
+              <ProgressBarSkeleton />
+            </div>
           </div>
 
           {/* Chart Skeleton */}
@@ -1226,71 +1196,28 @@ function AnalyticsRooms({ setView, admin }) {
           />
         </div>
 
-        {/* Analytics Grid - 2 columns instead of 3 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Floor Distribution */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Rooms by Floor</h2>
-            {loading ? (
-              <div className="space-y-4">
-                <ProgressBarSkeleton />
-                <ProgressBarSkeleton />
-                <ProgressBarSkeleton />
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {Object.entries(roomData.byFloor || {}).map(([floor, count], index) => (
-                  <ProgressBar 
-                    key={floor}
-                    label={floor} 
-                    value={count} 
-                    total={roomData.total || 1} 
-                    color={index === 0 ? "blue" : index === 1 ? "green" : "purple"}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Capacity Distribution - Updated ranges */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Rooms by Capacity</h2>
-            {loading ? (
-              <div className="space-y-4">
-                <ProgressBarSkeleton />
-                <ProgressBarSkeleton />
-                <ProgressBarSkeleton />
-                <ProgressBarSkeleton />
-              </div>
-            ) : (
-              <div className="space-y-4">
+        {/* Floor Distribution - Single column now */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">Rooms by Floor</h2>
+          {loading ? (
+            <div className="space-y-4">
+              <ProgressBarSkeleton />
+              <ProgressBarSkeleton />
+              <ProgressBarSkeleton />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {Object.entries(roomData.byFloor || {}).map(([floor, count], index) => (
                 <ProgressBar 
-                  label="4-6 pax" 
-                  value={roomData.byCapacity?.small || 0} 
+                  key={floor}
+                  label={floor} 
+                  value={count} 
                   total={roomData.total || 1} 
-                  color="blue"
+                  color={index === 0 ? "blue" : index === 1 ? "green" : "purple"}
                 />
-                <ProgressBar 
-                  label="7-8 pax" 
-                  value={roomData.byCapacity?.medium || 0} 
-                  total={roomData.total || 1} 
-                  color="green"
-                />
-                <ProgressBar 
-                  label="9-10 pax" 
-                  value={roomData.byCapacity?.large || 0} 
-                  total={roomData.total || 1} 
-                  color="purple"
-                />
-                <ProgressBar 
-                  label="11+ pax" 
-                  value={roomData.byCapacity?.xlarge || 0} 
-                  total={roomData.total || 1} 
-                  color="orange"
-                />
-              </div>
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Features Grid */}
