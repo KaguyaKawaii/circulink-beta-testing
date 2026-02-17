@@ -623,15 +623,15 @@ function AnalyticsOverview({ setView, admin }) {
           ['Completion Rate', analyticsData.totalReservations > 0 
             ? `${Math.round((analyticsData.completedReservations / analyticsData.totalReservations) * 100)}%` 
             : '0%', '70%', 
-            (analyticsData.completedReservations / analyticsData.totalReservations) * 100 >= 70 ? '✓ Meets Benchmark' : '⚠ Below Benchmark'],
+            (analyticsData.completedReservations / analyticsData.totalReservations) * 100 >= 70 ? 'Meets Benchmark' : 'Below Benchmark'],
           ['Pending Rate', analyticsData.totalReservations > 0 
             ? `${Math.round((analyticsData.pendingReservations / analyticsData.totalReservations) * 100)}%` 
             : '0%', '15%',
-            (analyticsData.pendingReservations / analyticsData.totalReservations) * 100 <= 15 ? '✓ Normal' : '⚠ High Backlog'],
+            (analyticsData.pendingReservations / analyticsData.totalReservations) * 100 <= 15 ? 'Normal' : 'High Backlog'],
           ['User Activity Rate', analyticsData.totalUsers > 0 
             ? `${Math.round((analyticsData.activeToday / analyticsData.totalUsers) * 100)}%` 
             : '0%', '25%',
-            (analyticsData.activeToday / analyticsData.totalUsers) * 100 >= 25 ? '✓ Good Engagement' : '⚠ Low Engagement'],
+            (analyticsData.activeToday / analyticsData.totalUsers) * 100 >= 25 ? 'Good Engagement' : 'Low Engagement'],
           [],
           ['SECTION 3: EXECUTIVE SUMMARY'],
           ['==============================================='],
@@ -675,19 +675,19 @@ function AnalyticsOverview({ setView, admin }) {
           ['Metric', 'Value', 'Change %', 'Trend', 'Description'],
           ['Total Users', users.total || 0, 
            `${users.trends?.monthly?.percentage || 0}%`,
-           users.trends?.monthly?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           users.trends?.monthly?.direction === 'up' ? 'Increasing' : 'Decreasing',
            'All registered users (non-archived)'],
           ['Active Users (7 days)', users.active || 0,
            `${users.trends?.weekly?.percentage || 0}%`,
-           users.trends?.weekly?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           users.trends?.weekly?.direction === 'up' ? 'Increasing' : 'Decreasing',
            'Users with activity in last 7 days'],
           ['New Users', users.new || 0,
            `${users.trends?.daily?.percentage || 0}%`,
-           users.trends?.daily?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           users.trends?.daily?.direction === 'up' ? 'Increasing' : 'Decreasing',
            'Users registered in selected period'],
           ['Deleted/Archived', users.deleted || 0, 'N/A', 'N/A', 'Users archived or deleted'],
           ['Retention Rate', `${users.activityStats?.retentionRate || 0}%`, 'N/A', 
-           (users.activityStats?.retentionRate || 0) > 70 ? '↑ Good' : '↓ Needs Improvement',
+           (users.activityStats?.retentionRate || 0) > 70 ? 'Good' : 'Needs Improvement',
            'Users returning after first visit'],
           [],
           ['SECTION 2: REGISTRATION STATISTICS'],
@@ -742,7 +742,7 @@ function AnalyticsOverview({ setView, admin }) {
             dept.name,
             dept.count,
             `${Math.round((dept.count / totalUsers) * 100)}%`,
-            index === 0 ? '🥇 Most Users' : index === 1 ? '🥈 2nd' : index === 2 ? '🥉 3rd' : `#${index + 1}`
+            index === 0 ? 'Most Users' : index === 1 ? '2nd' : index === 2 ? '3rd' : `#${index + 1}`
           ]),
           [],
           ['SECTION 6: TOP ACTIVE USERS'],
@@ -820,21 +820,21 @@ function AnalyticsOverview({ setView, admin }) {
           ['Metric', 'Value', 'Change %', 'Trend', 'Status'],
           ['Total Reservations', reservations.total || 0,
            `${reservations.trends?.total?.percentage || 0}%`,
-           reservations.trends?.total?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           reservations.trends?.total?.direction === 'up' ? 'Increasing' : 'Decreasing',
            reservations.trends?.total?.percentage > 0 ? 'Positive Growth' : 'Needs Attention'],
           ['Completed', reservations.completed || 0,
            `${reservations.trends?.completed?.percentage || 0}%`,
-           reservations.trends?.completed?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           reservations.trends?.completed?.direction === 'up' ? 'Increasing' : 'Decreasing',
            `Success Rate: ${Math.round((reservations.completed / total) * 100)}%`],
           ['Pending', reservations.pending || 0,
            `${reservations.trends?.pending?.percentage || 0}%`,
-           reservations.trends?.pending?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
-           reservations.pending > 50 ? '⚠ High Backlog' : '✓ Normal'],
+           reservations.trends?.pending?.direction === 'up' ? 'Increasing' : 'Decreasing',
+           reservations.pending > 50 ? 'High Backlog' : 'Normal'],
           ['Approved', reservations.approved || 0, 'N/A', 'N/A', 'Awaiting start'],
           ['Rejected', reservations.rejected || 0, 'N/A', 'N/A', 'Not approved'],
           ['Cancelled', reservations.cancelled || 0,
            `${reservations.trends?.cancelled?.percentage || 0}%`,
-           reservations.trends?.cancelled?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           reservations.trends?.cancelled?.direction === 'up' ? 'Increasing' : 'Decreasing',
            `Cancellation Rate: ${Math.round((reservations.cancelled / total) * 100)}%`],
           ['Ongoing', reservations.ongoing || 0, 'N/A', 'N/A', 'Currently in progress'],
           ['Expired', reservations.expired || 0, 'N/A', 'N/A', 'Passed without action'],
@@ -851,25 +851,25 @@ function AnalyticsOverview({ setView, admin }) {
           ['Day', 'Count', 'Percentage', 'Peak Status'],
           ['Monday', reservations.byDayOfWeek?.mon || 0,
            `${Math.round(((reservations.byDayOfWeek?.mon || 0) / totalDays) * 100)}%`,
-           reservations.byDayOfWeek?.mon === peakDay[1] ? '★ Peak Day' : ''],
+           reservations.byDayOfWeek?.mon === peakDay[1] ? 'Peak Day' : ''],
           ['Tuesday', reservations.byDayOfWeek?.tue || 0,
            `${Math.round(((reservations.byDayOfWeek?.tue || 0) / totalDays) * 100)}%`,
-           reservations.byDayOfWeek?.tue === peakDay[1] ? '★ Peak Day' : ''],
+           reservations.byDayOfWeek?.tue === peakDay[1] ? 'Peak Day' : ''],
           ['Wednesday', reservations.byDayOfWeek?.wed || 0,
            `${Math.round(((reservations.byDayOfWeek?.wed || 0) / totalDays) * 100)}%`,
-           reservations.byDayOfWeek?.wed === peakDay[1] ? '★ Peak Day' : ''],
+           reservations.byDayOfWeek?.wed === peakDay[1] ? 'Peak Day' : ''],
           ['Thursday', reservations.byDayOfWeek?.thu || 0,
            `${Math.round(((reservations.byDayOfWeek?.thu || 0) / totalDays) * 100)}%`,
-           reservations.byDayOfWeek?.thu === peakDay[1] ? '★ Peak Day' : ''],
+           reservations.byDayOfWeek?.thu === peakDay[1] ? 'Peak Day' : ''],
           ['Friday', reservations.byDayOfWeek?.fri || 0,
            `${Math.round(((reservations.byDayOfWeek?.fri || 0) / totalDays) * 100)}%`,
-           reservations.byDayOfWeek?.fri === peakDay[1] ? '★ Peak Day' : ''],
+           reservations.byDayOfWeek?.fri === peakDay[1] ? 'Peak Day' : ''],
           ['Saturday', reservations.byDayOfWeek?.sat || 0,
            `${Math.round(((reservations.byDayOfWeek?.sat || 0) / totalDays) * 100)}%`,
-           reservations.byDayOfWeek?.sat === peakDay[1] ? '★ Peak Day' : ''],
+           reservations.byDayOfWeek?.sat === peakDay[1] ? 'Peak Day' : ''],
           ['Sunday', reservations.byDayOfWeek?.sun || 0,
            `${Math.round(((reservations.byDayOfWeek?.sun || 0) / totalDays) * 100)}%`,
-           reservations.byDayOfWeek?.sun === peakDay[1] ? '★ Peak Day' : ''],
+           reservations.byDayOfWeek?.sun === peakDay[1] ? 'Peak Day' : ''],
           [],
           peakDay[0] ? ['Peak Day:', dayNames[peakDay[0]] || peakDay[0], 'with', peakDay[1], 'reservations - Busiest day of the week'] : [],
           [],
@@ -916,10 +916,10 @@ function AnalyticsOverview({ setView, admin }) {
           ['Rank', 'Room Name', 'Total Bookings', 'Approved', 'Completed', 'Utilization', 'Performance'],
           ...(reservations.popularRooms || []).map((room, index) => {
             let performance = 'Average';
-            if (room.utilization > 80) performance = '🌟 Excellent';
-            else if (room.utilization > 60) performance = '✓ Good';
-            else if (room.utilization > 40) performance = '∼ Average';
-            else performance = '⚠ Low';
+            if (room.utilization > 80) performance = 'Excellent';
+            else if (room.utilization > 60) performance = 'Good';
+            else if (room.utilization > 40) performance = 'Average';
+            else performance = 'Low';
             return [
               `#${index + 1}`,
               room.name,
@@ -937,9 +937,9 @@ function AnalyticsOverview({ setView, admin }) {
           ...(reservations.byRoom || []).slice(0, 15).map((room) => {
             const successRate = room.count > 0 ? Math.round((room.completed || 0) / room.count * 100) : 0;
             let note = 'Normal operation';
-            if (successRate > 80) note = '✓ High performing';
-            else if (successRate < 40) note = '⚠ Low completion rate';
-            else if ((room.pending || 0) > 10) note = '⚠ High pending';
+            if (successRate > 80) note = 'High performing';
+            else if (successRate < 40) note = 'Low completion rate';
+            else if ((room.pending || 0) > 10) note = 'High pending';
             return [
               room.name,
               room.count,
@@ -960,7 +960,7 @@ function AnalyticsOverview({ setView, admin }) {
             const prevValue = idx > 0 ? reservations.growth?.values?.[idx - 1] : value;
             const change = value - prevValue;
             const changePercent = prevValue > 0 ? Math.round((change / prevValue) * 100) : 0;
-            const trend = change > 0 ? '↑ Growing' : change < 0 ? '↓ Declining' : '→ Stable';
+            const trend = change > 0 ? 'Growing' : change < 0 ? 'Declining' : 'Stable';
             return [
               label,
               value,
@@ -1017,20 +1017,20 @@ function AnalyticsOverview({ setView, admin }) {
           ['Metric', 'Value', 'Change %', 'Trend', 'Status'],
           ['Total Rooms', rooms.total || 0,
            `${rooms.trends?.total?.percentage || 0}%`,
-           rooms.trends?.total?.direction === 'up' ? '↑ Increasing' : '→ Stable',
+           rooms.trends?.total?.direction === 'up' ? 'Increasing' : 'Stable',
            `${rooms.available} available, ${rooms.occupied} occupied`],
           ['Available', rooms.available || 0,
            `${rooms.trends?.available?.percentage || 0}%`,
-           rooms.trends?.available?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           rooms.trends?.available?.direction === 'up' ? 'Increasing' : 'Decreasing',
            'Ready for booking'],
           ['Occupied', rooms.occupied || 0,
            `${rooms.trends?.occupied?.percentage || 0}%`,
-           rooms.trends?.occupied?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           rooms.trends?.occupied?.direction === 'up' ? 'Increasing' : 'Decreasing',
            'Currently in use'],
           ['Maintenance', rooms.maintenance || 0, 'N/A', 'N/A', 'Under maintenance'],
           ['Utilization Rate', `${rooms.utilization || 0}%`,
            `${rooms.trends?.utilization?.percentage || 0}%`,
-           rooms.trends?.utilization?.direction === 'up' ? '↑ Improving' : '↓ Declining',
+           rooms.trends?.utilization?.direction === 'up' ? 'Improving' : 'Declining',
            rooms.utilization > 60 ? 'Optimal' : 'Underutilized'],
           [],
           ['SECTION 2: ROOMS BY TYPE'],
@@ -1088,7 +1088,7 @@ function AnalyticsOverview({ setView, admin }) {
             hour.hour,
             `${hour.utilization}%`,
             hour.bookings || 0,
-            hour.utilization > 70 ? '★ Peak' : hour.utilization > 50 ? '∼ Moderate' : '○ Off-Peak'
+            hour.utilization > 70 ? 'Peak' : hour.utilization > 50 ? 'Moderate' : 'Off-Peak'
           ]),
           [],
           ['SECTION 6: TOP PERFORMING ROOMS'],
@@ -1149,7 +1149,7 @@ function AnalyticsOverview({ setView, admin }) {
           ...(rooms.bookingTrends || []).map((item, idx) => {
             const prevBookings = idx > 0 ? rooms.bookingTrends?.[idx - 1]?.bookings : item.bookings;
             const change = item.bookings - prevBookings;
-            const trend = change > 0 ? '↑ Growing' : change < 0 ? '↓ Declining' : '→ Stable';
+            const trend = change > 0 ? 'Growing' : change < 0 ? 'Declining' : 'Stable';
             return [
               item.month,
               item.bookings,
@@ -1205,22 +1205,22 @@ function AnalyticsOverview({ setView, admin }) {
           ['Metric', 'Value', 'Change %', 'Trend', 'Description'],
           ['Daily Active Users', engagement.dailyActive || 0,
            `${engagement.trends?.daily?.percentage || 0}%`,
-           engagement.trends?.daily?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           engagement.trends?.daily?.direction === 'up' ? 'Increasing' : 'Decreasing',
            'Users active in last 24h'],
           ['Weekly Active Users', engagement.weeklyActive || 0,
            `${engagement.trends?.weekly?.percentage || 0}%`,
-           engagement.trends?.weekly?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           engagement.trends?.weekly?.direction === 'up' ? 'Increasing' : 'Decreasing',
            'Users active in last 7 days'],
           ['Monthly Active Users', engagement.monthlyActive || 0,
            `${engagement.trends?.monthly?.percentage || 0}%`,
-           engagement.trends?.monthly?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           engagement.trends?.monthly?.direction === 'up' ? 'Increasing' : 'Decreasing',
            'Users active in last 30 days'],
           ['Avg Session Duration', `${engagement.averageSession || 0} minutes`, 'N/A', 'N/A', 'Time spent per session'],
           ['Retention Rate', `${engagement.retention || 0}%`, 'N/A',
-           (engagement.retention || 0) > 70 ? '↑ Good' : '↓ Needs Improvement',
+           (engagement.retention || 0) > 70 ? 'Good' : 'Needs Improvement',
            'Users returning after first visit'],
           ['Bounce Rate', `${engagement.bounceRate || 0}%`, 'N/A',
-           (engagement.bounceRate || 0) < 30 ? '✓ Good' : '⚠ High',
+           (engagement.bounceRate || 0) < 30 ? 'Good' : 'High',
            'Single-action sessions'],
           [],
           ['SECTION 2: ENGAGEMENT METRICS'],
@@ -1238,7 +1238,7 @@ function AnalyticsOverview({ setView, admin }) {
           ['High Activity', engagement.userActivity?.high || 0,
            `${Math.round(((engagement.userActivity?.high || 0) / totalActivityUsers) * 100)}%`,
            '10+ actions per day',
-           engagement.userActivity?.high > 100 ? '🌟 Power Users' : 'Moderate'],
+           engagement.userActivity?.high > 100 ? 'Power Users' : 'Moderate'],
           ['Medium Activity', engagement.userActivity?.medium || 0,
            `${Math.round(((engagement.userActivity?.medium || 0) / totalActivityUsers) * 100)}%`,
            '5-9 actions per day',
@@ -1250,7 +1250,7 @@ function AnalyticsOverview({ setView, admin }) {
           ['Inactive', engagement.userActivity?.inactive || 0,
            `${Math.round(((engagement.userActivity?.inactive || 0) / totalActivityUsers) * 100)}%`,
            'No actions in period',
-           engagement.userActivity?.inactive > 200 ? '⚠ Re-engagement Needed' : 'Normal'],
+           engagement.userActivity?.inactive > 200 ? 'Re-engagement Needed' : 'Normal'],
           [],
           ['SECTION 4: ACTIVITY BREAKDOWN'],
           ['==============================================='],
@@ -1259,7 +1259,7 @@ function AnalyticsOverview({ setView, admin }) {
             item.name,
             item.value,
             `${Math.round((item.value / (engagement.engagementMetrics?.actions || 1)) * 100)}%`,
-            item.value > 5000 ? '🔥 Very Popular' : item.value > 2000 ? '✓ Popular' : '○ Normal'
+            item.value > 5000 ? 'Very Popular' : item.value > 2000 ? 'Popular' : 'Normal'
           ]),
           [],
           ['SECTION 5: DEVICE BREAKDOWN'],
@@ -1269,7 +1269,7 @@ function AnalyticsOverview({ setView, admin }) {
             device.name,
             `${device.value}%`,
             Math.round((device.value / 100) * (engagement.weeklyActive || 1000)),
-            device.name === 'Mobile' ? '↑ Growing' : device.name === 'Desktop' ? '→ Stable' : '∼ Stable'
+            device.name === 'Mobile' ? 'Growing' : device.name === 'Desktop' ? 'Stable' : 'Stable'
           ]),
           [],
           ['SECTION 6: PEAK HOURS'],
@@ -1296,7 +1296,7 @@ function AnalyticsOverview({ setView, admin }) {
             feature.name,
             feature.count,
             `${feature.trend > 0 ? '+' : ''}${feature.trend}%`,
-            feature.trend > 0 ? '📈 Growing' : feature.trend < 0 ? '📉 Declining' : '→ Stable',
+            feature.trend > 0 ? 'Growing' : feature.trend < 0 ? 'Declining' : 'Stable',
             feature.trend > 0 ? 'Promote further' : feature.trend < 0 ? 'Investigate decline' : 'Maintain'
           ]),
           [],
@@ -1326,7 +1326,7 @@ function AnalyticsOverview({ setView, admin }) {
               trend.active,
               trend.new,
               `${growthRate > 0 ? '+' : ''}${growthRate}%`,
-              growth > 0 ? '📈 Growing' : growth < 0 ? '📉 Declining' : '→ Stable'
+              growth > 0 ? 'Growing' : growth < 0 ? 'Declining' : 'Stable'
             ];
           }),
           [],
