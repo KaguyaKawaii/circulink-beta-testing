@@ -1,5 +1,5 @@
 // AnalyticsEngagement.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Activity,
   TrendingUp,
@@ -20,18 +20,18 @@ import {
   PieChart,
   Layers,
   Award,
-  AlertCircle
+  AlertCircle,
+  Calendar as CalendarIcon,
+  X
 } from "lucide-react";
 import api from "../../utils/api";
 
 function AnalyticsEngagement({ setView, admin }) {
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState("month");
-  const [customDateRange, setCustomDateRange] = useState({
-    start: "",
-    end: ""
-  });
-  const [showCustomPicker, setShowCustomPicker] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const [showCustomDate, setShowCustomDate] = useState(false);
   const [engagementData, setEngagementData] = useState({
     dailyActive: 0,
     weeklyActive: 0,
@@ -66,26 +66,27 @@ function AnalyticsEngagement({ setView, admin }) {
     }
   });
 
-  useEffect(() => {
-    fetchEngagementAnalytics();
-  }, [dateRange]);
+  const calendarRef = useRef(null);
 
-  const fetchEngagementAnalytics = async () => {
+  const fetchEngagementAnalytics = useCallback(async () => {
     setLoading(true);
     try {
       let url = `/analytics/engagement?range=${dateRange}`;
       
-      // Add custom date range if selected
-      if (dateRange === 'custom' && customDateRange.start && customDateRange.end) {
-        url += `&startDate=${customDateRange.start}&endDate=${customDateRange.end}`;
+      // Add custom date parameters if custom range is selected
+      if (dateRange === "custom" && customStartDate && customEndDate) {
+        url = `/analytics/engagement?startDate=${customStartDate}&endDate=${customEndDate}`;
       }
       
+      console.log("Fetching engagement analytics from:", url);
       const response = await api.get(url);
       
-      if (response.data.success) {
+      if (response.data && response.data.success) {
         setEngagementData(response.data.data);
+        console.log("Engagement analytics data loaded:", response.data.data);
       } else {
-        // Fallback to mock data if API fails
+        console.error("API returned unsuccessful response:", response.data);
+        // Fallback to mock data
         setEngagementData(getMockEngagementData(dateRange));
       }
     } catch (error) {
@@ -95,25 +96,59 @@ function AnalyticsEngagement({ setView, admin }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange, customStartDate, customEndDate]);
 
-  const handleCustomRangeApply = () => {
-    if (customDateRange.start && customDateRange.end) {
-      setDateRange('custom');
-      setShowCustomPicker(false);
-      fetchEngagementAnalytics();
+  useEffect(() => {
+    fetchEngagementAnalytics();
+  }, [fetchEngagementAnalytics]);
+
+  // Close calendar when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (calendarRef.current && !calendarRef.current.contains(event.target)) {
+        setShowCustomDate(false);
+      }
+    }
+    
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const formatDate = (date) => {
+    if (!date) return "";
+    try {
+      return new Date(date).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric"
+      });
+    } catch (error) {
+      return "";
     }
   };
 
-  const exportData = () => {
-    const dataStr = JSON.stringify(engagementData, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    const exportFileDefaultName = `engagement-analytics-${dateRange}-${new Date().toISOString().split('T')[0]}.json`;
-    
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', exportFileDefaultName);
-    linkElement.click();
+  const handleCustomDateApply = () => {
+    if (customStartDate && customEndDate) {
+      // Validate that start date is before end date
+      if (new Date(customStartDate) > new Date(customEndDate)) {
+        alert("Start date must be before end date");
+        return;
+      }
+      
+      setDateRange("custom");
+      setShowCustomDate(false);
+    } else {
+      alert("Please select both start and end dates");
+    }
+  };
+
+  const handleCustomDateClear = () => {
+    setCustomStartDate("");
+    setCustomEndDate("");
+    setShowCustomDate(false);
+    setDateRange("month");
   };
 
   const getMockEngagementData = (range) => {
@@ -214,273 +249,737 @@ function AnalyticsEngagement({ setView, admin }) {
     };
   };
 
-  const StatCard = ({ title, value, icon: Icon, change, color = "blue", suffix = "", subtext }) => (
-    <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800 hover:border-gray-700 transition-all">
-      <div className="flex items-start justify-between">
+  // ==================== SKELETON LOADING COMPONENTS ====================
+
+  const StatCardSkeleton = () => (
+    <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
+      <div className="flex items-center justify-between">
         <div className="flex-1">
-          <p className="text-sm text-gray-400 mb-1">{title}</p>
-          <p className="text-2xl font-bold text-white">
-            {typeof value === 'number' ? value.toLocaleString() : value}{suffix}
-          </p>
-          {change && (
-            <div className="flex items-center gap-1 mt-2">
-              {change.direction === 'up' ? (
-                <ArrowUp size={16} className="text-green-500" />
-              ) : change.direction === 'down' ? (
-                <ArrowDown size={16} className="text-red-500" />
-              ) : null}
-              <span className={change.direction === 'up' ? "text-green-500" : "text-red-500"}>
-                {change.percentage}%
-              </span>
-              <span className="text-gray-500 text-xs ml-1">vs previous period</span>
-            </div>
-          )}
-          {subtext && (
-            <p className="text-xs text-gray-500 mt-2">{subtext}</p>
-          )}
+          <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
+          <div className="h-8 bg-gray-300 rounded w-16"></div>
+          <div className="flex items-center gap-1 mt-2">
+            <div className="h-4 bg-gray-200 rounded w-12"></div>
+          </div>
         </div>
-        <div className={`p-3 bg-${color}-500/10 rounded-lg`}>
-          <Icon size={24} className={`text-${color}-500`} />
+        <div className="p-2">
+          <div className="w-5 h-5 bg-gray-300 rounded"></div>
         </div>
       </div>
     </div>
   );
 
-  const ProgressBar = ({ label, value, max, color = "blue", showValue = true }) => (
-    <div className="space-y-1">
-      <div className="flex justify-between text-sm">
-        <span className="text-gray-300">{label}</span>
-        {showValue && <span className="text-white font-medium">{value}</span>}
+  const ProgressBarSkeleton = () => (
+    <div className="animate-pulse">
+      <div className="flex justify-between mb-1">
+        <div className="h-4 bg-gray-200 rounded w-24"></div>
+        <div className="h-4 bg-gray-200 rounded w-12"></div>
       </div>
-      <div className="w-full bg-gray-700 rounded-full h-2">
-        <div 
-          className={`bg-${color}-500 rounded-full h-2 transition-all duration-500`} 
-          style={{ width: `${(value / max) * 100}%` }}
-        ></div>
+      <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="bg-gray-300 rounded-full h-2 w-3/4"></div>
       </div>
     </div>
   );
 
-  if (loading) {
+  const TableRowSkeleton = ({ cols = 5 }) => (
+    <tr className="animate-pulse">
+      {Array(cols).fill(0).map((_, i) => (
+        <td key={i} className="px-6 py-4 whitespace-nowrap">
+          <div className="h-4 bg-gray-200 rounded w-24"></div>
+        </td>
+      ))}
+    </tr>
+  );
+
+  const DayChartSkeleton = () => (
+    <div className="grid grid-cols-7 gap-2 animate-pulse">
+      {Array(7).fill(0).map((_, i) => (
+        <div key={i} className="flex flex-col items-center">
+          <div className="w-full bg-gray-200 rounded-t mb-2" style={{ height: `${Math.random() * 100 + 50}px` }}></div>
+          <div className="h-3 bg-gray-200 rounded w-8 mb-1"></div>
+          <div className="h-3 bg-gray-200 rounded w-6"></div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const GrowthChartSkeleton = () => (
+    <div className="h-64 flex items-end justify-between gap-2 animate-pulse">
+      {Array(7).fill(0).map((_, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center gap-2">
+          <div className="w-full bg-gray-200 rounded-t" style={{ height: `${Math.random() * 150 + 50}px` }}></div>
+          <div className="h-3 bg-gray-200 rounded w-8"></div>
+        </div>
+      ))}
+    </div>
+  );
+
+  const SectionHeaderSkeleton = () => (
+    <div className="flex items-center justify-between mb-4">
+      <div className="h-6 bg-gray-200 rounded w-48"></div>
+      <div className="h-4 bg-gray-200 rounded w-24"></div>
+    </div>
+  );
+
+  // ==================== EXPORT FUNCTION ====================
+
+  const exportToCSV = () => {
+    try {
+      // Create CSV content
+      let csvContent = "";
+      
+      // Helper to add a row
+      const addRow = (cells) => {
+        const formattedCells = cells.map(cell => {
+          if (cell === null || cell === undefined) return '';
+          let stringCell = String(cell);
+          if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n')) {
+            return `"${stringCell.replace(/"/g, '""')}"`;
+          }
+          return stringCell;
+        });
+        csvContent += formattedCells.join(',') + '\n';
+      };
+
+      const addBlankRow = () => {
+        csvContent += '\n';
+      };
+
+      const addSectionHeader = (title) => {
+        addRow(['========== ' + title + ' ==========']);
+      };
+
+      // Get date range description
+      let rangeDescription = "";
+      if (dateRange === "week") rangeDescription = "Last 7 Days";
+      else if (dateRange === "month") rangeDescription = "Last 30 Days";
+      else if (dateRange === "year") rangeDescription = "Last 12 Months";
+      else if (dateRange === "custom") rangeDescription = `${formatDate(customStartDate)} to ${formatDate(customEndDate)}`;
+
+      // Report Header
+      addBlankRow();
+      addRow(['ENGAGEMENT ANALYTICS REPORT']);
+      addRow(['========================================']);
+      addBlankRow();
+      addRow(['Generated:', new Date().toLocaleString()]);
+      addRow(['Date Range:', rangeDescription]);
+      addBlankRow();
+      addBlankRow();
+
+      // Key Metrics
+      addSectionHeader('KEY METRICS');
+      addRow(['Metric', 'Value', 'Change %', 'Trend']);
+      addRow([
+        'Daily Active Users',
+        engagementData.dailyActive.toLocaleString(),
+        `${engagementData.trends?.daily?.percentage || 0}%`,
+        engagementData.trends?.daily?.direction === 'up' ? 'Increasing' : 'Decreasing'
+      ]);
+      addRow([
+        'Weekly Active Users',
+        engagementData.weeklyActive.toLocaleString(),
+        `${engagementData.trends?.weekly?.percentage || 0}%`,
+        engagementData.trends?.weekly?.direction === 'up' ? 'Increasing' : 'Decreasing'
+      ]);
+      addRow([
+        'Monthly Active Users',
+        engagementData.monthlyActive.toLocaleString(),
+        `${engagementData.trends?.monthly?.percentage || 0}%`,
+        engagementData.trends?.monthly?.direction === 'up' ? 'Increasing' : 'Decreasing'
+      ]);
+      addRow(['Avg Session Duration', engagementData.averageSession + ' min', '5.2%', 'Up']);
+      addBlankRow();
+      addBlankRow();
+
+      // Engagement Metrics
+      addSectionHeader('ENGAGEMENT METRICS');
+      addRow(['Metric', 'Value']);
+      addRow(['Page Views', engagementData.engagementMetrics.pageViews.toLocaleString()]);
+      addRow(['Total Actions', engagementData.engagementMetrics.actions.toLocaleString()]);
+      addRow(['Avg Actions/User', engagementData.engagementMetrics.avgActionsPerUser]);
+      addRow(['Returning Users', engagementData.engagementMetrics.returningUsers + '%']);
+      addRow(['Total Sessions', engagementData.engagementMetrics.totalSessions.toLocaleString()]);
+      addRow(['Retention Rate', engagementData.retention + '%']);
+      addRow(['Bounce Rate', engagementData.bounceRate + '%']);
+      addBlankRow();
+      addBlankRow();
+
+      // Activity Levels
+      addSectionHeader('USER ACTIVITY LEVELS');
+      addRow(['Level', 'Users', 'Percentage']);
+      const totalUsers = engagementData.userActivity.high + engagementData.userActivity.medium + 
+                        engagementData.userActivity.low + engagementData.userActivity.inactive;
+      addRow(['High Activity (10+ actions)', engagementData.userActivity.high, 
+              totalUsers > 0 ? Math.round((engagementData.userActivity.high / totalUsers) * 100) + '%' : '0%']);
+      addRow(['Medium Activity (5-9 actions)', engagementData.userActivity.medium,
+              totalUsers > 0 ? Math.round((engagementData.userActivity.medium / totalUsers) * 100) + '%' : '0%']);
+      addRow(['Low Activity (1-4 actions)', engagementData.userActivity.low,
+              totalUsers > 0 ? Math.round((engagementData.userActivity.low / totalUsers) * 100) + '%' : '0%']);
+      addRow(['Inactive (0 actions)', engagementData.userActivity.inactive,
+              totalUsers > 0 ? Math.round((engagementData.userActivity.inactive / totalUsers) * 100) + '%' : '0%']);
+      addBlankRow();
+      addBlankRow();
+
+      // Activity Breakdown
+      addSectionHeader('ACTIVITY BREAKDOWN');
+      addRow(['Action Type', 'Count', 'Percentage']);
+      const totalActions = engagementData.activityBreakdown.reduce((sum, item) => sum + item.value, 0);
+      engagementData.activityBreakdown.forEach(item => {
+        addRow([
+          item.name,
+          item.value.toLocaleString(),
+          totalActions > 0 ? Math.round((item.value / totalActions) * 100) + '%' : '0%'
+        ]);
+      });
+      addBlankRow();
+      addBlankRow();
+
+      // Device Breakdown
+      addSectionHeader('DEVICE DISTRIBUTION');
+      addRow(['Device', 'Percentage']);
+      engagementData.deviceBreakdown.forEach(device => {
+        addRow([device.name, device.value + '%']);
+      });
+      addBlankRow();
+      addBlankRow();
+
+      // Top Features
+      addSectionHeader('TOP FEATURES');
+      addRow(['Feature', 'Usage Count', 'Trend']);
+      engagementData.topFeatures.forEach(feature => {
+        addRow([feature.name, feature.count.toLocaleString(), (feature.trend > 0 ? '+' : '') + feature.trend + '%']);
+      });
+      addBlankRow();
+      addBlankRow();
+
+      // Peak Hours
+      addSectionHeader('PEAK ACTIVITY HOURS');
+      addRow(['Hour', 'Activity Level']);
+      engagementData.peakHours.forEach(hour => {
+        addRow([hour.hour, hour.activity]);
+      });
+      addBlankRow();
+      addBlankRow();
+
+      // Daily Active Users
+      addSectionHeader('DAILY ACTIVE USERS');
+      addRow(['Day', 'Active Users']);
+      engagementData.byDay.forEach(day => {
+        addRow([day.day + (day.date ? ' (' + day.date + ')' : ''), day.active.toLocaleString()]);
+      });
+      addBlankRow();
+
+      // Footer
+      addRow(['========================================']);
+      addRow(['END OF REPORT']);
+      addRow(['Generated by Analytics System']);
+      addRow([new Date().toLocaleString()]);
+
+      // Create download link
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `engagement_analytics_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error("Error exporting to CSV:", error);
+      alert("Failed to export data. Please try again.");
+    }
+  };
+
+  // ==================== COMPONENTS ====================
+
+  const StatCard = ({ title, value, icon: Icon, trend, color = "blue", isLoading = false, suffix = "", subtext }) => {
+    const getColorClass = (colorName) => {
+      const colorMap = {
+        blue: "text-blue-500",
+        green: "text-green-500",
+        purple: "text-purple-500",
+        yellow: "text-yellow-500",
+        orange: "text-orange-500",
+        red: "text-red-500",
+        indigo: "text-indigo-500"
+      };
+      return colorMap[colorName] || "text-blue-500";
+    };
+
+    const getBgColorClass = (colorName) => {
+      const colorMap = {
+        blue: "bg-blue-100",
+        green: "bg-green-100",
+        purple: "bg-purple-100",
+        yellow: "bg-yellow-100",
+        orange: "bg-orange-100",
+        red: "bg-red-100",
+        indigo: "bg-indigo-100"
+      };
+      return colorMap[colorName] || "bg-blue-100";
+    };
+
+    if (isLoading) {
+      return <StatCardSkeleton />;
+    }
+
     return (
-      <div className="min-h-screen bg-[#0a0a0a] pl-[250px]">
-        <div className="p-8 flex flex-col items-center justify-center h-screen">
-          <RefreshCw size={40} className="animate-spin text-red-500 mb-4" />
-          <p className="text-gray-400">Loading engagement metrics...</p>
+      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600 font-medium">{title}</p>
+            <p className="text-2xl font-bold text-gray-800">
+              {typeof value === 'number' ? value.toLocaleString() : value}{suffix}
+            </p>
+            {trend && trend.percentage > 0 && (
+              <div className="flex items-center gap-1 mt-1">
+                {trend.direction === 'up' ? (
+                  <ArrowUp size={16} className="text-green-500" />
+                ) : trend.direction === 'down' ? (
+                  <ArrowDown size={16} className="text-red-500" />
+                ) : null}
+                <span className={trend.direction === 'up' ? "text-green-500 text-sm" : "text-red-500 text-sm"}>
+                  {trend.percentage}%
+                </span>
+                <span className="text-gray-500 text-xs ml-1">vs previous</span>
+              </div>
+            )}
+            {subtext && (
+              <p className="text-xs text-gray-500 mt-2">{subtext}</p>
+            )}
+          </div>
+          <div className={`p-2 ${getBgColorClass(color)} rounded-lg`}>
+            <Icon className={getColorClass(color)} size={20} />
+          </div>
         </div>
       </div>
+    );
+  };
+
+  const ProgressBar = ({ label, value, max, color = "blue", showValue = true, isLoading = false }) => {
+    const percentage = max > 0 ? Math.min(Math.round((value / max) * 100), 100) : 0;
+    
+    const getBgColorClass = (colorName) => {
+      const colorMap = {
+        blue: "bg-blue-500",
+        green: "bg-green-500",
+        purple: "bg-purple-500",
+        yellow: "bg-yellow-500",
+        orange: "bg-orange-500",
+        red: "bg-red-500",
+        indigo: "bg-indigo-500"
+      };
+      return colorMap[colorName] || "bg-blue-500";
+    };
+
+    if (isLoading) {
+      return <ProgressBarSkeleton />;
+    }
+
+    return (
+      <div>
+        <div className="flex justify-between text-sm mb-1">
+          <span className="text-gray-600">{label}</span>
+          {showValue && <span className="text-gray-800 font-medium">{value.toLocaleString()}</span>}
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2">
+          <div 
+            className={`${getBgColorClass(color)} rounded-full h-2 transition-all duration-300`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  // ==================== RENDER ====================
+
+  if (loading && !engagementData.total) {
+    return (
+      <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
+        {/* Header Skeleton - exact same as AnalyticsReservations */}
+        <header className="bg-white px-6 py-4 border-b border-gray-200">
+          <div className="flex justify-between items-center">
+            <div>
+              <div className="h-8 bg-gray-200 rounded w-64 mb-2 animate-pulse"></div>
+              <div className="h-4 bg-gray-200 rounded w-96 animate-pulse"></div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="flex bg-gray-100 rounded-lg p-1">
+                <div className="h-10 bg-gray-200 rounded w-16 mx-1 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded w-16 mx-1 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded w-16 mx-1 animate-pulse"></div>
+                <div className="h-10 bg-gray-200 rounded w-20 mx-1 animate-pulse"></div>
+              </div>
+              <div className="h-10 bg-gray-200 rounded w-20 animate-pulse"></div>
+              <div className="h-10 bg-gray-200 rounded w-10 animate-pulse"></div>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content Skeleton */}
+        <div className="p-6">
+          {/* Key Metrics Skeleton */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-4">
+            <SectionHeaderSkeleton />
+            <div className="flex flex-wrap gap-4">
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+              <StatCardSkeleton />
+            </div>
+          </div>
+
+          {/* Main Analytics Grid Skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <SectionHeaderSkeleton />
+                <div className="space-y-4">
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Peak Hours Skeleton */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+            <SectionHeaderSkeleton />
+            <div className="space-y-2">
+              {Array(8).fill(0).map((_, i) => (
+                <div key={i} className="flex items-center gap-2 animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-12"></div>
+                  <div className="flex-1">
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div className="bg-gray-300 rounded-full h-2 w-3/4"></div>
+                    </div>
+                  </div>
+                  <div className="h-4 bg-gray-200 rounded w-12"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Features Skeleton */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+            <SectionHeaderSkeleton />
+            <div className="space-y-3">
+              {Array(5).fill(0).map((_, i) => (
+                <div key={i} className="flex items-center justify-between animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-32"></div>
+                  <div className="h-4 bg-gray-200 rounded w-24"></div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Overview Metrics Skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+            {Array(4).fill(0).map((_, i) => (
+              <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="text-center">
+                  <div className="h-6 w-6 bg-gray-200 rounded-full mx-auto mb-3 animate-pulse"></div>
+                  <div className="h-8 bg-gray-200 rounded w-24 mx-auto mb-2 animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded w-16 mx-auto animate-pulse"></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </main>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] pl-[250px]">
-      <div className="p-8">
-        {/* Header */}
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+    <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
+      {/* Header - exact same as AnalyticsReservations */}
+      <header className="bg-white px-6 py-4 border-b border-gray-200">
+        <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold text-white mb-2">Engagement Metrics</h1>
-            <p className="text-gray-400">Track user activity, retention, and platform engagement</p>
+            <h1 className="text-2xl font-bold text-[#CC0000]">
+              Engagement Metrics
+            </h1>
+            <p className="text-gray-600">
+              {dateRange === 'week' ? 'Last 7 days' : 
+               dateRange === 'month' ? 'Last 30 days' : 
+               dateRange === 'year' ? 'Last 12 months' : 
+               dateRange === 'custom' && customStartDate && customEndDate ? `${formatDate(customStartDate)} to ${formatDate(customEndDate)}` : 
+               'Track user activity, retention, and platform engagement'}
+            </p>
           </div>
-          
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center space-x-4">
             {/* Date Range Selector */}
-            <div className="flex bg-[#1a1a1a] rounded-lg p-1 border border-gray-800">
+            <div className="flex bg-gray-100 rounded-lg p-1 relative">
               {["week", "month", "year"].map((range) => (
                 <button
                   key={range}
                   onClick={() => {
                     setDateRange(range);
-                    setShowCustomPicker(false);
+                    setShowCustomDate(false);
                   }}
                   className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer ${
-                    dateRange === range && !showCustomPicker
-                      ? "bg-red-600 text-white"
-                      : "text-gray-400 hover:text-white hover:bg-gray-800"
+                    dateRange === range && !showCustomDate
+                      ? "bg-[#CC0000] text-white"
+                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
                   }`}
                 >
-                  {range.charAt(0).toUpperCase() + range.slice(1)}
+                  {range === 'week' ? 'Week' : 
+                   range === 'month' ? 'Month' : 
+                   'Year'}
                 </button>
               ))}
+              
+              {/* Custom Date Button */}
               <button
-                onClick={() => setShowCustomPicker(!showCustomPicker)}
-                className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer ${
-                  showCustomPicker || dateRange === 'custom'
-                    ? "bg-red-600 text-white"
-                    : "text-gray-400 hover:text-white hover:bg-gray-800"
+                onClick={() => setShowCustomDate(!showCustomDate)}
+                className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                  showCustomDate || dateRange === 'custom'
+                    ? "bg-[#CC0000] text-white"
+                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
                 }`}
               >
-                Custom
+                <CalendarIcon size={14} />
+                <span>Custom</span>
               </button>
-            </div>
 
-            {/* Custom Date Picker */}
-            {showCustomPicker && (
-              <div className="flex items-center gap-2 bg-[#1a1a1a] p-2 rounded-lg border border-gray-800">
-                <input
-                  type="date"
-                  value={customDateRange.start}
-                  onChange={(e) => setCustomDateRange(prev => ({ ...prev, start: e.target.value }))}
-                  className="bg-[#222] text-white text-sm rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:border-red-500"
-                />
-                <span className="text-gray-500">to</span>
-                <input
-                  type="date"
-                  value={customDateRange.end}
-                  onChange={(e) => setCustomDateRange(prev => ({ ...prev, end: e.target.value }))}
-                  className="bg-[#222] text-white text-sm rounded-lg px-3 py-2 border border-gray-700 focus:outline-none focus:border-red-500"
-                />
-                <button
-                  onClick={handleCustomRangeApply}
-                  disabled={!customDateRange.start || !customDateRange.end}
-                  className="px-4 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              {/* Custom Date Range Picker */}
+              {showCustomDate && (
+                <div 
+                  ref={calendarRef}
+                  className="absolute top-12 right-0 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-50 w-72"
                 >
-                  Apply
-                </button>
-              </div>
-            )}
-
-            <button 
-              onClick={exportData}
-              className="p-2 bg-[#1a1a1a] border border-gray-800 rounded-lg text-gray-400 hover:text-white transition-all"
-              title="Export data"
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-semibold text-gray-700">Select Date Range</h3>
+                    <button
+                      onClick={() => setShowCustomDate(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                        max={customEndDate || undefined}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">End Date</label>
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                        min={customStartDate || undefined}
+                      />
+                    </div>
+                    <div className="flex gap-2 mt-2">
+                      <button
+                        onClick={handleCustomDateApply}
+                        className="flex-1 bg-[#CC0000] text-white text-sm py-2 rounded-lg hover:bg-[#990000] transition-colors"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        onClick={handleCustomDateClear}
+                        className="flex-1 bg-gray-200 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Export to CSV Button */}
+            <button
+              onClick={exportToCSV}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+              title="Export to CSV"
             >
               <Download size={18} />
+              <span>CSV</span>
             </button>
-            
+
+            {/* Refresh Button */}
             <button 
               onClick={fetchEngagementAnalytics}
-              className="p-2 bg-[#1a1a1a] border border-gray-800 rounded-lg text-gray-400 hover:text-white transition-all"
-              title="Refresh data"
+              className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
+              title="Refresh Data"
             >
               <RefreshCw size={18} />
             </button>
           </div>
         </div>
+      </header>
 
-        {/* Key Metrics Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard 
-            title="Daily Active Users" 
-            value={engagementData.dailyActive} 
-            icon={Activity} 
-            change={engagementData.trends.daily}
-            color="blue" 
-            subtext="Users active in last 24h"
-          />
-          <StatCard 
-            title="Weekly Active Users" 
-            value={engagementData.weeklyActive} 
-            icon={Users} 
-            change={engagementData.trends.weekly}
-            color="green" 
-            subtext="Users active in last 7 days"
-          />
-          <StatCard 
-            title="Monthly Active Users" 
-            value={engagementData.monthlyActive} 
-            icon={Calendar} 
-            change={engagementData.trends.monthly}
-            color="purple" 
-            subtext="Users active in last 30 days"
-          />
-          <StatCard 
-            title="Avg. Session Duration" 
-            value={engagementData.averageSession} 
-            icon={Clock} 
-            change={{ direction: 'up', percentage: 5.2 }}
-            color="orange" 
-            suffix="m"
-            subtext="Time spent per session"
-          />
+      {/* Main Content */}
+      <div className="p-6">
+        {/* Key Metrics Cards */}
+        <div className="flex flex-col gap-4 mb-6 w-full">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Key Metrics</h2>
+            <div className="flex flex-wrap gap-4">
+              <StatCard 
+                title="Daily Active Users" 
+                value={engagementData.dailyActive} 
+                icon={Activity} 
+                trend={engagementData.trends?.daily}
+                color="blue" 
+                subtext="Users active in last 24h"
+                isLoading={loading}
+              />
+              <StatCard 
+                title="Weekly Active Users" 
+                value={engagementData.weeklyActive} 
+                icon={Users} 
+                trend={engagementData.trends?.weekly}
+                color="green" 
+                subtext="Users active in last 7 days"
+                isLoading={loading}
+              />
+              <StatCard 
+                title="Monthly Active Users" 
+                value={engagementData.monthlyActive} 
+                icon={Calendar} 
+                trend={engagementData.trends?.monthly}
+                color="purple" 
+                subtext="Users active in last 30 days"
+                isLoading={loading}
+              />
+              <StatCard 
+                title="Avg. Session Duration" 
+                value={engagementData.averageSession} 
+                icon={Clock} 
+                trend={{ direction: 'up', percentage: 5.2 }}
+                color="orange" 
+                suffix="m"
+                subtext="Time spent per session"
+                isLoading={loading}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Main Analytics Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* User Retention Card */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <UserCheck size={20} className="text-green-500" />
               User Retention
             </h2>
             
-            <div className="text-center mb-6">
-              <div className="text-5xl font-bold text-green-500 mb-2">
-                {engagementData.retention}%
+            {loading ? (
+              <div className="space-y-4">
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
               </div>
-              <p className="text-gray-400 text-sm">of users return within 30 days</p>
-            </div>
+            ) : (
+              <>
+                <div className="text-center mb-6">
+                  <div className="text-5xl font-bold text-green-600 mb-2">
+                    {engagementData.retention}%
+                  </div>
+                  <p className="text-gray-600 text-sm">of users return within 30 days</p>
+                </div>
 
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-[#222] rounded-lg">
-                <span className="text-gray-300">Returning Users</span>
-                <span className="text-green-500 font-semibold">
-                  {engagementData.engagementMetrics.returningUsers}%
-                </span>
-              </div>
-              
-              <div className="flex justify-between items-center p-3 bg-[#222] rounded-lg">
-                <span className="text-gray-300">Bounce Rate</span>
-                <span className="text-red-500 font-semibold">
-                  {engagementData.bounceRate}%
-                </span>
-              </div>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-600">Returning Users</span>
+                    <span className="text-green-600 font-semibold">
+                      {engagementData.engagementMetrics.returningUsers}%
+                    </span>
+                  </div>
+                  
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-600">Bounce Rate</span>
+                    <span className="text-red-600 font-semibold">
+                      {engagementData.bounceRate}%
+                    </span>
+                  </div>
 
-              <div className="flex justify-between items-center p-3 bg-[#222] rounded-lg">
-                <span className="text-gray-300">Total Sessions</span>
-                <span className="text-blue-500 font-semibold">
-                  {engagementData.engagementMetrics.totalSessions.toLocaleString()}
-                </span>
-              </div>
-            </div>
+                  <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                    <span className="text-gray-600">Total Sessions</span>
+                    <span className="text-blue-600 font-semibold">
+                      {engagementData.engagementMetrics.totalSessions.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Daily Active Users Chart */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800 lg:col-span-2">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
                 <BarChart size={20} className="text-blue-500" />
                 Daily Active Users
               </h2>
               <div className="flex items-center gap-2 text-sm">
                 <span className="flex items-center gap-1">
                   <span className="w-3 h-3 bg-blue-500 rounded-full"></span>
-                  <span className="text-gray-400">Active Users</span>
+                  <span className="text-gray-600">Active Users</span>
                 </span>
               </div>
             </div>
 
-            <div className="space-y-3">
-              {engagementData.byDay.map((day, index) => {
-                const maxValue = Math.max(...engagementData.byDay.map(d => d.active));
-                return (
-                  <div key={index} className="group">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-300 group-hover:text-white transition-colors">
-                        {day.day}
-                        {day.date && <span className="text-gray-500 text-xs ml-2">{day.date}</span>}
-                      </span>
-                      <span className="text-white font-medium group-hover:text-blue-500 transition-colors">
-                        {day.active.toLocaleString()} users
-                      </span>
+            {loading ? (
+              <div className="space-y-3">
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {engagementData.byDay.map((day, index) => {
+                  const maxValue = Math.max(...engagementData.byDay.map(d => d.active));
+                  return (
+                    <div key={index} className="group">
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600 group-hover:text-gray-800 transition-colors">
+                          {day.day}
+                          {day.date && <span className="text-gray-400 text-xs ml-2">{day.date}</span>}
+                        </span>
+                        <span className="text-gray-800 font-medium group-hover:text-blue-600 transition-colors">
+                          {day.active.toLocaleString()} users
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
+                        <div 
+                          className="bg-blue-500 rounded-full h-2.5 transition-all duration-500 group-hover:bg-blue-600" 
+                          style={{ width: `${(day.active / maxValue) * 100}%` }}
+                        ></div>
+                      </div>
                     </div>
-                    <div className="w-full bg-gray-700 rounded-full h-2.5 overflow-hidden">
-                      <div 
-                        className="bg-blue-500 rounded-full h-2.5 transition-all duration-500 group-hover:bg-blue-400" 
-                        style={{ width: `${(day.active / maxValue) * 100}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Trend Indicator */}
-            <div className="mt-4 pt-4 border-t border-gray-800">
+            <div className="mt-4 pt-4 border-t border-gray-200">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-400">Weekly Trend</span>
+                <span className="text-gray-600">Weekly Trend</span>
                 <div className="flex items-center gap-2">
                   <TrendingUp size={16} className="text-green-500" />
-                  <span className="text-green-500">+12.3% vs last week</span>
+                  <span className="text-green-600">+12.3% vs last week</span>
                 </div>
               </div>
             </div>
@@ -489,44 +988,53 @@ function AnalyticsEngagement({ setView, admin }) {
 
         {/* User Activity Levels */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Layers size={20} className="text-purple-500" />
               Activity Levels
             </h2>
             
-            <div className="space-y-4">
-              <ProgressBar 
-                label="High Activity (10+ actions/day)"
-                value={engagementData.userActivity.high}
-                max={2000}
-                color="green"
-              />
-              <ProgressBar 
-                label="Medium Activity (5-9 actions/day)"
-                value={engagementData.userActivity.medium}
-                max={2000}
-                color="yellow"
-              />
-              <ProgressBar 
-                label="Low Activity (1-4 actions/day)"
-                value={engagementData.userActivity.low}
-                max={2000}
-                color="orange"
-              />
-              <ProgressBar 
-                label="Inactive (0 actions/day)"
-                value={engagementData.userActivity.inactive}
-                max={2000}
-                color="red"
-              />
-            </div>
+            {loading ? (
+              <div className="space-y-4">
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <ProgressBar 
+                  label="High Activity (10+ actions/day)"
+                  value={engagementData.userActivity.high}
+                  max={2000}
+                  color="green"
+                />
+                <ProgressBar 
+                  label="Medium Activity (5-9 actions/day)"
+                  value={engagementData.userActivity.medium}
+                  max={2000}
+                  color="yellow"
+                />
+                <ProgressBar 
+                  label="Low Activity (1-4 actions/day)"
+                  value={engagementData.userActivity.low}
+                  max={2000}
+                  color="orange"
+                />
+                <ProgressBar 
+                  label="Inactive (0 actions/day)"
+                  value={engagementData.userActivity.inactive}
+                  max={2000}
+                  color="red"
+                />
+              </div>
+            )}
 
             {/* Summary */}
-            <div className="mt-4 pt-4 border-t border-gray-800">
+            <div className="mt-4 pt-4 border-t border-gray-200">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Engagement Rate</span>
-                <span className="text-green-500 font-semibold">
+                <span className="text-gray-600">Engagement Rate</span>
+                <span className="text-green-600 font-semibold">
                   {Math.round((engagementData.userActivity.high + engagementData.userActivity.medium) / 
                     (engagementData.userActivity.high + engagementData.userActivity.medium + 
                      engagementData.userActivity.low + engagementData.userActivity.inactive) * 100)}%
@@ -536,28 +1044,52 @@ function AnalyticsEngagement({ setView, admin }) {
           </div>
 
           {/* Activity Breakdown */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <PieChart size={20} className="text-yellow-500" />
               Activity Breakdown
             </h2>
             
-            <div className="space-y-3">
-              {engagementData.activityBreakdown.map((item, index) => (
-                <div key={index} className="flex items-center justify-between p-2 hover:bg-[#222] rounded-lg transition-colors">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2 h-2 rounded-full bg-${item.color}-500`}></div>
-                    <span className="text-gray-300">{item.name}</span>
-                  </div>
-                  <span className="text-white font-medium">{item.value.toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
+            {loading ? (
+              <div className="space-y-4">
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {engagementData.activityBreakdown.map((item, index) => {
+                  const getBgColorClass = (color) => {
+                    const colorMap = {
+                      blue: "bg-blue-500",
+                      green: "bg-green-500",
+                      purple: "bg-purple-500",
+                      yellow: "bg-yellow-500",
+                      orange: "bg-orange-500",
+                      red: "bg-red-500"
+                    };
+                    return colorMap[color] || "bg-gray-500";
+                  };
+                  
+                  return (
+                    <div key={index} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${getBgColorClass(item.color)}`}></div>
+                        <span className="text-gray-600">{item.name}</span>
+                      </div>
+                      <span className="text-gray-800 font-medium">{item.value.toLocaleString()}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
-            <div className="mt-4 pt-4 border-t border-gray-800">
+            <div className="mt-4 pt-4 border-t border-gray-200">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Avg Actions/User</span>
-                <span className="text-blue-500 font-semibold">
+                <span className="text-gray-600">Avg Actions/User</span>
+                <span className="text-blue-600 font-semibold">
                   {engagementData.engagementMetrics.avgActionsPerUser}
                 </span>
               </div>
@@ -565,31 +1097,50 @@ function AnalyticsEngagement({ setView, admin }) {
           </div>
 
           {/* Device Breakdown */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Award size={20} className="text-indigo-500" />
               Device Distribution
             </h2>
             
-            <div className="space-y-4">
-              {engagementData.deviceBreakdown.map((device, index) => (
-                <div key={index}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-gray-300">{device.name}</span>
-                    <span className="text-white font-medium">{device.value}%</span>
-                  </div>
-                  <div className="w-full bg-gray-700 rounded-full h-2">
-                    <div 
-                      className={`bg-${device.color}-500 rounded-full h-2`} 
-                      style={{ width: `${device.value}%` }}
-                    ></div>
-                  </div>
-                </div>
-              ))}
-            </div>
+            {loading ? (
+              <div className="space-y-4">
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {engagementData.deviceBreakdown.map((device, index) => {
+                  const getBgColorClass = (color) => {
+                    const colorMap = {
+                      blue: "bg-blue-500",
+                      green: "bg-green-500",
+                      purple: "bg-purple-500"
+                    };
+                    return colorMap[color] || "bg-gray-500";
+                  };
+                  
+                  return (
+                    <div key={index}>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600">{device.name}</span>
+                        <span className="text-gray-800 font-medium">{device.value}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className={`${getBgColorClass(device.color)} rounded-full h-2`} 
+                          style={{ width: `${device.value}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
-            <div className="mt-4 pt-4 border-t border-gray-800">
-              <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-2 text-sm text-gray-600">
                 <AlertCircle size={14} />
                 <span>Mobile usage up 8% this month</span>
               </div>
@@ -600,34 +1151,46 @@ function AnalyticsEngagement({ setView, admin }) {
         {/* Peak Hours and Top Features */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Peak Hours */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Clock size={20} className="text-orange-500" />
               Peak Activity Hours
             </h2>
 
-            <div className="space-y-2">
-              {engagementData.peakHours.map((hour, index) => {
-                const maxActivity = Math.max(...engagementData.peakHours.map(h => h.activity));
-                return (
-                  <div key={index} className="flex items-center gap-2">
-                    <span className="text-gray-400 text-sm w-12">{hour.hour}</span>
-                    <div className="flex-1">
-                      <div className="w-full bg-gray-700 rounded-full h-2">
-                        <div 
-                          className="bg-orange-500 rounded-full h-2" 
-                          style={{ width: `${(hour.activity / maxActivity) * 100}%` }}
-                        ></div>
+            {loading ? (
+              <div className="space-y-2">
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {engagementData.peakHours.map((hour, index) => {
+                  const maxActivity = Math.max(...engagementData.peakHours.map(h => h.activity));
+                  return (
+                    <div key={index} className="flex items-center gap-2">
+                      <span className="text-gray-600 text-sm w-12">{hour.hour}</span>
+                      <div className="flex-1">
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className="bg-orange-500 rounded-full h-2" 
+                            style={{ width: `${(hour.activity / maxActivity) * 100}%` }}
+                          ></div>
+                        </div>
                       </div>
+                      <span className="text-gray-800 text-sm w-12 text-right">{hour.activity}</span>
                     </div>
-                    <span className="text-white text-sm w-12 text-right">{hour.activity}</span>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
 
-            <div className="mt-4 p-3 bg-[#222] rounded-lg">
-              <p className="text-sm text-yellow-500 flex items-center gap-2">
+            <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+              <p className="text-sm text-yellow-600 flex items-center gap-2">
                 <Zap size={16} />
                 Peak engagement: 10AM - 2PM
               </p>
@@ -635,36 +1198,46 @@ function AnalyticsEngagement({ setView, admin }) {
           </div>
 
           {/* Top Features */}
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
-            <h2 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
               <Target size={20} className="text-green-500" />
               Most Used Features
             </h2>
 
-            <div className="space-y-3">
-              {engagementData.topFeatures.map((feature, index) => (
-                <div key={index} className="flex items-center justify-between p-2 hover:bg-[#222] rounded-lg transition-colors">
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-400">{index + 1}.</span>
-                    <span className="text-white">{feature.name}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-gray-300">{feature.count.toLocaleString()}</span>
-                    <div className={`flex items-center gap-1 text-sm ${
-                      feature.trend > 0 ? 'text-green-500' : 'text-red-500'
-                    }`}>
-                      {feature.trend > 0 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
-                      <span>{Math.abs(feature.trend)}%</span>
+            {loading ? (
+              <div className="space-y-4">
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+                <ProgressBarSkeleton />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {engagementData.topFeatures.map((feature, index) => (
+                  <div key={index} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">{index + 1}.</span>
+                      <span className="text-gray-800">{feature.name}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-gray-600">{feature.count.toLocaleString()}</span>
+                      <div className={`flex items-center gap-1 text-sm ${
+                        feature.trend > 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {feature.trend > 0 ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                        <span>{Math.abs(feature.trend)}%</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
-            <div className="mt-4 pt-4 border-t border-gray-800">
+            <div className="mt-4 pt-4 border-t border-gray-200">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-400">Total Feature Usage</span>
-                <span className="text-white font-semibold">
+                <span className="text-gray-600">Total Feature Usage</span>
+                <span className="text-gray-800 font-semibold">
                   {engagementData.topFeatures.reduce((sum, f) => sum + f.count, 0).toLocaleString()}
                 </span>
               </div>
@@ -674,28 +1247,36 @@ function AnalyticsEngagement({ setView, admin }) {
 
         {/* Engagement Overview Metrics */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800 text-center">
-            <Eye size={24} className="text-blue-500 mx-auto mb-3" />
-            <p className="text-2xl font-bold text-white">{engagementData.engagementMetrics.pageViews.toLocaleString()}</p>
-            <p className="text-sm text-gray-400">Page Views</p>
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
+            <div className="flex justify-center mb-3">
+              <Eye size={24} className="text-blue-500" />
+            </div>
+            <p className="text-2xl font-bold text-gray-800">{engagementData.engagementMetrics.pageViews.toLocaleString()}</p>
+            <p className="text-sm text-gray-600">Page Views</p>
           </div>
 
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800 text-center">
-            <MousePointer size={24} className="text-green-500 mx-auto mb-3" />
-            <p className="text-2xl font-bold text-white">{engagementData.engagementMetrics.actions.toLocaleString()}</p>
-            <p className="text-sm text-gray-400">Total Actions</p>
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
+            <div className="flex justify-center mb-3">
+              <MousePointer size={24} className="text-green-500" />
+            </div>
+            <p className="text-2xl font-bold text-gray-800">{engagementData.engagementMetrics.actions.toLocaleString()}</p>
+            <p className="text-sm text-gray-600">Total Actions</p>
           </div>
 
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800 text-center">
-            <Users size={24} className="text-purple-500 mx-auto mb-3" />
-            <p className="text-2xl font-bold text-white">{engagementData.engagementMetrics.avgActionsPerUser}</p>
-            <p className="text-sm text-gray-400">Avg Actions/User</p>
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
+            <div className="flex justify-center mb-3">
+              <Users size={24} className="text-purple-500" />
+            </div>
+            <p className="text-2xl font-bold text-gray-800">{engagementData.engagementMetrics.avgActionsPerUser}</p>
+            <p className="text-sm text-gray-600">Avg Actions/User</p>
           </div>
 
-          <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800 text-center">
-            <UserCheck size={24} className="text-orange-500 mx-auto mb-3" />
-            <p className="text-2xl font-bold text-white">{engagementData.engagementMetrics.returningUsers}%</p>
-            <p className="text-sm text-gray-400">Returning Users</p>
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
+            <div className="flex justify-center mb-3">
+              <UserCheck size={24} className="text-orange-500" />
+            </div>
+            <p className="text-2xl font-bold text-gray-800">{engagementData.engagementMetrics.returningUsers}%</p>
+            <p className="text-sm text-gray-600">Returning Users</p>
           </div>
         </div>
 
@@ -751,7 +1332,7 @@ function AnalyticsEngagement({ setView, admin }) {
           </div>
         </div>
       </div>
-    </div>
+    </main>
   );
 }
 
