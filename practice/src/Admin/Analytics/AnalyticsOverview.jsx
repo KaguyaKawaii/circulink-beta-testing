@@ -37,8 +37,6 @@ import {
 } from "lucide-react";
 import api from "../../utils/api";
 import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
 
 function AnalyticsOverview({ setView, admin }) {
   const [loading, setLoading] = useState(true);
@@ -47,7 +45,6 @@ function AnalyticsOverview({ setView, admin }) {
   const [customEndDate, setCustomEndDate] = useState("");
   const [showCustomDate, setShowCustomDate] = useState(false);
   const [showDownloadModal, setShowDownloadModal] = useState(false);
-  const [downloadFormat, setDownloadFormat] = useState("excel");
   const [selectedSections, setSelectedSections] = useState({
     overview: true,
     users: true,
@@ -514,53 +511,105 @@ function AnalyticsOverview({ setView, admin }) {
     setDateRange("month");
   };
 
-  // ==================== DOWNLOAD FUNCTIONS ====================
+  // ==================== EXCEL DOWNLOAD FUNCTION ====================
 
   const generateExcel = () => {
     try {
       const wb = XLSX.utils.book_new();
       
-      // Helper function to add worksheet
+      // Helper function to add worksheet with formatting
       const addSheet = (data, sheetName) => {
         const ws = XLSX.utils.aoa_to_sheet(data);
+        
+        // Set column widths for better readability
+        const colWidths = [];
+        if (data.length > 0) {
+          const firstRow = data[0];
+          firstRow.forEach((_, index) => {
+            // Find the maximum length in this column
+            let maxLength = 15; // Default minimum width
+            data.forEach(row => {
+              if (row[index] && row[index].toString().length > maxLength) {
+                maxLength = Math.min(row[index].toString().length, 50); // Cap at 50
+              }
+            });
+            colWidths.push({ wch: maxLength + 2 });
+          });
+        }
+        ws['!cols'] = colWidths;
+        
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
       };
 
-      // Overview Sheet
+      const getRangeDescription = () => {
+        if (dateRange === "week") return "Last 7 Days";
+        if (dateRange === "month") return "Last 30 Days";
+        if (dateRange === "year") return "Last 12 Months";
+        if (dateRange === "custom") return `${formatDate(customStartDate)} to ${formatDate(customEndDate)}`;
+        return "";
+      };
+
+      // ==================== OVERVIEW SHEET ====================
       if (selectedSections.overview) {
         const overviewData = [
-          ['OVERVIEW ANALYTICS', `Generated: ${new Date().toLocaleString()}`],
+          ['ANALYTICS OVERVIEW REPORT'],
+          ['==============================================='],
+          [],
+          ['Report Information'],
+          ['Generated:', new Date().toLocaleString()],
           ['Date Range:', getRangeDescription()],
+          ['Report ID:', `OVR-${Date.now()}`],
           [],
           ['KEY METRICS'],
-          ['Metric', 'Value'],
-          ['Total Users', analyticsData.totalUsers || 0],
-          ['Total Reservations', analyticsData.totalReservations || 0],
-          ['Total Rooms', analyticsData.totalRooms || 0],
-          ['Active Today', analyticsData.activeToday || 0],
-          ['Pending Reservations', analyticsData.pendingReservations || 0],
-          ['Completed Reservations', analyticsData.completedReservations || 0],
-          ['Room Utilization', `${analyticsData.roomUtilization || 0}%`],
-          ['Avg Session Duration', `${analyticsData.avgSessionDuration || 0}m`]
+          ['==============================================='],
+          ['Metric', 'Value', 'Description'],
+          ['Total Users', analyticsData.totalUsers || 0, 'All registered users (non-archived)'],
+          ['Total Reservations', analyticsData.totalReservations || 0, 'All reservations in selected period'],
+          ['Total Rooms', analyticsData.totalRooms || 0, 'Total available rooms'],
+          ['Active Today', analyticsData.activeToday || 0, 'Users active in last 24 hours'],
+          ['Pending Reservations', analyticsData.pendingReservations || 0, 'Reservations awaiting approval'],
+          ['Completed Reservations', analyticsData.completedReservations || 0, 'Successfully completed reservations'],
+          ['Room Utilization', `${analyticsData.roomUtilization || 0}%`, 'Overall room usage rate'],
+          ['Avg Session Duration', `${analyticsData.avgSessionDuration || 0} minutes`, 'Average time spent per session'],
+          [],
+          ['PERFORMANCE SUMMARY'],
+          ['==============================================='],
+          ['Completion Rate', analyticsData.totalReservations > 0 
+            ? `${Math.round((analyticsData.completedReservations / analyticsData.totalReservations) * 100)}%` 
+            : '0%', 'Percentage of completed reservations'],
+          ['Pending Rate', analyticsData.totalReservations > 0 
+            ? `${Math.round((analyticsData.pendingReservations / analyticsData.totalReservations) * 100)}%` 
+            : '0%', 'Percentage of pending reservations'],
+          ['User Activity Rate', analyticsData.totalUsers > 0 
+            ? `${Math.round((analyticsData.activeToday / analyticsData.totalUsers) * 100)}%` 
+            : '0%', 'Percentage of users active today']
         ];
         addSheet(overviewData, 'Overview');
       }
 
-      // Users Sheet
+      // ==================== USER ANALYTICS SHEET ====================
       if (selectedSections.users) {
         const users = analyticsData.users || {};
         const usersData = [
-          ['USER ANALYTICS'],
+          ['USER ANALYTICS REPORT'],
+          ['==============================================='],
           [],
-          ['KEY METRICS'],
+          ['1. KEY METRICS'],
+          ['Metric', 'Value', 'Description'],
+          ['Total Users', users.total || 0, 'All registered users (non-archived)'],
+          ['Active Users (7 days)', users.active || 0, 'Users with activity in last 7 days'],
+          ['New Users', users.new || 0, 'Users registered in selected period'],
+          ['Deleted/Archived', users.deleted || 0, 'Users archived or deleted'],
+          ['Retention Rate', `${users.activityStats?.retentionRate || 0}%`, 'Users returning after first visit'],
+          [],
+          ['2. REGISTRATION STATISTICS'],
           ['Metric', 'Value'],
-          ['Total Users', users.total || 0],
-          ['Active Users (7d)', users.active || 0],
-          ['New Users', users.new || 0],
-          ['Deleted/Archived', users.deleted || 0],
-          ['Retention Rate', `${users.activityStats?.retentionRate || 0}%`],
+          ['Today', users.registrationStats?.today || 0],
+          ['This Week', users.registrationStats?.thisWeek || 0],
+          ['This Month', users.registrationStats?.thisMonth || 0],
+          ['Average Per Day', users.registrationStats?.avgPerDay || 0],
           [],
-          ['USERS BY ROLE'],
+          ['3. USERS BY ROLE'],
           ['Role', 'Count', 'Percentage'],
           ['Students', users.byRole?.student || 0, 
            `${Math.round((users.byRole?.student || 0) / (users.total || 1) * 100)}%`],
@@ -569,15 +618,15 @@ function AnalyticsOverview({ setView, admin }) {
           ['Staff', users.byRole?.staff || 0,
            `${Math.round((users.byRole?.staff || 0) / (users.total || 1) * 100)}%`],
           [],
-          ['USERS BY STATUS'],
-          ['Status', 'Count'],
-          ['Active (7d)', users.byStatus?.active || 0],
-          ['Inactive', users.byStatus?.inactive || 0],
-          ['Suspended', users.byStatus?.suspended || 0],
-          ['Verified', users.byStatus?.verified || 0],
-          ['Unverified', users.byStatus?.unverified || 0],
+          ['4. ACCOUNT STATUS'],
+          ['Status', 'Count', 'Description'],
+          ['Active (7 days)', users.byStatus?.active || 0, 'Active in last 7 days'],
+          ['Inactive', users.byStatus?.inactive || 0, 'No activity in last 30 days'],
+          ['Suspended', users.byStatus?.suspended || 0, 'Account suspended'],
+          ['Verified', users.byStatus?.verified || 0, 'Email verified'],
+          ['Unverified', users.byStatus?.unverified || 0, 'Email not verified'],
           [],
-          ['TOP DEPARTMENTS'],
+          ['5. TOP DEPARTMENTS'],
           ['Department', 'User Count', 'Percentage'],
           ...(users.byDepartment || []).map(dept => [
             dept.name,
@@ -585,90 +634,144 @@ function AnalyticsOverview({ setView, admin }) {
             `${Math.round((dept.count / (users.total || 1)) * 100)}%`
           ]),
           [],
-          ['TOP ACTIVE USERS'],
+          ['6. TOP ACTIVE USERS'],
           ['Name', 'Email', 'Role', 'Actions'],
           ...(users.topUsers || []).map(user => [
             user.name,
             user.email,
             user.role,
             user.reservations || 0
+          ]),
+          [],
+          ['7. GROWTH TRENDS'],
+          ['Period', 'New Users'],
+          ...(users.growth?.labels || []).map((label, idx) => [
+            label,
+            users.growth?.values?.[idx] || 0
           ])
         ];
         addSheet(usersData, 'Users');
       }
 
-      // Reservations Sheet
+      // ==================== RESERVATION ANALYTICS SHEET ====================
       if (selectedSections.reservations) {
         const reservations = analyticsData.reservations || {};
         const reservationsData = [
-          ['RESERVATION ANALYTICS'],
+          ['RESERVATION ANALYTICS REPORT'],
+          ['==============================================='],
           [],
-          ['KEY METRICS'],
+          ['1. KEY METRICS'],
+          ['Metric', 'Value', 'Description'],
+          ['Total Reservations', reservations.total || 0, 'All reservations in selected period'],
+          ['Completed', reservations.completed || 0, 'Successfully completed'],
+          ['Pending', reservations.pending || 0, 'Awaiting approval'],
+          ['Approved', reservations.approved || 0, 'Approved but not started'],
+          ['Rejected', reservations.rejected || 0, 'Rejected by admin'],
+          ['Cancelled', reservations.cancelled || 0, 'Cancelled by user'],
+          ['Ongoing', reservations.ongoing || 0, 'Currently in progress'],
+          ['Expired', reservations.expired || 0, 'Expired without action'],
+          [],
+          ['2. PARTICIPANT STATISTICS'],
           ['Metric', 'Value'],
-          ['Total Reservations', reservations.total || 0],
-          ['Completed', reservations.completed || 0],
-          ['Pending', reservations.pending || 0],
-          ['Approved', reservations.approved || 0],
-          ['Rejected', reservations.rejected || 0],
-          ['Cancelled', reservations.cancelled || 0],
-          ['Ongoing', reservations.ongoing || 0],
-          ['Expired', reservations.expired || 0],
-          ['Avg Group Size', reservations.avgGroupSize || 0],
+          ['Average Group Size', reservations.avgGroupSize || 0],
           ['Total Participants', reservations.totalParticipants || 0],
           [],
-          ['RESERVATIONS BY DAY OF WEEK'],
-          ['Day', 'Count', 'Percentage'],
+          ['3. RESERVATIONS BY DAY OF WEEK'],
+          ['Day', 'Count', 'Percentage', 'Peak Status'],
           ['Monday', reservations.byDayOfWeek?.mon || 0,
-           `${Math.round(((reservations.byDayOfWeek?.mon || 0) / (reservations.total || 1)) * 100)}%`],
+           `${Math.round(((reservations.byDayOfWeek?.mon || 0) / (reservations.total || 1)) * 100)}%`,
+           (reservations.byDayOfWeek?.mon || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
           ['Tuesday', reservations.byDayOfWeek?.tue || 0,
-           `${Math.round(((reservations.byDayOfWeek?.tue || 0) / (reservations.total || 1)) * 100)}%`],
+           `${Math.round(((reservations.byDayOfWeek?.tue || 0) / (reservations.total || 1)) * 100)}%`,
+           (reservations.byDayOfWeek?.tue || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
           ['Wednesday', reservations.byDayOfWeek?.wed || 0,
-           `${Math.round(((reservations.byDayOfWeek?.wed || 0) / (reservations.total || 1)) * 100)}%`],
+           `${Math.round(((reservations.byDayOfWeek?.wed || 0) / (reservations.total || 1)) * 100)}%`,
+           (reservations.byDayOfWeek?.wed || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
           ['Thursday', reservations.byDayOfWeek?.thu || 0,
-           `${Math.round(((reservations.byDayOfWeek?.thu || 0) / (reservations.total || 1)) * 100)}%`],
+           `${Math.round(((reservations.byDayOfWeek?.thu || 0) / (reservations.total || 1)) * 100)}%`,
+           (reservations.byDayOfWeek?.thu || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
           ['Friday', reservations.byDayOfWeek?.fri || 0,
-           `${Math.round(((reservations.byDayOfWeek?.fri || 0) / (reservations.total || 1)) * 100)}%`],
+           `${Math.round(((reservations.byDayOfWeek?.fri || 0) / (reservations.total || 1)) * 100)}%`,
+           (reservations.byDayOfWeek?.fri || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
           ['Saturday', reservations.byDayOfWeek?.sat || 0,
-           `${Math.round(((reservations.byDayOfWeek?.sat || 0) / (reservations.total || 1)) * 100)}%`],
+           `${Math.round(((reservations.byDayOfWeek?.sat || 0) / (reservations.total || 1)) * 100)}%`,
+           (reservations.byDayOfWeek?.sat || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
           ['Sunday', reservations.byDayOfWeek?.sun || 0,
-           `${Math.round(((reservations.byDayOfWeek?.sun || 0) / (reservations.total || 1)) * 100)}%`],
+           `${Math.round(((reservations.byDayOfWeek?.sun || 0) / (reservations.total || 1)) * 100)}%`,
+           (reservations.byDayOfWeek?.sun || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
           [],
-          ['POPULAR ROOMS'],
-          ['Room', 'Bookings', 'Approved', 'Completed', 'Utilization'],
-          ...(reservations.popularRooms || []).map(room => [
-            room.name,
-            room.bookings,
-            room.approved || 0,
-            room.completed || 0,
-            `${room.utilization}%`
+          ['4. FLOOR DISTRIBUTION'],
+          ['Floor', 'Reservations', 'Percentage'],
+          ...(reservations.floorDistribution || []).map(floor => [
+            floor.name,
+            floor.value,
+            `${Math.round((floor.value / (reservations.total || 1)) * 100)}%`
           ]),
           [],
-          ['TOP RESERVERS'],
-          ['Name', 'Department', 'Reservations'],
+          ['5. POPULAR ROOMS'],
+          ['Room', 'Bookings', 'Approved', 'Completed', 'Utilization', 'Performance'],
+          ...(reservations.popularRooms || []).map(room => {
+            let performance = 'Average';
+            if (room.utilization > 80) performance = 'Excellent';
+            else if (room.utilization > 60) performance = 'Good';
+            else if (room.utilization < 40) performance = 'Low';
+            return [
+              room.name,
+              room.bookings,
+              room.approved || 0,
+              room.completed || 0,
+              `${room.utilization}%`,
+              performance
+            ];
+          }),
+          [],
+          ['6. DEPARTMENT STATISTICS'],
+          ['Department', 'Reservations', 'Percentage'],
+          ...(reservations.userDepartmentStats || []).map(dept => [
+            dept.name,
+            dept.count,
+            `${Math.round((dept.count / (reservations.total || 1)) * 100)}%`
+          ]),
+          [],
+          ['7. TOP RESERVERS'],
+          ['Name', 'Department', 'Reservations', 'Contribution'],
           ...(reservations.topReservers || []).map(user => [
             user.name,
             user.department || 'N/A',
-            user.count
+            user.count,
+            `${Math.round((user.count / (reservations.total || 1)) * 100)}%`
           ])
         ];
         addSheet(reservationsData, 'Reservations');
       }
 
-      // Rooms Sheet
+      // ==================== ROOM ANALYTICS SHEET ====================
       if (selectedSections.rooms) {
         const rooms = analyticsData.rooms || {};
         const roomsData = [
-          ['ROOM ANALYTICS'],
+          ['ROOM ANALYTICS REPORT'],
+          ['==============================================='],
           [],
-          ['KEY METRICS'],
-          ['Metric', 'Value'],
-          ['Total Rooms', rooms.total || 0],
-          ['Available', rooms.available || 0],
-          ['Occupied', rooms.occupied || 0],
-          ['Maintenance', rooms.maintenance || 0],
-          ['Utilization Rate', `${rooms.utilization || 0}%`],
+          ['1. KEY METRICS'],
+          ['Metric', 'Value', 'Description'],
+          ['Total Rooms', rooms.total || 0, 'All rooms in system'],
+          ['Available', rooms.available || 0, 'Ready for booking'],
+          ['Occupied', rooms.occupied || 0, 'Currently in use'],
+          ['Maintenance', rooms.maintenance || 0, 'Under maintenance'],
+          ['Utilization Rate', `${rooms.utilization || 0}%`, 'Overall room usage'],
           [],
-          ['ROOMS BY FLOOR'],
+          ['2. ROOMS BY TYPE'],
+          ['Type', 'Count', 'Percentage'],
+          ['Lecture Halls', rooms.byType?.lecture || 0,
+           `${Math.round(((rooms.byType?.lecture || 0) / (rooms.total || 1)) * 100)}%`],
+          ['Laboratories', rooms.byType?.laboratory || 0,
+           `${Math.round(((rooms.byType?.laboratory || 0) / (rooms.total || 1)) * 100)}%`],
+          ['Conference Rooms', rooms.byType?.conference || 0,
+           `${Math.round(((rooms.byType?.conference || 0) / (rooms.total || 1)) * 100)}%`],
+          ['Offices', rooms.byType?.office || 0,
+           `${Math.round(((rooms.byType?.office || 0) / (rooms.total || 1)) * 100)}%`],
+          [],
+          ['3. ROOMS BY FLOOR'],
           ['Floor', 'Count', 'Percentage'],
           ...Object.entries(rooms.byFloor || {}).map(([floor, count]) => [
             floor,
@@ -676,8 +779,8 @@ function AnalyticsOverview({ setView, admin }) {
             `${Math.round((count / (rooms.total || 1)) * 100)}%`
           ]),
           [],
-          ['ROOM FEATURES'],
-          ['Feature', 'Rooms with Feature', 'Percentage'],
+          ['4. ROOM FEATURES'],
+          ['Feature', 'Rooms with Feature', 'Coverage'],
           ['WiFi', rooms.featureStats?.wifi || 0,
            `${Math.round(((rooms.featureStats?.wifi || 0) / (rooms.total || 1)) * 100)}%`],
           ['Air Conditioning', rooms.featureStats?.aircon || 0,
@@ -687,29 +790,47 @@ function AnalyticsOverview({ setView, admin }) {
           ['Monitor', rooms.featureStats?.monitor || 0,
            `${Math.round(((rooms.featureStats?.monitor || 0) / (rooms.total || 1)) * 100)}%`],
           [],
-          ['TOP PERFORMING ROOMS'],
-          ['Room', 'Type', 'Floor', 'Capacity', 'Bookings', 'Utilization'],
-          ...(rooms.topRooms || []).map(room => [
-            room.name,
-            room.type,
-            room.floor || 'N/A',
-            room.capacity || 0,
-            room.bookings,
-            `${room.utilization}%`
-          ]),
+          ['5. TOP PERFORMING ROOMS'],
+          ['Room', 'Type', 'Floor', 'Capacity', 'Bookings', 'Utilization', 'Rating'],
+          ...(rooms.topRooms || []).map(room => {
+            let rating = '★';
+            if (room.utilization > 80) rating = '★★★';
+            else if (room.utilization > 60) rating = '★★';
+            else if (room.utilization > 40) rating = '★';
+            else rating = '☆';
+            return [
+              room.name,
+              room.type,
+              room.floor || 'N/A',
+              room.capacity || 0,
+              room.bookings,
+              `${room.utilization}%`,
+              rating
+            ];
+          }),
           [],
-          ['HOURLY UTILIZATION'],
-          ['Hour', 'Utilization %', 'Bookings'],
+          ['6. HOURLY UTILIZATION'],
+          ['Time Slot', 'Utilization', 'Bookings', 'Peak Status'],
           ...(rooms.hourlyUtilization || []).map(hour => [
             hour.hour,
             `${hour.utilization}%`,
-            hour.bookings || 0
+            hour.bookings || 0,
+            hour.utilization > 70 ? '★ Peak' : hour.utilization > 50 ? 'Moderate' : 'Off-Peak'
+          ]),
+          [],
+          ['7. MAINTENANCE HISTORY'],
+          ['Room', 'Date', 'Type', 'Status'],
+          ...(rooms.maintenanceHistory || []).map(item => [
+            item.room,
+            item.date,
+            item.type,
+            item.status
           ])
         ];
         addSheet(roomsData, 'Rooms');
       }
 
-      // Engagement Sheet
+      // ==================== ENGAGEMENT ANALYTICS SHEET ====================
       if (selectedSections.engagement) {
         const engagement = analyticsData.engagement || {};
         const totalActivityUsers = (engagement.userActivity?.high || 0) + 
@@ -718,18 +839,19 @@ function AnalyticsOverview({ setView, admin }) {
                                    (engagement.userActivity?.inactive || 1);
         
         const engagementData = [
-          ['ENGAGEMENT ANALYTICS'],
+          ['ENGAGEMENT ANALYTICS REPORT'],
+          ['==============================================='],
           [],
-          ['KEY METRICS'],
-          ['Metric', 'Value'],
-          ['Daily Active Users', engagement.dailyActive || 0],
-          ['Weekly Active Users', engagement.weeklyActive || 0],
-          ['Monthly Active Users', engagement.monthlyActive || 0],
-          ['Avg Session Duration', `${engagement.averageSession || 0}m`],
-          ['Retention Rate', `${engagement.retention || 0}%`],
-          ['Bounce Rate', `${engagement.bounceRate || 0}%`],
+          ['1. KEY METRICS'],
+          ['Metric', 'Value', 'Description'],
+          ['Daily Active Users', engagement.dailyActive || 0, 'Users active in last 24h'],
+          ['Weekly Active Users', engagement.weeklyActive || 0, 'Users active in last 7 days'],
+          ['Monthly Active Users', engagement.monthlyActive || 0, 'Users active in last 30 days'],
+          ['Avg Session Duration', `${engagement.averageSession || 0} minutes`, 'Time spent per session'],
+          ['Retention Rate', `${engagement.retention || 0}%`, 'Users returning after first visit'],
+          ['Bounce Rate', `${engagement.bounceRate || 0}%`, 'Single-action sessions'],
           [],
-          ['ENGAGEMENT METRICS'],
+          ['2. ENGAGEMENT METRICS'],
           ['Metric', 'Value'],
           ['Page Views', engagement.engagementMetrics?.pageViews || 0],
           ['Total Actions', engagement.engagementMetrics?.actions || 0],
@@ -737,33 +859,53 @@ function AnalyticsOverview({ setView, admin }) {
           ['Returning Users', `${engagement.engagementMetrics?.returningUsers || 0}%`],
           ['Total Sessions', engagement.engagementMetrics?.totalSessions || 0],
           [],
-          ['USER ACTIVITY LEVELS'],
-          ['Level', 'Users', 'Percentage'],
+          ['3. USER ACTIVITY LEVELS'],
+          ['Level', 'Users', 'Percentage', 'Definition'],
           ['High Activity', engagement.userActivity?.high || 0,
-           `${Math.round(((engagement.userActivity?.high || 0) / totalActivityUsers) * 100)}%`],
+           `${Math.round(((engagement.userActivity?.high || 0) / totalActivityUsers) * 100)}%`,
+           '10+ actions per day'],
           ['Medium Activity', engagement.userActivity?.medium || 0,
-           `${Math.round(((engagement.userActivity?.medium || 0) / totalActivityUsers) * 100)}%`],
+           `${Math.round(((engagement.userActivity?.medium || 0) / totalActivityUsers) * 100)}%`,
+           '5-9 actions per day'],
           ['Low Activity', engagement.userActivity?.low || 0,
-           `${Math.round(((engagement.userActivity?.low || 0) / totalActivityUsers) * 100)}%`],
+           `${Math.round(((engagement.userActivity?.low || 0) / totalActivityUsers) * 100)}%`,
+           '1-4 actions per day'],
           ['Inactive', engagement.userActivity?.inactive || 0,
-           `${Math.round(((engagement.userActivity?.inactive || 0) / totalActivityUsers) * 100)}%`],
+           `${Math.round(((engagement.userActivity?.inactive || 0) / totalActivityUsers) * 100)}%`,
+           'No actions in period'],
           [],
-          ['DEVICE BREAKDOWN'],
+          ['4. ACTIVITY BREAKDOWN'],
+          ['Action Type', 'Count', 'Percentage'],
+          ...(engagement.activityBreakdown || []).map(item => [
+            item.name,
+            item.value,
+            `${Math.round((item.value / (engagement.engagementMetrics?.actions || 1)) * 100)}%`
+          ]),
+          [],
+          ['5. DEVICE BREAKDOWN'],
           ['Device', 'Percentage'],
           ...(engagement.deviceBreakdown || []).map(device => [
             device.name,
             `${device.value}%`
           ]),
           [],
-          ['TOP FEATURES'],
-          ['Feature', 'Usage Count', 'Trend'],
+          ['6. PEAK HOURS'],
+          ['Hour', 'Activity Level'],
+          ...(engagement.peakHours || []).map(hour => [
+            hour.hour,
+            hour.activity
+          ]),
+          [],
+          ['7. TOP FEATURES'],
+          ['Feature', 'Usage Count', 'Trend', 'Status'],
           ...(engagement.topFeatures || []).map(feature => [
             feature.name,
             feature.count,
-            `${feature.trend > 0 ? '+' : ''}${feature.trend}%`
+            `${feature.trend > 0 ? '+' : ''}${feature.trend}%`,
+            feature.trend > 0 ? 'Growing' : feature.trend < 0 ? 'Declining' : 'Stable'
           ]),
           [],
-          ['DAILY ACTIVE USERS'],
+          ['8. DAILY ACTIVE USERS'],
           ['Day', 'Active Users'],
           ...(engagement.byDay || []).map(day => [
             day.day,
@@ -773,240 +915,13 @@ function AnalyticsOverview({ setView, admin }) {
         addSheet(engagementData, 'Engagement');
       }
 
-      // Save the file
-      const fileName = `analytics_overview_${dateRange}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      // Save the file with descriptive name
+      const fileName = `Analytics_Report_${getRangeDescription().replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
       
     } catch (error) {
       console.error("Error generating Excel:", error);
       alert("Failed to generate Excel file. Please try again.");
-    }
-  };
-
-  const generatePDF = () => {
-    try {
-      const doc = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      });
-      
-      // Title
-      doc.setFontSize(20);
-      doc.setTextColor(204, 0, 0);
-      doc.text("ANALYTICS OVERVIEW REPORT", 14, 15);
-      
-      doc.setFontSize(10);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 22);
-      doc.text(`Date Range: ${getRangeDescription()}`, 14, 27);
-      
-      let yPosition = 35;
-
-      // Overview Section
-      if (selectedSections.overview) {
-        doc.setFontSize(14);
-        doc.setTextColor(0, 0, 0);
-        doc.text("OVERVIEW METRICS", 14, yPosition);
-        yPosition += 5;
-
-        const overviewData = [
-          ['Metric', 'Value'],
-          ['Total Users', (analyticsData.totalUsers || 0).toString()],
-          ['Total Reservations', (analyticsData.totalReservations || 0).toString()],
-          ['Total Rooms', (analyticsData.totalRooms || 0).toString()],
-          ['Active Today', (analyticsData.activeToday || 0).toString()],
-          ['Pending Reservations', (analyticsData.pendingReservations || 0).toString()],
-          ['Completed Reservations', (analyticsData.completedReservations || 0).toString()],
-          ['Room Utilization', `${analyticsData.roomUtilization || 0}%`],
-          ['Avg Session Duration', `${analyticsData.avgSessionDuration || 0}m`]
-        ];
-
-        doc.autoTable({
-          startY: yPosition,
-          head: [overviewData[0]],
-          body: overviewData.slice(1),
-          theme: 'striped',
-          headStyles: { fillColor: [204, 0, 0], textColor: [255, 255, 255] },
-          margin: { left: 14 },
-          styles: { fontSize: 9, cellPadding: 3 }
-        });
-
-        yPosition = doc.lastAutoTable.finalY + 10;
-      }
-
-      // Users Section
-      if (selectedSections.users && yPosition < 180) {
-        if (yPosition > 160) {
-          doc.addPage();
-          yPosition = 20;
-        }
-
-        const users = analyticsData.users || {};
-        
-        doc.setFontSize(14);
-        doc.setTextColor(0, 0, 0);
-        doc.text("USER ANALYTICS", 14, yPosition);
-        yPosition += 5;
-
-        const usersData = [
-          ['Metric', 'Value'],
-          ['Total Users', (users.total || 0).toString()],
-          ['Active Users (7d)', (users.active || 0).toString()],
-          ['New Users', (users.new || 0).toString()],
-          ['Retention Rate', `${users.activityStats?.retentionRate || 0}%`]
-        ];
-
-        doc.autoTable({
-          startY: yPosition,
-          head: [usersData[0]],
-          body: usersData.slice(1),
-          theme: 'striped',
-          headStyles: { fillColor: [204, 0, 0], textColor: [255, 255, 255] },
-          margin: { left: 14 },
-          styles: { fontSize: 9, cellPadding: 3 }
-        });
-
-        yPosition = doc.lastAutoTable.finalY + 5;
-
-        // Users by Role
-        const roleData = [
-          ['Role', 'Count', 'Percentage'],
-          ['Students', (users.byRole?.student || 0).toString(),
-           `${Math.round((users.byRole?.student || 0) / (users.total || 1) * 100)}%`],
-          ['Faculty', (users.byRole?.faculty || 0).toString(),
-           `${Math.round((users.byRole?.faculty || 0) / (users.total || 1) * 100)}%`],
-          ['Staff', (users.byRole?.staff || 0).toString(),
-           `${Math.round((users.byRole?.staff || 0) / (users.total || 1) * 100)}%`]
-        ];
-
-        doc.autoTable({
-          startY: yPosition,
-          head: [roleData[0]],
-          body: roleData.slice(1),
-          theme: 'striped',
-          headStyles: { fillColor: [204, 0, 0], textColor: [255, 255, 255] },
-          margin: { left: 14 },
-          styles: { fontSize: 9, cellPadding: 3 }
-        });
-
-        yPosition = doc.lastAutoTable.finalY + 10;
-      }
-
-      // Reservations Section
-      if (selectedSections.reservations && yPosition < 160) {
-        if (yPosition > 140) {
-          doc.addPage();
-          yPosition = 20;
-        }
-
-        const reservations = analyticsData.reservations || {};
-
-        doc.setFontSize(14);
-        doc.setTextColor(0, 0, 0);
-        doc.text("RESERVATION ANALYTICS", 14, yPosition);
-        yPosition += 5;
-
-        const reservationsData = [
-          ['Metric', 'Value'],
-          ['Total Reservations', (reservations.total || 0).toString()],
-          ['Completed', (reservations.completed || 0).toString()],
-          ['Pending', (reservations.pending || 0).toString()],
-          ['Approved', (reservations.approved || 0).toString()],
-          ['Rejected', (reservations.rejected || 0).toString()],
-          ['Cancelled', (reservations.cancelled || 0).toString()],
-          ['Avg Group Size', (reservations.avgGroupSize || 0).toString()]
-        ];
-
-        doc.autoTable({
-          startY: yPosition,
-          head: [reservationsData[0]],
-          body: reservationsData.slice(1),
-          theme: 'striped',
-          headStyles: { fillColor: [204, 0, 0], textColor: [255, 255, 255] },
-          margin: { left: 14 },
-          styles: { fontSize: 9, cellPadding: 3 }
-        });
-
-        yPosition = doc.lastAutoTable.finalY + 10;
-      }
-
-      // Rooms Section
-      if (selectedSections.rooms && yPosition < 160) {
-        if (yPosition > 140) {
-          doc.addPage();
-          yPosition = 20;
-        }
-
-        const rooms = analyticsData.rooms || {};
-
-        doc.setFontSize(14);
-        doc.setTextColor(0, 0, 0);
-        doc.text("ROOM ANALYTICS", 14, yPosition);
-        yPosition += 5;
-
-        const roomsData = [
-          ['Metric', 'Value'],
-          ['Total Rooms', (rooms.total || 0).toString()],
-          ['Available', (rooms.available || 0).toString()],
-          ['Occupied', (rooms.occupied || 0).toString()],
-          ['Maintenance', (rooms.maintenance || 0).toString()],
-          ['Utilization Rate', `${rooms.utilization || 0}%`]
-        ];
-
-        doc.autoTable({
-          startY: yPosition,
-          head: [roomsData[0]],
-          body: roomsData.slice(1),
-          theme: 'striped',
-          headStyles: { fillColor: [204, 0, 0], textColor: [255, 255, 255] },
-          margin: { left: 14 },
-          styles: { fontSize: 9, cellPadding: 3 }
-        });
-
-        yPosition = doc.lastAutoTable.finalY + 10;
-      }
-
-      // Engagement Section
-      if (selectedSections.engagement) {
-        if (yPosition > 140) {
-          doc.addPage();
-          yPosition = 20;
-        }
-
-        const engagement = analyticsData.engagement || {};
-
-        doc.setFontSize(14);
-        doc.setTextColor(0, 0, 0);
-        doc.text("ENGAGEMENT METRICS", 14, yPosition);
-        yPosition += 5;
-
-        const engagementData = [
-          ['Metric', 'Value'],
-          ['Daily Active Users', (engagement.dailyActive || 0).toString()],
-          ['Weekly Active Users', (engagement.weeklyActive || 0).toString()],
-          ['Monthly Active Users', (engagement.monthlyActive || 0).toString()],
-          ['Avg Session Duration', `${engagement.averageSession || 0}m`],
-          ['Retention Rate', `${engagement.retention || 0}%`]
-        ];
-
-        doc.autoTable({
-          startY: yPosition,
-          head: [engagementData[0]],
-          body: engagementData.slice(1),
-          theme: 'striped',
-          headStyles: { fillColor: [204, 0, 0], textColor: [255, 255, 255] },
-          margin: { left: 14 },
-          styles: { fontSize: 9, cellPadding: 3 }
-        });
-      }
-
-      // Save the PDF
-      doc.save(`analytics_overview_${dateRange}_${new Date().toISOString().split('T')[0]}.pdf`);
-      
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-      alert("Failed to generate PDF file. Please try again.");
     }
   };
 
@@ -1019,12 +934,7 @@ function AnalyticsOverview({ setView, admin }) {
     }
 
     setShowDownloadModal(false);
-
-    if (downloadFormat === "excel") {
-      generateExcel();
-    } else {
-      generatePDF();
-    }
+    generateExcel();
   };
 
   const getRangeDescription = () => {
@@ -1345,7 +1255,7 @@ function AnalyticsOverview({ setView, admin }) {
               title="Download Report"
             >
               <Download size={18} />
-              <span>Download</span>
+              <span>Excel</span>
             </button>
 
             {/* Refresh Button */}
@@ -1365,44 +1275,13 @@ function AnalyticsOverview({ setView, admin }) {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">Download Report</h3>
+              <h3 className="text-lg font-semibold text-gray-800">Download Excel Report</h3>
               <button
                 onClick={() => setShowDownloadModal(false)}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X size={20} />
               </button>
-            </div>
-
-            {/* Format Selection */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Format
-              </label>
-              <div className="flex gap-3">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="format"
-                    value="excel"
-                    checked={downloadFormat === "excel"}
-                    onChange={(e) => setDownloadFormat(e.target.value)}
-                    className="text-red-600 focus:ring-red-500"
-                  />
-                  <span className="text-gray-700">Excel (.xlsx)</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="radio"
-                    name="format"
-                    value="pdf"
-                    checked={downloadFormat === "pdf"}
-                    onChange={(e) => setDownloadFormat(e.target.value)}
-                    className="text-red-600 focus:ring-red-500"
-                  />
-                  <span className="text-gray-700">PDF</span>
-                </label>
-              </div>
             </div>
 
             {/* Sections Selection */}
@@ -1465,7 +1344,7 @@ function AnalyticsOverview({ setView, admin }) {
                 onClick={handleDownload}
                 className="flex-1 bg-[#CC0000] text-white py-2 rounded-lg hover:bg-[#990000] transition-colors"
               >
-                Download
+                Download Excel
               </button>
               <button
                 onClick={() => setShowDownloadModal(false)}
