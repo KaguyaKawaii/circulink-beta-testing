@@ -33,7 +33,10 @@ import {
   Eye,
   MousePointer,
   Layers,
-  Zap
+  Zap,
+  Home,
+  Smartphone,
+  Coffee
 } from "lucide-react";
 import api from "../../utils/api";
 import * as XLSX from 'xlsx';
@@ -70,8 +73,8 @@ function AnalyticsOverview({ setView, admin }) {
       active: 0,
       new: 0,
       deleted: 0,
-      byRole: { student: 0, faculty: 0, staff: 0 },
-      byStatus: { active: 0, inactive: 0, suspended: 0, verified: 0, unverified: 0 },
+      byRole: { student: 0, faculty: 0, staff: 0, admin: 0 },
+      byStatus: { active: 0, inactive: 0, suspended: 0, verified: 0, unverified: 0, pending: 0 },
       byDepartment: [],
       growth: { labels: [], values: [] },
       trends: {
@@ -101,12 +104,14 @@ function AnalyticsOverview({ setView, admin }) {
         total: { value: 0, percentage: 0, direction: 'up' },
         pending: { value: 0, percentage: 0, direction: 'up' },
         approved: { value: 0, percentage: 0, direction: 'up' },
-        completed: { value: 0, percentage: 0, direction: 'up' }
+        completed: { value: 0, percentage: 0, direction: 'up' },
+        cancelled: { value: 0, percentage: 0, direction: 'up' }
       },
       growth: { labels: [], values: [] },
       floorDistribution: [],
       avgGroupSize: 0,
       totalParticipants: 0,
+      previousTotal: 0,
       userDepartmentStats: [],
       topReservers: []
     },
@@ -118,7 +123,7 @@ function AnalyticsOverview({ setView, admin }) {
       occupied: 0,
       maintenance: 0,
       utilization: 0,
-      byType: { lecture: 0, laboratory: 0, conference: 0, office: 0 },
+      byType: { lecture: 0, laboratory: 0, conference: 0, office: 0, general: 0 },
       roomDetails: [],
       hourlyUtilization: [],
       topRooms: [],
@@ -188,19 +193,32 @@ function AnalyticsOverview({ setView, admin }) {
       }
 
       // Process reservations data
-      let reservationsData = { total: 0, pending: 0, approved: 0, rejected: 0, completed: 0, cancelled: 0, expired: 0, ongoing: 0, byRoom: [], byDayOfWeek: {}, popularRooms: [], trends: {}, growth: { labels: [], values: [] }, floorDistribution: [], avgGroupSize: 0, totalParticipants: 0, userDepartmentStats: [], topReservers: [] };
+      let reservationsData = { 
+        total: 0, pending: 0, approved: 0, rejected: 0, completed: 0, cancelled: 0, expired: 0, ongoing: 0, 
+        byRoom: [], byDayOfWeek: {}, popularRooms: [], trends: {}, growth: { labels: [], values: [] }, 
+        floorDistribution: [], avgGroupSize: 0, totalParticipants: 0, previousTotal: 0, 
+        userDepartmentStats: [], topReservers: [] 
+      };
       if (reservationsRes.status === 'fulfilled' && reservationsRes.value.data?.success) {
         reservationsData = reservationsRes.value.data.data;
       }
 
       // Process rooms data
-      let roomsData = { total: 0, available: 0, occupied: 0, maintenance: 0, utilization: 0, byType: {}, roomDetails: [], hourlyUtilization: [], topRooms: [], byFloor: {}, byCapacity: {}, trends: {}, featureStats: {}, peakHours: [], bookingTrends: [], maintenanceHistory: [], topUsers: [] };
+      let roomsData = { 
+        total: 0, available: 0, occupied: 0, maintenance: 0, utilization: 0, byType: {}, 
+        roomDetails: [], hourlyUtilization: [], topRooms: [], byFloor: {}, byCapacity: {}, 
+        trends: {}, featureStats: {}, peakHours: [], bookingTrends: [], maintenanceHistory: [], topUsers: [] 
+      };
       if (roomsRes.status === 'fulfilled' && roomsRes.value.data?.success) {
         roomsData = roomsRes.value.data.data;
       }
 
       // Process engagement data
-      let engagementData = { dailyActive: 0, weeklyActive: 0, monthlyActive: 0, averageSession: 0, retention: 0, bounceRate: 0, byDay: [], userActivity: {}, engagementMetrics: {}, activityBreakdown: [], peakHours: [], deviceBreakdown: [], userEngagementTrends: [], topFeatures: [], trends: {} };
+      let engagementData = { 
+        dailyActive: 0, weeklyActive: 0, monthlyActive: 0, averageSession: 0, retention: 0, bounceRate: 0, 
+        byDay: [], userActivity: {}, engagementMetrics: {}, activityBreakdown: [], peakHours: [], 
+        deviceBreakdown: [], userEngagementTrends: [], topFeatures: [], trends: {} 
+      };
       if (engagementRes.status === 'fulfilled' && engagementRes.value.data?.success) {
         engagementData = engagementRes.value.data.data;
       }
@@ -227,7 +245,6 @@ function AnalyticsOverview({ setView, admin }) {
 
     } catch (error) {
       console.error("Error fetching analytics:", error);
-      // Fallback to mock data
       setAnalyticsData(getMockAnalyticsData(dateRange));
     } finally {
       setLoading(false);
@@ -273,8 +290,8 @@ function AnalyticsOverview({ setView, admin }) {
         active: 850,
         new: 45,
         deleted: 12,
-        byRole: { student: 850, faculty: 280, staff: 120 },
-        byStatus: { active: 850, inactive: 350, suspended: 15, verified: 1100, unverified: 150 },
+        byRole: { student: 850, faculty: 280, staff: 120, admin: 0 },
+        byStatus: { active: 850, inactive: 350, suspended: 15, verified: 1100, unverified: 150, pending: 25 },
         byDepartment: [
           { name: "Computer Science", count: 320 },
           { name: "Engineering", count: 280 },
@@ -294,7 +311,9 @@ function AnalyticsOverview({ setView, admin }) {
         topUsers: [
           { name: "John Doe", email: "john@email.com", role: "Student", reservations: 45 },
           { name: "Jane Smith", email: "jane@email.com", role: "Faculty", reservations: 38 },
-          { name: "Bob Wilson", email: "bob@email.com", role: "Staff", reservations: 32 }
+          { name: "Bob Wilson", email: "bob@email.com", role: "Staff", reservations: 32 },
+          { name: "Alice Brown", email: "alice@email.com", role: "Student", reservations: 28 },
+          { name: "Charlie Lee", email: "charlie@email.com", role: "Faculty", reservations: 25 }
         ],
         registrationStats: { today: 5, thisWeek: 32, thisMonth: 145, avgPerDay: 4.8 },
         activityStats: { activeToday: 320, activeThisWeek: 850, activeThisMonth: 1150, retentionRate: 76 }
@@ -311,19 +330,24 @@ function AnalyticsOverview({ setView, admin }) {
         byRoom: [
           { name: "Room 101", count: 450, approved: 380, pending: 25, completed: 350, cancelled: 20 },
           { name: "Room 102", count: 380, approved: 320, pending: 18, completed: 300, cancelled: 15 },
-          { name: "Room 103", count: 520, approved: 450, pending: 30, completed: 420, cancelled: 25 }
+          { name: "Room 103", count: 520, approved: 450, pending: 30, completed: 420, cancelled: 25 },
+          { name: "Room 201", count: 410, approved: 350, pending: 22, completed: 330, cancelled: 18 },
+          { name: "Room 202", count: 390, approved: 330, pending: 20, completed: 310, cancelled: 16 }
         ],
         byDayOfWeek: { mon: 580, tue: 620, wed: 650, thu: 590, fri: 480, sat: 320, sun: 210 },
         popularRooms: [
           { name: "Room 103", bookings: 520, approved: 450, completed: 420, utilization: 85 },
           { name: "Room 101", bookings: 450, approved: 380, completed: 350, utilization: 78 },
-          { name: "Room 202", bookings: 410, approved: 350, completed: 330, utilization: 72 }
+          { name: "Room 202", bookings: 410, approved: 350, completed: 330, utilization: 72 },
+          { name: "Lab A", bookings: 340, approved: 290, completed: 270, utilization: 68 },
+          { name: "Conference A", bookings: 290, approved: 240, completed: 220, utilization: 58 }
         ],
         trends: {
           total: { value: 3450, percentage: 12.5, direction: 'up' },
           pending: { value: 45, percentage: -5.2, direction: 'down' },
           approved: { value: 320, percentage: 8.3, direction: 'up' },
-          completed: { value: 2890, percentage: 15.8, direction: 'up' }
+          completed: { value: 2890, percentage: 15.8, direction: 'up' },
+          cancelled: { value: 95, percentage: 3.2, direction: 'up' }
         },
         growth: {
           labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
@@ -336,15 +360,20 @@ function AnalyticsOverview({ setView, admin }) {
         ],
         avgGroupSize: 4.2,
         totalParticipants: 14500,
+        previousTotal: 2980,
         userDepartmentStats: [
           { name: "Computer Science", count: 980 },
           { name: "Engineering", count: 850 },
-          { name: "Business", count: 620 }
+          { name: "Business", count: 620 },
+          { name: "Medicine", count: 450 },
+          { name: "Arts", count: 380 }
         ],
         topReservers: [
           { name: "John Doe", department: "Computer Science", count: 45 },
           { name: "Jane Smith", department: "Engineering", count: 38 },
-          { name: "Bob Wilson", department: "Business", count: 32 }
+          { name: "Bob Wilson", department: "Business", count: 32 },
+          { name: "Alice Brown", department: "Medicine", count: 28 },
+          { name: "Charlie Lee", department: "Computer Science", count: 25 }
         ]
       },
       rooms: {
@@ -353,11 +382,13 @@ function AnalyticsOverview({ setView, admin }) {
         occupied: 9,
         maintenance: 2,
         utilization: 68,
-        byType: { lecture: 12, laboratory: 6, conference: 4, office: 3 },
+        byType: { lecture: 12, laboratory: 6, conference: 4, office: 3, general: 0 },
         roomDetails: [
           { id: 1, name: "Room 101", type: "Lecture", floor: "1st Floor", capacity: 6, bookings: 450, utilization: 78, status: "available", features: { wifi: true, aircon: true, projector: true, monitor: false } },
           { id: 2, name: "Room 102", type: "Lecture", floor: "1st Floor", capacity: 4, bookings: 380, utilization: 68, status: "occupied", features: { wifi: true, aircon: true, projector: false, monitor: true } },
-          { id: 3, name: "Room 103", type: "Lecture", floor: "1st Floor", capacity: 8, bookings: 520, utilization: 85, status: "available", features: { wifi: true, aircon: true, projector: true, monitor: true } }
+          { id: 3, name: "Room 103", type: "Lecture", floor: "1st Floor", capacity: 8, bookings: 520, utilization: 85, status: "available", features: { wifi: true, aircon: true, projector: true, monitor: true } },
+          { id: 4, name: "Room 104", type: "Laboratory", floor: "1st Floor", capacity: 5, bookings: 280, utilization: 62, status: "maintenance", features: { wifi: true, aircon: true, projector: false, monitor: true } },
+          { id: 5, name: "Room 201", type: "Conference", floor: "2nd Floor", capacity: 7, bookings: 290, utilization: 52, status: "available", features: { wifi: true, aircon: true, projector: true, monitor: false } }
         ],
         hourlyUtilization: [
           { hour: "8AM", utilization: 45, bookings: 12 },
@@ -374,7 +405,9 @@ function AnalyticsOverview({ setView, admin }) {
         topRooms: [
           { name: "Room 103", bookings: 520, utilization: 85, type: "Lecture", capacity: 8, floor: "1st Floor", features: { wifi: true, aircon: true, projector: true, monitor: true } },
           { name: "Room 101", bookings: 450, utilization: 78, type: "Lecture", capacity: 6, floor: "1st Floor", features: { wifi: true, aircon: true, projector: true, monitor: false } },
-          { name: "Room 202", bookings: 410, utilization: 72, type: "Lecture", capacity: 6, floor: "2nd Floor", features: { wifi: true, aircon: true, projector: true, monitor: true } }
+          { name: "Room 202", bookings: 410, utilization: 72, type: "Lecture", capacity: 6, floor: "2nd Floor", features: { wifi: true, aircon: true, projector: true, monitor: true } },
+          { name: "Lab A", bookings: 340, utilization: 70, type: "Laboratory", capacity: 8, floor: "3rd Floor", features: { wifi: true, aircon: true, projector: false, monitor: true } },
+          { name: "Room 201", bookings: 290, utilization: 52, type: "Conference", capacity: 7, floor: "2nd Floor", features: { wifi: true, aircon: true, projector: true, monitor: false } }
         ],
         byFloor: { "1st Floor": 4, "2nd Floor": 3, "3rd Floor": 5 },
         byCapacity: { small: 13, medium: 0, large: 0, xlarge: 0 },
@@ -401,11 +434,13 @@ function AnalyticsOverview({ setView, admin }) {
         ],
         maintenanceHistory: [
           { room: "Room 104", date: "2024-03-01 11:45:20", type: "AC Repair", status: "Completed" },
-          { room: "Lab B", date: "2024-02-20 15:40:25", type: "Equipment Check", status: "Completed" }
+          { room: "Lab B", date: "2024-02-20 15:40:25", type: "Equipment Check", status: "Completed" },
+          { room: "Room 203", date: "2024-02-15 08:45:30", type: "Projector Maintenance", status: "Completed" }
         ],
         topUsers: [
           { name: "Dr. Smith", department: "Engineering", bookings: 45, room: "Room 103" },
-          { name: "Prof. Johnson", department: "Science", bookings: 38, room: "Lab A" }
+          { name: "Prof. Johnson", department: "Science", bookings: 38, room: "Lab A" },
+          { name: "Dr. Williams", department: "Mathematics", bookings: 32, room: "Room 202" }
         ]
       },
       engagement: {
@@ -437,7 +472,8 @@ function AnalyticsOverview({ setView, admin }) {
           { name: "Page Views", value: 8450, color: "blue" },
           { name: "Reservations", value: 3240, color: "green" },
           { name: "Logins", value: 2100, color: "purple" },
-          { name: "Profile Updates", value: 980, color: "orange" }
+          { name: "Profile Updates", value: 980, color: "orange" },
+          { name: "Room Searches", value: 5670, color: "yellow" }
         ],
         peakHours: [
           { hour: "9AM", activity: 45 },
@@ -526,11 +562,10 @@ function AnalyticsOverview({ setView, admin }) {
         if (data.length > 0) {
           const firstRow = data[0];
           firstRow.forEach((_, index) => {
-            // Find the maximum length in this column
-            let maxLength = 15; // Default minimum width
+            let maxLength = 15;
             data.forEach(row => {
               if (row[index] && row[index].toString().length > maxLength) {
-                maxLength = Math.min(row[index].toString().length, 50); // Cap at 50
+                maxLength = Math.min(row[index].toString().length, 50);
               }
             });
             colWidths.push({ wch: maxLength + 2 });
@@ -552,37 +587,75 @@ function AnalyticsOverview({ setView, admin }) {
       // ==================== OVERVIEW SHEET ====================
       if (selectedSections.overview) {
         const overviewData = [
+          ['==============================================='],
           ['ANALYTICS OVERVIEW REPORT'],
           ['==============================================='],
           [],
-          ['Report Information'],
+          ['REPORT INFORMATION'],
+          ['==============================================='],
           ['Generated:', new Date().toLocaleString()],
           ['Date Range:', getRangeDescription()],
           ['Report ID:', `OVR-${Date.now()}`],
           [],
-          ['KEY METRICS'],
+          ['SECTION 1: KEY METRICS'],
           ['==============================================='],
-          ['Metric', 'Value', 'Description'],
-          ['Total Users', analyticsData.totalUsers || 0, 'All registered users (non-archived)'],
-          ['Total Reservations', analyticsData.totalReservations || 0, 'All reservations in selected period'],
-          ['Total Rooms', analyticsData.totalRooms || 0, 'Total available rooms'],
-          ['Active Today', analyticsData.activeToday || 0, 'Users active in last 24 hours'],
-          ['Pending Reservations', analyticsData.pendingReservations || 0, 'Reservations awaiting approval'],
-          ['Completed Reservations', analyticsData.completedReservations || 0, 'Successfully completed reservations'],
-          ['Room Utilization', `${analyticsData.roomUtilization || 0}%`, 'Overall room usage rate'],
-          ['Avg Session Duration', `${analyticsData.avgSessionDuration || 0} minutes`, 'Average time spent per session'],
+          ['Metric', 'Value', 'Description', 'Status'],
+          ['Total Users', analyticsData.totalUsers || 0, 'All registered users (non-archived)', 
+           analyticsData.totalUsers > 1000 ? 'Healthy' : 'Needs Attention'],
+          ['Total Reservations', analyticsData.totalReservations || 0, 'All reservations in selected period',
+           analyticsData.totalReservations > 3000 ? 'High Activity' : 'Normal Activity'],
+          ['Total Rooms', analyticsData.totalRooms || 0, 'Total available rooms',
+           analyticsData.totalRooms > 20 ? 'Adequate' : 'Limited'],
+          ['Active Today', analyticsData.activeToday || 0, 'Users active in last 24 hours',
+           analyticsData.activeToday > 300 ? 'High Engagement' : 'Low Engagement'],
+          ['Pending Reservations', analyticsData.pendingReservations || 0, 'Reservations awaiting approval',
+           (analyticsData.pendingReservations || 0) < 50 ? 'Normal' : 'High Backlog'],
+          ['Completed Reservations', analyticsData.completedReservations || 0, 'Successfully completed reservations',
+           (analyticsData.completedReservations || 0) > 2000 ? 'Good Completion Rate' : 'Needs Improvement'],
+          ['Room Utilization', `${analyticsData.roomUtilization || 0}%`, 'Overall room usage rate',
+           (analyticsData.roomUtilization || 0) > 60 ? 'Optimal' : 'Underutilized'],
+          ['Avg Session Duration', `${analyticsData.avgSessionDuration || 0} minutes`, 'Average time spent per session',
+           (analyticsData.avgSessionDuration || 0) > 20 ? 'Engaged Users' : 'Short Sessions'],
           [],
-          ['PERFORMANCE SUMMARY'],
+          ['SECTION 2: PERFORMANCE SUMMARY'],
           ['==============================================='],
+          ['Metric', 'Value', 'Benchmark', 'Status'],
           ['Completion Rate', analyticsData.totalReservations > 0 
             ? `${Math.round((analyticsData.completedReservations / analyticsData.totalReservations) * 100)}%` 
-            : '0%', 'Percentage of completed reservations'],
+            : '0%', '70%', 
+            (analyticsData.completedReservations / analyticsData.totalReservations) * 100 >= 70 ? '✓ Meets Benchmark' : '⚠ Below Benchmark'],
           ['Pending Rate', analyticsData.totalReservations > 0 
             ? `${Math.round((analyticsData.pendingReservations / analyticsData.totalReservations) * 100)}%` 
-            : '0%', 'Percentage of pending reservations'],
+            : '0%', '15%',
+            (analyticsData.pendingReservations / analyticsData.totalReservations) * 100 <= 15 ? '✓ Normal' : '⚠ High Backlog'],
           ['User Activity Rate', analyticsData.totalUsers > 0 
             ? `${Math.round((analyticsData.activeToday / analyticsData.totalUsers) * 100)}%` 
-            : '0%', 'Percentage of users active today']
+            : '0%', '25%',
+            (analyticsData.activeToday / analyticsData.totalUsers) * 100 >= 25 ? '✓ Good Engagement' : '⚠ Low Engagement'],
+          [],
+          ['SECTION 3: EXECUTIVE SUMMARY'],
+          ['==============================================='],
+          ['Key Finding', 'Insight', 'Recommendation'],
+          ['User Growth', 
+           `Total users: ${analyticsData.totalUsers} (${analyticsData.users?.trends?.monthly?.percentage || 0}% growth)`,
+           analyticsData.users?.trends?.monthly?.direction === 'up' 
+             ? 'Continue marketing efforts' 
+             : 'Implement user acquisition strategies'],
+          ['Reservation Trends',
+           `Total: ${analyticsData.totalReservations} (${analyticsData.reservations?.trends?.total?.percentage || 0}% ${analyticsData.reservations?.trends?.total?.direction || 'stable'})`,
+           analyticsData.reservations?.trends?.total?.direction === 'up'
+             ? 'Maintain current booking policies'
+             : 'Review booking process for improvements'],
+          ['Room Utilization',
+           `${analyticsData.roomUtilization || 0}% overall (${analyticsData.rooms?.available || 0} rooms available)`,
+           analyticsData.roomUtilization < 60 
+             ? 'Promote underutilized rooms' 
+             : 'Consider adding more rooms during peak hours'],
+          ['User Engagement',
+           `${analyticsData.activeToday || 0} active today (${analyticsData.engagement?.retention || 0}% retention)`,
+           analyticsData.engagement?.retention < 70
+             ? 'Improve user onboarding and engagement features'
+             : 'Continue engaging active users with new features']
         ];
         addSheet(overviewData, 'Overview');
       }
@@ -590,65 +663,134 @@ function AnalyticsOverview({ setView, admin }) {
       // ==================== USER ANALYTICS SHEET ====================
       if (selectedSections.users) {
         const users = analyticsData.users || {};
+        const totalUsers = users.total || 1;
+        
         const usersData = [
+          ['==============================================='],
           ['USER ANALYTICS REPORT'],
           ['==============================================='],
           [],
-          ['1. KEY METRICS'],
-          ['Metric', 'Value', 'Description'],
-          ['Total Users', users.total || 0, 'All registered users (non-archived)'],
-          ['Active Users (7 days)', users.active || 0, 'Users with activity in last 7 days'],
-          ['New Users', users.new || 0, 'Users registered in selected period'],
-          ['Deleted/Archived', users.deleted || 0, 'Users archived or deleted'],
-          ['Retention Rate', `${users.activityStats?.retentionRate || 0}%`, 'Users returning after first visit'],
+          ['SECTION 1: KEY METRICS'],
+          ['==============================================='],
+          ['Metric', 'Value', 'Change %', 'Trend', 'Description'],
+          ['Total Users', users.total || 0, 
+           `${users.trends?.monthly?.percentage || 0}%`,
+           users.trends?.monthly?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           'All registered users (non-archived)'],
+          ['Active Users (7 days)', users.active || 0,
+           `${users.trends?.weekly?.percentage || 0}%`,
+           users.trends?.weekly?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           'Users with activity in last 7 days'],
+          ['New Users', users.new || 0,
+           `${users.trends?.daily?.percentage || 0}%`,
+           users.trends?.daily?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           'Users registered in selected period'],
+          ['Deleted/Archived', users.deleted || 0, 'N/A', 'N/A', 'Users archived or deleted'],
+          ['Retention Rate', `${users.activityStats?.retentionRate || 0}%`, 'N/A', 
+           (users.activityStats?.retentionRate || 0) > 70 ? '↑ Good' : '↓ Needs Improvement',
+           'Users returning after first visit'],
           [],
-          ['2. REGISTRATION STATISTICS'],
-          ['Metric', 'Value'],
-          ['Today', users.registrationStats?.today || 0],
-          ['This Week', users.registrationStats?.thisWeek || 0],
-          ['This Month', users.registrationStats?.thisMonth || 0],
-          ['Average Per Day', users.registrationStats?.avgPerDay || 0],
+          ['SECTION 2: REGISTRATION STATISTICS'],
+          ['==============================================='],
+          ['Period', 'Count', 'Average'],
+          ['Today', users.registrationStats?.today || 0, '-'],
+          ['This Week', users.registrationStats?.thisWeek || 0, 
+           `${Math.round((users.registrationStats?.thisWeek || 0) / 7)} per day`],
+          ['This Month', users.registrationStats?.thisMonth || 0,
+           `${Math.round((users.registrationStats?.thisMonth || 0) / 30)} per day`],
+          ['Average Per Day', users.registrationStats?.avgPerDay || 0, '-'],
           [],
-          ['3. USERS BY ROLE'],
-          ['Role', 'Count', 'Percentage'],
+          ['SECTION 3: USERS BY ROLE'],
+          ['==============================================='],
+          ['Role', 'Count', 'Percentage of Total', 'Activity Level'],
           ['Students', users.byRole?.student || 0, 
-           `${Math.round((users.byRole?.student || 0) / (users.total || 1) * 100)}%`],
+           `${Math.round((users.byRole?.student || 0) / totalUsers * 100)}%`,
+           (users.byRole?.student || 0) > totalUsers * 0.5 ? 'Majority' : 'Minority'],
           ['Faculty', users.byRole?.faculty || 0,
-           `${Math.round((users.byRole?.faculty || 0) / (users.total || 1) * 100)}%`],
+           `${Math.round((users.byRole?.faculty || 0) / totalUsers * 100)}%`,
+           (users.byRole?.faculty || 0) > totalUsers * 0.2 ? 'Significant' : 'Moderate'],
           ['Staff', users.byRole?.staff || 0,
-           `${Math.round((users.byRole?.staff || 0) / (users.total || 1) * 100)}%`],
+           `${Math.round((users.byRole?.staff || 0) / totalUsers * 100)}%`,
+           (users.byRole?.staff || 0) > totalUsers * 0.1 ? 'Significant' : 'Moderate'],
           [],
-          ['4. ACCOUNT STATUS'],
-          ['Status', 'Count', 'Description'],
-          ['Active (7 days)', users.byStatus?.active || 0, 'Active in last 7 days'],
-          ['Inactive', users.byStatus?.inactive || 0, 'No activity in last 30 days'],
-          ['Suspended', users.byStatus?.suspended || 0, 'Account suspended'],
-          ['Verified', users.byStatus?.verified || 0, 'Email verified'],
-          ['Unverified', users.byStatus?.unverified || 0, 'Email not verified'],
+          ['SECTION 4: ACCOUNT STATUS'],
+          ['==============================================='],
+          ['Status', 'Count', 'Percentage', 'Description'],
+          ['Active (7 days)', users.byStatus?.active || 0,
+           `${Math.round((users.byStatus?.active || 0) / totalUsers * 100)}%`,
+           'Active in last 7 days'],
+          ['Inactive', users.byStatus?.inactive || 0,
+           `${Math.round((users.byStatus?.inactive || 0) / totalUsers * 100)}%`,
+           'No activity in last 30 days'],
+          ['Suspended', users.byStatus?.suspended || 0,
+           `${Math.round((users.byStatus?.suspended || 0) / totalUsers * 100)}%`,
+           'Account suspended'],
+          ['Verified', users.byStatus?.verified || 0,
+           `${Math.round((users.byStatus?.verified || 0) / totalUsers * 100)}%`,
+           'Email verified'],
+          ['Unverified', users.byStatus?.unverified || 0,
+           `${Math.round((users.byStatus?.unverified || 0) / totalUsers * 100)}%`,
+           'Email not verified'],
+          ['Pending', users.byStatus?.pending || 0,
+           `${Math.round((users.byStatus?.pending || 0) / totalUsers * 100)}%`,
+           'Pending approval'],
           [],
-          ['5. TOP DEPARTMENTS'],
-          ['Department', 'User Count', 'Percentage'],
-          ...(users.byDepartment || []).map(dept => [
+          ['SECTION 5: TOP DEPARTMENTS'],
+          ['==============================================='],
+          ['Department', 'User Count', 'Percentage', 'Rank'],
+          ...(users.byDepartment || []).map((dept, index) => [
             dept.name,
             dept.count,
-            `${Math.round((dept.count / (users.total || 1)) * 100)}%`
+            `${Math.round((dept.count / totalUsers) * 100)}%`,
+            index === 0 ? '🥇 Most Users' : index === 1 ? '🥈 2nd' : index === 2 ? '🥉 3rd' : `#${index + 1}`
           ]),
           [],
-          ['6. TOP ACTIVE USERS'],
-          ['Name', 'Email', 'Role', 'Actions'],
-          ...(users.topUsers || []).map(user => [
+          ['SECTION 6: TOP ACTIVE USERS'],
+          ['==============================================='],
+          ['Rank', 'Name', 'Email', 'Role', 'Actions', 'Contribution'],
+          ...(users.topUsers || []).map((user, index) => [
+            `#${index + 1}`,
             user.name,
             user.email,
             user.role,
-            user.reservations || 0
+            user.reservations || 0,
+            `${Math.round(((user.reservations || 0) / (users.total || 1)) * 100)}%`
           ]),
           [],
-          ['7. GROWTH TRENDS'],
-          ['Period', 'New Users'],
-          ...(users.growth?.labels || []).map((label, idx) => [
-            label,
-            users.growth?.values?.[idx] || 0
-          ])
+          ['SECTION 7: GROWTH TRENDS'],
+          ['==============================================='],
+          ['Period', 'New Users', 'Change', 'Growth Rate'],
+          ...(users.growth?.labels || []).map((label, idx) => {
+            const value = users.growth?.values?.[idx] || 0;
+            const prevValue = idx > 0 ? users.growth?.values?.[idx - 1] : value;
+            const change = value - prevValue;
+            const changePercent = prevValue > 0 ? Math.round((change / prevValue) * 100) : 0;
+            return [
+              label,
+              value,
+              change > 0 ? `+${change}` : change,
+              changePercent > 0 ? `+${changePercent}%` : `${changePercent}%`
+            ];
+          }),
+          [],
+          ['SECTION 8: USER INSIGHTS'],
+          ['==============================================='],
+          ['Insight', 'Finding', 'Recommendation'],
+          ['User Distribution',
+           `Students: ${users.byRole?.student || 0}, Faculty: ${users.byRole?.faculty || 0}, Staff: ${users.byRole?.staff || 0}`,
+           users.byRole?.student > users.byRole?.faculty * 3 
+             ? 'Consider targeting faculty engagement' 
+             : 'Balanced user distribution'],
+          ['Account Verification',
+           `${Math.round((users.byStatus?.verified || 0) / totalUsers * 100)}% of users verified`,
+           (users.byStatus?.verified || 0) / totalUsers < 0.8 
+             ? 'Send verification reminders' 
+             : 'Good verification rate'],
+          ['User Retention',
+           `${users.activityStats?.retentionRate || 0}% retention rate`,
+           (users.activityStats?.retentionRate || 0) < 70 
+             ? 'Improve onboarding and engagement' 
+             : 'Excellent user retention']
         ];
         addSheet(usersData, 'Users');
       }
@@ -656,66 +798,130 @@ function AnalyticsOverview({ setView, admin }) {
       // ==================== RESERVATION ANALYTICS SHEET ====================
       if (selectedSections.reservations) {
         const reservations = analyticsData.reservations || {};
+        const total = reservations.total || 1;
+        const totalDays = Object.values(reservations.byDayOfWeek || {}).reduce((a, b) => a + b, 0) || 1;
+        
+        // Find peak day
+        const peakDay = Object.entries(reservations.byDayOfWeek || {}).reduce((a, b) => 
+          (b[1] > a[1] ? b : a), ['', 0]);
+        
+        const dayNames = {
+          mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', 
+          thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday'
+        };
+        
         const reservationsData = [
+          ['==============================================='],
           ['RESERVATION ANALYTICS REPORT'],
           ['==============================================='],
           [],
-          ['1. KEY METRICS'],
+          ['SECTION 1: KEY METRICS'],
+          ['==============================================='],
+          ['Metric', 'Value', 'Change %', 'Trend', 'Status'],
+          ['Total Reservations', reservations.total || 0,
+           `${reservations.trends?.total?.percentage || 0}%`,
+           reservations.trends?.total?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           reservations.trends?.total?.percentage > 0 ? 'Positive Growth' : 'Needs Attention'],
+          ['Completed', reservations.completed || 0,
+           `${reservations.trends?.completed?.percentage || 0}%`,
+           reservations.trends?.completed?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           `Success Rate: ${Math.round((reservations.completed / total) * 100)}%`],
+          ['Pending', reservations.pending || 0,
+           `${reservations.trends?.pending?.percentage || 0}%`,
+           reservations.trends?.pending?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           reservations.pending > 50 ? '⚠ High Backlog' : '✓ Normal'],
+          ['Approved', reservations.approved || 0, 'N/A', 'N/A', 'Awaiting start'],
+          ['Rejected', reservations.rejected || 0, 'N/A', 'N/A', 'Not approved'],
+          ['Cancelled', reservations.cancelled || 0,
+           `${reservations.trends?.cancelled?.percentage || 0}%`,
+           reservations.trends?.cancelled?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           `Cancellation Rate: ${Math.round((reservations.cancelled / total) * 100)}%`],
+          ['Ongoing', reservations.ongoing || 0, 'N/A', 'N/A', 'Currently in progress'],
+          ['Expired', reservations.expired || 0, 'N/A', 'N/A', 'Passed without action'],
+          [],
+          ['SECTION 2: PARTICIPANT STATISTICS'],
+          ['==============================================='],
           ['Metric', 'Value', 'Description'],
-          ['Total Reservations', reservations.total || 0, 'All reservations in selected period'],
-          ['Completed', reservations.completed || 0, 'Successfully completed'],
-          ['Pending', reservations.pending || 0, 'Awaiting approval'],
-          ['Approved', reservations.approved || 0, 'Approved but not started'],
-          ['Rejected', reservations.rejected || 0, 'Rejected by admin'],
-          ['Cancelled', reservations.cancelled || 0, 'Cancelled by user'],
-          ['Ongoing', reservations.ongoing || 0, 'Currently in progress'],
-          ['Expired', reservations.expired || 0, 'Expired without action'],
+          ['Average Group Size', reservations.avgGroupSize || 0, 'People per reservation'],
+          ['Total Participants', reservations.totalParticipants || 0, 'Combined attendees across all reservations'],
+          ['Previous Period Total', reservations.previousTotal || 0, 'Comparison baseline'],
           [],
-          ['2. PARTICIPANT STATISTICS'],
-          ['Metric', 'Value'],
-          ['Average Group Size', reservations.avgGroupSize || 0],
-          ['Total Participants', reservations.totalParticipants || 0],
-          [],
-          ['3. RESERVATIONS BY DAY OF WEEK'],
+          ['SECTION 3: RESERVATIONS BY DAY OF WEEK'],
+          ['==============================================='],
           ['Day', 'Count', 'Percentage', 'Peak Status'],
           ['Monday', reservations.byDayOfWeek?.mon || 0,
-           `${Math.round(((reservations.byDayOfWeek?.mon || 0) / (reservations.total || 1)) * 100)}%`,
-           (reservations.byDayOfWeek?.mon || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
+           `${Math.round(((reservations.byDayOfWeek?.mon || 0) / totalDays) * 100)}%`,
+           reservations.byDayOfWeek?.mon === peakDay[1] ? '★ Peak Day' : ''],
           ['Tuesday', reservations.byDayOfWeek?.tue || 0,
-           `${Math.round(((reservations.byDayOfWeek?.tue || 0) / (reservations.total || 1)) * 100)}%`,
-           (reservations.byDayOfWeek?.tue || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
+           `${Math.round(((reservations.byDayOfWeek?.tue || 0) / totalDays) * 100)}%`,
+           reservations.byDayOfWeek?.tue === peakDay[1] ? '★ Peak Day' : ''],
           ['Wednesday', reservations.byDayOfWeek?.wed || 0,
-           `${Math.round(((reservations.byDayOfWeek?.wed || 0) / (reservations.total || 1)) * 100)}%`,
-           (reservations.byDayOfWeek?.wed || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
+           `${Math.round(((reservations.byDayOfWeek?.wed || 0) / totalDays) * 100)}%`,
+           reservations.byDayOfWeek?.wed === peakDay[1] ? '★ Peak Day' : ''],
           ['Thursday', reservations.byDayOfWeek?.thu || 0,
-           `${Math.round(((reservations.byDayOfWeek?.thu || 0) / (reservations.total || 1)) * 100)}%`,
-           (reservations.byDayOfWeek?.thu || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
+           `${Math.round(((reservations.byDayOfWeek?.thu || 0) / totalDays) * 100)}%`,
+           reservations.byDayOfWeek?.thu === peakDay[1] ? '★ Peak Day' : ''],
           ['Friday', reservations.byDayOfWeek?.fri || 0,
-           `${Math.round(((reservations.byDayOfWeek?.fri || 0) / (reservations.total || 1)) * 100)}%`,
-           (reservations.byDayOfWeek?.fri || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
+           `${Math.round(((reservations.byDayOfWeek?.fri || 0) / totalDays) * 100)}%`,
+           reservations.byDayOfWeek?.fri === peakDay[1] ? '★ Peak Day' : ''],
           ['Saturday', reservations.byDayOfWeek?.sat || 0,
-           `${Math.round(((reservations.byDayOfWeek?.sat || 0) / (reservations.total || 1)) * 100)}%`,
-           (reservations.byDayOfWeek?.sat || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
+           `${Math.round(((reservations.byDayOfWeek?.sat || 0) / totalDays) * 100)}%`,
+           reservations.byDayOfWeek?.sat === peakDay[1] ? '★ Peak Day' : ''],
           ['Sunday', reservations.byDayOfWeek?.sun || 0,
-           `${Math.round(((reservations.byDayOfWeek?.sun || 0) / (reservations.total || 1)) * 100)}%`,
-           (reservations.byDayOfWeek?.sun || 0) > (reservations.total || 0) / 7 ? '★ Peak' : ''],
+           `${Math.round(((reservations.byDayOfWeek?.sun || 0) / totalDays) * 100)}%`,
+           reservations.byDayOfWeek?.sun === peakDay[1] ? '★ Peak Day' : ''],
           [],
-          ['4. FLOOR DISTRIBUTION'],
-          ['Floor', 'Reservations', 'Percentage'],
-          ...(reservations.floorDistribution || []).map(floor => [
+          peakDay[0] ? ['Peak Day:', dayNames[peakDay[0]] || peakDay[0], 'with', peakDay[1], 'reservations - Busiest day of the week'] : [],
+          [],
+          ['SECTION 4: FLOOR DISTRIBUTION'],
+          ['==============================================='],
+          ['Floor', 'Reservations', 'Percentage', 'Ranking'],
+          ...(reservations.floorDistribution || []).map((floor, idx) => [
             floor.name,
             floor.value,
-            `${Math.round((floor.value / (reservations.total || 1)) * 100)}%`
+            `${Math.round((floor.value / total) * 100)}%`,
+            idx === 0 ? 'Most Active' : idx === (reservations.floorDistribution?.length || 1) - 1 ? 'Least Active' : `#${idx + 1}`
           ]),
           [],
-          ['5. POPULAR ROOMS'],
-          ['Room', 'Bookings', 'Approved', 'Completed', 'Utilization', 'Performance'],
-          ...(reservations.popularRooms || []).map(room => {
-            let performance = 'Average';
-            if (room.utilization > 80) performance = 'Excellent';
-            else if (room.utilization > 60) performance = 'Good';
-            else if (room.utilization < 40) performance = 'Low';
+          ['SECTION 5: DEPARTMENT STATISTICS'],
+          ['==============================================='],
+          ['Department', 'Reservations', 'Percentage', 'Activity Level'],
+          ...(reservations.userDepartmentStats || []).map((dept, idx) => {
+            const percentage = Math.round((dept.count / total) * 100);
+            let activityLevel = 'Low';
+            if (percentage > 30) activityLevel = 'High';
+            else if (percentage > 15) activityLevel = 'Medium';
             return [
+              dept.name,
+              dept.count,
+              `${percentage}%`,
+              activityLevel
+            ];
+          }),
+          [],
+          ['SECTION 6: TOP RESERVERS'],
+          ['==============================================='],
+          ['Rank', 'Name', 'Department', 'Reservations', 'Percentage', 'Contribution'],
+          ...(reservations.topReservers || []).map((user, index) => [
+            `#${index + 1}`,
+            user.name,
+            user.department || 'N/A',
+            user.count,
+            `${Math.round((user.count / total) * 100)}%`,
+            index === 0 ? 'Top Contributor' : index === 1 ? 'Major Contributor' : 'Contributor'
+          ]),
+          [],
+          ['SECTION 7: POPULAR ROOMS'],
+          ['==============================================='],
+          ['Rank', 'Room Name', 'Total Bookings', 'Approved', 'Completed', 'Utilization', 'Performance'],
+          ...(reservations.popularRooms || []).map((room, index) => {
+            let performance = 'Average';
+            if (room.utilization > 80) performance = '🌟 Excellent';
+            else if (room.utilization > 60) performance = '✓ Good';
+            else if (room.utilization > 40) performance = '∼ Average';
+            else performance = '⚠ Low';
+            return [
+              `#${index + 1}`,
               room.name,
               room.bookings,
               room.approved || 0,
@@ -725,22 +931,73 @@ function AnalyticsOverview({ setView, admin }) {
             ];
           }),
           [],
-          ['6. DEPARTMENT STATISTICS'],
-          ['Department', 'Reservations', 'Percentage'],
-          ...(reservations.userDepartmentStats || []).map(dept => [
-            dept.name,
-            dept.count,
-            `${Math.round((dept.count / (reservations.total || 1)) * 100)}%`
-          ]),
+          ['SECTION 8: ROOM DETAILS'],
+          ['==============================================='],
+          ['Room Name', 'Total', 'Approved', 'Pending', 'Completed', 'Cancelled', 'Success Rate', 'Note'],
+          ...(reservations.byRoom || []).slice(0, 15).map((room) => {
+            const successRate = room.count > 0 ? Math.round((room.completed || 0) / room.count * 100) : 0;
+            let note = 'Normal operation';
+            if (successRate > 80) note = '✓ High performing';
+            else if (successRate < 40) note = '⚠ Low completion rate';
+            else if ((room.pending || 0) > 10) note = '⚠ High pending';
+            return [
+              room.name,
+              room.count,
+              room.approved || 0,
+              room.pending || 0,
+              room.completed || 0,
+              room.cancelled || 0,
+              `${successRate}%`,
+              note
+            ];
+          }),
           [],
-          ['7. TOP RESERVERS'],
-          ['Name', 'Department', 'Reservations', 'Contribution'],
-          ...(reservations.topReservers || []).map(user => [
-            user.name,
-            user.department || 'N/A',
-            user.count,
-            `${Math.round((user.count / (reservations.total || 1)) * 100)}%`
-          ])
+          ['SECTION 9: GROWTH TRENDS'],
+          ['==============================================='],
+          ['Period', 'Reservations', 'Change', 'Change %', 'Trend'],
+          ...(reservations.growth?.labels || []).map((label, idx) => {
+            const value = reservations.growth?.values?.[idx] || 0;
+            const prevValue = idx > 0 ? reservations.growth?.values?.[idx - 1] : value;
+            const change = value - prevValue;
+            const changePercent = prevValue > 0 ? Math.round((change / prevValue) * 100) : 0;
+            const trend = change > 0 ? '↑ Growing' : change < 0 ? '↓ Declining' : '→ Stable';
+            return [
+              label,
+              value,
+              change > 0 ? `+${change}` : change,
+              changePercent > 0 ? `+${changePercent}%` : `${changePercent}%`,
+              trend
+            ];
+          }),
+          [],
+          ['SECTION 10: RESERVATION INSIGHTS'],
+          ['==============================================='],
+          ['Insight', 'Finding', 'Recommendation'],
+          ['Peak Day',
+           `${dayNames[peakDay[0]] || peakDay[0]} is busiest with ${peakDay[1]} reservations`,
+           'Allocate additional resources on this day'],
+          ['Completion Rate',
+           `${Math.round((reservations.completed / total) * 100)}% of reservations completed`,
+           Math.round((reservations.completed / total) * 100) < 70 
+             ? 'Investigate barriers to completion' 
+             : 'Good completion rate'],
+          ['Cancellation Rate',
+           `${Math.round((reservations.cancelled / total) * 100)}% cancellation rate`,
+           Math.round((reservations.cancelled / total) * 100) > 10 
+             ? 'Review cancellation policies' 
+             : 'Acceptable cancellation rate'],
+          ['Top Department',
+           reservations.userDepartmentStats?.[0] 
+             ? `${reservations.userDepartmentStats[0].name} leads with ${reservations.userDepartmentStats[0].count} reservations`
+             : 'No department data',
+           'Engage with top department for best practices'],
+          ['Growth Trend',
+           reservations.trends?.total?.direction === 'up' 
+             ? `Growing at ${reservations.trends.total.percentage}%` 
+             : 'Declining or stable',
+           reservations.trends?.total?.direction === 'up' 
+             ? 'Continue current strategies' 
+             : 'Review booking process']
         ];
         addSheet(reservationsData, 'Reservations');
       }
@@ -748,57 +1005,103 @@ function AnalyticsOverview({ setView, admin }) {
       // ==================== ROOM ANALYTICS SHEET ====================
       if (selectedSections.rooms) {
         const rooms = analyticsData.rooms || {};
+        const totalRooms = rooms.total || 1;
+        
         const roomsData = [
+          ['==============================================='],
           ['ROOM ANALYTICS REPORT'],
           ['==============================================='],
           [],
-          ['1. KEY METRICS'],
-          ['Metric', 'Value', 'Description'],
-          ['Total Rooms', rooms.total || 0, 'All rooms in system'],
-          ['Available', rooms.available || 0, 'Ready for booking'],
-          ['Occupied', rooms.occupied || 0, 'Currently in use'],
-          ['Maintenance', rooms.maintenance || 0, 'Under maintenance'],
-          ['Utilization Rate', `${rooms.utilization || 0}%`, 'Overall room usage'],
+          ['SECTION 1: KEY METRICS'],
+          ['==============================================='],
+          ['Metric', 'Value', 'Change %', 'Trend', 'Status'],
+          ['Total Rooms', rooms.total || 0,
+           `${rooms.trends?.total?.percentage || 0}%`,
+           rooms.trends?.total?.direction === 'up' ? '↑ Increasing' : '→ Stable',
+           `${rooms.available} available, ${rooms.occupied} occupied`],
+          ['Available', rooms.available || 0,
+           `${rooms.trends?.available?.percentage || 0}%`,
+           rooms.trends?.available?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           'Ready for booking'],
+          ['Occupied', rooms.occupied || 0,
+           `${rooms.trends?.occupied?.percentage || 0}%`,
+           rooms.trends?.occupied?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           'Currently in use'],
+          ['Maintenance', rooms.maintenance || 0, 'N/A', 'N/A', 'Under maintenance'],
+          ['Utilization Rate', `${rooms.utilization || 0}%`,
+           `${rooms.trends?.utilization?.percentage || 0}%`,
+           rooms.trends?.utilization?.direction === 'up' ? '↑ Improving' : '↓ Declining',
+           rooms.utilization > 60 ? 'Optimal' : 'Underutilized'],
           [],
-          ['2. ROOMS BY TYPE'],
-          ['Type', 'Count', 'Percentage'],
+          ['SECTION 2: ROOMS BY TYPE'],
+          ['==============================================='],
+          ['Type', 'Count', 'Percentage', 'Description'],
           ['Lecture Halls', rooms.byType?.lecture || 0,
-           `${Math.round(((rooms.byType?.lecture || 0) / (rooms.total || 1)) * 100)}%`],
+           `${Math.round(((rooms.byType?.lecture || 0) / totalRooms) * 100)}%`,
+           'For classes and presentations'],
           ['Laboratories', rooms.byType?.laboratory || 0,
-           `${Math.round(((rooms.byType?.laboratory || 0) / (rooms.total || 1)) * 100)}%`],
+           `${Math.round(((rooms.byType?.laboratory || 0) / totalRooms) * 100)}%`,
+           'For experiments and practical work'],
           ['Conference Rooms', rooms.byType?.conference || 0,
-           `${Math.round(((rooms.byType?.conference || 0) / (rooms.total || 1)) * 100)}%`],
+           `${Math.round(((rooms.byType?.conference || 0) / totalRooms) * 100)}%`,
+           'For meetings and discussions'],
           ['Offices', rooms.byType?.office || 0,
-           `${Math.round(((rooms.byType?.office || 0) / (rooms.total || 1)) * 100)}%`],
+           `${Math.round(((rooms.byType?.office || 0) / totalRooms) * 100)}%`,
+           'For administrative use'],
           [],
-          ['3. ROOMS BY FLOOR'],
-          ['Floor', 'Count', 'Percentage'],
-          ...Object.entries(rooms.byFloor || {}).map(([floor, count]) => [
-            floor,
-            count,
-            `${Math.round((count / (rooms.total || 1)) * 100)}%`
+          ['SECTION 3: ROOMS BY FLOOR'],
+          ['==============================================='],
+          ['Floor', 'Count', 'Percentage', 'Most Active Room'],
+          ...Object.entries(rooms.byFloor || {}).map(([floor, count], idx) => {
+            const roomsOnFloor = rooms.roomDetails?.filter(r => r.floor === floor) || [];
+            const topRoom = roomsOnFloor.length > 0 
+              ? roomsOnFloor.reduce((max, r) => r.bookings > max.bookings ? r : max, roomsOnFloor[0])
+              : null;
+            return [
+              floor,
+              count,
+              `${Math.round((count / totalRooms) * 100)}%`,
+              topRoom ? `${topRoom.name} (${topRoom.bookings} bookings)` : 'N/A'
+            ];
+          }),
+          [],
+          ['SECTION 4: ROOM FEATURES'],
+          ['==============================================='],
+          ['Feature', 'Rooms with Feature', 'Coverage', 'Popularity'],
+          ['WiFi', rooms.featureStats?.wifi || 0,
+           `${Math.round(((rooms.featureStats?.wifi || 0) / totalRooms) * 100)}%`,
+           'Essential'],
+          ['Air Conditioning', rooms.featureStats?.aircon || 0,
+           `${Math.round(((rooms.featureStats?.aircon || 0) / totalRooms) * 100)}%`,
+           'High Demand'],
+          ['Projector', rooms.featureStats?.projector || 0,
+           `${Math.round(((rooms.featureStats?.projector || 0) / totalRooms) * 100)}%`,
+           'Very Popular'],
+          ['Monitor', rooms.featureStats?.monitor || 0,
+           `${Math.round(((rooms.featureStats?.monitor || 0) / totalRooms) * 100)}%`,
+           'Useful for collaboration'],
+          [],
+          ['SECTION 5: HOURLY UTILIZATION'],
+          ['==============================================='],
+          ['Time Slot', 'Utilization', 'Bookings', 'Peak Status'],
+          ...(rooms.hourlyUtilization || []).map(hour => [
+            hour.hour,
+            `${hour.utilization}%`,
+            hour.bookings || 0,
+            hour.utilization > 70 ? '★ Peak' : hour.utilization > 50 ? '∼ Moderate' : '○ Off-Peak'
           ]),
           [],
-          ['4. ROOM FEATURES'],
-          ['Feature', 'Rooms with Feature', 'Coverage'],
-          ['WiFi', rooms.featureStats?.wifi || 0,
-           `${Math.round(((rooms.featureStats?.wifi || 0) / (rooms.total || 1)) * 100)}%`],
-          ['Air Conditioning', rooms.featureStats?.aircon || 0,
-           `${Math.round(((rooms.featureStats?.aircon || 0) / (rooms.total || 1)) * 100)}%`],
-          ['Projector', rooms.featureStats?.projector || 0,
-           `${Math.round(((rooms.featureStats?.projector || 0) / (rooms.total || 1)) * 100)}%`],
-          ['Monitor', rooms.featureStats?.monitor || 0,
-           `${Math.round(((rooms.featureStats?.monitor || 0) / (rooms.total || 1)) * 100)}%`],
-          [],
-          ['5. TOP PERFORMING ROOMS'],
-          ['Room', 'Type', 'Floor', 'Capacity', 'Bookings', 'Utilization', 'Rating'],
-          ...(rooms.topRooms || []).map(room => {
+          ['SECTION 6: TOP PERFORMING ROOMS'],
+          ['==============================================='],
+          ['Rank', 'Room', 'Type', 'Floor', 'Capacity', 'Bookings', 'Utilization', 'Rating'],
+          ...(rooms.topRooms || []).map((room, index) => {
             let rating = '★';
             if (room.utilization > 80) rating = '★★★';
             else if (room.utilization > 60) rating = '★★';
             else if (room.utilization > 40) rating = '★';
             else rating = '☆';
             return [
+              `#${index + 1}`,
               room.name,
               room.type,
               room.floor || 'N/A',
@@ -809,23 +1112,77 @@ function AnalyticsOverview({ setView, admin }) {
             ];
           }),
           [],
-          ['6. HOURLY UTILIZATION'],
-          ['Time Slot', 'Utilization', 'Bookings', 'Peak Status'],
-          ...(rooms.hourlyUtilization || []).map(hour => [
-            hour.hour,
-            `${hour.utilization}%`,
-            hour.bookings || 0,
-            hour.utilization > 70 ? '★ Peak' : hour.utilization > 50 ? 'Moderate' : 'Off-Peak'
-          ]),
+          ['SECTION 7: ROOM DETAILS'],
+          ['==============================================='],
+          ['Room', 'Type', 'Floor', 'Capacity', 'Bookings', 'Utilization', 'Status', 'Features'],
+          ...(rooms.roomDetails || []).map(room => {
+            const features = [];
+            if (room.features?.wifi) features.push('WiFi');
+            if (room.features?.aircon) features.push('AC');
+            if (room.features?.projector) features.push('Projector');
+            if (room.features?.monitor) features.push('Monitor');
+            return [
+              room.name,
+              room.type,
+              room.floor || 'N/A',
+              room.capacity || 0,
+              room.bookings,
+              `${room.utilization}%`,
+              room.status || 'N/A',
+              features.join(', ') || 'None'
+            ];
+          }),
           [],
-          ['7. MAINTENANCE HISTORY'],
+          ['SECTION 8: MAINTENANCE HISTORY'],
+          ['==============================================='],
           ['Room', 'Date', 'Type', 'Status'],
           ...(rooms.maintenanceHistory || []).map(item => [
             item.room,
             item.date,
             item.type,
             item.status
-          ])
+          ]),
+          [],
+          ['SECTION 9: BOOKING TRENDS'],
+          ['==============================================='],
+          ['Month', 'Bookings', 'Change', 'Trend'],
+          ...(rooms.bookingTrends || []).map((item, idx) => {
+            const prevBookings = idx > 0 ? rooms.bookingTrends?.[idx - 1]?.bookings : item.bookings;
+            const change = item.bookings - prevBookings;
+            const trend = change > 0 ? '↑ Growing' : change < 0 ? '↓ Declining' : '→ Stable';
+            return [
+              item.month,
+              item.bookings,
+              change > 0 ? `+${change}` : change,
+              trend
+            ];
+          }),
+          [],
+          ['SECTION 10: TOP USERS'],
+          ['==============================================='],
+          ['Name', 'Department', 'Bookings', 'Preferred Room'],
+          ...(rooms.topUsers || []).map(user => [
+            user.name,
+            user.department || 'N/A',
+            user.bookings,
+            user.room || 'N/A'
+          ]),
+          [],
+          ['SECTION 11: ROOM INSIGHTS'],
+          ['==============================================='],
+          ['Insight', 'Finding', 'Recommendation'],
+          ['Peak Usage',
+           `Highest utilization at ${rooms.peakHours?.[0]?.hour || 'N/A'} (${rooms.peakHours?.[0]?.utilization || 0}%)`,
+           'Schedule maintenance during off-peak hours'],
+          ['Underutilized Rooms',
+           `Rooms with <40% utilization: ${rooms.roomDetails?.filter(r => r.utilization < 40).length || 0}`,
+           'Promote these rooms for booking'],
+          ['Feature Coverage',
+           `WiFi: ${rooms.featureStats?.wifi || 0} rooms, Projector: ${rooms.featureStats?.projector || 0} rooms`,
+           'Consider adding more projectors to high-demand rooms'],
+          ['Maintenance Impact',
+           `${rooms.maintenance || 0} rooms under maintenance`,
+           rooms.maintenance > 2 ? 'Review maintenance schedule' : 'Normal maintenance levels']
         ];
         addSheet(roomsData, 'Rooms');
       }
@@ -839,83 +1196,163 @@ function AnalyticsOverview({ setView, admin }) {
                                    (engagement.userActivity?.inactive || 1);
         
         const engagementData = [
+          ['==============================================='],
           ['ENGAGEMENT ANALYTICS REPORT'],
           ['==============================================='],
           [],
-          ['1. KEY METRICS'],
+          ['SECTION 1: KEY METRICS'],
+          ['==============================================='],
+          ['Metric', 'Value', 'Change %', 'Trend', 'Description'],
+          ['Daily Active Users', engagement.dailyActive || 0,
+           `${engagement.trends?.daily?.percentage || 0}%`,
+           engagement.trends?.daily?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           'Users active in last 24h'],
+          ['Weekly Active Users', engagement.weeklyActive || 0,
+           `${engagement.trends?.weekly?.percentage || 0}%`,
+           engagement.trends?.weekly?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           'Users active in last 7 days'],
+          ['Monthly Active Users', engagement.monthlyActive || 0,
+           `${engagement.trends?.monthly?.percentage || 0}%`,
+           engagement.trends?.monthly?.direction === 'up' ? '↑ Increasing' : '↓ Decreasing',
+           'Users active in last 30 days'],
+          ['Avg Session Duration', `${engagement.averageSession || 0} minutes`, 'N/A', 'N/A', 'Time spent per session'],
+          ['Retention Rate', `${engagement.retention || 0}%`, 'N/A',
+           (engagement.retention || 0) > 70 ? '↑ Good' : '↓ Needs Improvement',
+           'Users returning after first visit'],
+          ['Bounce Rate', `${engagement.bounceRate || 0}%`, 'N/A',
+           (engagement.bounceRate || 0) < 30 ? '✓ Good' : '⚠ High',
+           'Single-action sessions'],
+          [],
+          ['SECTION 2: ENGAGEMENT METRICS'],
+          ['==============================================='],
           ['Metric', 'Value', 'Description'],
-          ['Daily Active Users', engagement.dailyActive || 0, 'Users active in last 24h'],
-          ['Weekly Active Users', engagement.weeklyActive || 0, 'Users active in last 7 days'],
-          ['Monthly Active Users', engagement.monthlyActive || 0, 'Users active in last 30 days'],
-          ['Avg Session Duration', `${engagement.averageSession || 0} minutes`, 'Time spent per session'],
-          ['Retention Rate', `${engagement.retention || 0}%`, 'Users returning after first visit'],
-          ['Bounce Rate', `${engagement.bounceRate || 0}%`, 'Single-action sessions'],
+          ['Page Views', engagement.engagementMetrics?.pageViews || 0, 'Total page views'],
+          ['Total Actions', engagement.engagementMetrics?.actions || 0, 'All user actions'],
+          ['Avg Actions/User', engagement.engagementMetrics?.avgActionsPerUser || 0, 'Average per active user'],
+          ['Returning Users', `${engagement.engagementMetrics?.returningUsers || 0}%`, 'Percentage of returning users'],
+          ['Total Sessions', engagement.engagementMetrics?.totalSessions || 0, 'Total user sessions'],
           [],
-          ['2. ENGAGEMENT METRICS'],
-          ['Metric', 'Value'],
-          ['Page Views', engagement.engagementMetrics?.pageViews || 0],
-          ['Total Actions', engagement.engagementMetrics?.actions || 0],
-          ['Avg Actions/User', engagement.engagementMetrics?.avgActionsPerUser || 0],
-          ['Returning Users', `${engagement.engagementMetrics?.returningUsers || 0}%`],
-          ['Total Sessions', engagement.engagementMetrics?.totalSessions || 0],
-          [],
-          ['3. USER ACTIVITY LEVELS'],
-          ['Level', 'Users', 'Percentage', 'Definition'],
+          ['SECTION 3: USER ACTIVITY LEVELS'],
+          ['==============================================='],
+          ['Level', 'Users', 'Percentage', 'Definition', 'Status'],
           ['High Activity', engagement.userActivity?.high || 0,
            `${Math.round(((engagement.userActivity?.high || 0) / totalActivityUsers) * 100)}%`,
-           '10+ actions per day'],
+           '10+ actions per day',
+           engagement.userActivity?.high > 100 ? '🌟 Power Users' : 'Moderate'],
           ['Medium Activity', engagement.userActivity?.medium || 0,
            `${Math.round(((engagement.userActivity?.medium || 0) / totalActivityUsers) * 100)}%`,
-           '5-9 actions per day'],
+           '5-9 actions per day',
+           'Regular Users'],
           ['Low Activity', engagement.userActivity?.low || 0,
            `${Math.round(((engagement.userActivity?.low || 0) / totalActivityUsers) * 100)}%`,
-           '1-4 actions per day'],
+           '1-4 actions per day',
+           'Casual Users'],
           ['Inactive', engagement.userActivity?.inactive || 0,
            `${Math.round(((engagement.userActivity?.inactive || 0) / totalActivityUsers) * 100)}%`,
-           'No actions in period'],
+           'No actions in period',
+           engagement.userActivity?.inactive > 200 ? '⚠ Re-engagement Needed' : 'Normal'],
           [],
-          ['4. ACTIVITY BREAKDOWN'],
-          ['Action Type', 'Count', 'Percentage'],
+          ['SECTION 4: ACTIVITY BREAKDOWN'],
+          ['==============================================='],
+          ['Action Type', 'Count', 'Percentage', 'Popularity'],
           ...(engagement.activityBreakdown || []).map(item => [
             item.name,
             item.value,
-            `${Math.round((item.value / (engagement.engagementMetrics?.actions || 1)) * 100)}%`
+            `${Math.round((item.value / (engagement.engagementMetrics?.actions || 1)) * 100)}%`,
+            item.value > 5000 ? '🔥 Very Popular' : item.value > 2000 ? '✓ Popular' : '○ Normal'
           ]),
           [],
-          ['5. DEVICE BREAKDOWN'],
-          ['Device', 'Percentage'],
+          ['SECTION 5: DEVICE BREAKDOWN'],
+          ['==============================================='],
+          ['Device', 'Percentage', 'Users', 'Trend'],
           ...(engagement.deviceBreakdown || []).map(device => [
             device.name,
-            `${device.value}%`
+            `${device.value}%`,
+            Math.round((device.value / 100) * (engagement.weeklyActive || 1000)),
+            device.name === 'Mobile' ? '↑ Growing' : device.name === 'Desktop' ? '→ Stable' : '∼ Stable'
           ]),
           [],
-          ['6. PEAK HOURS'],
-          ['Hour', 'Activity Level'],
-          ...(engagement.peakHours || []).map(hour => [
-            hour.hour,
-            hour.activity
-          ]),
+          ['SECTION 6: PEAK HOURS'],
+          ['==============================================='],
+          ['Hour', 'Activity Level', 'Relative Usage', 'Recommendation'],
+          ...(engagement.peakHours || []).map(hour => {
+            const maxActivity = Math.max(...(engagement.peakHours || []).map(h => h.activity));
+            const relativeUsage = maxActivity > 0 ? Math.round((hour.activity / maxActivity) * 100) : 0;
+            let recommendation = 'Normal';
+            if (relativeUsage > 80) recommendation = 'Peak time - ensure system stability';
+            else if (relativeUsage < 20) recommendation = 'Off-peak - good for maintenance';
+            return [
+              hour.hour,
+              hour.activity,
+              `${relativeUsage}%`,
+              recommendation
+            ];
+          }),
           [],
-          ['7. TOP FEATURES'],
-          ['Feature', 'Usage Count', 'Trend', 'Status'],
+          ['SECTION 7: TOP FEATURES'],
+          ['==============================================='],
+          ['Feature', 'Usage Count', 'Trend', 'Status', 'Action'],
           ...(engagement.topFeatures || []).map(feature => [
             feature.name,
             feature.count,
             `${feature.trend > 0 ? '+' : ''}${feature.trend}%`,
-            feature.trend > 0 ? 'Growing' : feature.trend < 0 ? 'Declining' : 'Stable'
+            feature.trend > 0 ? '📈 Growing' : feature.trend < 0 ? '📉 Declining' : '→ Stable',
+            feature.trend > 0 ? 'Promote further' : feature.trend < 0 ? 'Investigate decline' : 'Maintain'
           ]),
           [],
-          ['8. DAILY ACTIVE USERS'],
-          ['Day', 'Active Users'],
-          ...(engagement.byDay || []).map(day => [
-            day.day,
-            day.active
-          ])
+          ['SECTION 8: DAILY ACTIVE USERS'],
+          ['==============================================='],
+          ['Day', 'Active Users', 'Comparison to Avg', 'Status'],
+          ...(engagement.byDay || []).map(day => {
+            const avg = engagement.byDay.reduce((sum, d) => sum + d.active, 0) / (engagement.byDay.length || 1);
+            const comparison = day.active > avg ? `+${Math.round((day.active / avg - 1) * 100)}%` : `-${Math.round((1 - day.active / avg) * 100)}%`;
+            return [
+              day.day,
+              day.active,
+              comparison,
+              day.active > avg ? 'Above Average' : 'Below Average'
+            ];
+          }),
+          [],
+          ['SECTION 9: ENGAGEMENT TRENDS'],
+          ['==============================================='],
+          ['Month', 'Active Users', 'New Users', 'Growth Rate', 'Status'],
+          ...(engagement.userEngagementTrends || []).slice(-6).map(trend => {
+            const prevActive = engagement.userEngagementTrends?.[engagement.userEngagementTrends.indexOf(trend) - 1]?.active || trend.active;
+            const growth = trend.active - prevActive;
+            const growthRate = prevActive > 0 ? Math.round((growth / prevActive) * 100) : 0;
+            return [
+              trend.month,
+              trend.active,
+              trend.new,
+              `${growthRate > 0 ? '+' : ''}${growthRate}%`,
+              growth > 0 ? '📈 Growing' : growth < 0 ? '📉 Declining' : '→ Stable'
+            ];
+          }),
+          [],
+          ['SECTION 10: ENGAGEMENT INSIGHTS'],
+          ['==============================================='],
+          ['Insight', 'Finding', 'Recommendation'],
+          ['Peak Engagement',
+           `Peak at ${engagement.peakHours?.reduce((max, h) => h.activity > max.activity ? h : max, { activity: 0 })?.hour || 'N/A'}`,
+           'Schedule important updates during peak hours'],
+          ['Mobile Usage',
+           `${engagement.deviceBreakdown?.find(d => d.name === 'Mobile')?.value || 0}% mobile users`,
+           'Ensure mobile experience is optimized'],
+          ['Feature Adoption',
+           `Top feature: ${engagement.topFeatures?.[0]?.name || 'N/A'} (${engagement.topFeatures?.[0]?.count || 0} uses)`,
+           engagement.topFeatures?.[0]?.trend < 0 ? 'Investigate declining usage' : 'Continue promoting'],
+          ['User Retention',
+           `${engagement.retention || 0}% retention rate`,
+           engagement.retention < 70 ? 'Improve onboarding' : 'Good retention'],
+          ['Activity Distribution',
+           `High activity: ${Math.round(((engagement.userActivity?.high || 0) / totalActivityUsers) * 100)}% of users`,
+           'Encourage medium/low users to increase engagement']
         ];
         addSheet(engagementData, 'Engagement');
       }
 
-      // Save the file with descriptive name
+      // Save the file
       const fileName = `Analytics_Report_${getRangeDescription().replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
       
