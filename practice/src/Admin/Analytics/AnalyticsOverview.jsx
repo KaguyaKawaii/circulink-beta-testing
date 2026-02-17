@@ -57,16 +57,17 @@ function AnalyticsOverview({ setView, admin }) {
   });
 
   const [analyticsData, setAnalyticsData] = useState({
-    overview: {
-      totalUsers: 0,
-      totalReservations: 0,
-      totalRooms: 0,
-      activeToday: 0,
-      pendingReservations: 0,
-      completedReservations: 0,
-      roomUtilization: 0,
-      avgSessionDuration: 0
-    },
+    // Overview metrics
+    totalUsers: 0,
+    totalReservations: 0,
+    totalRooms: 0,
+    activeToday: 0,
+    pendingReservations: 0,
+    completedReservations: 0,
+    roomUtilization: 0,
+    avgSessionDuration: 0,
+    
+    // User data
     users: {
       total: 0,
       active: 0,
@@ -85,6 +86,8 @@ function AnalyticsOverview({ setView, admin }) {
       registrationStats: { today: 0, thisWeek: 0, thisMonth: 0, avgPerDay: 0 },
       activityStats: { activeToday: 0, activeThisWeek: 0, activeThisMonth: 0, retentionRate: 0 }
     },
+    
+    // Reservation data
     reservations: {
       total: 0,
       pending: 0,
@@ -110,6 +113,8 @@ function AnalyticsOverview({ setView, admin }) {
       userDepartmentStats: [],
       topReservers: []
     },
+    
+    // Room data
     rooms: {
       total: 0,
       available: 0,
@@ -134,6 +139,8 @@ function AnalyticsOverview({ setView, admin }) {
       maintenanceHistory: [],
       topUsers: []
     },
+    
+    // Engagement data
     engagement: {
       dailyActive: 0,
       weeklyActive: 0,
@@ -169,27 +176,73 @@ function AnalyticsOverview({ setView, admin }) {
   const fetchAllAnalytics = useCallback(async () => {
     setLoading(true);
     try {
-      let baseUrl = `/api/admin/analytics/overview?range=${dateRange}`;
-      
-      if (dateRange === "custom" && customStartDate && customEndDate) {
-        baseUrl = `/api/admin/analytics/overview?startDate=${customStartDate}&endDate=${customEndDate}`;
+      // Fetch all analytics data in parallel
+      const [usersRes, reservationsRes, roomsRes, engagementRes] = await Promise.allSettled([
+        api.get(`/analytics/users?range=${dateRange}${getCustomDateParams()}`),
+        api.get(`/analytics/reservations/detailed?range=${dateRange}${getCustomDateParams()}`),
+        api.get(`/analytics/rooms/detailed?range=${dateRange}${getCustomDateParams()}`),
+        api.get(`/analytics/engagement?range=${dateRange}${getCustomDateParams()}`)
+      ]);
+
+      // Process users data
+      let usersData = { total: 0, active: 0, new: 0, deleted: 0, byRole: {}, byStatus: {}, byDepartment: [], growth: { labels: [], values: [] }, trends: {}, topUsers: [], registrationStats: {}, activityStats: {} };
+      if (usersRes.status === 'fulfilled' && usersRes.value.data?.success) {
+        usersData = usersRes.value.data.data;
       }
-      
-      const response = await api.get(baseUrl);
-      
-      if (response.data && response.data.success) {
-        setAnalyticsData(response.data.data);
-      } else {
-        // Fallback to mock data
-        setAnalyticsData(getMockAnalyticsData(dateRange));
+
+      // Process reservations data
+      let reservationsData = { total: 0, pending: 0, approved: 0, rejected: 0, completed: 0, cancelled: 0, expired: 0, ongoing: 0, byRoom: [], byDayOfWeek: {}, popularRooms: [], trends: {}, growth: { labels: [], values: [] }, floorDistribution: [], avgGroupSize: 0, totalParticipants: 0, userDepartmentStats: [], topReservers: [] };
+      if (reservationsRes.status === 'fulfilled' && reservationsRes.value.data?.success) {
+        reservationsData = reservationsRes.value.data.data;
       }
+
+      // Process rooms data
+      let roomsData = { total: 0, available: 0, occupied: 0, maintenance: 0, utilization: 0, byType: {}, roomDetails: [], hourlyUtilization: [], topRooms: [], byFloor: {}, byCapacity: {}, trends: {}, featureStats: {}, peakHours: [], bookingTrends: [], maintenanceHistory: [], topUsers: [] };
+      if (roomsRes.status === 'fulfilled' && roomsRes.value.data?.success) {
+        roomsData = roomsRes.value.data.data;
+      }
+
+      // Process engagement data
+      let engagementData = { dailyActive: 0, weeklyActive: 0, monthlyActive: 0, averageSession: 0, retention: 0, bounceRate: 0, byDay: [], userActivity: {}, engagementMetrics: {}, activityBreakdown: [], peakHours: [], deviceBreakdown: [], userEngagementTrends: [], topFeatures: [], trends: {} };
+      if (engagementRes.status === 'fulfilled' && engagementRes.value.data?.success) {
+        engagementData = engagementRes.value.data.data;
+      }
+
+      // Calculate overview metrics
+      const overviewMetrics = {
+        totalUsers: usersData.total || 0,
+        totalReservations: reservationsData.total || 0,
+        totalRooms: roomsData.total || 0,
+        activeToday: engagementData.dailyActive || 0,
+        pendingReservations: reservationsData.pending || 0,
+        completedReservations: reservationsData.completed || 0,
+        roomUtilization: roomsData.utilization || 0,
+        avgSessionDuration: engagementData.averageSession || 0
+      };
+
+      setAnalyticsData({
+        ...overviewMetrics,
+        users: usersData,
+        reservations: reservationsData,
+        rooms: roomsData,
+        engagement: engagementData
+      });
+
     } catch (error) {
       console.error("Error fetching analytics:", error);
+      // Fallback to mock data
       setAnalyticsData(getMockAnalyticsData(dateRange));
     } finally {
       setLoading(false);
     }
   }, [dateRange, customStartDate, customEndDate]);
+
+  const getCustomDateParams = () => {
+    if (dateRange === "custom" && customStartDate && customEndDate) {
+      return `&startDate=${customStartDate}&endDate=${customEndDate}`;
+    }
+    return "";
+  };
 
   useEffect(() => {
     fetchAllAnalytics();
@@ -210,16 +263,14 @@ function AnalyticsOverview({ setView, admin }) {
 
   const getMockAnalyticsData = (range) => {
     return {
-      overview: {
-        totalUsers: 1250,
-        totalReservations: 3450,
-        totalRooms: 25,
-        activeToday: 320,
-        pendingReservations: 45,
-        completedReservations: 2890,
-        roomUtilization: 68,
-        avgSessionDuration: 24
-      },
+      totalUsers: 1250,
+      totalReservations: 3450,
+      totalRooms: 25,
+      activeToday: 320,
+      pendingReservations: 45,
+      completedReservations: 2890,
+      roomUtilization: 68,
+      avgSessionDuration: 24,
       users: {
         total: 1250,
         active: 850,
@@ -246,9 +297,7 @@ function AnalyticsOverview({ setView, admin }) {
         topUsers: [
           { name: "John Doe", email: "john@email.com", role: "Student", reservations: 45 },
           { name: "Jane Smith", email: "jane@email.com", role: "Faculty", reservations: 38 },
-          { name: "Bob Wilson", email: "bob@email.com", role: "Staff", reservations: 32 },
-          { name: "Alice Brown", email: "alice@email.com", role: "Student", reservations: 28 },
-          { name: "Charlie Lee", email: "charlie@email.com", role: "Faculty", reservations: 25 }
+          { name: "Bob Wilson", email: "bob@email.com", role: "Staff", reservations: 32 }
         ],
         registrationStats: { today: 5, thisWeek: 32, thisMonth: 145, avgPerDay: 4.8 },
         activityStats: { activeToday: 320, activeThisWeek: 850, activeThisMonth: 1150, retentionRate: 76 }
@@ -485,59 +534,60 @@ function AnalyticsOverview({ setView, admin }) {
           [],
           ['KEY METRICS'],
           ['Metric', 'Value'],
-          ['Total Users', analyticsData.overview.totalUsers],
-          ['Total Reservations', analyticsData.overview.totalReservations],
-          ['Total Rooms', analyticsData.overview.totalRooms],
-          ['Active Today', analyticsData.overview.activeToday],
-          ['Pending Reservations', analyticsData.overview.pendingReservations],
-          ['Completed Reservations', analyticsData.overview.completedReservations],
-          ['Room Utilization', `${analyticsData.overview.roomUtilization}%`],
-          ['Avg Session Duration', `${analyticsData.overview.avgSessionDuration}m`]
+          ['Total Users', analyticsData.totalUsers || 0],
+          ['Total Reservations', analyticsData.totalReservations || 0],
+          ['Total Rooms', analyticsData.totalRooms || 0],
+          ['Active Today', analyticsData.activeToday || 0],
+          ['Pending Reservations', analyticsData.pendingReservations || 0],
+          ['Completed Reservations', analyticsData.completedReservations || 0],
+          ['Room Utilization', `${analyticsData.roomUtilization || 0}%`],
+          ['Avg Session Duration', `${analyticsData.avgSessionDuration || 0}m`]
         ];
         addSheet(overviewData, 'Overview');
       }
 
       // Users Sheet
       if (selectedSections.users) {
+        const users = analyticsData.users || {};
         const usersData = [
           ['USER ANALYTICS'],
           [],
           ['KEY METRICS'],
           ['Metric', 'Value'],
-          ['Total Users', analyticsData.users.total],
-          ['Active Users (7d)', analyticsData.users.active],
-          ['New Users', analyticsData.users.new],
-          ['Deleted/Archived', analyticsData.users.deleted],
-          ['Retention Rate', `${analyticsData.users.activityStats?.retentionRate || 0}%`],
+          ['Total Users', users.total || 0],
+          ['Active Users (7d)', users.active || 0],
+          ['New Users', users.new || 0],
+          ['Deleted/Archived', users.deleted || 0],
+          ['Retention Rate', `${users.activityStats?.retentionRate || 0}%`],
           [],
           ['USERS BY ROLE'],
           ['Role', 'Count', 'Percentage'],
-          ['Students', analyticsData.users.byRole?.student || 0, 
-           `${Math.round((analyticsData.users.byRole?.student || 0) / (analyticsData.users.total || 1) * 100)}%`],
-          ['Faculty', analyticsData.users.byRole?.faculty || 0,
-           `${Math.round((analyticsData.users.byRole?.faculty || 0) / (analyticsData.users.total || 1) * 100)}%`],
-          ['Staff', analyticsData.users.byRole?.staff || 0,
-           `${Math.round((analyticsData.users.byRole?.staff || 0) / (analyticsData.users.total || 1) * 100)}%`],
+          ['Students', users.byRole?.student || 0, 
+           `${Math.round((users.byRole?.student || 0) / (users.total || 1) * 100)}%`],
+          ['Faculty', users.byRole?.faculty || 0,
+           `${Math.round((users.byRole?.faculty || 0) / (users.total || 1) * 100)}%`],
+          ['Staff', users.byRole?.staff || 0,
+           `${Math.round((users.byRole?.staff || 0) / (users.total || 1) * 100)}%`],
           [],
           ['USERS BY STATUS'],
           ['Status', 'Count'],
-          ['Active (7d)', analyticsData.users.byStatus?.active || 0],
-          ['Inactive', analyticsData.users.byStatus?.inactive || 0],
-          ['Suspended', analyticsData.users.byStatus?.suspended || 0],
-          ['Verified', analyticsData.users.byStatus?.verified || 0],
-          ['Unverified', analyticsData.users.byStatus?.unverified || 0],
+          ['Active (7d)', users.byStatus?.active || 0],
+          ['Inactive', users.byStatus?.inactive || 0],
+          ['Suspended', users.byStatus?.suspended || 0],
+          ['Verified', users.byStatus?.verified || 0],
+          ['Unverified', users.byStatus?.unverified || 0],
           [],
           ['TOP DEPARTMENTS'],
           ['Department', 'User Count', 'Percentage'],
-          ...(analyticsData.users.byDepartment || []).map(dept => [
+          ...(users.byDepartment || []).map(dept => [
             dept.name,
             dept.count,
-            `${Math.round((dept.count / (analyticsData.users.total || 1)) * 100)}%`
+            `${Math.round((dept.count / (users.total || 1)) * 100)}%`
           ]),
           [],
           ['TOP ACTIVE USERS'],
           ['Name', 'Email', 'Role', 'Actions'],
-          ...(analyticsData.users.topUsers || []).map(user => [
+          ...(users.topUsers || []).map(user => [
             user.name,
             user.email,
             user.role,
@@ -549,42 +599,43 @@ function AnalyticsOverview({ setView, admin }) {
 
       // Reservations Sheet
       if (selectedSections.reservations) {
+        const reservations = analyticsData.reservations || {};
         const reservationsData = [
           ['RESERVATION ANALYTICS'],
           [],
           ['KEY METRICS'],
           ['Metric', 'Value'],
-          ['Total Reservations', analyticsData.reservations.total],
-          ['Completed', analyticsData.reservations.completed],
-          ['Pending', analyticsData.reservations.pending],
-          ['Approved', analyticsData.reservations.approved],
-          ['Rejected', analyticsData.reservations.rejected],
-          ['Cancelled', analyticsData.reservations.cancelled],
-          ['Ongoing', analyticsData.reservations.ongoing],
-          ['Expired', analyticsData.reservations.expired],
-          ['Avg Group Size', analyticsData.reservations.avgGroupSize || 0],
-          ['Total Participants', analyticsData.reservations.totalParticipants || 0],
+          ['Total Reservations', reservations.total || 0],
+          ['Completed', reservations.completed || 0],
+          ['Pending', reservations.pending || 0],
+          ['Approved', reservations.approved || 0],
+          ['Rejected', reservations.rejected || 0],
+          ['Cancelled', reservations.cancelled || 0],
+          ['Ongoing', reservations.ongoing || 0],
+          ['Expired', reservations.expired || 0],
+          ['Avg Group Size', reservations.avgGroupSize || 0],
+          ['Total Participants', reservations.totalParticipants || 0],
           [],
           ['RESERVATIONS BY DAY OF WEEK'],
           ['Day', 'Count', 'Percentage'],
-          ['Monday', analyticsData.reservations.byDayOfWeek?.mon || 0,
-           `${Math.round(((analyticsData.reservations.byDayOfWeek?.mon || 0) / (analyticsData.reservations.total || 1)) * 100)}%`],
-          ['Tuesday', analyticsData.reservations.byDayOfWeek?.tue || 0,
-           `${Math.round(((analyticsData.reservations.byDayOfWeek?.tue || 0) / (analyticsData.reservations.total || 1)) * 100)}%`],
-          ['Wednesday', analyticsData.reservations.byDayOfWeek?.wed || 0,
-           `${Math.round(((analyticsData.reservations.byDayOfWeek?.wed || 0) / (analyticsData.reservations.total || 1)) * 100)}%`],
-          ['Thursday', analyticsData.reservations.byDayOfWeek?.thu || 0,
-           `${Math.round(((analyticsData.reservations.byDayOfWeek?.thu || 0) / (analyticsData.reservations.total || 1)) * 100)}%`],
-          ['Friday', analyticsData.reservations.byDayOfWeek?.fri || 0,
-           `${Math.round(((analyticsData.reservations.byDayOfWeek?.fri || 0) / (analyticsData.reservations.total || 1)) * 100)}%`],
-          ['Saturday', analyticsData.reservations.byDayOfWeek?.sat || 0,
-           `${Math.round(((analyticsData.reservations.byDayOfWeek?.sat || 0) / (analyticsData.reservations.total || 1)) * 100)}%`],
-          ['Sunday', analyticsData.reservations.byDayOfWeek?.sun || 0,
-           `${Math.round(((analyticsData.reservations.byDayOfWeek?.sun || 0) / (analyticsData.reservations.total || 1)) * 100)}%`],
+          ['Monday', reservations.byDayOfWeek?.mon || 0,
+           `${Math.round(((reservations.byDayOfWeek?.mon || 0) / (reservations.total || 1)) * 100)}%`],
+          ['Tuesday', reservations.byDayOfWeek?.tue || 0,
+           `${Math.round(((reservations.byDayOfWeek?.tue || 0) / (reservations.total || 1)) * 100)}%`],
+          ['Wednesday', reservations.byDayOfWeek?.wed || 0,
+           `${Math.round(((reservations.byDayOfWeek?.wed || 0) / (reservations.total || 1)) * 100)}%`],
+          ['Thursday', reservations.byDayOfWeek?.thu || 0,
+           `${Math.round(((reservations.byDayOfWeek?.thu || 0) / (reservations.total || 1)) * 100)}%`],
+          ['Friday', reservations.byDayOfWeek?.fri || 0,
+           `${Math.round(((reservations.byDayOfWeek?.fri || 0) / (reservations.total || 1)) * 100)}%`],
+          ['Saturday', reservations.byDayOfWeek?.sat || 0,
+           `${Math.round(((reservations.byDayOfWeek?.sat || 0) / (reservations.total || 1)) * 100)}%`],
+          ['Sunday', reservations.byDayOfWeek?.sun || 0,
+           `${Math.round(((reservations.byDayOfWeek?.sun || 0) / (reservations.total || 1)) * 100)}%`],
           [],
           ['POPULAR ROOMS'],
           ['Room', 'Bookings', 'Approved', 'Completed', 'Utilization'],
-          ...(analyticsData.reservations.popularRooms || []).map(room => [
+          ...(reservations.popularRooms || []).map(room => [
             room.name,
             room.bookings,
             room.approved || 0,
@@ -594,7 +645,7 @@ function AnalyticsOverview({ setView, admin }) {
           [],
           ['TOP RESERVERS'],
           ['Name', 'Department', 'Reservations'],
-          ...(analyticsData.reservations.topReservers || []).map(user => [
+          ...(reservations.topReservers || []).map(user => [
             user.name,
             user.department || 'N/A',
             user.count
@@ -605,39 +656,40 @@ function AnalyticsOverview({ setView, admin }) {
 
       // Rooms Sheet
       if (selectedSections.rooms) {
+        const rooms = analyticsData.rooms || {};
         const roomsData = [
           ['ROOM ANALYTICS'],
           [],
           ['KEY METRICS'],
           ['Metric', 'Value'],
-          ['Total Rooms', analyticsData.rooms.total],
-          ['Available', analyticsData.rooms.available],
-          ['Occupied', analyticsData.rooms.occupied],
-          ['Maintenance', analyticsData.rooms.maintenance],
-          ['Utilization Rate', `${analyticsData.rooms.utilization}%`],
+          ['Total Rooms', rooms.total || 0],
+          ['Available', rooms.available || 0],
+          ['Occupied', rooms.occupied || 0],
+          ['Maintenance', rooms.maintenance || 0],
+          ['Utilization Rate', `${rooms.utilization || 0}%`],
           [],
           ['ROOMS BY FLOOR'],
           ['Floor', 'Count', 'Percentage'],
-          ...Object.entries(analyticsData.rooms.byFloor || {}).map(([floor, count]) => [
+          ...Object.entries(rooms.byFloor || {}).map(([floor, count]) => [
             floor,
             count,
-            `${Math.round((count / (analyticsData.rooms.total || 1)) * 100)}%`
+            `${Math.round((count / (rooms.total || 1)) * 100)}%`
           ]),
           [],
           ['ROOM FEATURES'],
           ['Feature', 'Rooms with Feature', 'Percentage'],
-          ['WiFi', analyticsData.rooms.featureStats?.wifi || 0,
-           `${Math.round(((analyticsData.rooms.featureStats?.wifi || 0) / (analyticsData.rooms.total || 1)) * 100)}%`],
-          ['Air Conditioning', analyticsData.rooms.featureStats?.aircon || 0,
-           `${Math.round(((analyticsData.rooms.featureStats?.aircon || 0) / (analyticsData.rooms.total || 1)) * 100)}%`],
-          ['Projector', analyticsData.rooms.featureStats?.projector || 0,
-           `${Math.round(((analyticsData.rooms.featureStats?.projector || 0) / (analyticsData.rooms.total || 1)) * 100)}%`],
-          ['Monitor', analyticsData.rooms.featureStats?.monitor || 0,
-           `${Math.round(((analyticsData.rooms.featureStats?.monitor || 0) / (analyticsData.rooms.total || 1)) * 100)}%`],
+          ['WiFi', rooms.featureStats?.wifi || 0,
+           `${Math.round(((rooms.featureStats?.wifi || 0) / (rooms.total || 1)) * 100)}%`],
+          ['Air Conditioning', rooms.featureStats?.aircon || 0,
+           `${Math.round(((rooms.featureStats?.aircon || 0) / (rooms.total || 1)) * 100)}%`],
+          ['Projector', rooms.featureStats?.projector || 0,
+           `${Math.round(((rooms.featureStats?.projector || 0) / (rooms.total || 1)) * 100)}%`],
+          ['Monitor', rooms.featureStats?.monitor || 0,
+           `${Math.round(((rooms.featureStats?.monitor || 0) / (rooms.total || 1)) * 100)}%`],
           [],
           ['TOP PERFORMING ROOMS'],
           ['Room', 'Type', 'Floor', 'Capacity', 'Bookings', 'Utilization'],
-          ...(analyticsData.rooms.topRooms || []).map(room => [
+          ...(rooms.topRooms || []).map(room => [
             room.name,
             room.type,
             room.floor || 'N/A',
@@ -648,7 +700,7 @@ function AnalyticsOverview({ setView, admin }) {
           [],
           ['HOURLY UTILIZATION'],
           ['Hour', 'Utilization %', 'Bookings'],
-          ...(analyticsData.rooms.hourlyUtilization || []).map(hour => [
+          ...(rooms.hourlyUtilization || []).map(hour => [
             hour.hour,
             `${hour.utilization}%`,
             hour.bookings || 0
@@ -659,52 +711,53 @@ function AnalyticsOverview({ setView, admin }) {
 
       // Engagement Sheet
       if (selectedSections.engagement) {
-        const totalActivityUsers = (analyticsData.engagement.userActivity?.high || 0) + 
-                                   (analyticsData.engagement.userActivity?.medium || 0) + 
-                                   (analyticsData.engagement.userActivity?.low || 0) + 
-                                   (analyticsData.engagement.userActivity?.inactive || 1);
+        const engagement = analyticsData.engagement || {};
+        const totalActivityUsers = (engagement.userActivity?.high || 0) + 
+                                   (engagement.userActivity?.medium || 0) + 
+                                   (engagement.userActivity?.low || 0) + 
+                                   (engagement.userActivity?.inactive || 1);
         
         const engagementData = [
           ['ENGAGEMENT ANALYTICS'],
           [],
           ['KEY METRICS'],
           ['Metric', 'Value'],
-          ['Daily Active Users', analyticsData.engagement.dailyActive],
-          ['Weekly Active Users', analyticsData.engagement.weeklyActive],
-          ['Monthly Active Users', analyticsData.engagement.monthlyActive],
-          ['Avg Session Duration', `${analyticsData.engagement.averageSession}m`],
-          ['Retention Rate', `${analyticsData.engagement.retention}%`],
-          ['Bounce Rate', `${analyticsData.engagement.bounceRate}%`],
+          ['Daily Active Users', engagement.dailyActive || 0],
+          ['Weekly Active Users', engagement.weeklyActive || 0],
+          ['Monthly Active Users', engagement.monthlyActive || 0],
+          ['Avg Session Duration', `${engagement.averageSession || 0}m`],
+          ['Retention Rate', `${engagement.retention || 0}%`],
+          ['Bounce Rate', `${engagement.bounceRate || 0}%`],
           [],
           ['ENGAGEMENT METRICS'],
           ['Metric', 'Value'],
-          ['Page Views', analyticsData.engagement.engagementMetrics?.pageViews || 0],
-          ['Total Actions', analyticsData.engagement.engagementMetrics?.actions || 0],
-          ['Avg Actions/User', analyticsData.engagement.engagementMetrics?.avgActionsPerUser || 0],
-          ['Returning Users', `${analyticsData.engagement.engagementMetrics?.returningUsers || 0}%`],
-          ['Total Sessions', analyticsData.engagement.engagementMetrics?.totalSessions || 0],
+          ['Page Views', engagement.engagementMetrics?.pageViews || 0],
+          ['Total Actions', engagement.engagementMetrics?.actions || 0],
+          ['Avg Actions/User', engagement.engagementMetrics?.avgActionsPerUser || 0],
+          ['Returning Users', `${engagement.engagementMetrics?.returningUsers || 0}%`],
+          ['Total Sessions', engagement.engagementMetrics?.totalSessions || 0],
           [],
           ['USER ACTIVITY LEVELS'],
           ['Level', 'Users', 'Percentage'],
-          ['High Activity', analyticsData.engagement.userActivity?.high || 0,
-           `${Math.round(((analyticsData.engagement.userActivity?.high || 0) / totalActivityUsers) * 100)}%`],
-          ['Medium Activity', analyticsData.engagement.userActivity?.medium || 0,
-           `${Math.round(((analyticsData.engagement.userActivity?.medium || 0) / totalActivityUsers) * 100)}%`],
-          ['Low Activity', analyticsData.engagement.userActivity?.low || 0,
-           `${Math.round(((analyticsData.engagement.userActivity?.low || 0) / totalActivityUsers) * 100)}%`],
-          ['Inactive', analyticsData.engagement.userActivity?.inactive || 0,
-           `${Math.round(((analyticsData.engagement.userActivity?.inactive || 0) / totalActivityUsers) * 100)}%`],
+          ['High Activity', engagement.userActivity?.high || 0,
+           `${Math.round(((engagement.userActivity?.high || 0) / totalActivityUsers) * 100)}%`],
+          ['Medium Activity', engagement.userActivity?.medium || 0,
+           `${Math.round(((engagement.userActivity?.medium || 0) / totalActivityUsers) * 100)}%`],
+          ['Low Activity', engagement.userActivity?.low || 0,
+           `${Math.round(((engagement.userActivity?.low || 0) / totalActivityUsers) * 100)}%`],
+          ['Inactive', engagement.userActivity?.inactive || 0,
+           `${Math.round(((engagement.userActivity?.inactive || 0) / totalActivityUsers) * 100)}%`],
           [],
           ['DEVICE BREAKDOWN'],
           ['Device', 'Percentage'],
-          ...(analyticsData.engagement.deviceBreakdown || []).map(device => [
+          ...(engagement.deviceBreakdown || []).map(device => [
             device.name,
             `${device.value}%`
           ]),
           [],
           ['TOP FEATURES'],
           ['Feature', 'Usage Count', 'Trend'],
-          ...(analyticsData.engagement.topFeatures || []).map(feature => [
+          ...(engagement.topFeatures || []).map(feature => [
             feature.name,
             feature.count,
             `${feature.trend > 0 ? '+' : ''}${feature.trend}%`
@@ -712,7 +765,7 @@ function AnalyticsOverview({ setView, admin }) {
           [],
           ['DAILY ACTIVE USERS'],
           ['Day', 'Active Users'],
-          ...(analyticsData.engagement.byDay || []).map(day => [
+          ...(engagement.byDay || []).map(day => [
             day.day,
             day.active
           ])
@@ -759,14 +812,14 @@ function AnalyticsOverview({ setView, admin }) {
 
         const overviewData = [
           ['Metric', 'Value'],
-          ['Total Users', analyticsData.overview.totalUsers.toString()],
-          ['Total Reservations', analyticsData.overview.totalReservations.toString()],
-          ['Total Rooms', analyticsData.overview.totalRooms.toString()],
-          ['Active Today', analyticsData.overview.activeToday.toString()],
-          ['Pending Reservations', analyticsData.overview.pendingReservations.toString()],
-          ['Completed Reservations', analyticsData.overview.completedReservations.toString()],
-          ['Room Utilization', `${analyticsData.overview.roomUtilization}%`],
-          ['Avg Session Duration', `${analyticsData.overview.avgSessionDuration}m`]
+          ['Total Users', (analyticsData.totalUsers || 0).toString()],
+          ['Total Reservations', (analyticsData.totalReservations || 0).toString()],
+          ['Total Rooms', (analyticsData.totalRooms || 0).toString()],
+          ['Active Today', (analyticsData.activeToday || 0).toString()],
+          ['Pending Reservations', (analyticsData.pendingReservations || 0).toString()],
+          ['Completed Reservations', (analyticsData.completedReservations || 0).toString()],
+          ['Room Utilization', `${analyticsData.roomUtilization || 0}%`],
+          ['Avg Session Duration', `${analyticsData.avgSessionDuration || 0}m`]
         ];
 
         doc.autoTable({
@@ -789,6 +842,8 @@ function AnalyticsOverview({ setView, admin }) {
           yPosition = 20;
         }
 
+        const users = analyticsData.users || {};
+        
         doc.setFontSize(14);
         doc.setTextColor(0, 0, 0);
         doc.text("USER ANALYTICS", 14, yPosition);
@@ -796,10 +851,10 @@ function AnalyticsOverview({ setView, admin }) {
 
         const usersData = [
           ['Metric', 'Value'],
-          ['Total Users', analyticsData.users.total.toString()],
-          ['Active Users (7d)', analyticsData.users.active.toString()],
-          ['New Users', analyticsData.users.new.toString()],
-          ['Retention Rate', `${analyticsData.users.activityStats?.retentionRate || 0}%`]
+          ['Total Users', (users.total || 0).toString()],
+          ['Active Users (7d)', (users.active || 0).toString()],
+          ['New Users', (users.new || 0).toString()],
+          ['Retention Rate', `${users.activityStats?.retentionRate || 0}%`]
         ];
 
         doc.autoTable({
@@ -817,12 +872,12 @@ function AnalyticsOverview({ setView, admin }) {
         // Users by Role
         const roleData = [
           ['Role', 'Count', 'Percentage'],
-          ['Students', analyticsData.users.byRole?.student?.toString() || '0',
-           `${Math.round((analyticsData.users.byRole?.student || 0) / (analyticsData.users.total || 1) * 100)}%`],
-          ['Faculty', analyticsData.users.byRole?.faculty?.toString() || '0',
-           `${Math.round((analyticsData.users.byRole?.faculty || 0) / (analyticsData.users.total || 1) * 100)}%`],
-          ['Staff', analyticsData.users.byRole?.staff?.toString() || '0',
-           `${Math.round((analyticsData.users.byRole?.staff || 0) / (analyticsData.users.total || 1) * 100)}%`]
+          ['Students', (users.byRole?.student || 0).toString(),
+           `${Math.round((users.byRole?.student || 0) / (users.total || 1) * 100)}%`],
+          ['Faculty', (users.byRole?.faculty || 0).toString(),
+           `${Math.round((users.byRole?.faculty || 0) / (users.total || 1) * 100)}%`],
+          ['Staff', (users.byRole?.staff || 0).toString(),
+           `${Math.round((users.byRole?.staff || 0) / (users.total || 1) * 100)}%`]
         ];
 
         doc.autoTable({
@@ -845,6 +900,8 @@ function AnalyticsOverview({ setView, admin }) {
           yPosition = 20;
         }
 
+        const reservations = analyticsData.reservations || {};
+
         doc.setFontSize(14);
         doc.setTextColor(0, 0, 0);
         doc.text("RESERVATION ANALYTICS", 14, yPosition);
@@ -852,13 +909,13 @@ function AnalyticsOverview({ setView, admin }) {
 
         const reservationsData = [
           ['Metric', 'Value'],
-          ['Total Reservations', analyticsData.reservations.total.toString()],
-          ['Completed', analyticsData.reservations.completed.toString()],
-          ['Pending', analyticsData.reservations.pending.toString()],
-          ['Approved', analyticsData.reservations.approved.toString()],
-          ['Rejected', analyticsData.reservations.rejected.toString()],
-          ['Cancelled', analyticsData.reservations.cancelled.toString()],
-          ['Avg Group Size', (analyticsData.reservations.avgGroupSize || 0).toString()]
+          ['Total Reservations', (reservations.total || 0).toString()],
+          ['Completed', (reservations.completed || 0).toString()],
+          ['Pending', (reservations.pending || 0).toString()],
+          ['Approved', (reservations.approved || 0).toString()],
+          ['Rejected', (reservations.rejected || 0).toString()],
+          ['Cancelled', (reservations.cancelled || 0).toString()],
+          ['Avg Group Size', (reservations.avgGroupSize || 0).toString()]
         ];
 
         doc.autoTable({
@@ -881,6 +938,8 @@ function AnalyticsOverview({ setView, admin }) {
           yPosition = 20;
         }
 
+        const rooms = analyticsData.rooms || {};
+
         doc.setFontSize(14);
         doc.setTextColor(0, 0, 0);
         doc.text("ROOM ANALYTICS", 14, yPosition);
@@ -888,11 +947,11 @@ function AnalyticsOverview({ setView, admin }) {
 
         const roomsData = [
           ['Metric', 'Value'],
-          ['Total Rooms', analyticsData.rooms.total.toString()],
-          ['Available', analyticsData.rooms.available.toString()],
-          ['Occupied', analyticsData.rooms.occupied.toString()],
-          ['Maintenance', analyticsData.rooms.maintenance.toString()],
-          ['Utilization Rate', `${analyticsData.rooms.utilization}%`]
+          ['Total Rooms', (rooms.total || 0).toString()],
+          ['Available', (rooms.available || 0).toString()],
+          ['Occupied', (rooms.occupied || 0).toString()],
+          ['Maintenance', (rooms.maintenance || 0).toString()],
+          ['Utilization Rate', `${rooms.utilization || 0}%`]
         ];
 
         doc.autoTable({
@@ -915,6 +974,8 @@ function AnalyticsOverview({ setView, admin }) {
           yPosition = 20;
         }
 
+        const engagement = analyticsData.engagement || {};
+
         doc.setFontSize(14);
         doc.setTextColor(0, 0, 0);
         doc.text("ENGAGEMENT METRICS", 14, yPosition);
@@ -922,11 +983,11 @@ function AnalyticsOverview({ setView, admin }) {
 
         const engagementData = [
           ['Metric', 'Value'],
-          ['Daily Active Users', analyticsData.engagement.dailyActive.toString()],
-          ['Weekly Active Users', analyticsData.engagement.weeklyActive.toString()],
-          ['Monthly Active Users', analyticsData.engagement.monthlyActive.toString()],
-          ['Avg Session Duration', `${analyticsData.engagement.averageSession}m`],
-          ['Retention Rate', `${analyticsData.engagement.retention}%`]
+          ['Daily Active Users', (engagement.dailyActive || 0).toString()],
+          ['Weekly Active Users', (engagement.weeklyActive || 0).toString()],
+          ['Monthly Active Users', (engagement.monthlyActive || 0).toString()],
+          ['Avg Session Duration', `${engagement.averageSession || 0}m`],
+          ['Retention Rate', `${engagement.retention || 0}%`]
         ];
 
         doc.autoTable({
@@ -1425,28 +1486,28 @@ function AnalyticsOverview({ setView, admin }) {
           <div className="flex flex-wrap gap-4">
             <StatCard 
               title="Total Users" 
-              value={analyticsData.overview.totalUsers} 
+              value={analyticsData.totalUsers || 0} 
               icon={Users} 
               color="blue" 
-              subtext={`${analyticsData.users.active} active (7d)`}
+              subtext={`${analyticsData.users?.active || 0} active (7d)`}
             />
             <StatCard 
               title="Total Reservations" 
-              value={analyticsData.overview.totalReservations} 
+              value={analyticsData.totalReservations || 0} 
               icon={CalendarCheck} 
               color="green" 
-              subtext={`${analyticsData.overview.completedReservations} completed`}
+              subtext={`${analyticsData.completedReservations || 0} completed`}
             />
             <StatCard 
               title="Total Rooms" 
-              value={analyticsData.overview.totalRooms} 
+              value={analyticsData.totalRooms || 0} 
               icon={DoorOpen} 
               color="purple" 
-              subtext={`${analyticsData.rooms.available} available`}
+              subtext={`${analyticsData.rooms?.available || 0} available`}
             />
             <StatCard 
               title="Active Today" 
-              value={analyticsData.overview.activeToday} 
+              value={analyticsData.activeToday || 0} 
               icon={Activity} 
               color="orange" 
             />
@@ -1500,19 +1561,19 @@ function AnalyticsOverview({ setView, admin }) {
               <div className="space-y-2">
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Total Users</span>
-                  <span className="text-blue-600 font-semibold">{analyticsData.users.total.toLocaleString()}</span>
+                  <span className="text-blue-600 font-semibold">{(analyticsData.users?.total || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Active (7d)</span>
-                  <span className="text-green-600 font-semibold">{analyticsData.users.active.toLocaleString()}</span>
+                  <span className="text-green-600 font-semibold">{(analyticsData.users?.active || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">New Users</span>
-                  <span className="text-purple-600 font-semibold">{analyticsData.users.new.toLocaleString()}</span>
+                  <span className="text-purple-600 font-semibold">{(analyticsData.users?.new || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Retention Rate</span>
-                  <span className="text-orange-600 font-semibold">{analyticsData.users.activityStats?.retentionRate || 0}%</span>
+                  <span className="text-orange-600 font-semibold">{analyticsData.users?.activityStats?.retentionRate || 0}%</span>
                 </div>
               </div>
             </div>
@@ -1523,20 +1584,20 @@ function AnalyticsOverview({ setView, admin }) {
               <div className="space-y-3">
                 <ProgressBar 
                   label="Students" 
-                  value={analyticsData.users.byRole?.student || 0} 
-                  total={analyticsData.users.total || 1} 
+                  value={analyticsData.users?.byRole?.student || 0} 
+                  total={analyticsData.users?.total || 1} 
                   color="blue"
                 />
                 <ProgressBar 
                   label="Faculty" 
-                  value={analyticsData.users.byRole?.faculty || 0} 
-                  total={analyticsData.users.total || 1} 
+                  value={analyticsData.users?.byRole?.faculty || 0} 
+                  total={analyticsData.users?.total || 1} 
                   color="green"
                 />
                 <ProgressBar 
                   label="Staff" 
-                  value={analyticsData.users.byRole?.staff || 0} 
-                  total={analyticsData.users.total || 1} 
+                  value={analyticsData.users?.byRole?.staff || 0} 
+                  total={analyticsData.users?.total || 1} 
                   color="purple"
                 />
               </div>
@@ -1546,12 +1607,12 @@ function AnalyticsOverview({ setView, admin }) {
             <div>
               <h3 className="text-sm font-medium text-gray-600 mb-3">Top Departments</h3>
               <div className="space-y-3">
-                {(analyticsData.users.byDepartment || []).slice(0, 3).map((dept, idx) => (
+                {(analyticsData.users?.byDepartment || []).slice(0, 3).map((dept, idx) => (
                   <ProgressBar 
                     key={idx}
                     label={dept.name} 
                     value={dept.count} 
-                    total={analyticsData.users.total || 1} 
+                    total={analyticsData.users?.total || 1} 
                     color={idx === 0 ? "blue" : idx === 1 ? "green" : "purple"}
                   />
                 ))}
@@ -1580,19 +1641,19 @@ function AnalyticsOverview({ setView, admin }) {
               <div className="space-y-2">
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Total Reservations</span>
-                  <span className="text-blue-600 font-semibold">{analyticsData.reservations.total.toLocaleString()}</span>
+                  <span className="text-blue-600 font-semibold">{(analyticsData.reservations?.total || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Completed</span>
-                  <span className="text-green-600 font-semibold">{analyticsData.reservations.completed.toLocaleString()}</span>
+                  <span className="text-green-600 font-semibold">{(analyticsData.reservations?.completed || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Pending</span>
-                  <span className="text-yellow-600 font-semibold">{analyticsData.reservations.pending.toLocaleString()}</span>
+                  <span className="text-yellow-600 font-semibold">{(analyticsData.reservations?.pending || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Avg Group Size</span>
-                  <span className="text-orange-600 font-semibold">{analyticsData.reservations.avgGroupSize || 0}</span>
+                  <span className="text-orange-600 font-semibold">{analyticsData.reservations?.avgGroupSize || 0}</span>
                 </div>
               </div>
             </div>
@@ -1601,7 +1662,7 @@ function AnalyticsOverview({ setView, admin }) {
             <div>
               <h3 className="text-sm font-medium text-gray-600 mb-3">Peak Days</h3>
               <div className="space-y-3">
-                {Object.entries(analyticsData.reservations.byDayOfWeek || {}).map(([day, count], idx) => {
+                {Object.entries(analyticsData.reservations?.byDayOfWeek || {}).map(([day, count], idx) => {
                   const dayNames = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', 
                                    thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
                   return (
@@ -1609,7 +1670,7 @@ function AnalyticsOverview({ setView, admin }) {
                       key={day}
                       label={dayNames[day] || day} 
                       value={count} 
-                      total={analyticsData.reservations.total || 1} 
+                      total={analyticsData.reservations?.total || 1} 
                       color={idx === 0 ? "blue" : idx === 1 ? "green" : "purple"}
                     />
                   );
@@ -1621,12 +1682,12 @@ function AnalyticsOverview({ setView, admin }) {
             <div>
               <h3 className="text-sm font-medium text-gray-600 mb-3">Most Popular Rooms</h3>
               <div className="space-y-3">
-                {(analyticsData.reservations.popularRooms || []).slice(0, 3).map((room, idx) => (
+                {(analyticsData.reservations?.popularRooms || []).slice(0, 3).map((room, idx) => (
                   <ProgressBar 
                     key={idx}
                     label={room.name} 
                     value={room.bookings} 
-                    total={analyticsData.reservations.total || 1} 
+                    total={analyticsData.reservations?.total || 1} 
                     color={idx === 0 ? "blue" : idx === 1 ? "green" : "purple"}
                   />
                 ))}
@@ -1655,19 +1716,19 @@ function AnalyticsOverview({ setView, admin }) {
               <div className="space-y-2">
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Total Rooms</span>
-                  <span className="text-blue-600 font-semibold">{analyticsData.rooms.total}</span>
+                  <span className="text-blue-600 font-semibold">{analyticsData.rooms?.total || 0}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Available</span>
-                  <span className="text-green-600 font-semibold">{analyticsData.rooms.available}</span>
+                  <span className="text-green-600 font-semibold">{analyticsData.rooms?.available || 0}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Occupied</span>
-                  <span className="text-orange-600 font-semibold">{analyticsData.rooms.occupied}</span>
+                  <span className="text-orange-600 font-semibold">{analyticsData.rooms?.occupied || 0}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Utilization</span>
-                  <span className="text-purple-600 font-semibold">{analyticsData.rooms.utilization}%</span>
+                  <span className="text-purple-600 font-semibold">{analyticsData.rooms?.utilization || 0}%</span>
                 </div>
               </div>
             </div>
@@ -1676,12 +1737,12 @@ function AnalyticsOverview({ setView, admin }) {
             <div>
               <h3 className="text-sm font-medium text-gray-600 mb-3">Rooms by Floor</h3>
               <div className="space-y-3">
-                {Object.entries(analyticsData.rooms.byFloor || {}).map(([floor, count], idx) => (
+                {Object.entries(analyticsData.rooms?.byFloor || {}).map(([floor, count], idx) => (
                   <ProgressBar 
                     key={floor}
                     label={floor} 
                     value={count} 
-                    total={analyticsData.rooms.total || 1} 
+                    total={analyticsData.rooms?.total || 1} 
                     color={idx === 0 ? "blue" : idx === 1 ? "green" : "purple"}
                   />
                 ))}
@@ -1694,26 +1755,26 @@ function AnalyticsOverview({ setView, admin }) {
               <div className="space-y-3">
                 <ProgressBar 
                   label="WiFi" 
-                  value={analyticsData.rooms.featureStats?.wifi || 0} 
-                  total={analyticsData.rooms.total || 1} 
+                  value={analyticsData.rooms?.featureStats?.wifi || 0} 
+                  total={analyticsData.rooms?.total || 1} 
                   color="blue"
                 />
                 <ProgressBar 
                   label="Air Conditioning" 
-                  value={analyticsData.rooms.featureStats?.aircon || 0} 
-                  total={analyticsData.rooms.total || 1} 
+                  value={analyticsData.rooms?.featureStats?.aircon || 0} 
+                  total={analyticsData.rooms?.total || 1} 
                   color="green"
                 />
                 <ProgressBar 
                   label="Projector" 
-                  value={analyticsData.rooms.featureStats?.projector || 0} 
-                  total={analyticsData.rooms.total || 1} 
+                  value={analyticsData.rooms?.featureStats?.projector || 0} 
+                  total={analyticsData.rooms?.total || 1} 
                   color="purple"
                 />
                 <ProgressBar 
                   label="Monitor" 
-                  value={analyticsData.rooms.featureStats?.monitor || 0} 
-                  total={analyticsData.rooms.total || 1} 
+                  value={analyticsData.rooms?.featureStats?.monitor || 0} 
+                  total={analyticsData.rooms?.total || 1} 
                   color="orange"
                 />
               </div>
@@ -1741,19 +1802,19 @@ function AnalyticsOverview({ setView, admin }) {
               <div className="space-y-2">
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Daily Active</span>
-                  <span className="text-blue-600 font-semibold">{analyticsData.engagement.dailyActive.toLocaleString()}</span>
+                  <span className="text-blue-600 font-semibold">{(analyticsData.engagement?.dailyActive || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Weekly Active</span>
-                  <span className="text-green-600 font-semibold">{analyticsData.engagement.weeklyActive.toLocaleString()}</span>
+                  <span className="text-green-600 font-semibold">{(analyticsData.engagement?.weeklyActive || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Monthly Active</span>
-                  <span className="text-purple-600 font-semibold">{analyticsData.engagement.monthlyActive.toLocaleString()}</span>
+                  <span className="text-purple-600 font-semibold">{(analyticsData.engagement?.monthlyActive || 0).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
                   <span className="text-gray-600">Avg Session</span>
-                  <span className="text-orange-600 font-semibold">{analyticsData.engagement.averageSession}m</span>
+                  <span className="text-orange-600 font-semibold">{analyticsData.engagement?.averageSession || 0}m</span>
                 </div>
               </div>
             </div>
@@ -1764,38 +1825,38 @@ function AnalyticsOverview({ setView, admin }) {
               <div className="space-y-3">
                 <ProgressBar 
                   label="High Activity" 
-                  value={analyticsData.engagement.userActivity?.high || 0} 
-                  total={(analyticsData.engagement.userActivity?.high || 0) + 
-                         (analyticsData.engagement.userActivity?.medium || 0) + 
-                         (analyticsData.engagement.userActivity?.low || 0) + 
-                         (analyticsData.engagement.userActivity?.inactive || 1)} 
+                  value={analyticsData.engagement?.userActivity?.high || 0} 
+                  total={(analyticsData.engagement?.userActivity?.high || 0) + 
+                         (analyticsData.engagement?.userActivity?.medium || 0) + 
+                         (analyticsData.engagement?.userActivity?.low || 0) + 
+                         (analyticsData.engagement?.userActivity?.inactive || 1)} 
                   color="green"
                 />
                 <ProgressBar 
                   label="Medium Activity" 
-                  value={analyticsData.engagement.userActivity?.medium || 0} 
-                  total={(analyticsData.engagement.userActivity?.high || 0) + 
-                         (analyticsData.engagement.userActivity?.medium || 0) + 
-                         (analyticsData.engagement.userActivity?.low || 0) + 
-                         (analyticsData.engagement.userActivity?.inactive || 1)} 
+                  value={analyticsData.engagement?.userActivity?.medium || 0} 
+                  total={(analyticsData.engagement?.userActivity?.high || 0) + 
+                         (analyticsData.engagement?.userActivity?.medium || 0) + 
+                         (analyticsData.engagement?.userActivity?.low || 0) + 
+                         (analyticsData.engagement?.userActivity?.inactive || 1)} 
                   color="yellow"
                 />
                 <ProgressBar 
                   label="Low Activity" 
-                  value={analyticsData.engagement.userActivity?.low || 0} 
-                  total={(analyticsData.engagement.userActivity?.high || 0) + 
-                         (analyticsData.engagement.userActivity?.medium || 0) + 
-                         (analyticsData.engagement.userActivity?.low || 0) + 
-                         (analyticsData.engagement.userActivity?.inactive || 1)} 
+                  value={analyticsData.engagement?.userActivity?.low || 0} 
+                  total={(analyticsData.engagement?.userActivity?.high || 0) + 
+                         (analyticsData.engagement?.userActivity?.medium || 0) + 
+                         (analyticsData.engagement?.userActivity?.low || 0) + 
+                         (analyticsData.engagement?.userActivity?.inactive || 1)} 
                   color="orange"
                 />
                 <ProgressBar 
                   label="Inactive" 
-                  value={analyticsData.engagement.userActivity?.inactive || 0} 
-                  total={(analyticsData.engagement.userActivity?.high || 0) + 
-                         (analyticsData.engagement.userActivity?.medium || 0) + 
-                         (analyticsData.engagement.userActivity?.low || 0) + 
-                         (analyticsData.engagement.userActivity?.inactive || 1)} 
+                  value={analyticsData.engagement?.userActivity?.inactive || 0} 
+                  total={(analyticsData.engagement?.userActivity?.high || 0) + 
+                         (analyticsData.engagement?.userActivity?.medium || 0) + 
+                         (analyticsData.engagement?.userActivity?.low || 0) + 
+                         (analyticsData.engagement?.userActivity?.inactive || 1)} 
                   color="red"
                 />
               </div>
@@ -1805,7 +1866,7 @@ function AnalyticsOverview({ setView, admin }) {
             <div>
               <h3 className="text-sm font-medium text-gray-600 mb-3">Device Usage</h3>
               <div className="space-y-3">
-                {(analyticsData.engagement.deviceBreakdown || []).map((device, idx) => (
+                {(analyticsData.engagement?.deviceBreakdown || []).map((device, idx) => (
                   <ProgressBar 
                     key={idx}
                     label={device.name} 
@@ -1833,7 +1894,7 @@ function AnalyticsOverview({ setView, admin }) {
           <SectionHeader title="Most Used Features" icon={Target} color="red" />
           
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {(analyticsData.engagement.topFeatures || []).slice(0, 5).map((feature, idx) => (
+            {(analyticsData.engagement?.topFeatures || []).slice(0, 5).map((feature, idx) => (
               <div key={idx} className="bg-gray-50 p-4 rounded-lg text-center">
                 <p className="text-sm text-gray-600 mb-1">{feature.name}</p>
                 <p className="text-xl font-bold text-gray-800">{feature.count.toLocaleString()}</p>
