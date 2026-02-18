@@ -15,15 +15,10 @@ function AdminLogs({ setView, onLogout }) {
   const [endDate, setEndDate] = useState("");
   const [sortOrder, setSortOrder] = useState("desc"); // desc = newest first
   const [showDateModal, setShowDateModal] = useState(false);
-  const [alertModal, setAlertModal] = useState({ show: false, title: "", message: "", type: "info" });
 
   const handleLogout = () => {
     localStorage.removeItem("admin");
     setView("login");
-  };
-
-  const showAlert = (title, message, type = "info") => {
-    setAlertModal({ show: true, title, message, type });
   };
 
   const fetchLogs = async () => {
@@ -35,7 +30,6 @@ function AdminLogs({ setView, onLogout }) {
       setError(null);
     } catch (err) {
       setError(err.message);
-      showAlert("Error", "Failed to fetch logs: " + err.message, "error");
     } finally {
       setLoading(false);
     }
@@ -91,9 +85,8 @@ function AdminLogs({ setView, onLogout }) {
         type: "text/csv;charset=utf-8;",
       });
       saveAs(blob, `activity_logs_${Date.now()}.csv`);
-      showAlert("Success", "CSV exported successfully!", "success");
     } catch (err) {
-      showAlert("Error", "Failed to export CSV: " + err.message, "error");
+      setError("Failed to export CSV: " + err.message);
     }
   };
 
@@ -103,14 +96,13 @@ function AdminLogs({ setView, onLogout }) {
     setStartDate("");
     setEndDate("");
     setSortOrder("desc");
-    showAlert("Info", "All filters have been cleared", "info");
   };
 
   // Apply date filter and close modal
   const applyDateFilter = () => {
     setShowDateModal(false);
     if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
-      showAlert("Warning", "Start date cannot be after end date", "warning");
+      setError("Start date cannot be after end date");
       return;
     }
   };
@@ -365,66 +357,7 @@ function AdminLogs({ setView, onLogout }) {
           </div>
         </div>
       )}
-
-      {/* Alert Modal */}
-      {alertModal.show && (
-        <AlertModal
-          title={alertModal.title}
-          message={alertModal.message}
-          type={alertModal.type}
-          onClose={() => setAlertModal({ show: false, title: "", message: "", type: "info" })}
-        />
-      )}
     </>
-  );
-}
-
-// Alert Modal Component
-function AlertModal({ title, message, type = "info", onClose }) {
-  const getIcon = () => {
-    switch (type) {
-      case "success":
-        return "🟢";
-      case "error":
-        return "🔴";
-      case "warning":
-        return "🟡";
-      default:
-        return "🔵";
-    }
-  };
-
-  const getColor = () => {
-    switch (type) {
-      case "success": return "bg-green-50 border-green-200";
-      case "error": return "bg-red-50 border-red-200";
-      case "warning": return "bg-yellow-50 border-yellow-200";
-      default: return "bg-blue-50 border-blue-200";
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[70] p-4">
-      <div className={`bg-white rounded-lg shadow-xl w-full max-w-sm border ${getColor()}`}>
-        <div className="p-4">
-          <div className="flex items-center gap-3">
-            <span className="text-lg">{getIcon()}</span>
-            <div>
-              <h3 className="font-semibold text-gray-900">{title}</h3>
-              <p className="text-sm text-gray-600 mt-1">{message}</p>
-            </div>
-          </div>
-        </div>
-        <div className="bg-gray-50 px-4 py-3 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="w-full px-3 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 text-sm"
-          >
-            OK
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
