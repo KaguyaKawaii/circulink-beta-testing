@@ -242,8 +242,8 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
   };
 
   const EditableField = ({ icon, label, value, onChange, type = "text", options = null, required = false }) => (
-    <div className="flex items-start gap-3 group">
-      <div className="p-1.5 bg-gray-100 rounded-full text-gray-600 group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
+    <div className="flex items-start gap-3">
+      <div className="p-1.5 bg-gray-100 rounded-full text-gray-600">
         {icon}
       </div>
       <div className="flex-1">
@@ -252,7 +252,7 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
           <select
             value={value || ""}
             onChange={(e) => onChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm cursor-pointer bg-white"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm bg-white"
             required={required}
           >
             <option value="">Select {label}</option>
@@ -352,9 +352,9 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
                     id="verified"
                     checked={form.verified}
                     onChange={(e) => handleChange("verified", e.target.checked)}
-                    className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded cursor-pointer"
+                    className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="verified" className="text-sm text-gray-700 cursor-pointer">
+                  <label htmlFor="verified" className="text-sm text-gray-700">
                     Mark as verified
                   </label>
                 </div>
@@ -564,7 +564,7 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+            className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
@@ -572,7 +572,7 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
             type="submit"
             onClick={handleSubmit}
             disabled={saving}
-            className="px-6 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-6 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {saving ? (
               <>
