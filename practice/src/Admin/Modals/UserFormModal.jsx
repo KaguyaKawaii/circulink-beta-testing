@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { X, User, Mail, IdCard, Shield, Building, GraduationCap, Layers, CheckCircle, AlertCircle } from "lucide-react";
+import { 
+  X, User, Mail, IdCard, Shield, Building, GraduationCap, 
+  Layers, Calendar, Clock, CheckCircle, AlertCircle, Save,
+  Upload, Image
+} from "lucide-react";
 import axios from "axios";
 
 const courseOptions = {
@@ -89,8 +93,7 @@ const isGraduateProgram = (course) => {
   return graduateKeywords.some(keyword => course.includes(keyword));
 };
 
-export default function UserFormModal({ mode, user, onClose, onSuccess, onToggleVerified }) {
-  const isView = mode === "view";
+export default function UserFormModal({ mode, user, onClose, onSuccess }) {
   const isEdit = mode === "edit";
   const isAdd = mode === "add";
 
@@ -106,10 +109,14 @@ export default function UserFormModal({ mode, user, onClose, onSuccess, onToggle
       floor: "",
       password: "",
       verified: false,
+      profilePicture: null
     }
   );
   const [saving, setSaving] = useState(false);
   const [otherDepartment, setOtherDepartment] = useState("");
+  const [profileFile, setProfileFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [imgTimestamp, setImgTimestamp] = useState(Date.now());
 
   // Check if department is "Other" (for Faculty)
   const isOtherDepartment = form.department === "Other";
@@ -132,6 +139,42 @@ export default function UserFormModal({ mode, user, onClose, onSuccess, onToggle
 
   const handleChange = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setProfileFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPreviewUrl(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const getProfilePictureUrl = () => {
+    if (previewUrl) return previewUrl;
+    if (!user?.profilePicture) return null;
+    if (user.profilePicture.startsWith("http")) {
+      return `${user.profilePicture}?t=${imgTimestamp}`;
+    } else {
+      return `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`;
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "—";
+    const date = new Date(dateString);
+    return date.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -157,24 +200,25 @@ export default function UserFormModal({ mode, user, onClose, onSuccess, onToggle
       };
 
       let response;
+      const formData = new FormData();
+      
+      // Append all payload fields
+      for (let key in payload) {
+        if (payload[key] !== undefined) formData.append(key, payload[key]);
+      }
+      
+      // Append profile file if exists
+      if (profileFile) {
+        formData.append("profile", profileFile);
+      }
 
       if (isEdit) {
-        const formData = new FormData();
-        for (let key in payload) {
-          if (payload[key] !== undefined) formData.append(key, payload[key]);
-        }
-        if (form.profile) formData.append("profile", form.profile);
         response = await axios.put(
           `${import.meta.env.VITE_API_URL}/api/users/admin-edit/${user._id}`,
           formData,
           { headers: { "Content-Type": "multipart/form-data" } }
         );
       } else if (isAdd) {
-        const formData = new FormData();
-        for (let key in payload) {
-          if (payload[key] !== undefined) formData.append(key, payload[key]);
-        }
-        if (form.profile) formData.append("profile", form.profile);
         response = await axios.post(
           `${import.meta.env.VITE_API_URL}/api/users/add-user`,
           formData,
@@ -182,9 +226,9 @@ export default function UserFormModal({ mode, user, onClose, onSuccess, onToggle
         );
       }
 
-      // ✅ FIXED: Pass the user data to onSuccess
+      // Pass the user data to onSuccess
       if (response && response.data.success) {
-        onSuccess(response.data.user); // Pass the user data back
+        onSuccess(response.data.user);
       } else {
         throw new Error(response?.data?.message || "Operation failed");
       }
@@ -197,479 +241,351 @@ export default function UserFormModal({ mode, user, onClose, onSuccess, onToggle
     }
   };
 
-  const InfoCard = ({ title, value, icon, subtitle }) => (
-    <div className="bg-white rounded-xl border border-gray-200 p-4 hover:shadow-sm transition-all duration-200 cursor-pointer">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{title}</p>
-          <p className="text-lg font-semibold text-gray-900">{value}</p>
-          {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
-        </div>
-        <div className="p-2 rounded-lg bg-gray-100 text-gray-600">
-          {icon}
-        </div>
-      </div>
-    </div>
-  );
-
-  const DetailItem = ({ icon, label, value }) => (
-    <div className="flex items-start gap-3">
-      <div className="p-1.5 bg-gray-100 rounded-full text-gray-600">
+  const EditableField = ({ icon, label, value, onChange, type = "text", options = null, required = false }) => (
+    <div className="flex items-start gap-3 group">
+      <div className="p-1.5 bg-gray-100 rounded-full text-gray-600 group-hover:bg-red-100 group-hover:text-red-600 transition-colors">
         {icon}
       </div>
-      <div>
-        <p className="text-xs font-normal text-gray-500">{label}</p>
-        <p className="text-gray-800 font-medium text-sm">{value || "—"}</p>
+      <div className="flex-1">
+        <p className="text-xs font-normal text-gray-500 mb-1">{label}</p>
+        {options ? (
+          <select
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm cursor-pointer bg-white"
+            required={required}
+          >
+            <option value="">Select {label}</option>
+            {options.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        ) : type === "textarea" ? (
+          <textarea
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+            rows="3"
+            required={required}
+          />
+        ) : (
+          <input
+            type={type}
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+            required={required}
+          />
+        )}
       </div>
     </div>
   );
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[95vh] overflow-hidden border border-gray-200">
-        {/* Header */}
-        <div className="bg-white p-6 border-b border-gray-200">
-          <div className="flex justify-between items-start mb-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center border border-red-300">
-                <User size={24} className="text-red-600" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900 mb-1">
-                  {isView ? "User Details" : isEdit ? "Edit User" : "Add New User"}
-                </h1>
-                <div className="flex items-center gap-3 text-gray-600">
-                  <div className="flex items-center gap-1.5 text-sm">
-                    <IdCard size={16} />
-                    {user?.id_number || "New User"}
-                  </div>
-                  <div className={`flex items-center gap-1.5 text-sm px-2 py-1 rounded-full ${
-                    form.verified 
-                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200" 
-                      : "bg-amber-100 text-amber-800 border border-amber-200"
-                  }`}>
-                    {form.verified ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
-                    {form.verified ? "Verified" : "Not Verified"}
-                  </div>
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={onClose}
-              disabled={saving}
-              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all duration-200 disabled:opacity-50 cursor-pointer"
-            >
-              <X size={24} />
-            </button>
-          </div>
-        </div>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white w-full max-w-4xl rounded-xl shadow-lg overflow-hidden max-h-[95vh] flex flex-col">
+        {/* Modal Header */}
+        <header className="flex justify-between items-center bg-gray-50 border-b border-gray-200 px-6 py-4">
+          <h2 className="text-xl font-semibold text-gray-800">
+            {isEdit ? "Edit User" : "Add New User"}
+          </h2>
+          <button 
+            onClick={onClose}
+            disabled={saving}
+            className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition cursor-pointer disabled:opacity-50"
+            aria-label="Close modal"
+          >
+            <X size={20} />
+          </button>
+        </header>
 
-        {/* Main Content */}
-        <div className="p-6 overflow-y-auto max-h-[60vh]">
-          {isView ? (
-            <div className="space-y-6">
-              {/* Quick Stats */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <InfoCard
-                  title="Name"
-                  value={user.name}
-                  icon={<User size={20} />}
-                  subtitle="Full name"
-                />
-                <InfoCard
-                  title="Email"
-                  value={user.email}
-                  icon={<Mail size={20} />}
-                  subtitle="Email address"
-                />
-              </div>
-
-              {/* User Details */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Basic Information Card */}
-                <div className="bg-white border border-gray-200 rounded-xl p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-gray-100 rounded-lg">
-                      <IdCard size={20} className="text-gray-600" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
+        {/* Modal Content - Scrollable */}
+        <div className="p-6 overflow-y-auto flex-1">
+          <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-6">
+            {/* Profile Picture + Basic Status */}
+            <div className="flex flex-col items-center w-full lg:w-1/3">
+              <div className="relative w-40 h-40 rounded-full bg-gray-100 border-2 border-gray-200 overflow-hidden mb-4 group">
+                {getProfilePictureUrl() ? (
+                  <img
+                    src={getProfilePictureUrl()}
+                    alt={`${form.name || 'User'}'s profile`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/default-avatar.png";
+                    }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <User size={64} className="text-gray-400" />
                   </div>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between py-2">
-                      <span className="text-gray-600">ID Number</span>
-                      <span className="font-semibold text-gray-900">{user.id_number || "N/A"}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <span className="text-gray-600">Role</span>
-                      <span className="font-semibold text-gray-900">{user.role || "N/A"}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-2">
-                      <span className="text-gray-600">Department</span>
-                      <span className="font-semibold text-gray-900">{user.department || "N/A"}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Additional Details Card */}
-                <div className="bg-white border border-gray-200 rounded-xl p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-gray-100 rounded-lg">
-                      <Building size={20} className="text-gray-600" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900">Additional Details</h3>
-                  </div>
-                  <div className="space-y-3">
-                    {user.role === "Staff" ? (
-                      <div className="flex items-center justify-between py-2">
-                        <span className="text-gray-600">Assigned Floor</span>
-                        <span className="font-semibold text-gray-900">{user.floor || "N/A"}</span>
-                      </div>
-                    ) : (
-                      <>
-                        {user.role === "Student" && (
-                          <>
-                            <div className="flex items-center justify-between py-2">
-                              <span className="text-gray-600">Program</span>
-                              <span className="font-semibold text-gray-900">{user.course || "N/A"}</span>
-                            </div>
-                            <div className="flex items-center justify-between py-2">
-                              <span className="text-gray-600">Year Level</span>
-                              <span className="font-semibold text-gray-900">{user.yearLevel || "N/A"}</span>
-                            </div>
-                          </>
-                        )}
-                      </>
-                    )}
-                    <div className="flex items-center justify-between py-2">
-                      <span className="text-gray-600">Status</span>
-                      <span className={`font-semibold ${
-                        user.verified ? "text-emerald-600" : "text-amber-600"
-                      }`}>
-                        {user.verified ? "Verified" : "Not Verified"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Basic Information Section */}
-              <div className="bg-white border border-gray-200 rounded-xl p-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <User size={20} className="text-red-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
-                </div>
+                )}
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-700">Full Name</label>
-                    <input
-                      value={form.name}
-                      onChange={(e) => handleChange("name", e.target.value)}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer"
-                    />
-                  </div>
+                {/* Upload Overlay */}
+                <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                  <Upload size={24} className="text-white" />
+                </label>
+              </div>
 
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-700">Email</label>
-                    <input
-                      value={form.email}
-                      onChange={(e) => handleChange("email", e.target.value)}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer"
-                    />
-                  </div>
+              {/* Status Badges */}
+              <div className="flex flex-col gap-2 mb-4 items-center">
+                <div className="flex items-center gap-2">
+                  <span className={`px-3 py-0.5 rounded-full text-xs font-medium ${
+                    form.verified 
+                      ? "bg-green-50 text-green-700 border border-green-100" 
+                      : "bg-gray-50 text-gray-600 border border-gray-200"
+                  }`}>
+                    {form.verified ? "Verified" : "Unverified"}
+                  </span>
+                </div>
 
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-700">ID Number</label>
-                    <input
-                      value={form.id_number}
-                      onChange={(e) => handleChange("id_number", e.target.value)}
-                      required
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-700">Role</label>
-                    <select
-                      value={form.role}
-                      onChange={(e) => handleChange("role", e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer"
-                    >
-                      <option value="Student">Student</option>
-                      <option value="Faculty">Faculty</option>
-                      <option value="Staff">Staff</option>
-                      <option value="Staff_Office">Staff Office</option>
-                    </select>
-                  </div>
+                {/* Verified Checkbox */}
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="checkbox"
+                    id="verified"
+                    checked={form.verified}
+                    onChange={(e) => handleChange("verified", e.target.checked)}
+                    className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded cursor-pointer"
+                  />
+                  <label htmlFor="verified" className="text-sm text-gray-700 cursor-pointer">
+                    Mark as verified
+                  </label>
                 </div>
               </div>
 
-              {/* Role-Specific Details */}
-              <div className="bg-white border border-gray-200 rounded-xl p-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <Building size={20} className="text-red-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Role Details</h3>
-                </div>
+              {/* User ID Display */}
+              <div className="text-sm text-gray-600 mt-2 text-center">
+                <span className="font-medium">User ID:</span>{" "}
+                <span className="font-mono text-gray-800">{user?._id?.slice(-8) || "New User"}</span>
+              </div>
+            </div>
 
-                {/* Department for Student, Faculty & Staff_Office */}
-                {(form.role === "Student" || form.role === "Faculty" || form.role === "Staff_Office") && (
-                  <div className="space-y-4 mb-4">
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-700">
-                        {form.role === "Staff_Office" ? "Office/Department" : "Department"}
-                      </label>
+            {/* User Details Form */}
+            <div className="w-full lg:w-2/3 space-y-6">
+              {/* Basic Information */}
+              <div className="space-y-4">
+                <h3 className="text-base font-medium text-gray-700 flex items-center gap-2 pb-2 border-b border-gray-200">
+                  <User size={18} className="text-gray-500" /> Basic Information
+                </h3>
+                <div className="grid grid-cols-1 gap-4">
+                  <EditableField
+                    icon={<User size={16} />}
+                    label="Full Name"
+                    value={form.name}
+                    onChange={(val) => handleChange("name", val)}
+                    required
+                  />
+                  <EditableField
+                    icon={<Mail size={16} />}
+                    label="Email"
+                    value={form.email}
+                    onChange={(val) => handleChange("email", val)}
+                    type="email"
+                    required
+                  />
+                  <EditableField
+                    icon={<IdCard size={16} />}
+                    label="ID Number"
+                    value={form.id_number}
+                    onChange={(val) => handleChange("id_number", val)}
+                    required
+                  />
+                  <EditableField
+                    icon={<Shield size={16} />}
+                    label="Role"
+                    value={form.role}
+                    onChange={(val) => handleChange("role", val)}
+                    options={["Student", "Faculty", "Staff", "Staff_Office"]}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Institution Information */}
+              <div className="space-y-4">
+                <h3 className="text-base font-medium text-gray-700 flex items-center gap-2 pb-2 border-b border-gray-200">
+                  <Building size={18} className="text-gray-500" /> Institution Details
+                </h3>
+                <div className="grid grid-cols-1 gap-4">
+                  {/* Department for Student, Faculty & Staff_Office */}
+                  {(form.role === "Student" || form.role === "Faculty" || form.role === "Staff_Office") && (
+                    <>
                       {form.role === "Faculty" ? (
-                        <>
-                          <select
+                        <div className="space-y-2">
+                          <EditableField
+                            icon={<Building size={16} />}
+                            label="Department"
                             value={form.department}
-                            onChange={(e) => handleChange("department", e.target.value)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer"
-                          >
-                            <option value="">Select Department</option>
-                            {Object.keys(courseOptions).map((dep) => (
-                              <option key={dep} value={dep}>{dep}</option>
-                            ))}
-                            <option value="Other">Other</option>
-                          </select>
+                            onChange={(val) => handleChange("department", val)}
+                            options={[...Object.keys(courseOptions), "Other"]}
+                            required
+                          />
                           {isOtherDepartment && (
-                            <input
-                              type="text"
-                              value={otherDepartment}
-                              onChange={(e) => setOtherDepartment(e.target.value)}
-                              placeholder="Please specify your department"
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent mt-2 cursor-pointer"
-                              required
-                            />
+                            <div className="ml-8">
+                              <input
+                                type="text"
+                                value={otherDepartment}
+                                onChange={(e) => setOtherDepartment(e.target.value)}
+                                placeholder="Please specify your department"
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+                                required
+                              />
+                            </div>
                           )}
-                        </>
+                        </div>
                       ) : form.role === "Student" ? (
-                        <select
+                        <EditableField
+                          icon={<Building size={16} />}
+                          label="Department"
                           value={form.department}
-                          onChange={(e) => handleChange("department", e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer"
-                        >
-                          <option value="">Select Department</option>
-                          {Object.keys(courseOptions).map((dep) => (
-                            <option key={dep} value={dep}>{dep}</option>
-                          ))}
-                        </select>
+                          onChange={(val) => handleChange("department", val)}
+                          options={Object.keys(courseOptions)}
+                          required
+                        />
                       ) : (
-                        <input
-                          type="text"
+                        <EditableField
+                          icon={<Building size={16} />}
+                          label="Office/Department"
                           value={form.department}
-                          onChange={(e) => handleChange("department", e.target.value)}
-                          placeholder="Enter office/department (e.g., Registrar's Office)"
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer"
+                          onChange={(val) => handleChange("department", val)}
                           required
                         />
                       )}
-                    </div>
-                  </div>
-                )}
+                    </>
+                  )}
 
-                {/* Assigned Floor for Staff */}
-                {form.role === "Staff" && (
-                  <div className="space-y-4 mb-4">
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-700">Assigned Floor</label>
-                      <select
-                        value={form.floor}
-                        onChange={(e) => handleChange("floor", e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer"
-                      >
-                        <option value="">Select Floor</option>
-                        {floorOptions.map((f) => (
-                          <option key={f}>{f}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
+                  {/* Assigned Floor for Staff */}
+                  {form.role === "Staff" && (
+                    <EditableField
+                      icon={<Layers size={16} />}
+                      label="Assigned Floor"
+                      value={form.floor}
+                      onChange={(val) => handleChange("floor", val)}
+                      options={floorOptions}
+                      required
+                    />
+                  )}
 
-                {/* Program for Student only */}
-                {form.role === "Student" && form.department && (
-                  <div className="space-y-4 mb-4">
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-700">Program</label>
-                      <select
-                        value={form.course}
-                        onChange={(e) => handleChange("course", e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer"
-                      >
-                        <option value="">Select Program</option>
-                        {courseOptions[form.department]?.map((c) => (
-                          <option key={c}>{c}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
+                  {/* Program for Student */}
+                  {form.role === "Student" && form.department && (
+                    <EditableField
+                      icon={<GraduationCap size={16} />}
+                      label="Program"
+                      value={form.course}
+                      onChange={(val) => handleChange("course", val)}
+                      options={courseOptions[form.department] || []}
+                      required
+                    />
+                  )}
 
-                {/* Year Level for Student only */}
-                {form.role === "Student" && form.course && (
-                  <div className="space-y-4">
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-700">Year Level</label>
-                      <select
-                        value={form.yearLevel}
-                        onChange={(e) => handleChange("yearLevel", e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer"
-                      >
-                        <option value="">Select Year Level</option>
-                        {form.department === "SHS" ? (
-                          <>
-                            <option value="Grade 11">Grade 11</option>
-                            <option value="Grade 12">Grade 12</option>
-                          </>
-                        ) : form.department === "COL" ? (
-                          // COL year levels - 1st to 4th Year
-                          <>
-                            <option value="1st Year">1st Year</option>
-                            <option value="2nd Year">2nd Year</option>
-                            <option value="3rd Year">3rd Year</option>
-                            <option value="4th Year">4th Year</option>
-                          </>
-                        ) : isGraduateProgram(form.course) ? (
-                          // Graduate program year levels
-                          <>
-                            <option value="1st Year">1st Year</option>
-                            <option value="2nd Year">2nd Year</option>
-                            {form.course.includes("Doctor") && (
-                              <>
-                                <option value="3rd Year">3rd Year</option>
-                                <option value="4th Year">4th Year</option>
-                              </>
-                            )}
-                          </>
-                        ) : (
-                          // Undergraduate program year levels
-                          <>
-                            <option value="1st Year">1st Year</option>
-                            <option value="2nd Year">2nd Year</option>
-                            <option value="3rd Year">3rd Year</option>
-                            <option value="4th Year">4th Year</option>
-                          </>
-                        )}
-                      </select>
-                    </div>
-                  </div>
-                )}
+                  {/* Year Level for Student */}
+                  {form.role === "Student" && form.course && (
+                    <EditableField
+                      icon={<GraduationCap size={16} />}
+                      label="Year Level"
+                      value={form.yearLevel}
+                      onChange={(val) => handleChange("yearLevel", val)}
+                      options={
+                        form.department === "SHS" 
+                          ? ["Grade 11", "Grade 12"]
+                          : form.department === "COL"
+                          ? ["1st Year", "2nd Year", "3rd Year", "4th Year"]
+                          : isGraduateProgram(form.course)
+                          ? form.course.includes("Doctor")
+                            ? ["1st Year", "2nd Year", "3rd Year", "4th Year"]
+                            : ["1st Year", "2nd Year"]
+                          : ["1st Year", "2nd Year", "3rd Year", "4th Year"]
+                      }
+                      required
+                    />
+                  )}
+                </div>
               </div>
 
-              {/* Security Section */}
-              <div className="bg-white border border-gray-200 rounded-xl p-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-red-100 rounded-lg">
-                    <Shield size={20} className="text-red-600" />
-                  </div>
-                  <h3 className="text-lg font-semibold text-gray-900">Security & Verification</h3>
+              {/* Security Information */}
+              <div className="space-y-4">
+                <h3 className="text-base font-medium text-gray-700 flex items-center gap-2 pb-2 border-b border-gray-200">
+                  <Shield size={18} className="text-gray-500" /> Security
+                </h3>
+                <div className="grid grid-cols-1 gap-4">
+                  <EditableField
+                    icon={<Shield size={16} />}
+                    label={isEdit ? "New Password (optional)" : "Password"}
+                    value={form.password}
+                    onChange={(val) => handleChange("password", val)}
+                    type="password"
+                    required={isAdd}
+                  />
                 </div>
+              </div>
 
-                <div className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-700">
-                      {isEdit ? "New Password (optional)" : "Password"}
-                    </label>
-                    <input
-                      type="password"
-                      value={form.password}
-                      onChange={(e) => handleChange("password", e.target.value)}
-                      required={isAdd}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent cursor-pointer"
-                    />
-                  </div>
-
-                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      id="verified"
-                      checked={form.verified}
-                      onChange={(e) => handleChange("verified", e.target.checked)}
-                      className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded cursor-pointer"
-                    />
-                    <div>
-                      <label htmlFor="verified" className="text-sm font-medium text-gray-700 cursor-pointer">
-                        Verified Account
-                      </label>
-                      <p className="text-xs text-gray-500">
-                        Verified users can access all system features immediately
-                      </p>
+              {/* System Information (View Only) */}
+              {isEdit && user && (
+                <div className="space-y-4 pt-2">
+                  <h3 className="text-base font-medium text-gray-700 flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <Clock size={18} className="text-gray-500" /> System Info
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <div className="p-1.5 bg-gray-200 rounded-full text-gray-600">
+                        <Calendar size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-normal text-gray-500">Created</p>
+                        <p className="text-gray-700 font-medium text-sm">{formatDate(user.createdAt || user.created_at)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-3">
+                      <div className="p-1.5 bg-gray-200 rounded-full text-gray-600">
+                        <Clock size={16} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-normal text-gray-500">Last Updated</p>
+                        <p className="text-gray-700 font-medium text-sm">{formatDate(user.updatedAt || user.updated_at)}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </form>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-gray-200 bg-gray-50 p-6">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="text-sm text-gray-600">
-              <span className="font-medium">User ID:</span>{" "}
-              <span className="font-mono text-gray-800">{user?._id?.slice(-8) || "New User"}</span>
-            </div>
-            <div className="flex flex-wrap gap-2 justify-center sm:justify-end">
-              {isView ? (
-                <>
-                  <button
-                    onClick={() => onToggleVerified(user)}
-                    className={`px-4 py-2.5 rounded-lg font-medium text-sm transition-all duration-200 flex items-center gap-2 cursor-pointer ${
-                      user.verified 
-                        ? "bg-gray-600 text-white hover:bg-gray-700" 
-                        : "bg-red-600 text-white hover:bg-red-700"
-                    }`}
-                  >
-                    {user.verified ? <X size={16} /> : <CheckCircle size={16} />}
-                    {user.verified ? "Unverify" : "Verify"}
-                  </button>
-                  <button 
-                    onClick={onClose} 
-                    className="px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 font-medium text-sm cursor-pointer"
-                  >
-                    Close
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={onClose}
-                    disabled={saving}
-                    className="px-4 py-2.5 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-all duration-200 font-medium text-sm cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    onClick={handleSubmit}
-                    disabled={saving}
-                    className="px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium text-sm flex items-center gap-2 cursor-pointer"
-                  >
-                    {saving ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle size={16} />
-                        {isEdit ? "Update User" : "Create User"}
-                      </>
-                    )}
-                  </button>
-                </>
               )}
             </div>
-          </div>
+          </form>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            onClick={handleSubmit}
+            disabled={saving}
+            className="px-6 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {saving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save size={16} />
+                {isEdit ? "Update User" : "Create User"}
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
