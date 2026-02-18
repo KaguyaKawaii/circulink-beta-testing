@@ -1511,7 +1511,6 @@ function AnalyticsReservations({ setView, admin }) {
                                 style={{ width: `${room.utilization}%` }}
                               ></div>
                             </div>
-                            <span className="text-gray-600 text-sm">{room.utilization}%</span>
                           </div>
                         </td>
                       </tr>
