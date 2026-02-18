@@ -32,6 +32,7 @@ function AnalyticsUsers({ setView, admin }) {
       student: 0,
       faculty: 0,
       staff: 0,
+      staff_office: 0,
       admin: 0
     },
     byStatus: {
@@ -217,12 +218,13 @@ function AnalyticsUsers({ setView, admin }) {
       addRow(['Average Per Day', userData.registrationStats?.avgPerDay || 0]);
       addRow([]);
       
-      // 4. Users by Role (Admin removed)
+      // 4. Users by Role (with Staff Office)
       addRow(['USERS BY ROLE']);
       addRow(['Role', 'Count', 'Percentage']);
       addRow(['Students', userData.byRole?.student || 0, `${userData.total ? Math.round((userData.byRole.student / userData.total) * 100) : 0}%`]);
       addRow(['Faculty', userData.byRole?.faculty || 0, `${userData.total ? Math.round((userData.byRole.faculty / userData.total) * 100) : 0}%`]);
       addRow(['Staff', userData.byRole?.staff || 0, `${userData.total ? Math.round((userData.byRole.staff / userData.total) * 100) : 0}%`]);
+      addRow(['Staff Office', userData.byRole?.staff_office || 0, `${userData.total ? Math.round((userData.byRole.staff_office / userData.total) * 100) : 0}%`]);
       addRow([]);
       
       // 5. Users by Status
@@ -264,7 +266,7 @@ function AnalyticsUsers({ setView, admin }) {
       }
       addRow([]);
       
-      // 8. Most Active Users (Last Active column removed)
+      // 8. Most Active Users
       addRow(['MOST ACTIVE USERS']);
       addRow(['Name', 'Email', 'Role', 'Actions Count']);
       if (userData.topUsers && userData.topUsers.length > 0) {
@@ -436,6 +438,7 @@ function AnalyticsUsers({ setView, admin }) {
     students: userData.byRole?.student || 0,
     faculty: userData.byRole?.faculty || 0,
     staff: userData.byRole?.staff || 0,
+    staffOffice: userData.byRole?.staff_office || 0,
     verified: userData.byStatus?.verified || 0,
     unverified: userData.byStatus?.unverified || 0,
     suspended: userData.byStatus?.suspended || 0,
@@ -575,7 +578,7 @@ function AnalyticsUsers({ setView, admin }) {
       <div className="p-6">
         {/* User Statistics Cards */}
         <div className="flex flex-col gap-4 mb-6 w-full">
-          {/* Role Statistics Section - Admin removed */}
+          {/* Role Statistics Section - With Staff Office */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">User Roles</h2>
             <div className="flex flex-wrap gap-4">
@@ -606,6 +609,13 @@ function AnalyticsUsers({ setView, admin }) {
                 value={userStats.staff} 
                 icon={UserCheck} 
                 color="yellow" 
+                isLoading={loading}
+              />
+              <StatCard 
+                title="Staff Office" 
+                value={userStats.staffOffice} 
+                icon={Building} 
+                color="indigo" 
                 isLoading={loading}
               />
             </div>
@@ -656,7 +666,7 @@ function AnalyticsUsers({ setView, admin }) {
 
         {/* Analytics Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* By Role - Admin removed */}
+          {/* By Role - With Staff Office */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Users by Role</h2>
             <div className="space-y-4">
@@ -679,6 +689,13 @@ function AnalyticsUsers({ setView, admin }) {
                 value={userData.byRole?.staff || 0} 
                 total={userData.total || 1} 
                 color="purple"
+                isLoading={loading}
+              />
+              <ProgressBar 
+                label="Staff Office" 
+                value={userData.byRole?.staff_office || 0} 
+                total={userData.total || 1} 
+                color="indigo"
                 isLoading={loading}
               />
             </div>
@@ -843,7 +860,7 @@ function AnalyticsUsers({ setView, admin }) {
           </div>
         </div>
 
-        {/* Most Active Users - Last Active column removed */}
+        {/* Most Active Users */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Most Active Users</h2>
           <div className="overflow-x-auto">
@@ -876,9 +893,10 @@ function AnalyticsUsers({ setView, admin }) {
                             user.role?.toLowerCase() === 'student' ? 'bg-green-100 text-green-800' :
                             user.role?.toLowerCase() === 'faculty' ? 'bg-purple-100 text-purple-800' :
                             user.role?.toLowerCase() === 'staff' ? 'bg-yellow-100 text-yellow-800' :
+                            user.role?.toLowerCase() === 'staff_office' ? 'bg-indigo-100 text-indigo-800' :
                             'bg-blue-100 text-blue-800'
                           }`}>
-                            {user.role || 'Unknown'}
+                            {user.role === 'staff_office' ? 'Staff Office' : (user.role || 'Unknown')}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.reservations || 0}</td>
