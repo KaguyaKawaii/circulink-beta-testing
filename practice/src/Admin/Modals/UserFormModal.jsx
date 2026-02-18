@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, memo } from "react";
 import { 
   X, User, Mail, IdCard, Shield, Building, GraduationCap, 
   Layers, Calendar, Clock, CheckCircle, AlertCircle, Save,
-  Upload, Image
+  Upload, Image, Key
 } from "lucide-react";
 import axios from "axios";
 
@@ -94,7 +94,7 @@ const isGraduateProgram = (course) => {
 };
 
 // Memoized EditableField component to prevent unnecessary re-renders
-const EditableField = memo(({ icon, label, value, onChange, type = "text", options = null, required = false }) => {
+const EditableField = memo(({ icon, label, value, onChange, type = "text", options = null, required = false, placeholder = "" }) => {
   const inputRef = useRef(null);
   
   const handleChange = (e) => {
@@ -128,6 +128,7 @@ const EditableField = memo(({ icon, label, value, onChange, type = "text", optio
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
             rows="3"
             required={required}
+            placeholder={placeholder}
           />
         ) : (
           <input
@@ -137,6 +138,7 @@ const EditableField = memo(({ icon, label, value, onChange, type = "text", optio
             onChange={handleChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
             required={required}
+            placeholder={placeholder}
           />
         )}
       </div>
@@ -170,6 +172,7 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
   const [profileFile, setProfileFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [imgTimestamp, setImgTimestamp] = useState(Date.now());
+  const [passwordError, setPasswordError] = useState("");
 
   // Check if department is "Other" (for Faculty)
   const isOtherDepartment = form.department === "Other";
@@ -196,6 +199,11 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
       if (prev[key] === value) return prev;
       return { ...prev, [key]: value };
     });
+    
+    // Clear password error when user types in password field
+    if (key === "password") {
+      setPasswordError("");
+    }
   }, []);
 
   const handleFileChange = useCallback((e) => {
@@ -234,8 +242,28 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
     });
   }, []);
 
+  const validatePassword = (password) => {
+    if (isAdd && !password) {
+      return "Password is required for new users";
+    }
+    if (password && password.length < 6) {
+      return "Password must be at least 6 characters long";
+    }
+    return "";
+  };
+
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
+    
+    // Validate password for new users
+    if (isAdd) {
+      const error = validatePassword(form.password);
+      if (error) {
+        setPasswordError(error);
+        return;
+      }
+    }
+    
     setSaving(true);
     try {
       // Determine the final department value
@@ -253,9 +281,18 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
         course: form.role === "Student" ? form.course || "N/A" : "N/A",
         yearLevel: form.role === "Student" ? form.yearLevel || "N/A" : "N/A",
         floor: form.role === "Staff" ? form.floor || "N/A" : "N/A",
-        password: form.password || undefined,
         verified: form.verified,
       };
+
+      // Only include password if it's provided (for edit) or always for add
+      if (form.password) {
+        payload.password = form.password;
+      } else if (isAdd) {
+        // This should never happen due to validation above, but just in case
+        setSaving(false);
+        setPasswordError("Password is required for new users");
+        return;
+      }
 
       let response;
       const formData = new FormData();
@@ -269,6 +306,11 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
       if (profileFile) {
         formData.append("profile", profileFile);
       }
+
+      console.log("Submitting form with data:", {
+        ...payload,
+        password: payload.password ? "[REDACTED]" : undefined
+      });
 
       if (isEdit) {
         response = await axios.put(
@@ -293,7 +335,16 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
 
     } catch (err) {
       console.error("Form submission error:", err);
-      alert("Error: " + (err.response?.data?.message || err.message));
+      
+      // Handle specific error messages
+      let errorMessage = err.response?.data?.message || err.message;
+      
+      // Check for password-related errors
+      if (errorMessage.toLowerCase().includes("password")) {
+        setPasswordError(errorMessage);
+      } else {
+        alert("Error: " + errorMessage);
+      }
     } finally {
       setSaving(false);
     }
@@ -530,17 +581,29 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
               {/* Security Information */}
               <div className="space-y-4">
                 <h3 className="text-base font-medium text-gray-700 flex items-center gap-2 pb-2 border-b border-gray-200">
-                  <Shield size={18} className="text-gray-500" /> Security
+                  <Key size={18} className="text-gray-500" /> Security
                 </h3>
                 <div className="grid grid-cols-1 gap-4">
                   <EditableField
-                    icon={<Shield size={16} />}
-                    label={isEdit ? "New Password (optional)" : "Password"}
+                    icon={<Key size={16} />}
+                    label={isEdit ? "New Password (leave blank to keep current)" : "Password"}
                     value={form.password}
                     onChange={(val) => handleChange("password", val)}
                     type="password"
                     required={isAdd}
+                    placeholder={isEdit ? "Enter new password to change" : "Enter password"}
                   />
+                  {passwordError && (
+                    <div className="ml-8 text-sm text-red-600 flex items-center gap-1">
+                      <AlertCircle size={14} />
+                      <span>{passwordError}</span>
+                    </div>
+                  )}
+                  {isEdit && (
+                    <p className="ml-8 text-xs text-gray-500">
+                      Leave password blank to keep the current password unchanged.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -572,37 +635,38 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
                   </div>
                 </div>
               )}
-
-              {/* Modal Footer - Moved inside the form */}
-              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  disabled={saving}
-                  className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="px-6 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                >
-                  {saving ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Save size={16} />
-                      {isEdit ? "Update User" : "Create User"}
-                    </>
-                  )}
-                </button>
-              </div>
             </div>
           </form>
+        </div>
+
+        {/* Modal Footer */}
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            onClick={handleSubmit}
+            disabled={saving}
+            className="px-6 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          >
+            {saving ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save size={16} />
+                {isEdit ? "Update User" : "Create User"}
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>
