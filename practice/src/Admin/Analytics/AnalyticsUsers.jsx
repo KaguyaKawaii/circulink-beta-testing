@@ -302,7 +302,7 @@ function AnalyticsUsers({ setView, admin }) {
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `user_analytics_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `User Analytics ${dateRange} ${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

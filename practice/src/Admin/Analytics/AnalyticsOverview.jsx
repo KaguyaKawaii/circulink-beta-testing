@@ -1353,7 +1353,7 @@ function AnalyticsOverview({ setView, admin }) {
       }
 
       // Save the file
-      const fileName = `Analytics_Report_${getRangeDescription().replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      const fileName = `Analytics Report ${getRangeDescription().replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
       
     } catch (error) {
