@@ -10,12 +10,6 @@ import {
   X,
   UserPlus,
   Pencil,
-  Users,
-  GraduationCap,
-  UserCog,
-  UserCheck,
-  UserX,
-  Building
 } from "lucide-react";
 import AdminNavigation from "./AdminNavigation";
 import UserFormModal from "./Modals/UserFormModal";
@@ -272,18 +266,6 @@ function AdminUsers({ setView, onLogout }) {
     );
   };
 
-  const userStats = {
-    total: users.length,
-    students: users.filter((u) => u.role === "Student").length,
-    faculty: users.filter((u) => u.role === "Faculty").length,
-    staff: users.filter((u) => u.role === "Staff").length,
-    staffOffice: users.filter((u) => u.role === "Staff_Office").length,
-    verified: users.filter((u) => u.verified).length,
-    unverified: users.filter((u) => !u.verified).length,
-    suspended: users.filter((u) => u.suspended).length,
-    active: users.filter((u) => !u.suspended).length,
-  };
-
   const filteredUsers = users.filter((user) => {
     const matchesStatus =
       filter === "All" ||
@@ -341,141 +323,6 @@ function AdminUsers({ setView, onLogout }) {
 
         {/* Main Content */}
         <div className="p-6">
-          {/* User Statistics Cards */}
-          <div className="flex flex-col gap-4 w-full">
-            {/* User Statistics Cards */}
-<div className="flex flex-col gap-4 mb-6 w-full">
-  {/* Role Statistics Section */}
-  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-    <h2 className="text-lg font-semibold text-gray-800 mb-4">User Roles</h2>
-    <div className="flex flex-wrap gap-4">
-      {/* Total Users */}
-      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600 font-medium">Total Users</p>
-            <p className="text-2xl font-bold text-gray-800">{userStats.total}</p>
-          </div>
-          <div className="p-2">
-            <Users className="text-blue-500" size={20} />
-          </div>
-        </div>
-      </div>
-
-      {/* Students */}
-      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600 font-medium">Students</p>
-            <p className="text-2xl font-bold text-gray-800">{userStats.students}</p>
-          </div>
-          <div className="p-2">
-            <GraduationCap className="text-green-500" size={20} />
-          </div>
-        </div>
-      </div>
-
-      {/* Faculty */}
-      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600 font-medium">Faculty</p>
-            <p className="text-2xl font-bold text-gray-800">{userStats.faculty}</p>
-          </div>
-          <div className="p-2">
-            <UserCog className="text-purple-500" size={20} />
-          </div>
-        </div>
-      </div>
-
-      {/* Staff */}
-      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600 font-medium">Staff</p>
-            <p className="text-2xl font-bold text-gray-800">{userStats.staff}</p>
-          </div>
-          <div className="p-2">
-            <UserCheck className="text-yellow-500" size={20} />
-          </div>
-        </div>
-      </div>
-
-      {/* Staff Office */}
-      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600 font-medium">Staff Office</p>
-            <p className="text-2xl font-bold text-gray-800">{userStats.staffOffice}</p>
-          </div>
-          <div className="p-2">
-            <Building className="text-indigo-500" size={20} />
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  {/* Status Statistics Section */}
-  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-    <h2 className="text-lg font-semibold text-gray-800 mb-4">Account Status</h2>
-    <div className="flex flex-wrap gap-4">
-      {/* Verified */}
-      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600 font-medium">Verified</p>
-            <p className="text-2xl font-bold text-gray-800">{userStats.verified}</p>
-          </div>
-          <div className="p-2">
-            <UserCheck className="text-green-500" size={20} />
-          </div>
-        </div>
-      </div>
-
-      {/* Unverified */}
-      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600 font-medium">Unverified</p>
-            <p className="text-2xl font-bold text-gray-800">{userStats.unverified}</p>
-          </div>
-          <div className="p-2">
-            <UserX className="text-red-500" size={20} />
-          </div>
-        </div>
-      </div>
-
-      {/* Suspended */}
-      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600 font-medium">Suspended</p>
-            <p className="text-2xl font-bold text-gray-800">{userStats.suspended}</p>
-          </div>
-          <div className="p-2">
-            <UserX className="text-orange-500" size={20} />
-          </div>
-        </div>
-      </div>
-
-      {/* Active */}
-      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600 font-medium">Active</p>
-            <p className="text-2xl font-bold text-gray-800">{userStats.active}</p>
-          </div>
-          <div className="p-2">
-            <UserCheck className="text-blue-500" size={20} />
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-          </div>
-
           {/* Filters */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
             <div className="flex flex-col md:flex-row md:items-center gap-4">
