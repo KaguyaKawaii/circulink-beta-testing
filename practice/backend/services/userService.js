@@ -33,11 +33,14 @@ const getLeastPopulatedFloor = async () => {
   return counts[0].floor;
 };
 
-// Add User (Admin)
+// Add User (Admin) - FIXED: Let the model's pre-save hook hash the password
 const addUser = async (data, file) => {
   const { name, email, id_number, password, role, department, course, yearLevel, floor, verified } = data;
 
   if (!name || !email || !id_number || !password || !role) throw new Error("Missing required fields.");
+  
+  // Password validation
+  if (password.length < 8) throw new Error("Password must be at least 8 characters.");
 
   const existing = await User.findOne({ 
     $or: [
@@ -50,8 +53,8 @@ const addUser = async (data, file) => {
     if (existing.id_number === id_number) throw new Error("ID number already used.");
   }
 
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(password, salt);
+  // ✅ FIXED: Don't hash here - let the model's pre-save hook handle it
+  // Just pass the plain password to the model
 
   let profilePicture = null;
   if (file) {
@@ -63,22 +66,26 @@ const addUser = async (data, file) => {
     name,
     email: email.toLowerCase(),
     id_number,
-    password: hashedPassword,
+    password, // Plain password - will be hashed by pre-save hook
     department: role === "Staff" ? department || "N/A" : department || "N/A",
     course: role === "Student" ? course || "N/A" : "N/A",
     year_level: role === "Student" ? yearLevel || "N/A" : "N/A",
     floor: role === "Staff" ? floor || "N/A" : "N/A",
     role,
-    
+    verified: verified === "true" || verified === true || false,
     profilePicture,
   });
 
   await newUser.save();
   await logAction(newUser._id, newUser.id_number, newUser.name, "User Created", "Added via Admin Panel");
-  return newUser.toObject();
+  
+  // Return user without password
+  const userResponse = newUser.toObject();
+  delete userResponse.password;
+  return userResponse;
 };
 
-// Signup
+// Signup - FIXED: Let the model's pre-save hook hash the password
 const signup = async (data, file) => {
   const { name, email, id_number, password, role, department, course, yearLevel } = data;
 
@@ -97,8 +104,7 @@ const signup = async (data, file) => {
     if (existing.id_number === id_number) throw new Error("ID number already used.");
   }
 
-  const salt = await bcrypt.genSalt(10);
-  const hashedPassword = await bcrypt.hash(password, salt);
+  // ✅ FIXED: Don't hash here - let the model's pre-save hook handle it
 
   let profilePicture = null;
   if (file) {
@@ -110,7 +116,7 @@ const signup = async (data, file) => {
     name,
     email: email.toLowerCase(),
     id_number,
-    password: hashedPassword,
+    password, // Plain password - will be hashed by pre-save hook
     department,
     course: role === "Student" ? course : "N/A",
     year_level: role === "Student" ? yearLevel : "N/A",
@@ -121,7 +127,10 @@ const signup = async (data, file) => {
   await newUser.save();
   await logAction(newUser._id, newUser.id_number, newUser.name, "User Signup", "Registered account");
 
-  return newUser.toObject();
+  // Return user without password
+  const userResponse = newUser.toObject();
+  delete userResponse.password;
+  return userResponse;
 };
 
 // Login
@@ -161,10 +170,14 @@ const updateProfile = async (id, data, file) => {
 
   await user.save();
   await logAction(user._id, user.id_number, user.name, "Profile Updated", "User updated profile info");
-  return user.toObject();
+  
+  // Return user without password
+  const userResponse = user.toObject();
+  delete userResponse.password;
+  return userResponse;
 };
 
-// Admin Edit User
+// Admin Edit User - FIXED: Password handling is correct (let pre-save hook hash it)
 const adminEditUser = async (id, data, file) => {
   const user = await User.findById(id);
   if (!user) throw new Error("User not found.");
@@ -195,12 +208,12 @@ const adminEditUser = async (id, data, file) => {
     user.verified = data.verified === "true" || data.verified === true;
   }
 
-  // ✅ Fix password handling → no double-hash
+  // ✅ Password handling is correct - let pre-save hook hash it
   if (data.password && data.password.trim() !== "") {
     if (data.password.length < 8) {
       throw new Error("Password must be at least 8 characters.");
     }
-    user.password = data.password; // let pre-save hook hash it
+    user.password = data.password; // Plain password - pre-save hook will hash it
   }
 
   if (file) {
@@ -210,13 +223,16 @@ const adminEditUser = async (id, data, file) => {
 
   await user.save();
   await logAction(user._id, user.id_number, user.name, "Admin Edited User", "User info updated by admin");
-  return user.toObject();
+  
+  // Return user without password
+  const userResponse = user.toObject();
+  delete userResponse.password;
+  return userResponse;
 };
 
 
 
 // Change Password - FIXED VERSION with debugging
-// Change Password - FIXED VERSION (remove manual hashing)
 const changePassword = async (id, oldPassword, newPassword) => {
   console.log("=== PASSWORD CHANGE DEBUG ===");
   console.log("User ID:", id);
@@ -233,6 +249,11 @@ const changePassword = async (id, oldPassword, newPassword) => {
   console.log("Old password valid:", validOld);
   
   if (!validOld) throw new Error("Old password is incorrect.");
+
+  // Password validation
+  if (newPassword.length < 8) {
+    throw new Error("Password must be at least 8 characters.");
+  }
 
   // ✅ FIXED: Set the plain new password and let the model's pre-save hook hash it
   user.password = newPassword;
@@ -267,7 +288,7 @@ const verifyUser = async (id, verified, io) => {
     id,
     { verified },
     { new: true }
-  );
+  ).select("-password");
 
   if (user) {
     // Log the action
@@ -302,7 +323,7 @@ const suspendUser = async (id, io) => {
     id,
     { suspended: true },
     { new: true }
-  );
+  ).select("-password");
 
   if (user) {
     await logAction(user._id, user.id_number, user.name, "User Suspended", "User account suspended");
@@ -326,7 +347,7 @@ const unsuspendUser = async (id, io) => {
     id,
     { suspended: false },
     { new: true }
-  );
+  ).select("-password");
 
   if (user) {
     await logAction(user._id, user.id_number, user.name, "User Unsuspended", "User account unsuspended");
@@ -350,7 +371,7 @@ const toggleSuspend = async (id, suspend, io) => {
     id,
     { suspended: !!suspend },
     { new: true }
-  );
+  ).select("-password");
 
   if (user) {
     await logAction(
@@ -383,7 +404,8 @@ const archiveUser = async (id) => {
     id,
     { archived: true, archivedAt: new Date() },
     { new: true }
-  );
+  ).select("-password");
+  
   if (user) await logAction(user._id, user.id_number, user.name, "User Archived", "User account archived");
   return user;
 };
@@ -394,7 +416,8 @@ const restoreUser = async (id) => {
     id,
     { archived: false, archivedAt: null },
     { new: true }
-  );
+  ).select("-password");
+  
   if (user) await logAction(user._id, user.id_number, user.name, "User Restored", "User account restored from archive");
   return user;
 };
@@ -414,7 +437,8 @@ exports.updateProfile = async (userId, updateData, file) => {
 
     // Handle file upload if provided
     if (file) {
-      updateData.profilePicture = `/uploads/profiles/${file.filename}`;
+      const upload = await uploadToCloudinary(file.buffer, "users/profile_pictures");
+      updateData.profilePicture = upload.secure_url;
     }
 
     // Update user data
@@ -425,7 +449,11 @@ exports.updateProfile = async (userId, updateData, file) => {
     });
 
     await user.save();
-    return user;
+    
+    // Return user without password
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    return userResponse;
   } catch (error) {
     throw new Error(error.message);
   }
@@ -445,10 +473,8 @@ module.exports = {
   restoreUser,
   deleteArchivedUser,
   getArchivedUsers,
-  updateProfile,
-   // newly exported suspend functions:
+  // note: updateProfile is already exported above — keep it once
   suspendUser,
   unsuspendUser,
   toggleSuspend,
-  // note: updateProfile is already exported above — keep it once
 };
