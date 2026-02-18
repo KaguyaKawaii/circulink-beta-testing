@@ -1939,7 +1939,7 @@ function AnalyticsOverview({ setView, admin }) {
           <div className="mt-4 pt-4 border-t border-gray-200">
             <button
               onClick={() => setView("analyticsUsers")}
-              className="text-sm text-red-600 hover:text-red-700 font-medium"
+              className="text-sm text-red-600 hover:text-red-700 font-medium cursor-pointer"
             >
               View Detailed User Analytics →
             </button>
@@ -2014,7 +2014,7 @@ function AnalyticsOverview({ setView, admin }) {
           <div className="mt-4 pt-4 border-t border-gray-200">
             <button
               onClick={() => setView("analyticsReservations")}
-              className="text-sm text-red-600 hover:text-red-700 font-medium"
+              className="text-sm text-red-600 hover:text-red-700 font-medium cursor-pointer"
             >
               View Detailed Reservation Analytics →
             </button>
@@ -2100,7 +2100,7 @@ function AnalyticsOverview({ setView, admin }) {
           <div className="mt-4 pt-4 border-t border-gray-200">
             <button
               onClick={() => setView("analyticsRooms")}
-              className="text-sm text-red-600 hover:text-red-700 font-medium"
+              className="text-sm text-red-600 hover:text-red-700 font-medium cursor-pointer"
             >
               View Detailed Room Analytics →
             </button>
@@ -2198,7 +2198,7 @@ function AnalyticsOverview({ setView, admin }) {
           <div className="mt-4 pt-4 border-t border-gray-200">
             <button
               onClick={() => setView("analyticsEngagement")}
-              className="text-sm text-red-600 hover:text-red-700 font-medium"
+              className="text-sm text-red-600 hover:text-red-700 font-medium cursor-pointer"
             >
               View Detailed Engagement Metrics →
             </button>

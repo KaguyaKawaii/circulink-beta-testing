@@ -556,7 +556,7 @@ function AnalyticsUsers({ setView, admin }) {
               title="Export to CSV"
             >
               <Download size={18} />
-              <span>CSV</span>
+              <span>Excel</span>
             </button>
 
             {/* Refresh Button */}

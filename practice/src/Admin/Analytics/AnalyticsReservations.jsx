@@ -878,7 +878,7 @@ function AnalyticsReservations({ setView, admin }) {
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `reservation_analytics_${dateRange}_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `Reservation Analytics ${dateRange} ${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1189,7 +1189,7 @@ function AnalyticsReservations({ setView, admin }) {
               title="Export to CSV"
             >
               <Download size={18} />
-              <span>CSV</span>
+              <span>Excel</span>
             </button>
 
             {/* Refresh Button */}
