@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef, memo } from "react";
 import { 
   X, User, Mail, IdCard, Shield, Building, GraduationCap, 
   Layers, Calendar, Clock, CheckCircle, AlertCircle, Save,
@@ -93,6 +93,59 @@ const isGraduateProgram = (course) => {
   return graduateKeywords.some(keyword => course.includes(keyword));
 };
 
+// Memoized EditableField component to prevent unnecessary re-renders
+const EditableField = memo(({ icon, label, value, onChange, type = "text", options = null, required = false }) => {
+  const inputRef = useRef(null);
+  
+  const handleChange = (e) => {
+    onChange(e.target.value);
+  };
+
+  return (
+    <div className="flex items-start gap-3">
+      <div className="p-1.5 bg-gray-100 rounded-full text-gray-600">
+        {icon}
+      </div>
+      <div className="flex-1">
+        <p className="text-xs font-normal text-gray-500 mb-1">{label}</p>
+        {options ? (
+          <select
+            value={value || ""}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm bg-white"
+            required={required}
+          >
+            <option value="">Select {label}</option>
+            {options.map((opt) => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        ) : type === "textarea" ? (
+          <textarea
+            ref={inputRef}
+            value={value || ""}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+            rows="3"
+            required={required}
+          />
+        ) : (
+          <input
+            ref={inputRef}
+            type={type}
+            value={value || ""}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
+            required={required}
+          />
+        )}
+      </div>
+    </div>
+  );
+});
+
+EditableField.displayName = 'EditableField';
+
 export default function UserFormModal({ mode, user, onClose, onSuccess }) {
   const isEdit = mode === "edit";
   const isAdd = mode === "add";
@@ -137,10 +190,15 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
     }
   }, [form.role]);
 
-  const handleChange = (key, value) =>
-    setForm((prev) => ({ ...prev, [key]: value }));
+  const handleChange = useCallback((key, value) => {
+    setForm(prev => {
+      // Only update if the value actually changed
+      if (prev[key] === value) return prev;
+      return { ...prev, [key]: value };
+    });
+  }, []);
 
-  const handleFileChange = (e) => {
+  const handleFileChange = useCallback((e) => {
     const file = e.target.files[0];
     if (file) {
       setProfileFile(file);
@@ -150,9 +208,9 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
       };
       reader.readAsDataURL(file);
     }
-  };
+  }, []);
 
-  const getProfilePictureUrl = () => {
+  const getProfilePictureUrl = useCallback(() => {
     if (previewUrl) return previewUrl;
     if (!user?.profilePicture) return null;
     if (user.profilePicture.startsWith("http")) {
@@ -160,9 +218,9 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
     } else {
       return `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`;
     }
-  };
+  }, [previewUrl, user, imgTimestamp]);
 
-  const formatDate = (dateString) => {
+  const formatDate = useCallback((dateString) => {
     if (!dateString) return "—";
     const date = new Date(dateString);
     return date.toLocaleString("en-PH", {
@@ -174,9 +232,9 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
       minute: "2-digit",
       hour12: true,
     });
-  };
+  }, []);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     setSaving(true);
     try {
@@ -239,47 +297,7 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
     } finally {
       setSaving(false);
     }
-  };
-
-  const EditableField = ({ icon, label, value, onChange, type = "text", options = null, required = false }) => (
-    <div className="flex items-start gap-3">
-      <div className="p-1.5 bg-gray-100 rounded-full text-gray-600">
-        {icon}
-      </div>
-      <div className="flex-1">
-        <p className="text-xs font-normal text-gray-500 mb-1">{label}</p>
-        {options ? (
-          <select
-            value={value || ""}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm bg-white"
-            required={required}
-          >
-            <option value="">Select {label}</option>
-            {options.map((opt) => (
-              <option key={opt} value={opt}>{opt}</option>
-            ))}
-          </select>
-        ) : type === "textarea" ? (
-          <textarea
-            value={value || ""}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
-            rows="3"
-            required={required}
-          />
-        ) : (
-          <input
-            type={type}
-            value={value || ""}
-            onChange={(e) => onChange(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm"
-            required={required}
-          />
-        )}
-      </div>
-    </div>
-  );
+  }, [form, profileFile, isEdit, isAdd, user, otherDepartment, onSuccess]);
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -554,38 +572,37 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
                   </div>
                 </div>
               )}
+
+              {/* Modal Footer - Moved inside the form */}
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  disabled={saving}
+                  className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-6 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {saving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={16} />
+                      {isEdit ? "Update User" : "Create User"}
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           </form>
-        </div>
-
-        {/* Modal Footer */}
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            onClick={handleSubmit}
-            disabled={saving}
-            className="px-6 py-2 rounded-md bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {saving ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                Saving...
-              </>
-            ) : (
-              <>
-                <Save size={16} />
-                {isEdit ? "Update User" : "Create User"}
-              </>
-            )}
-          </button>
         </div>
       </div>
     </div>
