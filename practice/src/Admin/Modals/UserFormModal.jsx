@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, memo } from "react";
 import { 
   X, User, Mail, IdCard, Shield, Building, GraduationCap, 
   Layers, Calendar, Clock, CheckCircle, AlertCircle, Save,
-  Upload, Image, Key
+  Key
 } from "lucide-react";
 import axios from "axios";
 
@@ -163,15 +163,11 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
       yearLevel: "",
       floor: "",
       password: "",
-      verified: false,
-      profilePicture: null
+      verified: false
     }
   );
   const [saving, setSaving] = useState(false);
   const [otherDepartment, setOtherDepartment] = useState("");
-  const [profileFile, setProfileFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [imgTimestamp, setImgTimestamp] = useState(Date.now());
   const [passwordError, setPasswordError] = useState("");
 
   // Check if department is "Other" (for Faculty)
@@ -205,28 +201,6 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
       setPasswordError("");
     }
   }, []);
-
-  const handleFileChange = useCallback((e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setProfileFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  }, []);
-
-  const getProfilePictureUrl = useCallback(() => {
-    if (previewUrl) return previewUrl;
-    if (!user?.profilePicture) return null;
-    if (user.profilePicture.startsWith("http")) {
-      return `${user.profilePicture}?t=${imgTimestamp}`;
-    } else {
-      return `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`;
-    }
-  }, [previewUrl, user, imgTimestamp]);
 
   const formatDate = useCallback((dateString) => {
     if (!dateString) return "—";
@@ -295,17 +269,6 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
       }
 
       let response;
-      const formData = new FormData();
-      
-      // Append all payload fields
-      for (let key in payload) {
-        if (payload[key] !== undefined) formData.append(key, payload[key]);
-      }
-      
-      // Append profile file if exists
-      if (profileFile) {
-        formData.append("profile", profileFile);
-      }
 
       console.log("Submitting form with data:", {
         ...payload,
@@ -315,14 +278,12 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
       if (isEdit) {
         response = await axios.put(
           `${import.meta.env.VITE_API_URL}/api/users/admin-edit/${user._id}`,
-          formData,
-          { headers: { "Content-Type": "multipart/form-data" } }
+          payload
         );
       } else if (isAdd) {
         response = await axios.post(
           `${import.meta.env.VITE_API_URL}/api/users/add-user`,
-          formData,
-          { headers: { "Content-Type": "multipart/form-data" } }
+          payload
         );
       }
 
@@ -348,7 +309,7 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
     } finally {
       setSaving(false);
     }
-  }, [form, profileFile, isEdit, isAdd, user, otherDepartment, onSuccess]);
+  }, [form, isEdit, isAdd, user, otherDepartment, onSuccess]);
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -373,33 +334,8 @@ export default function UserFormModal({ mode, user, onClose, onSuccess }) {
           <form onSubmit={handleSubmit} className="flex flex-col lg:flex-row gap-6">
             {/* Profile Picture + Basic Status */}
             <div className="flex flex-col items-center w-full lg:w-1/3">
-              <div className="relative w-40 h-40 rounded-full bg-gray-100 border-2 border-gray-200 overflow-hidden mb-4 group">
-                {getProfilePictureUrl() ? (
-                  <img
-                    src={getProfilePictureUrl()}
-                    alt={`${form.name || 'User'}'s profile`}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = "/default-avatar.png";
-                    }}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <User size={64} className="text-gray-400" />
-                  </div>
-                )}
-                
-                {/* Upload Overlay */}
-                <label className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                  <Upload size={24} className="text-white" />
-                </label>
+              <div className="w-40 h-40 rounded-full bg-gray-100 border-2 border-gray-200 overflow-hidden mb-4 flex items-center justify-center">
+                <User size={64} className="text-gray-400" />
               </div>
 
               {/* Status Badges */}
