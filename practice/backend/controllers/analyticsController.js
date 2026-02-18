@@ -149,7 +149,7 @@ function getPreviousStartDate(range) {
   return date;
 }
 
-// Main calculation function - UPDATED to handle custom ranges
+// Main calculation function - UPDATED to include staff_office
 function calculateUserStats(users, archivedUsers, logs, reservations, range, startDate, previousStartDate, isCustomRange, customStart, customEnd) {
   const now = new Date();
   const thirtyDaysAgo = new Date(now);
@@ -161,11 +161,12 @@ function calculateUserStats(users, archivedUsers, logs, reservations, range, sta
   const oneDayAgo = new Date(now);
   oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-  // Calculate by role
+  // Calculate by role - UPDATED to include staff_office
   const byRole = {
     student: users.filter(u => u.role?.toLowerCase() === 'student').length,
     faculty: users.filter(u => u.role?.toLowerCase() === 'faculty').length,
     staff: users.filter(u => u.role?.toLowerCase() === 'staff').length,
+    staff_office: users.filter(u => u.role?.toLowerCase() === 'staff_office').length,
     admin: users.filter(u => u.role?.toLowerCase() === 'admin').length
   };
 
@@ -278,9 +279,9 @@ function calculateUserStats(users, archivedUsers, logs, reservations, range, sta
   // Get department stats
   const departmentStats = getDepartmentStats(users);
 
-  // Get role distribution
+  // Get role distribution - UPDATED to include staff_office
   const roleDistribution = Object.entries(byRole).map(([name, value]) => ({
-    name: name.charAt(0).toUpperCase() + name.slice(1),
+    name: name === 'staff_office' ? 'Staff Office' : name.charAt(0).toUpperCase() + name.slice(1),
     value
   }));
 
@@ -2060,10 +2061,6 @@ exports.exportAnalytics = async (req, res) => {
     });
   }
 };
-
-// controllers/analyticsController.js
-// Add this comprehensive engagement metrics function to your existing file
-// Keep all your existing code - just add this function
 
 // ================= COMPREHENSIVE ENGAGEMENT METRICS =================
 exports.getEngagementMetrics = async (req, res) => {
