@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const userService = require("../services/userService");
 const User = require("../models/User");
+const Notification = require("../models/Notification");
 
 // ✅ FIXED: Single Cloudinary import without duplicate declaration
 const cloudinary = require('cloudinary').v2;
@@ -667,6 +668,239 @@ exports.testCloudinary = async (req, res) => {
       success: false,
       message: "Cloudinary test failed",
       error: error.message
+    });
+  }
+};
+
+// ✅ NEW: Revoke all verification for specific roles (students only)
+exports.revokeAllVerification = async (req, res) => {
+  try {
+    const { roles } = req.body;
+    const rolesToRevoke = roles || ["Student"]; // Default to students only
+    
+    console.log("=== REVOKE ALL VERIFICATION ===");
+    console.log("Roles to revoke:", rolesToRevoke);
+    
+    // Find all users with specified roles that are verified
+    const usersToUpdate = await User.find({
+      role: { $in: rolesToRevoke },
+      verified: true,
+      archived: { $ne: true }
+    });
+    
+    console.log(`Found ${usersToUpdate.length} users to revoke verification`);
+    
+    if (usersToUpdate.length === 0) {
+      return res.json({ 
+        success: true, 
+        message: "No verified users found in the specified roles.",
+        count: 0
+      });
+    }
+    
+    // Update all these users to unverified
+    const updateResult = await User.updateMany(
+      { 
+        role: { $in: rolesToRevoke },
+        verified: true,
+        archived: { $ne: true }
+      },
+      { verified: false }
+    );
+    
+    console.log(`Updated ${updateResult.modifiedCount} users`);
+    
+    // Create notifications for all affected users
+    const notifications = [];
+    const io = req.io || null;
+    
+    for (const user of usersToUpdate) {
+      try {
+        const notification = new Notification({
+          userId: user._id,
+          title: "Verification Revoked",
+          message: "Your account verification has been revoked as part of a system-wide update.",
+          type: "system",
+          status: "Unverified",
+          isRead: false,
+          targetRole: "user",
+          userName: user.name,
+          idNumber: user.id_number
+        });
+        await notification.save();
+        notifications.push(notification);
+        
+        // Emit real-time notification if io is available
+        if (io) {
+          io.to(user._id.toString()).emit('notification', {
+            _id: notification._id,
+            title: notification.title,
+            message: notification.message,
+            type: notification.type,
+            status: notification.status,
+            isRead: notification.isRead,
+            createdAt: notification.createdAt
+          });
+        }
+      } catch (notifError) {
+        console.error(`Failed to create notification for user ${user._id}:`, notifError);
+      }
+    }
+    
+    // Emit socket event for admin UI update
+    if (io) {
+      io.to('admin').emit('bulk-verification-updated', {
+        roles: rolesToRevoke,
+        verified: false,
+        count: updateResult.modifiedCount
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `Successfully revoked verification for ${updateResult.modifiedCount} users.`,
+      count: updateResult.modifiedCount,
+      notificationsCreated: notifications.length
+    });
+    
+  } catch (error) {
+    console.error("Revoke All Verification Error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || "Failed to revoke verifications" 
+    });
+  }
+};
+
+// ✅ NEW: Bulk verify/unverify selected users
+exports.bulkVerifyUsers = async (req, res) => {
+  try {
+    const { userIds, verified } = req.body;
+    const verifyStatus = verified === true || verified === "true";
+    
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "User IDs array is required" 
+      });
+    }
+    
+    console.log("=== BULK VERIFY ===");
+    console.log("User IDs:", userIds);
+    console.log("Verify status:", verifyStatus);
+    console.log("Count:", userIds.length);
+    
+    // Update all specified users
+    const updateResult = await User.updateMany(
+      { 
+        _id: { $in: userIds },
+        archived: { $ne: true }
+      },
+      { verified: verifyStatus }
+    );
+    
+    console.log(`Updated ${updateResult.modifiedCount} users`);
+    
+    // Get the updated users for notifications
+    const updatedUsers = await User.find({ _id: { $in: userIds } });
+    
+    // Create notifications for all affected users
+    const notifications = [];
+    const io = req.io || null;
+    
+    for (const user of updatedUsers) {
+      try {
+        const notification = new Notification({
+          userId: user._id,
+          title: `Account ${verifyStatus ? 'Verified' : 'Unverified'}`,
+          message: `Your account has been ${verifyStatus ? 'verified' : 'unverified'} by an administrator.`,
+          type: "system",
+          status: verifyStatus ? "Verified" : "Unverified",
+          isRead: false,
+          targetRole: "user",
+          userName: user.name,
+          idNumber: user.id_number
+        });
+        await notification.save();
+        notifications.push(notification);
+        
+        // Emit real-time notification if io is available
+        if (io) {
+          io.to(user._id.toString()).emit('notification', {
+            _id: notification._id,
+            title: notification.title,
+            message: notification.message,
+            type: notification.type,
+            status: notification.status,
+            isRead: notification.isRead,
+            createdAt: notification.createdAt
+          });
+        }
+      } catch (notifError) {
+        console.error(`Failed to create notification for user ${user._id}:`, notifError);
+      }
+    }
+    
+    // Emit socket event for admin UI update
+    if (io) {
+      io.to('admin').emit('bulk-verification-updated', {
+        userIds: userIds,
+        verified: verifyStatus,
+        count: updateResult.modifiedCount
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `Successfully ${verifyStatus ? 'verified' : 'unverified'} ${updateResult.modifiedCount} users.`,
+      count: updateResult.modifiedCount,
+      notificationsCreated: notifications.length
+    });
+    
+  } catch (error) {
+    console.error("Bulk Verify Error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || "Failed to bulk verify users" 
+    });
+  }
+};
+
+// ✅ NEW: Get verification statistics
+exports.getVerificationStats = async (req, res) => {
+  try {
+    const stats = await User.aggregate([
+      { $match: { archived: { $ne: true } } },
+      {
+        $group: {
+          _id: { role: "$role", verified: "$verified" },
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $group: {
+          _id: "$_id.role",
+          verified: {
+            $push: {
+              status: "$_id.verified",
+              count: "$count"
+            }
+          },
+          total: { $sum: "$count" }
+        }
+      }
+    ]);
+    
+    res.json({
+      success: true,
+      stats
+    });
+    
+  } catch (error) {
+    console.error("Get Verification Stats Error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || "Failed to get verification statistics" 
     });
   }
 };

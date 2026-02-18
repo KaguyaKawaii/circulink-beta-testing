@@ -10,6 +10,9 @@ import {
   X,
   UserPlus,
   Pencil,
+  CheckSquare,
+  Square,
+  AlertTriangle,
 } from "lucide-react";
 import AdminNavigation from "./AdminNavigation";
 import UserFormModal from "./Modals/UserFormModal";
@@ -27,12 +30,15 @@ function AdminUsers({ setView, onLogout }) {
   const [suspendFilter, setSuspendFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState({ type: null, user: null });
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
   const [confirmationModal, setConfirmationModal] = useState({ 
     show: false, 
     title: "", 
     message: "", 
     action: null, 
-    loading: false 
+    loading: false,
+    type: "default" // "default", "revokeAll", "bulkVerify"
   });
 
   const formatPHDateTime = (date) => {
@@ -53,13 +59,14 @@ function AdminUsers({ setView, onLogout }) {
     }
   };
 
-  const showConfirmation = (title, message, action) => {
+  const showConfirmation = (title, message, action, type = "default") => {
     setConfirmationModal({
       show: true,
       title,
       message,
       action,
-      loading: false
+      loading: false,
+      type
     });
   };
 
@@ -69,7 +76,8 @@ function AdminUsers({ setView, onLogout }) {
       title: "",
       message: "",
       action: null,
-      loading: false
+      loading: false,
+      type: "default"
     });
   };
 
@@ -105,6 +113,11 @@ function AdminUsers({ setView, onLogout }) {
           ? { ...prevModal, user: updatedUser }
           : prevModal
       );
+
+      // Update selected users if this user is selected
+      setSelectedUsers(prevSelected => 
+        prevSelected.includes(updatedUser._id) ? prevSelected : prevSelected
+      );
     });
 
     socket.on("user-created", (newUser) => {
@@ -115,12 +128,24 @@ function AdminUsers({ setView, onLogout }) {
     socket.on("user-archived", (archivedUserId) => {
       console.log("User archived via socket:", archivedUserId);
       setUsers(prevUsers => prevUsers.filter(user => user._id !== archivedUserId));
+      // Remove from selected if archived
+      setSelectedUsers(prevSelected => prevSelected.filter(id => id !== archivedUserId));
+    });
+
+    socket.on("bulk-verification-updated", (data) => {
+      console.log("Bulk verification updated via socket:", data);
+      // Refresh users to get latest data
+      fetchUsers();
+      // Clear selections
+      setSelectedUsers([]);
+      setSelectAll(false);
     });
 
     return () => {
       socket.off("user-updated");
       socket.off("user-created");
       socket.off("user-archived");
+      socket.off("bulk-verification-updated");
     };
   }, []);
 
@@ -130,6 +155,9 @@ function AdminUsers({ setView, onLogout }) {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/users/all/users`);
       if (res.data.success) {
         setUsers(res.data.users);
+        // Clear selections when refreshing
+        setSelectedUsers([]);
+        setSelectAll(false);
       } else {
         console.error("Failed to fetch users:", res.data.message);
         showConfirmation(
@@ -147,6 +175,122 @@ function AdminUsers({ setView, onLogout }) {
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // ✅ NEW: Revoke all verification for students only
+  const revokeAllStudentVerification = async () => {
+    try {
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/users/revoke-all-verification`,
+        {
+          roles: ["Student"] // Only revoke for students
+        }
+      );
+
+      if (res.data.success) {
+        // Update local state
+        setUsers(prevUsers => 
+          prevUsers.map(user => {
+            if (user.role === "Student") {
+              return { ...user, verified: false };
+            }
+            return user;
+          })
+        );
+
+        // Clear selections
+        setSelectedUsers([]);
+        setSelectAll(false);
+
+        // Show success message
+        showConfirmation(
+          "Success",
+          `Successfully revoked verification for ${res.data.count} students.`,
+          null
+        );
+
+        // Emit socket event for real-time updates
+        socket.emit("bulk-verification-updated", {
+          roles: ["Student"],
+          verified: false,
+          count: res.data.count
+        });
+
+        console.log("Revoked all student verifications successfully");
+      } else {
+        throw new Error(res.data.message || "Failed to revoke verifications");
+      }
+    } catch (err) {
+      console.error("Failed to revoke verifications:", err);
+      showConfirmation(
+        "Error",
+        err.response?.data?.message || "Failed to revoke verifications. Please try again.",
+        null
+      );
+    }
+  };
+
+  // ✅ NEW: Bulk verify selected users
+  const bulkVerifyUsers = async (verifyStatus) => {
+    if (selectedUsers.length === 0) {
+      showConfirmation(
+        "No Users Selected",
+        "Please select at least one user to verify.",
+        null
+      );
+      return;
+    }
+
+    try {
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/users/bulk-verify`,
+        {
+          userIds: selectedUsers,
+          verified: verifyStatus
+        }
+      );
+
+      if (res.data.success) {
+        // Update local state
+        setUsers(prevUsers => 
+          prevUsers.map(user => {
+            if (selectedUsers.includes(user._id)) {
+              return { ...user, verified: verifyStatus };
+            }
+            return user;
+          })
+        );
+
+        // Clear selections
+        setSelectedUsers([]);
+        setSelectAll(false);
+
+        // Show success message
+        showConfirmation(
+          "Success",
+          `Successfully ${verifyStatus ? 'verified' : 'unverified'} ${res.data.count} users.`,
+          null
+        );
+
+        // Emit socket event for real-time updates
+        socket.emit("bulk-verification-updated", {
+          userIds: selectedUsers,
+          verified: verifyStatus,
+          count: res.data.count
+        });
+
+        console.log(`Bulk ${verifyStatus ? 'verification' : 'unverification'} successful`);
+      } else {
+        throw new Error(res.data.message || `Failed to ${verifyStatus ? 'verify' : 'unverify'} users`);
+      }
+    } catch (err) {
+      console.error("Bulk verify error:", err);
+      showConfirmation(
+        "Error",
+        err.response?.data?.message || `Failed to ${verifyStatus ? 'verify' : 'unverify'} users. Please try again.`,
+        null
+      );
     }
   };
 
@@ -235,6 +379,9 @@ function AdminUsers({ setView, onLogout }) {
             // Update local state
             setUsers(prevUsers => prevUsers.filter(u => u._id !== user._id));
             
+            // Remove from selected if archived
+            setSelectedUsers(prevSelected => prevSelected.filter(id => id !== user._id));
+            
             closeModal();
           } else {
             throw new Error(response.data.message || "Failed to archive user");
@@ -249,6 +396,35 @@ function AdminUsers({ setView, onLogout }) {
         }
       }
     );
+  };
+
+  // ✅ NEW: Handle select all checkbox
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedUsers([]);
+    } else {
+      const filteredIds = filteredUsers.map(user => user._id);
+      setSelectedUsers(filteredIds);
+    }
+    setSelectAll(!selectAll);
+  };
+
+  // ✅ NEW: Handle individual user selection
+  const handleSelectUser = (userId) => {
+    setSelectedUsers(prev => {
+      if (prev.includes(userId)) {
+        const newSelected = prev.filter(id => id !== userId);
+        setSelectAll(false);
+        return newSelected;
+      } else {
+        const newSelected = [...prev, userId];
+        // Check if all filtered users are selected
+        if (newSelected.length === filteredUsers.length) {
+          setSelectAll(true);
+        }
+        return newSelected;
+      }
+    });
   };
 
   // ✅ FIXED: Added function to handle user updates from modals
@@ -353,6 +529,67 @@ function AdminUsers({ setView, onLogout }) {
                 <span>Add User</span>
               </button>
             </div>
+
+            {/* ✅ NEW: Bulk Actions Row */}
+            <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSelectAll}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-sm"
+                >
+                  {selectAll ? <Square size={16} /> : <CheckSquare size={16} />}
+                  <span>{selectAll ? "Deselect All" : "Select All"}</span>
+                </button>
+                <span className="text-sm text-gray-600">
+                  {selectedUsers.length} user{selectedUsers.length !== 1 ? 's' : ''} selected
+                </span>
+              </div>
+
+              {selectedUsers.length > 0 && (
+                <>
+                  <button
+                    onClick={() => showConfirmation(
+                      "Verify Selected Users",
+                      `Are you sure you want to verify ${selectedUsers.length} selected user${selectedUsers.length !== 1 ? 's' : ''}?`,
+                      () => bulkVerifyUsers(true),
+                      "bulkVerify"
+                    )}
+                    className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer text-sm"
+                  >
+                    <CheckSquare size={16} />
+                    <span>Verify Selected</span>
+                  </button>
+                  <button
+                    onClick={() => showConfirmation(
+                      "Unverify Selected Users",
+                      `Are you sure you want to unverify ${selectedUsers.length} selected user${selectedUsers.length !== 1 ? 's' : ''}?`,
+                      () => bulkVerifyUsers(false),
+                      "bulkVerify"
+                    )}
+                    className="flex items-center gap-2 px-3 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors cursor-pointer text-sm"
+                  >
+                    <Square size={16} />
+                    <span>Unverify Selected</span>
+                  </button>
+                </>
+              )}
+
+              <div className="flex-1"></div>
+
+              {/* ✅ NEW: Revoke All Verification Button */}
+              <button
+                onClick={() => showConfirmation(
+                  "Revoke All Student Verifications",
+                  "This will revoke verification for ALL student accounts. Staff, Faculty, and Staff Office accounts will remain verified. This action cannot be undone. Are you sure?",
+                  revokeAllStudentVerification,
+                  "revokeAll"
+                )}
+                className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors cursor-pointer"
+              >
+                <AlertTriangle size={16} />
+                <span>Revoke All Student Verification</span>
+              </button>
+            </div>
           </div>
 
           {/* Users Table */}
@@ -361,6 +598,14 @@ function AdminUsers({ setView, onLogout }) {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
                   <tr>
+                    <th className="px-6 py-3 text-left font-medium w-10">
+                      <button
+                        onClick={handleSelectAll}
+                        className="text-gray-600 hover:text-gray-800"
+                      >
+                        {selectAll ? <CheckSquare size={18} /> : <Square size={18} />}
+                      </button>
+                    </th>
                     <th className="px-6 py-3 text-left font-medium">#</th>
                     <th className="px-6 py-3 text-left font-medium">Name</th>
                     <th className="px-6 py-3 text-left font-medium">Email</th>
@@ -374,19 +619,31 @@ function AdminUsers({ setView, onLogout }) {
                 <tbody className="divide-y divide-gray-200">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-4 text-center text-gray-500 font-bold">
+                      <td colSpan={9} className="px-6 py-4 text-center text-gray-500 font-bold">
                         Loading users...
                       </td>
                     </tr>
                   ) : filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
                         No users found
                       </td>
                     </tr>
                   ) : (
                     filteredUsers.map((u, i) => (
                       <tr key={u._id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => handleSelectUser(u._id)}
+                            className="text-gray-600 hover:text-gray-800"
+                          >
+                            {selectedUsers.includes(u._id) ? (
+                              <CheckSquare size={18} className="text-[#CC0000]" />
+                            ) : (
+                              <Square size={18} />
+                            )}
+                          </button>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">{i + 1}</td>
                         <td className="px-6 py-4 whitespace-nowrap">{u.name}</td>
                         <td className="px-6 py-4 whitespace-nowrap">{u.email}</td>
@@ -458,9 +715,21 @@ function AdminUsers({ setView, onLogout }) {
         <div className="fixed inset-0 bg-black/50 bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-lg max-w-md w-full">
             <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {confirmationModal.title}
-              </h3>
+              <div className="flex items-center gap-3 mb-4">
+                {confirmationModal.type === "revokeAll" && (
+                  <div className="p-2 bg-orange-100 rounded-full">
+                    <AlertTriangle size={24} className="text-orange-600" />
+                  </div>
+                )}
+                {confirmationModal.type === "bulkVerify" && (
+                  <div className="p-2 bg-green-100 rounded-full">
+                    <CheckSquare size={24} className="text-green-600" />
+                  </div>
+                )}
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {confirmationModal.title}
+                </h3>
+              </div>
               <p className="text-gray-600 mb-6">
                 {confirmationModal.message}
               </p>
@@ -475,7 +744,13 @@ function AdminUsers({ setView, onLogout }) {
                 <button
                   onClick={executeAction}
                   disabled={confirmationModal.loading}
-                  className="px-4 py-2 bg-[#CC0000] text-white rounded-lg hover:bg-[#990000] disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2"
+                  className={`px-4 py-2 text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer flex items-center gap-2 ${
+                    confirmationModal.type === "revokeAll" 
+                      ? "bg-orange-600 hover:bg-orange-700" 
+                      : confirmationModal.type === "bulkVerify"
+                      ? "bg-green-600 hover:bg-green-700"
+                      : "bg-[#CC0000] hover:bg-[#990000]"
+                  }`}
                 >
                   {confirmationModal.loading && (
                     <RefreshCw size={16} className="animate-spin" />

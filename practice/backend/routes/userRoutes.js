@@ -55,4 +55,10 @@ router.get("/test/cloudinary", userController.testCloudinary);
 // ================== GENERIC ROUTE LAST ==================
 router.get("/:id", userController.getUserById);
 
+// Add these new routes after your existing routes
+// ================== BULK OPERATIONS ROUTES ==================
+router.post("/revoke-all-verification", userController.revokeAllVerification);
+router.post("/bulk-verify", userController.bulkVerifyUsers);
+router.get("/verification-stats", userController.getVerificationStats);
+
 module.exports = router;
