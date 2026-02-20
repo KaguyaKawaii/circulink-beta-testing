@@ -28,9 +28,9 @@ exports.checkUserReservationLimit = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ blocked: true, reason: "User not found." });
 
-    // Calculate selected range
+    // Calculate selected range - UPDATED to 2 hours (120 minutes)
     const selectedStart = new Date(`${date}T${time}:00.000Z`);
-    const selectedEnd = new Date(selectedStart.getTime() + 60 * 60 * 1000);
+    const selectedEnd = new Date(selectedStart.getTime() + 120 * 60 * 1000); // 2 hours in milliseconds
 
     // Check conflicts (main + participant)
     const conflictingReservations = await Reservation.find({
@@ -70,8 +70,6 @@ exports.checkUserReservationLimit = async (req, res) => {
     res.status(500).json({ blocked: true, reason: err.message });
   }
 };
-
-// controllers/reservationController.js
 
 /* ------------------------------------------------
    ✅ FLOOR ACCESS VALIDATION UTILITIES (IMPROVED)
@@ -323,7 +321,7 @@ exports.getAllReservations = async (req, res) => {
           
           if (normalized.includes("2nd") || normalized.includes("second")) return "2nd Floor";
           if (normalized.includes("3rd") || normalized.includes("third")) return "3rd Floor";
-          if (normalized.includes("4th") || normalizedized.includes("fourth")) return "4th Floor";
+          if (normalized.includes("4th") || normalized.includes("fourth")) return "4th Floor";
           if (normalized.includes("5th") || normalized.includes("fifth")) return "5th Floor";
           
           return floorName;
@@ -397,7 +395,7 @@ exports.getActiveReservation = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ CREATE RESERVATION (WITH FLOOR ACCESS VALIDATION) - FIXED PARTICIPANT COUNT
+   ✅ CREATE RESERVATION (WITH FLOOR ACCESS VALIDATION) - UPDATED TO 2 HOURS
 ------------------------------------------------ */
 exports.createReservation = async (req, res) => {
   try {
@@ -418,7 +416,8 @@ exports.createReservation = async (req, res) => {
       return res.status(400).json({ message: "Missing required fields." });
 
     const parsedDatetime = new Date(datetime);
-    const endDatetime = new Date(parsedDatetime.getTime() + 60 * 60 * 1000);
+    // UPDATED: Changed from 60 minutes to 120 minutes (2 hours)
+    const endDatetime = new Date(parsedDatetime.getTime() + 120 * 60 * 1000); // 2 hours in milliseconds
 
     // ✅ RULE: Reservation must be booked at least 1 day in advance
     const now = new Date();
@@ -497,18 +496,18 @@ exports.createReservation = async (req, res) => {
     if (conflictingReservation)
       return res.status(400).json({ message: "This room is already booked for this time." });
 
- // ✅ Daily limit: 2 reservations per day (no weekly limit)
-const reservationsToday = await Reservation.countDocuments({
-  userId,
-  date: date, // This comes from req.body.date
-  status: { $in: ["Pending", "Approved", "Ongoing"] }
-});
+    // ✅ Daily limit: 2 reservations per day (no weekly limit)
+    const reservationsToday = await Reservation.countDocuments({
+      userId,
+      date: date, // This comes from req.body.date
+      status: { $in: ["Pending", "Approved", "Ongoing"] }
+    });
 
-if (reservationsToday >= 2) {
-  return res.status(400).json({ 
-    message: "You can only make 2 reservations per day." 
-  });
-}
+    if (reservationsToday >= 2) {
+      return res.status(400).json({ 
+        message: "You can only make 2 reservations per day." 
+      });
+    }
 
     // ✅ Validate participants & collect emails + FLOOR ACCESS VALIDATION
     const enrichedParticipants = [];
@@ -765,6 +764,7 @@ if (reservationsToday >= 2) {
     res.status(500).json({ message: "Internal server error." });
   }
 };
+
 /* ------------------------------------------------
    ✅ UPDATE / CANCEL RESERVATION
 ------------------------------------------------ */
@@ -1450,8 +1450,6 @@ exports.handleExtension = async (req, res) => {
   }
 };
 
-
-
 /* ------------------------------------------------
    ✅ ARCHIVE / RESTORE
 ------------------------------------------------ */
@@ -1535,41 +1533,6 @@ exports.deleteArchivedReservation = async (req, res) => {
   } catch (err) {
     console.error("Delete archived reservation error:", err);
     res.status(500).json({ message: "Failed to delete reservation." });
-  }
-};
-
-exports.generateAvailability = async (date, userId) => {
-  try {
-    const rooms = await Room.find({ isActive: true }).sort({ floor: 1, room: 1 });
-
-    const reservations = await Reservation.find({
-      date,
-      status: { $in: ["Pending", "Approved"] },
-    });
-
-    const availability = rooms.map((room) => {
-      const roomReservations = reservations.filter(
-        (r) => r.location === room.floor && r.roomName === room.room
-      );
-
-      const occupied = roomReservations.map((r) => ({
-        start: r.datetime,
-        end: r.endDatetime,
-        mine: r.userId.toString() === userId,
-        status: r.status,
-      }));
-
-      return {
-        floor: room.floor,
-        room: room.room,
-        occupied,
-      };
-    });
-
-    return availability;
-  } catch (error) {
-    console.error("Error generating availability:", error);
-    throw error;
   }
 };
 
@@ -1841,6 +1804,7 @@ exports.checkExpiredReservations = async (req, res) => {
     });
   }
 };
+
 exports.getReservationsByFloor = async (req, res) => {
   try {
     const floor = req.query.floor || req.params.floor;
@@ -2219,5 +2183,313 @@ exports.addParticipant = async (req, res) => {
   } catch (err) {
     console.error("Error adding participant:", err);
     res.status(500).json({ message: "Failed to add participant" });
+  }
+};
+
+/* ------------------------------------------------
+   ✅ ADMIN CREATE RESERVATION (AUTO-APPROVED)
+------------------------------------------------ */
+exports.adminCreateReservation = async (req, res) => {
+  try {
+    const {
+      userId,
+      room_Id,
+      date,
+      time,
+      location,
+      roomName,
+      purpose,
+      participants,
+      datetime,
+      numUsers
+    } = req.body;
+
+    if (!userId || !date || !datetime || !location || !roomName || !purpose || !participants) {
+      return res.status(400).json({ message: "Missing required fields." });
+    }
+
+    const parsedDatetime = new Date(datetime);
+    // 2-hour reservation
+    const endDatetime = new Date(parsedDatetime.getTime() + 120 * 60 * 1000);
+
+    // Get main user
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found." });
+
+    // Check room availability
+    const conflictingReservation = await Reservation.findOne({
+      roomName,
+      location,
+      status: { $in: ["Approved", "Ongoing"] },
+      datetime: { $lt: endDatetime },
+      endDatetime: { $gt: parsedDatetime }
+    });
+
+    if (conflictingReservation) {
+      return res.status(400).json({ message: "This room is already booked for this time." });
+    }
+
+    // Validate and enrich participants
+    const enrichedParticipants = [];
+
+    for (const participant of participants) {
+      let participantUser = null;
+      if (participant.id_number) {
+        participantUser = await User.findOne({ id_number: participant.id_number });
+      }
+
+      if (!participantUser) {
+        return res.status(400).json({ message: `Participant ${participant.name} not found.` });
+      }
+
+      if (!participantUser.verified) {
+        return res.status(400).json({ message: `Participant ${participantUser.name} is not verified.` });
+      }
+
+      // Check for conflicts for each participant
+      const conflicts = await Reservation.find({
+        $or: [
+          { userId: participantUser._id },
+          { "participants.id_number": participantUser.id_number }
+        ],
+        datetime: { $lt: endDatetime },
+        endDatetime: { $gt: parsedDatetime },
+        status: { $in: ["Pending", "Approved", "Ongoing"] }
+      });
+
+      if (conflicts.length > 0) {
+        return res.status(400).json({ 
+          message: `Participant ${participantUser.name} has a conflicting reservation during this time.` 
+        });
+      }
+
+      enrichedParticipants.push({
+        id_number: participantUser.id_number,
+        name: participantUser.name,
+        course: participantUser.course || "N/A",
+        year_level: participantUser.yearLevel || "N/A",
+        department: participantUser.department || "N/A"
+      });
+    }
+
+    // Create reservation (auto-approved for admin)
+    const reservation = await Reservation.create({
+      userId,
+      room_Id,
+      date,
+      datetime: parsedDatetime,
+      endDatetime,
+      numUsers: parseInt(numUsers),
+      purpose,
+      location,
+      roomName,
+      participants: enrichedParticipants,
+      status: "Approved", // Auto-approved
+      createdBy: "admin"
+    });
+
+    // Log the action
+    await logAction(
+      userId,
+      user.id_number,
+      user.name,
+      "Reservation Created by Admin",
+      `Admin created reservation for ${roomName} on ${date}`
+    );
+
+    // Notify main user
+    await notificationService.createNotification(
+      {
+        userId,
+        reservationId: reservation._id,
+        type: "reservation",
+        status: "approved",
+        targetRole: "user",
+        roomName,
+        date,
+        startTime: time,
+        endTime: new Date(endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      },
+      req.app.get("io")
+    );
+
+    // Notify participants
+    for (const participant of enrichedParticipants) {
+      if (participant.id_number === user.id_number) continue;
+
+      const participantUser = await User.findOne({ 
+        id_number: participant.id_number.toString().trim()
+      });
+
+      if (participantUser) {
+        await notificationService.createNotification(
+          {
+            userId: participantUser._id,
+            reservationId: reservation._id,
+            type: "reservation",
+            status: "participant_added",
+            targetRole: "user",
+            roomName,
+            date,
+            startTime: time,
+            endTime: new Date(endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          },
+          req.app.get("io")
+        );
+      }
+    }
+
+    res.status(201).json(reservation);
+  } catch (err) {
+    console.error("Admin reservation creation error:", err);
+    res.status(500).json({ message: "Internal server error." });
+  }
+};
+
+/* ------------------------------------------------
+   ✅ ADMIN EDIT RESERVATION
+------------------------------------------------ */
+exports.editReservation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { datetime, endDatetime, purpose, participants, date } = req.body;
+
+    // Find the reservation
+    const reservation = await Reservation.findById(id).populate("userId");
+    if (!reservation) {
+      return res.status(404).json({ message: "Reservation not found" });
+    }
+
+    // Check for conflicts (excluding current reservation)
+    const conflict = await Reservation.findOne({
+      _id: { $ne: id },
+      roomName: reservation.roomName,
+      location: reservation.location,
+      status: { $in: ["Approved", "Ongoing"] },
+      datetime: { $lt: new Date(endDatetime) },
+      endDatetime: { $gt: new Date(datetime) }
+    });
+
+    if (conflict) {
+      return res.status(400).json({ 
+        message: "Time conflict with another reservation" 
+      });
+    }
+
+    // Validate participants if they've changed
+    if (participants) {
+      const parsedDatetime = new Date(datetime);
+      const parsedEndDatetime = new Date(endDatetime);
+
+      for (const participant of participants) {
+        // Skip checking current reservation participants
+        const isExistingParticipant = reservation.participants.some(
+          p => p.id_number === participant.id_number
+        );
+
+        if (isExistingParticipant) continue;
+
+        const participantUser = await User.findOne({ 
+          id_number: participant.id_number 
+        });
+
+        if (!participantUser || !participantUser.verified) {
+          return res.status(400).json({ 
+            message: `Participant ${participant.name} is not valid or verified` 
+          });
+        }
+
+        // Check conflicts for new participants
+        const conflicts = await Reservation.find({
+          _id: { $ne: id },
+          $or: [
+            { userId: participantUser._id },
+            { "participants.id_number": participantUser.id_number }
+          ],
+          datetime: { $lt: parsedEndDatetime },
+          endDatetime: { $gt: parsedDatetime },
+          status: { $in: ["Pending", "Approved", "Ongoing"] }
+        });
+
+        if (conflicts.length > 0) {
+          return res.status(400).json({ 
+            message: `Participant ${participantUser.name} has a conflicting reservation` 
+          });
+        }
+      }
+    }
+
+    // Update the reservation
+    const updatedReservation = await Reservation.findByIdAndUpdate(
+      id,
+      {
+        datetime: new Date(datetime),
+        endDatetime: new Date(endDatetime),
+        purpose,
+        participants,
+        date
+      },
+      { new: true }
+    ).populate("userId");
+
+    // Log the edit
+    await logAction(
+      reservation.userId._id,
+      reservation.userId.id_number,
+      reservation.userId.name,
+      "Reservation Edited by Admin",
+      `Admin edited reservation for ${reservation.roomName}`
+    );
+
+    // Notify main user about the change
+    await notificationService.createNotification(
+      {
+        userId: reservation.userId._id,
+        reservationId: reservation._id,
+        type: "reservation",
+        status: "updated",
+        targetRole: "user",
+        roomName: reservation.roomName,
+        date: reservation.date,
+        message: "Your reservation has been updated by an admin"
+      },
+      req.app.get("io")
+    );
+
+    res.json(updatedReservation);
+  } catch (err) {
+    console.error("Error editing reservation:", err);
+    res.status(500).json({ message: "Failed to edit reservation" });
+  }
+};
+
+/* ------------------------------------------------
+   ✅ SEARCH USERS (FOR ADMIN)
+------------------------------------------------ */
+exports.searchUsers = async (req, res) => {
+  try {
+    const { q } = req.query;
+    
+    if (!q) {
+      return res.json([]);
+    }
+
+    const users = await User.find({
+      $and: [
+        { verified: true },
+        {
+          $or: [
+            { name: { $regex: q, $options: 'i' } },
+            { id_number: { $regex: q, $options: 'i' } },
+            { email: { $regex: q, $options: 'i' } }
+          ]
+        }
+      ]
+    }).select('name id_number email course year_level department role').limit(20);
+
+    res.json(users);
+  } catch (err) {
+    console.error("User search error:", err);
+    res.status(500).json({ message: "Failed to search users" });
   }
 };

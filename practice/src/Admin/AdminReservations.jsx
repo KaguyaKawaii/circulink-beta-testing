@@ -16,9 +16,13 @@ import {
   Users,
   Home,
   FileText,
-  BarChart3
+  BarChart3,
+  Plus,
+  Edit
 } from "lucide-react";
 import AdminReservationModal from "./Modals/AdminReservationModal";
+import AdminCreateReservationModal from "./Modals/AdminCreateReservationModal";
+import AdminEditReservationModal from "./Modals/AdminEditReservationModal";
 
 function AdminReservations({ setView, onLogout }) {
   const [reservations, setReservations] = useState([]);
@@ -27,12 +31,14 @@ function AdminReservations({ setView, onLogout }) {
   const [search, setSearch] = useState("");
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [reservationToArchive, setReservationToArchive] = useState(null);
   const [archiveResult, setArchiveResult] = useState({ show: false, message: "", isSuccess: false });
   const [isArchiving, setIsArchiving] = useState(false);
   
-  // NEW: Daily Logs State
+  // Daily Logs State
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [dailyStats, setDailyStats] = useState({
     total: 0,
@@ -45,7 +51,7 @@ function AdminReservations({ setView, onLogout }) {
   });
   const [dailyActivities, setDailyActivities] = useState([]);
   const [roomUsage, setRoomUsage] = useState({});
-  const [viewMode, setViewMode] = useState("list"); // "list" or "daily"
+  const [viewMode, setViewMode] = useState("list");
 
   const formatPHDateTime = (date) =>
     date
@@ -96,7 +102,6 @@ function AdminReservations({ setView, onLogout }) {
       .finally(() => setIsLoading(false));
   };
 
-  // NEW: Calculate daily statistics
   const calculateDailyStats = () => {
     const selectedDateStart = new Date(selectedDate);
     selectedDateStart.setHours(0, 0, 0, 0);
@@ -108,7 +113,6 @@ function AdminReservations({ setView, onLogout }) {
       return reservationDate >= selectedDateStart && reservationDate <= selectedDateEnd;
     });
 
-    // Calculate stats
     const stats = {
       total: dailyReservations.length,
       approved: dailyReservations.filter(r => r.status === "Approved").length,
@@ -120,7 +124,6 @@ function AdminReservations({ setView, onLogout }) {
     };
     setDailyStats(stats);
 
-    // Calculate room usage
     const usage = {};
     dailyReservations.forEach(reservation => {
       const roomKey = `${reservation.location} - ${reservation.roomName}`;
@@ -135,7 +138,6 @@ function AdminReservations({ setView, onLogout }) {
     });
     setRoomUsage(usage);
 
-    // Generate daily activities
     const activities = dailyReservations
       .sort((a, b) => new Date(b.datetime) - new Date(a.datetime))
       .slice(0, 10)
@@ -223,13 +225,38 @@ function AdminReservations({ setView, onLogout }) {
     setShowModal(true);
   };
 
+  const handleEdit = (reservation) => {
+    setSelectedReservation(reservation);
+    setShowEditModal(true);
+  };
+
   const handleCloseModal = () => {
     setSelectedReservation(null);
     setShowModal(false);
   };
 
+  const handleCloseCreateModal = () => {
+    setShowCreateModal(false);
+  };
+
+  const handleCloseEditModal = () => {
+    setShowEditModal(false);
+    setSelectedReservation(null);
+  };
+
   const handleActionSuccess = () => {
     fetchReservations();
+  };
+
+  const handleCreateSuccess = () => {
+    fetchReservations();
+    setShowCreateModal(false);
+  };
+
+  const handleEditSuccess = () => {
+    fetchReservations();
+    setShowEditModal(false);
+    setSelectedReservation(null);
   };
 
   const filteredReservations = reservations.filter((res) => {
@@ -242,7 +269,6 @@ function AdminReservations({ setView, onLogout }) {
     return matchesStatus && matchesSearch;
   });
 
-  // NEW: Daily View Components
   const StatCard = ({ title, value, icon, color, subtitle }) => (
     <div className={`bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 ${color}`}>
       <div className="flex items-center justify-between">
@@ -392,14 +418,23 @@ function AdminReservations({ setView, onLogout }) {
                 />
               </div>
 
-              {/* Refresh */}
-              <button
-                onClick={fetchReservations}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
-              >
-                <RefreshCw size={16} />
-                <span>Refresh</span>
-              </button>
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowCreateModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+                >
+                  <Plus size={16} />
+                  <span>New Reservation</span>
+                </button>
+                <button
+                  onClick={fetchReservations}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+                >
+                  <RefreshCw size={16} />
+                  <span>Refresh</span>
+                </button>
+              </div>
             </div>
 
             {/* Date Picker for Daily View */}
@@ -555,7 +590,7 @@ function AdminReservations({ setView, onLogout }) {
               </div>
             </div>
           ) : (
-            /* ORIGINAL LIST VIEW */
+            /* LIST VIEW */
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -662,6 +697,13 @@ function AdminReservations({ setView, onLogout }) {
                                   <Eye size={18} />
                                 </button>
                                 <button
+                                  onClick={() => handleEdit(r)}
+                                  className="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition-colors cursor-pointer"
+                                  title="Edit Reservation"
+                                >
+                                  <Edit size={18} />
+                                </button>
+                                <button
                                   onClick={() => handleArchiveClick(r._id)}
                                   className="p-1.5 text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded transition-colors cursor-pointer"
                                   title="Archive"
@@ -689,6 +731,24 @@ function AdminReservations({ setView, onLogout }) {
           onClose={handleCloseModal}
           onActionSuccess={handleActionSuccess}
           currentUser={{ role: "Admin" }}
+        />
+      )}
+
+      {/* Create Reservation Modal */}
+      {showCreateModal && (
+        <AdminCreateReservationModal
+          onClose={handleCloseCreateModal}
+          onSuccess={handleCreateSuccess}
+          currentUser={{ role: "Admin", _id: "admin" }}
+        />
+      )}
+
+      {/* Edit Reservation Modal */}
+      {showEditModal && selectedReservation && (
+        <AdminEditReservationModal
+          reservation={selectedReservation}
+          onClose={handleCloseEditModal}
+          onSuccess={handleEditSuccess}
         />
       )}
 

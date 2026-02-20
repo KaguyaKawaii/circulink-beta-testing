@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const reservationController = require('../controllers/reservationController');
 
+// User limit check
 router.get('/check-limit/:userId', reservationController.checkUserReservationLimit);
 
 // Reservation routes
@@ -9,17 +10,31 @@ router.get('/', reservationController.getAllReservations);
 router.get('/user/:userId', reservationController.getUserReservations);
 router.get('/active/:userId', reservationController.getActiveReservation);
 
-// ✅ MOVED: Availability route BEFORE the :id route
+// Availability route
 router.get('/availability', reservationController.getAvailability);
 
-// ✅ MOVED: Single reservation by ID route AFTER specific routes
+// User search for admin
+router.get('/users/search', reservationController.searchUsers);
+
+// Single reservation by ID
 router.get('/:id', reservationController.getReservationById);
 
+// Create reservation
 router.post('/', reservationController.createReservation);
+
+// Admin create reservation (auto-approved)
+router.post('/admin-create', reservationController.adminCreateReservation);
+
+// Edit reservation (admin only)
+router.patch('/:id/edit', reservationController.editReservation);
+
+// Update status
 router.patch('/:id/status', reservationController.updateReservationStatus);
+
+// Cancel reservation
 router.delete('/:id', reservationController.cancelReservation);
 
-// Archive routes - MOVED HIGHER UP
+// Archive routes
 router.post('/:id/archive', reservationController.archiveReservation);
 router.get('/archived/all', reservationController.getArchivedReservations);
 router.post('/archived/:id/restore', reservationController.restoreReservation);
@@ -35,13 +50,11 @@ router.put('/:id/handle-extension', reservationController.handleExtension);
 
 // Participants routes
 router.get('/participants/details/:reservationId', reservationController.getParticipantsDetails);
-
-// ✅ NEW: Participant management routes
 router.get('/participants/available-users', reservationController.getAvailableUsers);
 router.post('/participants/remove', reservationController.removeParticipant);
 router.post('/participants/add', reservationController.addParticipant);
 
-// ✅ FIXED: Remove duplicate "reservations" from the path since it's already in the base route
+// Floor access validation
 router.post('/validate-floor-access', reservationController.validateFloorAccess);
 
 // Maintenance
