@@ -65,6 +65,7 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [currentParticipantIndex, setCurrentParticipantIndex] = useState(null);
   const [calendarDays, setCalendarDays] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const months = [
     "January", "February", "March", "April", "May", "June",
@@ -248,13 +249,17 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
       return;
     }
 
+    setSearchLoading(true);
     try {
       const res = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/users/search?q=${term}&verified=true`
+        `${import.meta.env.VITE_API_URL}/api/users/search?q=${encodeURIComponent(term)}&verified=true`
       );
-      setSearchResults(res.data);
+      setSearchResults(res.data.users || []);
     } catch (err) {
       console.error("User search error:", err);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
     }
   };
 
@@ -984,6 +989,11 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 autoFocus
               />
+              {searchLoading && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -1000,13 +1010,15 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 truncate">{user.name}</p>
                       <p className="text-sm text-gray-600">{user.id_number}</p>
-                      <p className="text-xs text-gray-500">{user.department} • {user.course || 'N/A'}</p>
+                      <p className="text-xs text-gray-500">
+                        {user.department || 'N/A'} • {user.role || 'Student'}
+                      </p>
                     </div>
                   </div>
                 </button>
               ))}
 
-              {searchTerm && searchResults.length === 0 && (
+              {searchTerm && searchResults.length === 0 && !searchLoading && (
                 <p className="text-center text-gray-500 py-4">No users found</p>
               )}
             </div>
