@@ -427,73 +427,77 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentAdmin }) => {
     return true;
   };
 
-// In AdminCreateReservationModal.jsx, update the handleSubmit function:
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
 
-const handleSubmit = async () => {
-  if (!validateForm()) return;
+    setLoading(true);
+    setError("");
 
-  setLoading(true);
-  setError("");
+    console.log("=".repeat(50));
+    console.log("🔍 ADMIN CREATING RESERVATION");
+    console.log("=".repeat(50));
+    console.log("Admin ID:", currentAdmin?._id);
+    console.log("Admin Name:", currentAdmin?.name);
 
-  try {
-    const manilaTime = moment.tz(
-      `${formData.date}T${formData.time}`,
-      "YYYY-MM-DDTHH:mm",
-      "Asia/Manila"
-    );
+    try {
+      const manilaTime = moment.tz(
+        `${formData.date}T${formData.time}`,
+        "YYYY-MM-DDTHH:mm",
+        "Asia/Manila"
+      );
 
-    const endManilaTime = manilaTime.clone().add(2, 'hours');
+      const endManilaTime = manilaTime.clone().add(2, 'hours');
 
-    // Filter out empty participants
-    const validParticipants = formData.participants.filter(
-      p => p.id_number && p.id_number.trim()
-    );
+      // Filter out empty participants
+      const validParticipants = formData.participants.filter(
+        p => p.id_number && p.id_number.trim()
+      );
 
-    const reservationData = {
-      // Admin info
-      createdByAdmin: true,
-      createdByAdminId: currentAdmin?._id,
-      createdByAdminName: currentAdmin?.name,
+      const reservationData = {
+        // Admin info
+        createdByAdmin: true,
+        createdByAdminId: currentAdmin?._id,
+        createdByAdminName: currentAdmin?.name,
+        
+        // Reservation details
+        room_Id: formData.room_Id,
+        roomName: formData.roomName,
+        location: formData.location,
+        datetime: manilaTime.format(),
+        date: formData.date,
+        time: formData.time,
+        endDatetime: endManilaTime.format(),
+        numUsers: validParticipants.length, // Use actual participant count
+        purpose: formData.purpose,
+        participants: validParticipants,
+        status: "Approved", // Auto-approved for admin
+      };
+
+      console.log("📦 Reservation data being sent:", JSON.stringify(reservationData, null, 2));
+      console.log("API URL:", `${import.meta.env.VITE_API_URL}/api/reservations/admin-create`);
+
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/reservations/admin-create`,
+        reservationData
+      );
       
-      // Reservation details - MAKE SURE TO INCLUDE 'time'
-      room_Id: formData.room_Id,
-      roomName: formData.roomName,
-      location: formData.location,
-      datetime: manilaTime.format(),
-      date: formData.date,
-      time: formData.time, // THIS IS IMPORTANT - include the time field
-      endDatetime: endManilaTime.format(),
-      numUsers: validParticipants.length,
-      purpose: formData.purpose,
-      participants: validParticipants,
-      status: "Approved",
-    };
-
-    console.log("📦 Reservation data being sent:", JSON.stringify(reservationData, null, 2));
-    console.log("API URL:", `${import.meta.env.VITE_API_URL}/api/reservations/admin-create`);
-
-    const response = await axios.post(
-      `${import.meta.env.VITE_API_URL}/api/reservations/admin-create`,
-      reservationData
-    );
-    
-    console.log("✅ Reservation created successfully:", response.data);
-    
-    onSuccess?.();
-    onClose();
-  } catch (err) {
-    console.error("❌ Reservation creation failed:", err);
-    console.error("Error response:", err.response?.data);
-    console.error("Error status:", err.response?.status);
-    
-    const errorMessage = err.response?.data?.message || 
-                        err.response?.data?.error || 
-                        "Failed to create reservation";
-    setError(errorMessage);
-  } finally {
-    setLoading(false);
-  }
-};
+      console.log("✅ Reservation created successfully:", response.data);
+      
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      console.error("❌ Reservation creation failed:", err);
+      console.error("Error response:", err.response?.data);
+      console.error("Error status:", err.response?.status);
+      
+      const errorMessage = err.response?.data?.message || 
+                          err.response?.data?.error || 
+                          "Failed to create reservation";
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getRoomImage = (room) => {
     if (room.image && room.image.url) {
