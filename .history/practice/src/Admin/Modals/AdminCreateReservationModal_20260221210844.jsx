@@ -247,37 +247,25 @@ const validateParticipant = async (idx, idNumber) => {
     }
   };
 
-// Update the searchUsers function in your modal
-const searchUsers = async (term) => {
-  if (!term.trim()) {
-    setSearchResults([]);
-    return;
-  }
+  const searchUsers = async (term) => {
+    if (!term.trim()) {
+      setSearchResults([]);
+      return;
+    }
 
-  setSearchLoading(true);
-  try {
-    // Make sure the URL is correct
-    const baseURL = import.meta.env.VITE_API_URL;
-    const url = `${baseURL}/api/users/search/users?q=${encodeURIComponent(term)}&verified=true`;
-    
-    console.log("Searching users at:", url);
-    
-    const res = await axios.get(url);
-    
-    // The response should be an array directly
-    setSearchResults(res.data || []);
-    console.log("Search results:", res.data);
-  } catch (err) {
-    console.error("User search error:", err);
-    console.error("Error response:", err.response?.data);
-    setSearchResults([]);
-    
-    // Show error to user
-    alert("Failed to search users. Please check console for details.");
-  } finally {
-    setSearchLoading(false);
-  }
-};
+    setSearchLoading(true);
+    try {
+      const res = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/users/search?q=${encodeURIComponent(term)}&verified=true`
+      );
+      setSearchResults(res.data || []);
+    } catch (err) {
+      console.error("User search error:", err);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
 
   const handleSelectUser = (user) => {
     if (currentParticipantIndex !== null) {
