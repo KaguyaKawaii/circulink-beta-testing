@@ -7,15 +7,24 @@ import {
   Calendar,
   Clock,
   Users,
-  Home,
-  AlertCircle,
+  MapPin,
+  FileText,
   CheckCircle,
   XCircle,
   Search,
   User,
+  Building,
+  BookOpen,
+  GraduationCap,
+  IdCard,
+  AlertCircle,
+  ChevronRight,
   Plus,
   Trash2,
-  ChevronRight
+  Home,
+  Wifi,
+  Monitor,
+  Wind
 } from "lucide-react";
 import { getRoomImageById } from "../../data/roomImages";
 
@@ -57,7 +66,6 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
   const [currentParticipantIndex, setCurrentParticipantIndex] = useState(null);
   const [calendarDays, setCalendarDays] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
-  const [floorValidation, setFloorValidation] = useState(null);
 
   const months = [
     "January", "February", "March", "April", "May", "June",
@@ -173,67 +181,6 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
     setShowUsersModal(false);
   };
 
-  const validateParticipant = async (idx, idNumber) => {
-    const updated = [...formData.participants];
-    const v = [...validation];
-
-    // Check for duplicate ID numbers
-    const isDuplicate = formData.participants.some(
-      (p, i) => i !== idx && p.id_number === idNumber
-    );
-
-    if (isDuplicate) {
-      v[idx] = { status: "invalid", message: "Duplicate ID Number", loading: false };
-      setValidation(v);
-      return false;
-    }
-
-    v[idx] = { ...v[idx], loading: true };
-    setValidation(v);
-
-    try {
-      // Search for user by ID number
-      const res = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/users/search?q=${idNumber}&verified=true`
-      );
-
-      const users = res.data;
-      
-      if (users && users.length > 0) {
-        // Find exact match by ID number
-        const matchedUser = users.find(u => u.id_number === idNumber);
-        
-        if (matchedUser) {
-          updated[idx] = {
-            name: matchedUser.name,
-            course: matchedUser.course || "",
-            year_level: matchedUser.year_level || "",
-            department: matchedUser.department || "",
-            id_number: matchedUser.id_number,
-            role: matchedUser.role || "",
-          };
-          v[idx] = { status: "valid", message: "Verified ✓", loading: false };
-          setFormData({ ...formData, participants: updated });
-          setValidation(v);
-          return true;
-        } else {
-          v[idx] = { status: "invalid", message: "User not found with this ID", loading: false };
-          setValidation(v);
-          return false;
-        }
-      } else {
-        v[idx] = { status: "invalid", message: "User not found", loading: false };
-        setValidation(v);
-        return false;
-      }
-    } catch (err) {
-      console.error("Validation error", err);
-      v[idx] = { status: "invalid", message: "Error validating", loading: false };
-      setValidation(v);
-      return false;
-    }
-  };
-
   const handleParticipantChange = async (idx, field, val) => {
     const updated = [...formData.participants];
     
@@ -243,8 +190,54 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
 
     updated[idx][field] = val;
 
-    if (field === "id_number" && val.trim().length >= 5) {
-      await validateParticipant(idx, val);
+    if (field === "id_number" && val.trim()) {
+      const isDuplicate = formData.participants.some(
+        (p, i) => i !== idx && p.id_number === val
+      );
+
+      const v = [...validation];
+
+      if (isDuplicate) {
+        v[idx] = { status: "invalid", message: "Duplicate ID Number", loading: false };
+        setValidation(v);
+        setFormData({ ...formData, participants: updated });
+        return;
+      }
+
+      v[idx] = { ...v[idx], loading: true };
+      setValidation(v);
+
+      try {
+        const res = await axios.get(
+          `${import.meta.env.VITE_API_URL}/api/users/check-participant?id_number=${val}`
+        );
+
+        if (!res.data.exists) {
+          v[idx] = { status: "invalid", message: "Not registered", loading: false };
+          updated[idx] = { ...updated[idx], name: "", course: "", year_level: "", department: "", id_number: val, role: "" };
+        } else if (!res.data.verified) {
+          v[idx] = { status: "invalid", message: "Not verified", loading: false };
+          updated[idx] = { ...updated[idx], name: "", course: "", year_level: "", department: "", id_number: val, role: "" };
+        } else {
+          updated[idx] = {
+            ...updated[idx],
+            name: res.data.name,
+            course: res.data.course || "",
+            year_level: res.data.year_level || "",
+            department: res.data.department || "",
+            id_number: val,
+            role: res.data.role || "",
+          };
+          v[idx] = { status: "valid", message: "Verified ✓", loading: false };
+        }
+
+        setFormData({ ...formData, participants: updated });
+        setValidation(v);
+      } catch (err) {
+        console.error("Validation error", err);
+        v[idx] = { status: "invalid", message: "Error validating", loading: false };
+        setValidation(v);
+      }
     } else {
       setFormData({ ...formData, participants: updated });
     }
@@ -261,7 +254,7 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
       const res = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/users/search?q=${encodeURIComponent(term)}&verified=true`
       );
-      setSearchResults(res.data || []);
+      setSearchResults(res.data.users || []);
     } catch (err) {
       console.error("User search error:", err);
       setSearchResults([]);
@@ -278,7 +271,7 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
       updated[currentParticipantIndex] = {
         name: user.name,
         course: user.course || "",
-        year_level: user.year_level || "",
+        year_level: user.yearLevel || "",
         department: user.department || "",
         id_number: user.id_number,
         role: user.role || "",
@@ -294,67 +287,6 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
     }
   };
 
-  const validateFloorAccess = async () => {
-    if (!formData.location || formData.participants.length === 0) return;
-
-    const participantIds = formData.participants
-      .filter(p => p.id_number && p.id_number.trim())
-      .map(p => p.id_number);
-
-    if (participantIds.length === 0) return;
-
-    setFloorValidation({ loading: true });
-
-    try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/reservations/validate-floor-access`,
-        {
-          location: formData.location,
-          participantIds
-        }
-      );
-
-      setFloorValidation({
-        valid: res.data.valid,
-        invalidParticipants: res.data.invalidParticipants || [],
-        message: res.data.restrictionMessage
-      });
-
-      // Update validation status for participants
-      if (res.data.invalidParticipants && res.data.invalidParticipants.length > 0) {
-        const v = [...validation];
-        
-        res.data.invalidParticipants.forEach(invalid => {
-          const index = formData.participants.findIndex(
-            p => p.id_number === invalid.id_number
-          );
-          
-          if (index !== -1) {
-            v[index] = { 
-              ...v[index],
-              status: "invalid", 
-              message: `No access to ${formData.location}`,
-              loading: false 
-            };
-          }
-        });
-        
-        setValidation(v);
-      }
-    } catch (err) {
-      console.error("Floor validation error:", err);
-      setFloorValidation({ valid: false, error: "Failed to validate floor access" });
-    } finally {
-      setFloorValidation(prev => ({ ...prev, loading: false }));
-    }
-  };
-
-  useEffect(() => {
-    if (formData.location && formData.participants.some(p => p.id_number)) {
-      validateFloorAccess();
-    }
-  }, [formData.location, formData.participants.map(p => p.id_number).join(',')]);
-
   const handleRoomSelect = (room) => {
     if (!room.isActive) {
       setError("This room is currently unavailable.");
@@ -367,40 +299,20 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
       room_Id: room._id,
     }));
     setSelectedRoomDetails(room);
-    setError("");
   };
 
   const validateForm = () => {
-    // Check required fields
-    if (!formData.date) {
-      setError("Please select a date.");
-      return false;
-    }
-    if (!formData.time) {
-      setError("Please select a time.");
-      return false;
-    }
-    if (!formData.location) {
-      setError("Please select a location.");
-      return false;
-    }
-    if (!formData.roomName) {
-      setError("Please select a room.");
-      return false;
-    }
-    if (!formData.purpose || !formData.purpose.trim()) {
-      setError("Please enter a purpose.");
+    if (!formData.date || !formData.time || !formData.location || !formData.roomName || !formData.purpose) {
+      setError("Please complete all required fields.");
       return false;
     }
 
-    // Check room availability
     const selectedRoom = rooms.find(room => room._id === formData.room_Id);
     if (selectedRoom && !selectedRoom.isActive) {
       setError("This room is currently unavailable. Please select another room.");
       return false;
     }
 
-    // Check future date
     const now = new Date();
     const selectedDate = new Date(`${formData.date}T${formData.time}`);
     if (selectedDate < now) {
@@ -408,37 +320,38 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
       return false;
     }
 
-    // Check participant count
     const totalUsers = parseInt(formData.numUsers);
     if (formData.participants.length !== totalUsers) {
       setError(`Form error: Expected ${totalUsers} participants.`);
       return false;
     }
 
-    // Check all participants are filled and validated
-    const validParticipants = formData.participants
-      .filter(p => p.id_number && p.id_number.trim())
+    const filledParticipants = formData.participants
+      .filter(p => p.name && p.name.trim() && p.id_number && p.id_number.toString().trim())
       .length;
 
-    if (validParticipants !== totalUsers) {
-      setError(`Please add all ${totalUsers} participants with valid ID numbers.`);
+    if (filledParticipants !== totalUsers) {
+      setError(`Please complete all ${totalUsers} participant fields.`);
       return false;
     }
 
-    // Check validation status for all participants
     for (let i = 0; i < formData.participants.length; i++) {
-      if (validation[i]?.status !== "valid") {
-        const participant = formData.participants[i];
-        const name = participant.name || `Participant ${i + 1}`;
-        setError(`${name} is not verified. Please enter a valid ID number.`);
+      const p = formData.participants[i];
+      
+      if (!p.name || !p.department || !p.id_number) {
+        setError(`Please complete all fields for participant ${i + 1}.`);
         return false;
       }
-    }
 
-    // Check floor access validation
-    if (floorValidation && !floorValidation.valid) {
-      setError("Some participants do not have access to the selected floor.");
-      return false;
+      if (!/^\d+$/.test(p.id_number)) {
+        setError(`Participant ${i + 1} ID number should contain only numbers.`);
+        return false;
+      }
+
+      if (validation[i].status !== "valid") {
+        setError(`Participant ${i + 1} (${p.name}) is not verified.`);
+        return false;
+      }
     }
 
     return true;
@@ -457,6 +370,7 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
         "Asia/Manila"
       );
 
+      // 2-hour reservation
       const endManilaTime = manilaTime.clone().add(2, 'hours');
 
       const reservationData = {
@@ -471,17 +385,11 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
         numUsers: parseInt(formData.numUsers),
         purpose: formData.purpose,
         participants: formData.participants,
-        status: "Approved",
+        status: "Approved", // Auto-approve for admin
         createdBy: "admin"
       };
 
-      console.log("Submitting reservation:", reservationData);
-
-      await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/reservations/admin-create`,
-        reservationData
-      );
-      
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/reservations/admin-create`, reservationData);
       onSuccess?.();
       onClose();
     } catch (err) {
@@ -522,6 +430,24 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
     return getRoomImageById("fifth_floor")?.url;
   };
 
+  const RoomFeatureIcon = ({ feature, enabled }) => {
+    const icons = {
+      wifi: <Wifi size={14} />,
+      aircon: <Wind size={14} />,
+      projector: <Monitor size={14} />,
+      monitor: <Monitor size={14} />
+    };
+
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+        enabled ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-400"
+      }`}>
+        {icons[feature]}
+        <span className="capitalize">{feature}</span>
+      </span>
+    );
+  };
+
   const formatDisplayTime = (timeValue) => {
     const slot = timeSlots.find(t => t.value === timeValue);
     return slot ? slot.display : "Select Time";
@@ -557,23 +483,6 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
               <AlertCircle size={20} className="text-red-600 flex-shrink-0" />
               <p className="text-red-700 text-sm">{error}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Floor Validation Warning */}
-        {floorValidation && !floorValidation.valid && floorValidation.invalidParticipants?.length > 0 && (
-          <div className="mx-6 mt-4">
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-              <p className="text-yellow-800 text-sm font-medium mb-2">
-                ⚠️ Floor Access Restrictions
-              </p>
-              <p className="text-yellow-700 text-sm mb-2">{floorValidation.message}</p>
-              <ul className="list-disc list-inside text-sm text-yellow-700">
-                {floorValidation.invalidParticipants.map((p, i) => (
-                  <li key={i}>{p.name} - {p.reason}</li>
-                ))}
-              </ul>
             </div>
           </div>
         )}
@@ -760,7 +669,7 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {/* ID Number */}
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">ID Number *</label>
+                      <label className="block text-xs text-gray-600 mb-1">ID Number</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -790,9 +699,9 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
                         type="text"
                         value={participant.name}
                         onChange={(e) => handleParticipantChange(idx, "name", e.target.value)}
-                        placeholder="Auto-filled from ID"
-                        disabled
-                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-gray-100"
+                        placeholder="Full Name"
+                        disabled={validation[idx]?.status === "valid"}
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100"
                       />
                     </div>
 
@@ -803,9 +712,9 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
                         type="text"
                         value={participant.department}
                         onChange={(e) => handleParticipantChange(idx, "department", e.target.value)}
-                        placeholder="Auto-filled from ID"
-                        disabled
-                        className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-gray-100"
+                        placeholder="Department"
+                        disabled={validation[idx]?.status === "valid"}
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100"
                       />
                     </div>
 
@@ -818,9 +727,9 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
                             type="text"
                             value={participant.course}
                             onChange={(e) => handleParticipantChange(idx, "course", e.target.value)}
-                            placeholder="Auto-filled from ID"
-                            disabled
-                            className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-gray-100"
+                            placeholder="Course"
+                            disabled={validation[idx]?.status === "valid"}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100"
                           />
                         </div>
 
@@ -830,9 +739,9 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentUser }) => {
                             type="text"
                             value={participant.year_level}
                             onChange={(e) => handleParticipantChange(idx, "year_level", e.target.value)}
-                            placeholder="Auto-filled from ID"
-                            disabled
-                            className="w-full p-2 border border-gray-300 rounded-lg text-sm bg-gray-100"
+                            placeholder="Year Level"
+                            disabled={validation[idx]?.status === "valid"}
+                            className="w-full p-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100"
                           />
                         </div>
                       </>

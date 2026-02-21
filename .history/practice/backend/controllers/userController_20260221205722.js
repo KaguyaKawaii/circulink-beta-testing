@@ -1,4 +1,3 @@
-// controllers/userController.js
 const mongoose = require("mongoose");
 const userService = require("../services/userService");
 const User = require("../models/User");
@@ -504,47 +503,26 @@ exports.getUserById = async (req, res) => {
   }
 };
 
-// 📌 Search Users - FIXED VERSION
+// 📌 Search Users
 exports.searchUsers = async (req, res) => {
   try {
-    const { q, verified } = req.query;
-    
-    console.log("🔍 User search request:", { q, verified });
-
-    if (!q || q.trim() === "") {
-      return res.json([]);
+    const { q } = req.query;
+    if (!q) {
+      return res.status(400).json({ success: false, message: "Search query required" });
     }
-
-    const searchRegex = new RegExp(q, 'i');
-    
-    // Build query
-    const query = {
+    const users = await User.find({
       $or: [
-        { name: searchRegex },
-        { id_number: searchRegex },
-        { email: searchRegex },
-        { department: searchRegex }
-      ]
-    };
-
-    // Add verified filter if specified
-    if (verified === 'true') {
-      query.verified = true;
-    }
-
-    // Exclude archived users
-    query.archived = { $ne: true };
-
-    const users = await User.find(query)
-      .select('name id_number email course year_level department role verified')
-      .limit(20);
-
-    console.log(`✅ Found ${users.length} users matching "${q}"`);
-    
-    res.json(users);
+        { name: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } },
+        { department: { $regex: q, $options: 'i' } },
+        { id_number: { $regex: q, $options: 'i' } }
+      ],
+      archived: { $ne: true }
+    }).select('name email department role id_number');
+    res.json({ success: true, users });
   } catch (err) {
-    console.error("❌ User search error:", err);
-    res.status(500).json({ success: false, message: "Failed to search users" });
+    console.error("Search users error:", err);
+    res.status(500).json({ success: false, message: "Search failed" });
   }
 };
 
