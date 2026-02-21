@@ -80,31 +80,13 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
       const startDate = new Date(reservation.datetime);
       const endDate = new Date(reservation.endDatetime);
       
-      // Format date as YYYY-MM-DD
-      const formattedDate = startDate.toISOString().split('T')[0];
-      
-      // Format times as HH:MM (24-hour)
-      const formattedStartTime = startDate.toLocaleTimeString('en-US', { 
-        hour12: false, 
-        hour: '2-digit', 
-        minute: '2-digit',
-        timeZone: 'UTC' // Use UTC to avoid timezone issues
-      });
-      
-      const formattedEndTime = endDate.toLocaleTimeString('en-US', { 
-        hour12: false, 
-        hour: '2-digit', 
-        minute: '2-digit',
-        timeZone: 'UTC'
-      });
-
       setFormData({
-        date: formattedDate,
-        time: formattedStartTime,
-        endTime: formattedEndTime,
-        purpose: reservation.purpose || "",
+        date: reservation.date || startDate.toISOString().split('T')[0],
+        time: startDate.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
+        endTime: endDate.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
+        purpose: reservation.purpose,
         participants: reservation.participants || [],
-        status: reservation.status || ""
+        status: reservation.status
       });
 
       // Initialize validation for participants
@@ -339,46 +321,27 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
     setError("");
 
     try {
-      // Create full datetime objects
       const startDateTime = new Date(`${formData.date}T${formData.time}`);
       const endDateTime = new Date(`${formData.date}T${formData.endTime}`);
 
-      // Format dates properly for API
       const updateData = {
-        datetime: startDateTime.toISOString(),
-        endDatetime: endDateTime.toISOString(),
+        datetime: startDateTime,
+        endDatetime: endDateTime,
         purpose: formData.purpose,
         participants: formData.participants,
         date: formData.date
       };
 
-      console.log("Submitting update:", updateData);
-
-      const response = await axios.patch(
+      await axios.patch(
         `${import.meta.env.VITE_API_URL}/api/reservations/${reservation._id}/edit`,
         updateData
       );
 
-      console.log("Update successful:", response.data);
-
-      if (onSuccess) {
-        onSuccess();
-      }
+      onSuccess?.();
       onClose();
     } catch (err) {
       console.error("Reservation update failed:", err);
-      
-      // Handle specific error messages from the backend
-      if (err.response?.data?.message) {
-        setError(err.response.data.message);
-        
-        // If there are invalid participants details
-        if (err.response.data.invalidParticipants) {
-          console.log("Invalid participants:", err.response.data.invalidParticipants);
-        }
-      } else {
-        setError("Failed to update reservation. Please try again.");
-      }
+      setError(err.response?.data?.message || "Failed to update reservation");
     } finally {
       setLoading(false);
     }
@@ -401,9 +364,7 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-gray-900">Edit Reservation</h2>
-                <p className="text-sm text-gray-600">
-                  {reservation?.roomName} • {reservation?.location}
-                </p>
+                <p className="text-sm text-gray-600">{reservation?.roomName} • {reservation?.location}</p>
               </div>
             </div>
             <button
