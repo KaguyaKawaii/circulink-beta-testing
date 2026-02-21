@@ -21,7 +21,8 @@ import {
   Edit,
   Plus,
   Trash2,
-  Search
+  Search,
+  Shield
 } from "lucide-react";
 
 const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
@@ -47,6 +48,7 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
   const [calendarDays, setCalendarDays] = useState([]);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [floorValidation, setFloorValidation] = useState(null);
 
   const months = [
     "January", "February", "March", "April", "May", "June",
@@ -171,6 +173,49 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
     setCurrentYear(newYear);
   };
 
+  // Validate floor access for participants (admin can bypass)
+  const validateFloorAccess = async () => {
+    if (!reservation?.location || formData.participants.length === 0) return;
+
+    const participantIds = formData.participants
+      .filter(p => p.id_number && p.id_number.trim())
+      .map(p => p.id_number);
+
+    if (participantIds.length === 0) return;
+
+    setFloorValidation({ loading: true });
+
+    try {
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/reservations/validate-floor-access`,
+        {
+          location: reservation.location,
+          participantIds
+        }
+      );
+
+      // For admin, we just show warnings but don't block
+      setFloorValidation({
+        valid: res.data.valid,
+        invalidParticipants: res.data.invalidParticipants || [],
+        message: res.data.restrictionMessage,
+        isAdmin: true // Indicate this is for admin view
+      });
+
+    } catch (err) {
+      console.error("Floor validation error:", err);
+      setFloorValidation({ valid: false, error: "Failed to validate floor access" });
+    } finally {
+      setFloorValidation(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  useEffect(() => {
+    if (reservation?.location && formData.participants.some(p => p.id_number)) {
+      validateFloorAccess();
+    }
+  }, [reservation?.location, JSON.stringify(formData.participants.map(p => p.id_number))]);
+
   const handleParticipantChange = async (idx, field, val) => {
     const updated = [...formData.participants];
     
@@ -203,14 +248,24 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
         );
 
         if (!res.data.exists) {
-          v[idx] = { status: "invalid", message: "Not registered", loading: false };
-          updated[idx] = { ...updated[idx], name: "", course: "", year_level: "", department: "", id_number: val, role: "" };
+          // Admin can add unregistered users
+          v[idx] = { status: "warning", message: "User not in database (Admin override)", loading: false };
+          updated[idx] = { ...updated[idx], name: updated[idx].name || "", id_number: val };
         } else if (!res.data.verified) {
-          v[idx] = { status: "invalid", message: "Not verified", loading: false };
-          updated[idx] = { ...updated[idx], name: "", course: "", year_level: "", department: "", id_number: val, role: "" };
-        } else {
+          // Admin can add unverified users
+          v[idx] = { status: "warning", message: "User not verified (Admin override)", loading: false };
           updated[idx] = {
             ...updated[idx],
+            name: res.data.name || updated[idx].name,
+            course: res.data.course || updated[idx].course || "",
+            year_level: res.data.year_level || updated[idx].year_level || "",
+            department: res.data.department || updated[idx].department || "",
+            id_number: val,
+            role: res.data.role || updated[idx].role || "",
+          };
+        } else {
+          // Verified user
+          updated[idx] = {
             name: res.data.name,
             course: res.data.course || "",
             year_level: res.data.year_level || "",
@@ -225,7 +280,7 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
         setValidation(v);
       } catch (err) {
         console.error("Validation error", err);
-        v[idx] = { status: "invalid", message: "Error validating", loading: false };
+        v[idx] = { status: "warning", message: "Error validating (Admin can edit manually)", loading: false };
         setValidation(v);
       }
     } else {
@@ -262,7 +317,7 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
 
     try {
       const res = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/users/search?q=${term}&verified=true`
+        `${import.meta.env.VITE_API_URL}/api/users/search/users?q=${encodeURIComponent(term)}&verified=true`
       );
       setSearchResults(res.data);
     } catch (err) {
@@ -309,22 +364,30 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
       return false;
     }
 
-    // Check if all participants are valid
+    // Check for past dates
+    const now = new Date();
+    if (startDateTime < now) {
+      setError("Cannot set reservation time in the past.");
+      return false;
+    }
+
+    // Check if at least one participant has an ID number
+    const hasValidParticipant = formData.participants.some(
+      p => p.id_number && p.id_number.trim()
+    );
+
+    if (!hasValidParticipant) {
+      setError("At least one participant must have an ID number.");
+      return false;
+    }
+
+    // For admin, we don't need to validate all fields or verification status
+    // Just check that each participant has at least an ID number or name
     for (let i = 0; i < formData.participants.length; i++) {
       const p = formData.participants[i];
       
-      if (!p.name || !p.department || !p.id_number) {
-        setError(`Please complete all fields for participant ${i + 1}.`);
-        return false;
-      }
-
-      if (!/^\d+$/.test(p.id_number)) {
-        setError(`Participant ${i + 1} ID number should contain only numbers.`);
-        return false;
-      }
-
-      if (validation[i]?.status !== "valid") {
-        setError(`Participant ${i + 1} (${p.name}) is not verified.`);
+      if (!p.id_number && !p.name) {
+        setError(`Participant ${i + 1} must have either an ID number or name.`);
         return false;
       }
     }
@@ -343,13 +406,20 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
       const startDateTime = new Date(`${formData.date}T${formData.time}`);
       const endDateTime = new Date(`${formData.date}T${formData.endTime}`);
 
+      // Filter out participants with no ID number and no name
+      const validParticipants = formData.participants.filter(
+        p => (p.id_number && p.id_number.trim()) || (p.name && p.name.trim())
+      );
+
       // Format dates properly for API
       const updateData = {
         datetime: startDateTime.toISOString(),
         endDatetime: endDateTime.toISOString(),
         purpose: formData.purpose,
-        participants: formData.participants,
-        date: formData.date
+        participants: validParticipants,
+        date: formData.date,
+        time: formData.time, // Include time field
+        numUsers: validParticipants.length // Update the total number of participants
       };
 
       console.log("Submitting update:", updateData);
@@ -415,6 +485,16 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
           </div>
         </div>
 
+        {/* Admin Info Banner */}
+        <div className="mx-6 mt-4">
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 flex items-center gap-3">
+            <Shield size={20} className="text-purple-600 flex-shrink-0" />
+            <p className="text-purple-700 text-sm">
+              Editing as admin. You can modify any field without restrictions.
+            </p>
+          </div>
+        </div>
+
         {/* Error Message */}
         {error && (
           <div className="mx-6 mt-4">
@@ -425,8 +505,28 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
           </div>
         )}
 
+        {/* Floor Validation Warning - For Admin Info Only */}
+        {floorValidation && floorValidation.invalidParticipants?.length > 0 && (
+          <div className="mx-6 mt-4">
+            <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+              <p className="text-yellow-800 text-sm font-medium mb-2">
+                ⚠️ Floor Access Restrictions (For Your Information)
+              </p>
+              <p className="text-yellow-700 text-sm mb-2">{floorValidation.message}</p>
+              <p className="text-yellow-700 text-sm mb-2 font-medium">
+                As an admin, you can still save this reservation despite access restrictions.
+              </p>
+              <ul className="list-disc list-inside text-sm text-yellow-700">
+                {floorValidation.invalidParticipants.map((p, i) => (
+                  <li key={i}>{p.name} - {p.reason}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
         {/* Main Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(95vh-200px)]">
+        <div className="p-6 overflow-y-auto max-h-[calc(95vh-300px)]">
           {/* Basic Info Grid */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
             {/* Date */}
@@ -535,14 +635,16 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
                       <div className="relative">
                         <input
                           type="text"
-                          value={participant.id_number}
+                          value={participant.id_number || ''}
                           onChange={(e) => handleParticipantChange(idx, "id_number", e.target.value)}
-                          placeholder="Enter ID"
+                          placeholder="Enter ID (optional)"
                           className={`w-full p-2 border rounded-lg text-sm ${
                             validation[idx]?.status === "valid"
                               ? "border-green-500 bg-green-50"
                               : validation[idx]?.status === "invalid"
                               ? "border-red-500 bg-red-50"
+                              : validation[idx]?.status === "warning"
+                              ? "border-yellow-500 bg-yellow-50"
                               : "border-gray-300"
                           }`}
                         />
@@ -556,14 +658,13 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
 
                     {/* Name */}
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Full Name</label>
+                      <label className="block text-xs text-gray-600 mb-1">Full Name *</label>
                       <input
                         type="text"
-                        value={participant.name}
+                        value={participant.name || ''}
                         onChange={(e) => handleParticipantChange(idx, "name", e.target.value)}
                         placeholder="Full Name"
-                        disabled={validation[idx]?.status === "valid"}
-                        className="w-full p-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100"
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                       />
                     </div>
 
@@ -572,42 +673,51 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
                       <label className="block text-xs text-gray-600 mb-1">Department</label>
                       <input
                         type="text"
-                        value={participant.department}
+                        value={participant.department || ''}
                         onChange={(e) => handleParticipantChange(idx, "department", e.target.value)}
                         placeholder="Department"
-                        disabled={validation[idx]?.status === "valid"}
-                        className="w-full p-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100"
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm"
                       />
                     </div>
 
                     {/* Course (if student) */}
-                    {(!participant.role || (participant.role !== "Faculty" && participant.role !== "Staff")) && (
-                      <>
-                        <div>
-                          <label className="block text-xs text-gray-600 mb-1">Course</label>
-                          <input
-                            type="text"
-                            value={participant.course}
-                            onChange={(e) => handleParticipantChange(idx, "course", e.target.value)}
-                            placeholder="Course"
-                            disabled={validation[idx]?.status === "valid"}
-                            className="w-full p-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100"
-                          />
-                        </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Course</label>
+                      <input
+                        type="text"
+                        value={participant.course || ''}
+                        onChange={(e) => handleParticipantChange(idx, "course", e.target.value)}
+                        placeholder="Course"
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                      />
+                    </div>
 
-                        <div>
-                          <label className="block text-xs text-gray-600 mb-1">Year Level</label>
-                          <input
-                            type="text"
-                            value={participant.year_level}
-                            onChange={(e) => handleParticipantChange(idx, "year_level", e.target.value)}
-                            placeholder="Year Level"
-                            disabled={validation[idx]?.status === "valid"}
-                            className="w-full p-2 border border-gray-300 rounded-lg text-sm disabled:bg-gray-100"
-                          />
-                        </div>
-                      </>
-                    )}
+                    {/* Year Level */}
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Year Level</label>
+                      <input
+                        type="text"
+                        value={participant.year_level || ''}
+                        onChange={(e) => handleParticipantChange(idx, "year_level", e.target.value)}
+                        placeholder="Year Level"
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                      />
+                    </div>
+
+                    {/* Role */}
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Role</label>
+                      <select
+                        value={participant.role || ''}
+                        onChange={(e) => handleParticipantChange(idx, "role", e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded-lg text-sm"
+                      >
+                        <option value="">Select Role</option>
+                        <option value="Student">Student</option>
+                        <option value="Faculty">Faculty</option>
+                        <option value="Staff">Staff</option>
+                      </select>
+                    </div>
 
                     {/* Status */}
                     <div className="flex items-center">
@@ -623,22 +733,26 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
                           {validation[idx].message}
                         </span>
                       )}
+                      {validation[idx]?.status === "warning" && (
+                        <span className="text-yellow-600 text-sm flex items-center gap-1">
+                          <AlertCircle size={16} />
+                          {validation[idx].message}
+                        </span>
+                      )}
                     </div>
                   </div>
 
                   {/* Search Button */}
-                  {validation[idx]?.status !== "valid" && (
-                    <button
-                      onClick={() => {
-                        setCurrentParticipantIndex(idx);
-                        setShowUserSearch(true);
-                      }}
-                      className="mt-3 flex items-center gap-2 text-amber-600 hover:text-amber-800 text-sm"
-                    >
-                      <Search size={14} />
-                      Search User
-                    </button>
-                  )}
+                  <button
+                    onClick={() => {
+                      setCurrentParticipantIndex(idx);
+                      setShowUserSearch(true);
+                    }}
+                    className="mt-3 flex items-center gap-2 text-amber-600 hover:text-amber-800 text-sm"
+                  >
+                    <Search size={14} />
+                    Search User
+                  </button>
                 </div>
               ))}
             </div>
@@ -905,7 +1019,9 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-gray-900 truncate">{user.name}</p>
                       <p className="text-sm text-gray-600">{user.id_number}</p>
-                      <p className="text-xs text-gray-500">{user.department} • {user.course || 'N/A'}</p>
+                      <p className="text-xs text-gray-500">
+                        {user.department || 'N/A'} • {user.role || 'Student'}
+                      </p>
                     </div>
                   </div>
                 </button>

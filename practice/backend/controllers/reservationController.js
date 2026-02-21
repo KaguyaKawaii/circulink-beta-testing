@@ -2564,13 +2564,14 @@ exports.adminCreateReservation = async (req, res) => {
     });
   }
 };
+
 /* ------------------------------------------------
-   ✅ ADMIN EDIT RESERVATION - FIXED
+   ✅ ADMIN EDIT RESERVATION - NO RESTRICTIONS
 ------------------------------------------------ */
 exports.editReservation = async (req, res) => {
   try {
     const { id } = req.params;
-    const { datetime, endDatetime, purpose, participants, date } = req.body;
+    const { datetime, endDatetime, purpose, participants, date, time, numUsers } = req.body;
 
     console.log("📝 Editing reservation:", id);
     console.log("Request body:", req.body);
@@ -2581,22 +2582,16 @@ exports.editReservation = async (req, res) => {
       return res.status(404).json({ message: "Reservation not found" });
     }
 
-    // Validate that we have participants
+    // Validate that we have at least one participant
     if (!participants || !Array.isArray(participants) || participants.length === 0) {
       return res.status(400).json({ 
-        message: "At least one participant (the main reserver) is required" 
+        message: "At least one participant is required" 
       });
     }
 
-    // The numUsers should equal the number of participants (total group size)
-    const numUsers = participants.length;
-
-    // Validate group size (between 4-8)
-    if (numUsers < 4 || numUsers > 8) {
-      return res.status(400).json({ 
-        message: "Total group size must be between 4 and 8 users (including main reserver)." 
-      });
-    }
+    // Parse dates
+    const parsedDatetime = new Date(datetime);
+    const parsedEndDatetime = new Date(endDatetime);
 
     // Check for conflicts (excluding current reservation)
     const conflict = await Reservation.findOne({
@@ -2604,8 +2599,12 @@ exports.editReservation = async (req, res) => {
       roomName: reservation.roomName,
       location: reservation.location,
       status: { $in: ["Approved", "Ongoing"] },
-      datetime: { $lt: new Date(endDatetime) },
-      endDatetime: { $gt: new Date(datetime) }
+      $or: [
+        {
+          datetime: { $lt: parsedEndDatetime },
+          endDatetime: { $gt: parsedDatetime }
+        }
+      ]
     });
 
     if (conflict) {
@@ -2614,89 +2613,69 @@ exports.editReservation = async (req, res) => {
       });
     }
 
-    // Validate participants
-    const parsedDatetime = new Date(datetime);
-    const parsedEndDatetime = new Date(endDatetime);
-    const validatedParticipants = [];
+    // Process participants - admin can add any participants without strict validation
+    const processedParticipants = [];
 
     for (const participant of participants) {
-      // Skip if no ID number
-      if (!participant.id_number) {
-        return res.status(400).json({ 
-          message: `Participant ${participant.name || 'Unknown'} has no ID number` 
+      // Skip completely empty participants
+      if (!participant.id_number && !participant.name) {
+        continue;
+      }
+
+      // Try to find user by ID number to enrich data
+      let participantUser = null;
+      if (participant.id_number) {
+        participantUser = await User.findOne({ 
+          id_number: participant.id_number.toString().trim() 
         });
       }
 
-      // Find the user by ID number
-      const participantUser = await User.findOne({ 
-        id_number: participant.id_number.toString().trim() 
-      });
-
-      if (!participantUser) {
-        return res.status(400).json({ 
-          message: `Participant with ID ${participant.id_number} not found in database` 
+      if (participantUser) {
+        // Use data from database
+        processedParticipants.push({
+          id_number: participantUser.id_number,
+          name: participantUser.name,
+          course: participantUser.course || participant.course || "N/A",
+          year_level: participantUser.yearLevel || participant.year_level || "N/A",
+          department: participantUser.department || participant.department || "N/A",
+          role: participantUser.role || participant.role || ""
+        });
+      } else {
+        // Use provided data
+        processedParticipants.push({
+          id_number: participant.id_number || "",
+          name: participant.name || "Unknown",
+          course: participant.course || "N/A",
+          year_level: participant.year_level || "N/A",
+          department: participant.department || "N/A",
+          role: participant.role || ""
         });
       }
-
-      if (!participantUser.verified) {
-        return res.status(400).json({ 
-          message: `Participant ${participantUser.name} is not verified` 
-        });
-      }
-
-      // Check if this is a new participant (not in the original reservation)
-      const isExistingParticipant = reservation.participants.some(
-        p => p.id_number === participant.id_number
-      );
-
-      if (!isExistingParticipant) {
-        // Check conflicts for new participants
-        const conflicts = await Reservation.find({
-          _id: { $ne: id },
-          $or: [
-            { userId: participantUser._id },
-            { "participants.id_number": participantUser.id_number }
-          ],
-          datetime: { $lt: parsedEndDatetime },
-          endDatetime: { $gt: parsedDatetime },
-          status: { $in: ["Pending", "Approved", "Ongoing"] }
-        });
-
-        if (conflicts.length > 0) {
-          return res.status(400).json({ 
-            message: `Participant ${participantUser.name} has a conflicting reservation during this time` 
-          });
-        }
-      }
-
-      // Add validated participant data
-      validatedParticipants.push({
-        id_number: participantUser.id_number,
-        name: participantUser.name,
-        course: participantUser.course || "N/A",
-        year_level: participantUser.yearLevel || "N/A",
-        department: participantUser.department || "N/A"
-      });
     }
 
-    // Make sure we have the right number of participants
-    if (validatedParticipants.length !== numUsers) {
+    // Make sure we have at least one participant after processing
+    if (processedParticipants.length === 0) {
       return res.status(400).json({ 
-        message: `Participant count mismatch. Expected ${numUsers} valid participants, but found ${validatedParticipants.length}.` 
+        message: "At least one valid participant is required" 
       });
     }
 
-    // Update the reservation - include numUsers field
+    // Update the reservation - NO GROUP SIZE RESTRICTIONS
+    const updateData = {
+      datetime: parsedDatetime,
+      endDatetime: parsedEndDatetime,
+      purpose,
+      participants: processedParticipants,
+      date: date || reservation.date,
+      time: time || new Date(parsedDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      numUsers: processedParticipants.length // Update the total number of participants
+    };
+
+    console.log("📦 Update data:", updateData);
+
     const updatedReservation = await Reservation.findByIdAndUpdate(
       id,
-      {
-        datetime: new Date(datetime),
-        endDatetime: new Date(endDatetime),
-        purpose,
-        participants: validatedParticipants,
-        date,
-        numUsers: numUsers // ✅ IMPORTANT: Include numUsers field
-      },
+      updateData,
       { new: true, runValidators: true }
     ).populate("userId");
 
@@ -2709,9 +2688,9 @@ exports.editReservation = async (req, res) => {
     // Log the edit
     try {
       await logAction(
-        reservation.userId._id,
-        reservation.userId.id_number,
-        reservation.userId.name,
+        reservation.userId?._id || null,
+        reservation.userId?.id_number || "ADMIN",
+        reservation.userId?.name || "Admin",
         "Reservation Edited by Admin",
         `Admin edited reservation for ${reservation.roomName}`
       );
@@ -2721,21 +2700,50 @@ exports.editReservation = async (req, res) => {
 
     // Notify main user about the change
     try {
-      await notificationService.createNotification(
-        {
-          userId: reservation.userId._id,
-          reservationId: reservation._id,
-          type: "reservation",
-          status: "updated",
-          targetRole: "user",
-          roomName: reservation.roomName,
-          date: reservation.date,
-          message: "Your reservation has been updated by an admin"
-        },
-        req.app.get("io")
-      );
+      if (reservation.userId && reservation.userId._id) {
+        await notificationService.createNotification(
+          {
+            userId: reservation.userId._id,
+            reservationId: reservation._id,
+            type: "reservation",
+            status: "updated",
+            targetRole: "user",
+            roomName: reservation.roomName,
+            date: reservation.date,
+            message: "Your reservation has been updated by an admin"
+          },
+          req.app.get("io")
+        );
+      }
     } catch (notifError) {
       console.warn("⚠️ Failed to create notification:", notifError.message);
+    }
+
+    // Notify participants about changes
+    for (const participant of processedParticipants) {
+      try {
+        const participantUser = await User.findOne({ 
+          id_number: participant.id_number.toString().trim()
+        });
+
+        if (participantUser && participantUser._id.toString() !== reservation.userId?._id?.toString()) {
+          await notificationService.createNotification(
+            {
+              userId: participantUser._id,
+              reservationId: reservation._id,
+              type: "reservation",
+              status: "updated",
+              targetRole: "user",
+              roomName: reservation.roomName,
+              date: reservation.date,
+              message: `A reservation you're part of has been updated by an admin`
+            },
+            req.app.get("io")
+          );
+        }
+      } catch (notifError) {
+        console.warn(`⚠️ Failed to notify participant ${participant.id_number}:`, notifError.message);
+      }
     }
 
     res.json(updatedReservation);
