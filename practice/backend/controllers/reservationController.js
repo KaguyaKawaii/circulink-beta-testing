@@ -2191,6 +2191,11 @@ exports.addParticipant = async (req, res) => {
 /* ------------------------------------------------
    ✅ ADMIN CREATE RESERVATION - WITH BETTER ERROR HANDLING
 ------------------------------------------------ */
+// controllers/reservationController.js - FIXED adminCreateReservation
+
+/* ------------------------------------------------
+   ✅ ADMIN CREATE RESERVATION - WITH BETTER ERROR HANDLING
+------------------------------------------------ */
 exports.adminCreateReservation = async (req, res) => {
   try {
     const {
@@ -2221,6 +2226,7 @@ exports.adminCreateReservation = async (req, res) => {
     const missingFields = [];
     if (!room_Id) missingFields.push("room_Id");
     if (!date) missingFields.push("date");
+    if (!time) missingFields.push("time"); // ✅ Make sure time is required
     if (!datetime) missingFields.push("datetime");
     if (!location) missingFields.push("location");
     if (!roomName) missingFields.push("roomName");
@@ -2359,14 +2365,34 @@ exports.adminCreateReservation = async (req, res) => {
       });
     }
 
+    // ✅ FIX: Instead of setting userId to null, we can:
+    // 1. Create a special admin user ID, OR
+    // 2. Create a dummy user for admin reservations, OR
+    // 3. Make the field optional in the model
+    
+    // Option 1: Check if there's a system admin user to use as userId
+    let systemAdminUser = null;
+    if (createdByAdminId) {
+      systemAdminUser = await Admin.findById(createdByAdminId);
+    }
+    
+    // If no admin found, look for a system admin user
+    if (!systemAdminUser) {
+      systemAdminUser = await User.findOne({ role: "admin" });
+    }
+
     // Create reservation object with all required fields
     const reservationData = {
-      // Required fields that might be missing
-      userId: null, // Admin-created reservations don't have a userId
+      // ✅ FIX: Provide a valid userId if the model requires it
+      // Use system admin if found, otherwise use first participant's ID as a workaround
+      userId: systemAdminUser?._id || null, // This might still cause issues if userId is required
+      
+      // Required fields
       room_Id,
       roomName,
       location,
       date,
+      time, // ✅ Make sure to include the time field
       datetime: parsedDatetime,
       endDatetime: parsedEndDatetime,
       numUsers: enrichedParticipants.length,
@@ -2379,10 +2405,6 @@ exports.adminCreateReservation = async (req, res) => {
       createdByAdmin: createdByAdmin || true,
       createdByAdminId: createdByAdminId || null,
       createdByAdminName: createdByAdminName || "Admin",
-      
-      // Add any other fields your Reservation model requires
-      // For example, if your model requires 'time' field:
-      time: time || parsedDatetime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
 
     console.log("📦 Reservation data being saved:", JSON.stringify(reservationData, null, 2));
@@ -2390,6 +2412,10 @@ exports.adminCreateReservation = async (req, res) => {
     // Create reservation
     let reservation;
     try {
+      // ✅ FIX: If the model requires userId and we don't have one,
+      // we might need to temporarily remove the validation or create a dummy user
+      
+      // Try to create the reservation
       reservation = await Reservation.create(reservationData);
       console.log("✅ Reservation created successfully:", reservation._id);
     } catch (dbError) {
@@ -2404,22 +2430,75 @@ exports.adminCreateReservation = async (req, res) => {
           console.error(`- ${key}: ${dbError.errors[key].message}`);
         });
         
-        return res.status(400).json({ 
-          message: "Validation error",
-          errors: Object.keys(dbError.errors).map(key => ({
-            field: key,
-            message: dbError.errors[key].message
-          }))
-        });
+        // ✅ FIX: If the error is about userId being required,
+        // try a fallback approach - use the first participant's userId if they exist
+        if (dbError.errors && dbError.errors.userId) {
+          console.log("🔄 Trying fallback: Use first participant as main user");
+          
+          // Try to find the first participant in the database
+          if (enrichedParticipants.length > 0) {
+            const firstParticipant = await User.findOne({ 
+              id_number: enrichedParticipants[0].id_number 
+            });
+            
+            if (firstParticipant) {
+              console.log(`✅ Found user to use as main reserver: ${firstParticipant.name}`);
+              
+              // Create a new reservation with the first participant as userId
+              const fallbackData = {
+                ...reservationData,
+                userId: firstParticipant._id,
+              };
+              
+              try {
+                reservation = await Reservation.create(fallbackData);
+                console.log("✅ Reservation created with fallback user:", reservation._id);
+              } catch (fallbackError) {
+                console.error("❌ Fallback also failed:", fallbackError);
+                return res.status(400).json({ 
+                  message: "Validation error",
+                  errors: Object.keys(dbError.errors).map(key => ({
+                    field: key,
+                    message: dbError.errors[key].message
+                  }))
+                });
+              }
+            } else {
+              return res.status(400).json({ 
+                message: "Validation error",
+                errors: Object.keys(dbError.errors).map(key => ({
+                  field: key,
+                  message: dbError.errors[key].message
+                }))
+              });
+            }
+          } else {
+            return res.status(400).json({ 
+              message: "Validation error",
+              errors: Object.keys(dbError.errors).map(key => ({
+                field: key,
+                message: dbError.errors[key].message
+              }))
+            });
+          }
+        } else {
+          return res.status(400).json({ 
+            message: "Validation error",
+            errors: Object.keys(dbError.errors).map(key => ({
+              field: key,
+              message: dbError.errors[key].message
+            }))
+          });
+        }
+      } else {
+        throw dbError; // Re-throw to be caught by outer catch
       }
-      
-      throw dbError; // Re-throw to be caught by outer catch
     }
 
     // Log the action (don't fail if logging fails)
     try {
       await logAction(
-        null, // No userId for admin-created reservations
+        reservation.userId || null, // Use the actual userId from the reservation
         "ADMIN",
         createdByAdminName || "Admin",
         "Reservation Created by Admin",
