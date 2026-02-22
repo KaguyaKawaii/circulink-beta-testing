@@ -133,6 +133,19 @@ class BackupService {
         zlib: { level: 9 } // Maximum compression
       });
 
+      // Pipe archive data to the file
+      archive.pipe(output);
+
+      // Create organized backup structure FIRST (before finalizing)
+      console.log('🔄 Creating organized backup structure...');
+      await this.createOrganizedBackup(archive);
+      
+      console.log('✅ Organized backup structure created, finalizing...');
+      
+      // Finalize the archive
+      await archive.finalize();
+
+      // Now wait for the output to finish writing
       return new Promise((resolve, reject) => {
         output.on('close', async () => {
           const size = archive.pointer();
@@ -173,8 +186,6 @@ class BackupService {
             await backup.save();
 
             console.log(`✅ ${type} backup saved to MongoDB:`, backupName);
-            
-            // Verify the backup file contains data
             console.log(`📊 Backup file size: ${fileSize}`);
             
             // Clean up old auto backups if needed
@@ -218,21 +229,6 @@ class BackupService {
         archive.on('entry', (entry) => {
           console.log(`📄 Added to archive: ${entry.name}`);
         });
-
-        // Pipe archive data to the file
-        archive.pipe(output);
-
-        // Create organized backup structure
-        console.log('🔄 Creating organized backup structure...');
-        this.createOrganizedBackup(archive)
-          .then(() => {
-            console.log('✅ Organized backup structure created, finalizing...');
-            archive.finalize();
-          })
-          .catch((error) => {
-            console.error('❌ Error creating backup structure:', error);
-            reject(error);
-          });
       });
     } catch (error) {
       console.error('❌ Backup creation failed:', error);
@@ -379,6 +375,12 @@ class BackupService {
       const backup = await Backup.findOne({ filename: filename });
       if (!backup) {
         throw new Error('Backup record not found in database');
+      }
+
+      // Check if backup file has content
+      const stats = fs.statSync(filePath);
+      if (stats.size === 0) {
+        throw new Error('Backup file is empty');
       }
 
       // Create restore point before proceeding
