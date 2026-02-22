@@ -93,6 +93,9 @@ class BackupService {
         zlib: { level: 9 } // Maximum compression
       });
 
+      // Create organized backup structure first
+      await this.createOrganizedBackup(archive);
+
       return new Promise((resolve, reject) => {
         output.on('close', async () => {
           console.log('✅ ZIP backup created:', archive.pointer() + ' total bytes');
@@ -161,9 +164,6 @@ class BackupService {
         });
 
         archive.pipe(output);
-
-        // Create organized backup structure
-        await this.createOrganizedBackup(archive);
         archive.finalize();
       });
     } catch (error) {
@@ -198,18 +198,6 @@ class BackupService {
 
       // Extract and restore
       const restoreResults = await this.extractAndRestore(filePath, options);
-
-      // Log restore completion
-      const restoreRecord = {
-        backupName: backup.name,
-        filename: filename,
-        restoredAt: new Date(),
-        collections: restoreResults.restoredCollections,
-        options: options
-      };
-
-      // Save restore record if you have a Restore model
-      // await Restore.create(restoreRecord);
 
       console.log('✅ Restore completed successfully');
       
@@ -266,8 +254,8 @@ class BackupService {
               continue;
             }
 
-            const filePath = path.join(collectionsDir, file);
-            const collectionData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            const collectionFilePath = path.join(collectionsDir, file);
+            const collectionData = JSON.parse(fs.readFileSync(collectionFilePath, 'utf8'));
             
             const collection = mongoose.connection.db.collection(collectionName);
             
