@@ -136,124 +136,9 @@ class BackupService {
       // Pipe archive data to the file
       archive.pipe(output);
 
-      // Create organized backup structure FIRST (before finalizing)
+      // Create organized backup structure
       console.log('🔄 Creating organized backup structure...');
-      await this.createOrganizedBackup(archive);
       
-      console.log('✅ Organized backup structure created, finalizing...');
-      
-      // Finalize the archive
-      await archive.finalize();
-
-      // Now wait for the output to finish writing
-      return new Promise((resolve, reject) => {
-        output.on('close', async () => {
-          const size = archive.pointer();
-          console.log('✅ ZIP backup created:', size + ' total bytes');
-          
-          if (size === 0) {
-            console.error('❌ Backup file is empty!');
-            reject(new Error('Backup file is empty'));
-            return;
-          }
-          
-          try {
-            const fileStats = fs.statSync(filePath);
-            const fileSize = this.formatFileSize(fileStats.size);
-
-            // Save backup info to MongoDB
-            const backupData = await this.collectBackupData();
-            
-            const backup = new Backup({
-              name: backupName,
-              filename: fileName,
-              data: {
-                timestamp: new Date().toISOString(),
-                system: 'Room Reservation System - Full Backup',
-                version: '1.0.0',
-                type: type,
-                totalCollections: Object.keys(backupData.collections || {}).length,
-                zipContents: await this.getZipContentsDescription(),
-                fileType: 'zip',
-                compression: 'high',
-                statistics: backupData.statistics
-              },
-              size: fileSize,
-              type: `${type}_system_zip`,
-              createdBy: userId
-            });
-
-            await backup.save();
-
-            console.log(`✅ ${type} backup saved to MongoDB:`, backupName);
-            console.log(`📊 Backup file size: ${fileSize}`);
-            
-            // Clean up old auto backups if needed
-            if (type === 'auto') {
-              await this.cleanupOldAutoBackups();
-            }
-            
-            resolve({ 
-              fileName: backupName,
-              filename: fileName,
-              size: fileSize,
-              id: backup._id,
-              date: backup.createdAt,
-              zipSize: size,
-              fileType: 'zip',
-              type: type
-            });
-          } catch (error) {
-            console.error('❌ Error saving backup to MongoDB:', error);
-            reject(error);
-          }
-        });
-
-        archive.on('error', (err) => {
-          console.error('❌ Archive error:', err);
-          reject(err);
-        });
-
-        archive.on('warning', (err) => {
-          if (err.code === 'ENOENT') {
-            console.warn('Archive warning:', err);
-          } else {
-            console.error('Archive warning:', err);
-          }
-        });
-
-        archive.on('progress', (progress) => {
-          console.log(`📦 Archive progress: ${progress.fs.processedBytes} bytes processed`);
-        });
-
-        archive.on('entry', (entry) => {
-          console.log(`📄 Added to archive: ${entry.name}`);
-        });
-      });
-    } catch (error) {
-      console.error('❌ Backup creation failed:', error);
-      
-      // Clean up if file was created but empty
-      if (filePath && fs.existsSync(filePath)) {
-        try {
-          const stats = fs.statSync(filePath);
-          if (stats.size === 0) {
-            fs.unlinkSync(filePath);
-            console.log('🗑️ Removed empty backup file');
-          }
-        } catch (e) {
-          console.error('❌ Failed to remove empty backup file:', e);
-        }
-      }
-      
-      throw new Error(`Failed to create backup: ${error.message}`);
-    }
-  }
-
-  async createOrganizedBackup(archive) {
-    try {
-      console.log('🔄 Creating organized backup structure in ZIP...');
-
       // Add README file
       const readmeContent = this.createReadmeFile();
       archive.append(readmeContent, { name: 'README.txt' });
@@ -261,7 +146,6 @@ class BackupService {
 
       // Get all collections
       const collections = await mongoose.connection.db.listCollections().toArray();
-      
       console.log(`📊 Found ${collections.length} collections to backup`);
 
       const collectionStats = {};
@@ -286,12 +170,6 @@ class BackupService {
           
           console.log(`📦 Collection ${collectionName}: ${allData.length} records found`);
           
-          if (allData.length > 0) {
-            // Log sample of first record to verify data structure
-            console.log(`📝 Sample record from ${collectionName}:`, 
-              JSON.stringify(allData[0]).substring(0, 200) + '...');
-          }
-          
           // Create JSON file for the collection
           const collectionData = {
             collection: collectionName,
@@ -302,7 +180,8 @@ class BackupService {
 
           // Convert to JSON string
           const jsonString = JSON.stringify(collectionData, null, 2);
-          console.log(`📄 JSON size for ${collectionName}: ${(jsonString.length / 1024).toFixed(2)} KB`);
+          const jsonSize = (jsonString.length / 1024).toFixed(2);
+          console.log(`📄 JSON size for ${collectionName}: ${jsonSize} KB`);
 
           // Add to ZIP with organized path
           const collectionPath = `collections/${collectionName}.json`;
@@ -340,19 +219,102 @@ class BackupService {
       console.log(`📊 Metadata: ${metadata.totalCollections} collections backed up, ${metadata.totalRecords} total records`);
       
       const metadataJson = JSON.stringify(metadata, null, 2);
-      console.log(`📄 Metadata JSON size: ${(metadataJson.length / 1024).toFixed(2)} KB`);
       archive.append(metadataJson, { name: 'backup-metadata.json' });
 
       // Add database stats
       const dbStats = await this.getDatabaseStats();
       const dbStatsJson = JSON.stringify(dbStats, null, 2);
-      console.log(`📄 Database stats JSON size: ${(dbStatsJson.length / 1024).toFixed(2)} KB`);
       archive.append(dbStatsJson, { name: 'database-stats.json' });
 
-      console.log('✅ Organized backup structure created in ZIP');
+      console.log('✅ All data added to archive, finalizing...');
+      
+      // Finalize the archive
+      await archive.finalize();
+
+      // Wait for the output stream to finish
+      await new Promise((resolve, reject) => {
+        output.on('close', () => {
+          console.log('📦 Archive closed, file write completed');
+          resolve();
+        });
+        
+        output.on('error', (err) => {
+          console.error('❌ Output stream error:', err);
+          reject(err);
+        });
+      });
+
+      // Check file size
+      const stats = fs.statSync(filePath);
+      const fileSizeBytes = stats.size;
+      const fileSize = this.formatFileSize(fileSizeBytes);
+      
+      console.log(`✅ ZIP backup created: ${fileSize} (${fileSizeBytes} bytes)`);
+      
+      if (fileSizeBytes === 0) {
+        throw new Error('Backup file is empty!');
+      }
+
+      // Save backup info to MongoDB
+      const backupData = await this.collectBackupData();
+      
+      const backup = new Backup({
+        name: backupName,
+        filename: fileName,
+        data: {
+          timestamp: new Date().toISOString(),
+          system: 'Room Reservation System - Full Backup',
+          version: '1.0.0',
+          type: type,
+          totalCollections: Object.keys(backupData.collections || {}).length,
+          zipContents: await this.getZipContentsDescription(),
+          fileType: 'zip',
+          compression: 'high',
+          statistics: backupData.statistics
+        },
+        size: fileSize,
+        type: `${type}_system_zip`,
+        createdBy: userId
+      });
+
+      await backup.save();
+
+      console.log(`✅ ${type} backup saved to MongoDB:`, backupName);
+      console.log(`📊 Backup file size: ${fileSize}`);
+      
+      // Clean up old auto backups if needed
+      if (type === 'auto') {
+        await this.cleanupOldAutoBackups();
+      }
+      
+      return { 
+        fileName: backupName,
+        filename: fileName,
+        size: fileSize,
+        id: backup._id,
+        date: backup.createdAt,
+        zipSize: fileSizeBytes,
+        fileType: 'zip',
+        type: type
+      };
+
     } catch (error) {
-      console.error('❌ Error creating organized backup:', error);
-      throw error;
+      console.error('❌ Backup creation failed:', error);
+      
+      // Clean up if file was created but empty
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          const stats = fs.statSync(filePath);
+          if (stats.size === 0) {
+            fs.unlinkSync(filePath);
+            console.log('🗑️ Removed empty backup file');
+          }
+        } catch (e) {
+          console.error('❌ Failed to remove empty backup file:', e);
+        }
+      }
+      
+      throw new Error(`Failed to create backup: ${error.message}`);
     }
   }
 
@@ -748,41 +710,41 @@ NOTES:
     return filePath;
   }
 
-async deleteBackup(backupName) {
-  try {
-    console.log('🗑️ Attempting to delete backup:', backupName);
-    
-    // Find backup in database first
-    const backup = await Backup.findOne({ name: backupName });
-    if (!backup) {
-      console.error('❌ Backup not found in database:', backupName);
-      throw new Error('Backup not found in database');
+  async deleteBackup(backupName) {
+    try {
+      console.log('🗑️ Attempting to delete backup:', backupName);
+      
+      // Find backup in database first
+      const backup = await Backup.findOne({ name: backupName });
+      if (!backup) {
+        console.error('❌ Backup not found in database:', backupName);
+        throw new Error('Backup not found in database');
+      }
+
+      console.log('✅ Found backup in DB:', backup.name, 'Filename:', backup.filename);
+
+      // Delete local file
+      const filePath = path.join(this.backupDir, backup.filename);
+      console.log('📁 Looking for file at:', filePath);
+      
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+        console.log(`🗑️ Deleted local file: ${backup.filename}`);
+      } else {
+        console.log('⚠️ Local file not found, continuing with DB deletion');
+      }
+
+      // Delete from MongoDB
+      const result = await Backup.deleteOne({ name: backupName });
+      console.log('✅ MongoDB deletion result:', result);
+
+      console.log('✅ Backup deleted successfully:', backupName);
+      return true;
+    } catch (error) {
+      console.error('❌ Error in deleteBackup:', error);
+      throw new Error(`Failed to delete backup: ${error.message}`);
     }
-
-    console.log('✅ Found backup in DB:', backup.name, 'Filename:', backup.filename);
-
-    // Delete local file
-    const filePath = path.join(this.backupDir, backup.filename);
-    console.log('📁 Looking for file at:', filePath);
-    
-    if (fs.existsSync(filePath)) {
-      fs.unlinkSync(filePath);
-      console.log(`🗑️ Deleted local file: ${backup.filename}`);
-    } else {
-      console.log('⚠️ Local file not found, continuing with DB deletion');
-    }
-
-    // Delete from MongoDB
-    const result = await Backup.deleteOne({ name: backupName });
-    console.log('✅ MongoDB deletion result:', result);
-
-    console.log('✅ Backup deleted successfully:', backupName);
-    return true;
-  } catch (error) {
-    console.error('❌ Error in deleteBackup:', error);
-    throw new Error(`Failed to delete backup: ${error.message}`);
   }
-}
 
   formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
