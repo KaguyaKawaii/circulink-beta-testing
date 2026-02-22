@@ -11,6 +11,7 @@ class BackupService {
     this.backupDir = path.join(__dirname, '../../backups');
     this.ensureBackupDir();
     this.initAutoBackup();
+    this.systemSettingModel = null;
   }
 
   ensureBackupDir() {
@@ -20,18 +21,51 @@ class BackupService {
     }
   }
 
+  // Helper method to get SystemSetting model safely
+  async getSystemSettingModel() {
+    try {
+      // Try to get the model if it's already registered
+      if (mongoose.models.SystemSetting) {
+        return mongoose.model('SystemSetting');
+      }
+      
+      // If not registered, try to require it dynamically
+      try {
+        const SystemSetting = require('../models/SystemSetting');
+        this.systemSettingModel = SystemSetting;
+        return SystemSetting;
+      } catch (error) {
+        console.warn('⚠️ SystemSetting model not available yet');
+        return null;
+      }
+    } catch (error) {
+      console.warn('⚠️ Could not get SystemSetting model:', error.message);
+      return null;
+    }
+  }
+
   initAutoBackup() {
     // Check every minute for scheduled backups
     cron.schedule('* * * * *', async () => {
-      await this.checkAndRunAutoBackup();
+      try {
+        await this.checkAndRunAutoBackup();
+      } catch (error) {
+        // Silently fail - auto-backup will try again next minute
+      }
     });
     console.log('🔄 Auto-backup scheduler initialized');
   }
 
   async checkAndRunAutoBackup() {
     try {
-      // Get system settings
-      const SystemSetting = mongoose.model('SystemSetting');
+      // Get system settings model safely
+      const SystemSetting = await this.getSystemSettingModel();
+      
+      if (!SystemSetting) {
+        // Model not available yet, skip this check
+        return;
+      }
+
       const settings = await SystemSetting.findOne({});
       
       if (!settings || !settings.autoBackup) {
@@ -73,7 +107,8 @@ class BackupService {
         await this.createBackup(null, 'auto');
       }
     } catch (error) {
-      console.error('❌ Auto-backup check failed:', error);
+      // Log but don't throw - auto-backup should continue trying
+      console.error('❌ Auto-backup check failed:', error.message);
     }
   }
 
@@ -493,7 +528,12 @@ class BackupService {
 
   async cleanupOldAutoBackups() {
     try {
-      const SystemSetting = mongoose.model('SystemSetting');
+      const SystemSetting = await this.getSystemSettingModel();
+      
+      if (!SystemSetting) {
+        return; // Model not available
+      }
+
       const settings = await SystemSetting.findOne({});
       
       if (!settings || !settings.autoBackupRetention) {
@@ -523,7 +563,7 @@ class BackupService {
         }
       }
     } catch (error) {
-      console.error('❌ Auto backup cleanup failed:', error);
+      console.error('❌ Auto backup cleanup failed:', error.message);
     }
   }
 
