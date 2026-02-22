@@ -188,14 +188,21 @@ exports.downloadBackup = async (req, res) => {
 exports.deleteBackup = async (req, res) => {
   try {
     const { filename } = req.params;
-    console.log('🔄 Delete request for:', filename);
+    console.log('🔄 Delete request for filename:', filename);
 
-    const backup = await Backup.findOne({ filename: filename });
+    // URL decode the filename
+    const decodedFilename = decodeURIComponent(filename);
+    console.log('📁 Decoded filename:', decodedFilename);
+
+    // Find backup by filename
+    const backup = await Backup.findOne({ filename: decodedFilename });
     if (!backup) {
+      console.error('❌ Backup not found for filename:', decodedFilename);
+      
       await Log.create({
         userId: req.user?._id,
         action: 'DELETE_BACKUP_NOT_FOUND',
-        details: `Backup not found for deletion: ${filename}`,
+        details: `Backup not found for deletion: ${decodedFilename}`,
         id_number: req.user?.id_number,
         userName: req.user?.name
       });
@@ -206,6 +213,9 @@ exports.deleteBackup = async (req, res) => {
       });
     }
 
+    console.log('✅ Found backup:', backup.name);
+
+    // Delete the backup
     await backupService.deleteBackup(backup.name);
     
     await Log.create({
@@ -218,22 +228,22 @@ exports.deleteBackup = async (req, res) => {
 
     res.json({ 
       success: true, 
-      message: 'Backup deleted successfully from database and locally' 
+      message: 'Backup deleted successfully' 
     });
   } catch (error) {
-    console.error('Delete backup error:', error);
+    console.error('❌ Delete backup error:', error);
     
     await Log.create({
       userId: req.user?._id,
       action: 'DELETE_BACKUP_ERROR',
-      details: `Failed to delete backup ${req.params.filename}: ${error.message}`,
+      details: `Failed to delete backup: ${error.message}`,
       id_number: req.user?.id_number,
       userName: req.user?.name
     });
 
     res.status(500).json({ 
       success: false, 
-      message: error.message 
+      message: error.message || 'Failed to delete backup'
     });
   }
 };

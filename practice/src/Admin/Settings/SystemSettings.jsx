@@ -187,21 +187,28 @@ function SystemSettings({ setView, admin, onLogout }) {
       setBackupMessage({ type: 'error', text: 'Failed to download backup' });
     }
   };
-
-  const handleDeleteBackup = async (backupName) => {
-    if (window.confirm(`Are you sure you want to delete ${backupName}? This action cannot be undone.`)) {
-      try {
-        const response = await api.delete(`/admin/system/backup/${backupName}`);
-        if (response.data.success) {
-          setBackupMessage({ type: 'success', text: 'Backup deleted successfully' });
-          fetchBackups();
-        }
-      } catch (error) {
-        console.error('Delete failed:', error);
-        setBackupMessage({ type: 'error', text: 'Failed to delete backup' });
+const handleDeleteBackup = async (filename) => {
+  if (window.confirm(`Are you sure you want to delete ${filename}? This action cannot be undone.`)) {
+    try {
+      setBackupMessage({ type: 'info', text: 'Deleting backup...' });
+      
+      // Encode the filename for the URL
+      const encodedFilename = encodeURIComponent(filename);
+      const response = await api.delete(`/admin/system/backup/${encodedFilename}`);
+      
+      if (response.data.success) {
+        setBackupMessage({ type: 'success', text: 'Backup deleted successfully' });
+        fetchBackups(); // Refresh the list
       }
+    } catch (error) {
+      console.error('Delete failed:', error);
+      setBackupMessage({ 
+        type: 'error', 
+        text: error.response?.data?.message || 'Failed to delete backup' 
+      });
     }
-  };
+  }
+};
 
   const handleRestoreBackup = async () => {
     if (!restoreOptions.filename) return;

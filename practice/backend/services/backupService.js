@@ -748,30 +748,41 @@ NOTES:
     return filePath;
   }
 
-  async deleteBackup(backupName) {
-    try {
-      // Find backup in database first
-      const backup = await Backup.findOne({ name: backupName });
-      if (!backup) {
-        throw new Error('Backup not found in database');
-      }
-
-      // Delete local file
-      const filePath = this.getBackupPath(backup.filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-        console.log(`🗑️ Deleted local file: ${backup.filename}`);
-      }
-
-      // Delete from MongoDB
-      await Backup.deleteOne({ name: backupName });
-
-      console.log('✅ Backup deleted from MongoDB and locally:', backupName);
-      return true;
-    } catch (error) {
-      throw new Error(`Failed to delete backup: ${error.message}`);
+async deleteBackup(backupName) {
+  try {
+    console.log('🗑️ Attempting to delete backup:', backupName);
+    
+    // Find backup in database first
+    const backup = await Backup.findOne({ name: backupName });
+    if (!backup) {
+      console.error('❌ Backup not found in database:', backupName);
+      throw new Error('Backup not found in database');
     }
+
+    console.log('✅ Found backup in DB:', backup.name, 'Filename:', backup.filename);
+
+    // Delete local file
+    const filePath = path.join(this.backupDir, backup.filename);
+    console.log('📁 Looking for file at:', filePath);
+    
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      console.log(`🗑️ Deleted local file: ${backup.filename}`);
+    } else {
+      console.log('⚠️ Local file not found, continuing with DB deletion');
+    }
+
+    // Delete from MongoDB
+    const result = await Backup.deleteOne({ name: backupName });
+    console.log('✅ MongoDB deletion result:', result);
+
+    console.log('✅ Backup deleted successfully:', backupName);
+    return true;
+  } catch (error) {
+    console.error('❌ Error in deleteBackup:', error);
+    throw new Error(`Failed to delete backup: ${error.message}`);
   }
+}
 
   formatFileSize(bytes) {
     if (bytes === 0) return '0 Bytes';
