@@ -2,12 +2,15 @@ const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
 const archiver = require('archiver');
+const unzipper = require('unzipper');
 const Backup = require('../models/Backup');
+const cron = require('node-cron');
 
 class BackupService {
   constructor() {
     this.backupDir = path.join(__dirname, '../../backups');
     this.ensureBackupDir();
+    this.initAutoBackup();
   }
 
   ensureBackupDir() {
@@ -17,14 +20,72 @@ class BackupService {
     }
   }
 
-  async createBackup(userId = null) {
+  initAutoBackup() {
+    // Check every minute for scheduled backups
+    cron.schedule('* * * * *', async () => {
+      await this.checkAndRunAutoBackup();
+    });
+    console.log('🔄 Auto-backup scheduler initialized');
+  }
+
+  async checkAndRunAutoBackup() {
+    try {
+      // Get system settings
+      const SystemSetting = mongoose.model('SystemSetting');
+      const settings = await SystemSetting.findOne({});
+      
+      if (!settings || !settings.autoBackup) {
+        return; // Auto backup disabled
+      }
+
+      const lastBackup = await Backup.findOne({ 
+        type: 'auto_system_zip' 
+      }).sort({ createdAt: -1 });
+
+      const now = new Date();
+      let shouldRun = false;
+
+      if (!lastBackup) {
+        shouldRun = true;
+      } else {
+        const hoursSinceLastBackup = (now - lastBackup.createdAt) / (1000 * 60 * 60);
+        
+        switch (settings.backupFrequency) {
+          case 'hourly':
+            shouldRun = hoursSinceLastBackup >= 1;
+            break;
+          case 'daily':
+            shouldRun = hoursSinceLastBackup >= 24;
+            break;
+          case 'weekly':
+            shouldRun = hoursSinceLastBackup >= 168; // 7 days
+            break;
+          case 'monthly':
+            shouldRun = hoursSinceLastBackup >= 720; // 30 days
+            break;
+          default:
+            shouldRun = false;
+        }
+      }
+
+      if (shouldRun) {
+        console.log('🔄 Running scheduled auto-backup...');
+        await this.createBackup(null, 'auto');
+      }
+    } catch (error) {
+      console.error('❌ Auto-backup check failed:', error);
+    }
+  }
+
+  async createBackup(userId = null, type = 'manual') {
     try {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const backupName = `system-backup-${timestamp}`;
-      const fileName = `${backupName}.zip`; // Ensure .zip extension
+      const backupType = type === 'auto' ? 'auto' : 'manual';
+      const backupName = `system-backup-${backupType}-${timestamp}`;
+      const fileName = `${backupName}.zip`;
       const filePath = path.join(this.backupDir, fileName);
 
-      console.log('🔄 Starting ZIP backup creation...');
+      console.log(`🔄 Starting ${type} ZIP backup creation...`);
       
       // Create ZIP archive
       const output = fs.createWriteStream(filePath);
@@ -45,33 +106,41 @@ class BackupService {
             
             const backup = new Backup({
               name: backupName,
-              filename: fileName, // This should be .zip
+              filename: fileName,
               data: {
                 timestamp: new Date().toISOString(),
                 system: 'Room Reservation System - Full Backup',
                 version: '1.0.0',
+                type: type,
                 totalCollections: Object.keys(backupData.collections || {}).length,
                 zipContents: await this.getZipContentsDescription(),
                 fileType: 'zip',
-                compression: 'high'
+                compression: 'high',
+                statistics: backupData.statistics
               },
               size: fileSize,
-              type: 'full_system_zip',
+              type: `${type}_system_zip`,
               createdBy: userId
             });
 
             await backup.save();
 
-            console.log('✅ Backup saved to MongoDB:', backupName);
+            console.log(`✅ ${type} backup saved to MongoDB:`, backupName);
+            
+            // Clean up old auto backups if needed
+            if (type === 'auto') {
+              await this.cleanupOldAutoBackups();
+            }
             
             resolve({ 
               fileName: backupName,
-              filename: fileName, // Ensure this is the .zip filename
+              filename: fileName,
               size: fileSize,
               id: backup._id,
               date: backup.createdAt,
               zipSize: archive.pointer(),
-              fileType: 'zip'
+              fileType: 'zip',
+              type: type
             });
           } catch (error) {
             reject(error);
@@ -94,16 +163,194 @@ class BackupService {
         archive.pipe(output);
 
         // Create organized backup structure
-        this.createOrganizedBackup(archive)
-          .then(() => {
-            console.log('🔄 Finalizing archive...');
-            archive.finalize();
-          })
-          .catch(reject);
+        await this.createOrganizedBackup(archive);
+        archive.finalize();
       });
     } catch (error) {
       console.error('❌ Backup creation failed:', error);
       throw new Error(`Failed to create backup: ${error.message}`);
+    }
+  }
+
+  async restoreBackup(filename, options = {}) {
+    try {
+      console.log('🔄 Starting restore process for:', filename);
+      
+      // Security check
+      if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        throw new Error('Invalid filename');
+      }
+
+      const filePath = path.join(this.backupDir, filename);
+      
+      if (!fs.existsSync(filePath)) {
+        throw new Error('Backup file not found: ' + filename);
+      }
+
+      // Find backup in database
+      const backup = await Backup.findOne({ filename: filename });
+      if (!backup) {
+        throw new Error('Backup record not found in database');
+      }
+
+      // Create restore point before proceeding
+      const preRestoreBackup = await this.createBackup(null, 'pre_restore');
+
+      // Extract and restore
+      const restoreResults = await this.extractAndRestore(filePath, options);
+
+      // Log restore completion
+      const restoreRecord = {
+        backupName: backup.name,
+        filename: filename,
+        restoredAt: new Date(),
+        collections: restoreResults.restoredCollections,
+        options: options
+      };
+
+      // Save restore record if you have a Restore model
+      // await Restore.create(restoreRecord);
+
+      console.log('✅ Restore completed successfully');
+      
+      return {
+        success: true,
+        preRestoreBackup: preRestoreBackup,
+        restoreResults: restoreResults,
+        message: `Successfully restored ${restoreResults.restoredCollections.length} collections`
+      };
+    } catch (error) {
+      console.error('❌ Restore failed:', error);
+      throw new Error(`Failed to restore backup: ${error.message}`);
+    }
+  }
+
+  async extractAndRestore(filePath, options) {
+    const restoreResults = {
+      restoredCollections: [],
+      failedCollections: [],
+      totalRecordsRestored: 0,
+      timestamp: new Date()
+    };
+
+    // Create extraction directory
+    const extractDir = path.join(this.backupDir, 'temp_restore_' + Date.now());
+    fs.mkdirSync(extractDir, { recursive: true });
+
+    try {
+      // Extract ZIP file
+      await fs.createReadStream(filePath)
+        .pipe(unzipper.Extract({ path: extractDir }))
+        .promise();
+
+      // Read metadata
+      const metadataPath = path.join(extractDir, 'backup-metadata.json');
+      if (fs.existsSync(metadataPath)) {
+        const metadata = JSON.parse(fs.readFileSync(metadataPath, 'utf8'));
+        restoreResults.backupMetadata = metadata;
+      }
+
+      // Restore collections
+      const collectionsDir = path.join(extractDir, 'collections');
+      if (fs.existsSync(collectionsDir)) {
+        const collectionFiles = fs.readdirSync(collectionsDir)
+          .filter(file => file.endsWith('.json'));
+
+        for (const file of collectionFiles) {
+          try {
+            const collectionName = file.replace('.json', '');
+            
+            // Skip if collection is in exclude list
+            if (options.excludeCollections && options.excludeCollections.includes(collectionName)) {
+              console.log(`⏭️  Skipping excluded collection: ${collectionName}`);
+              continue;
+            }
+
+            const filePath = path.join(collectionsDir, file);
+            const collectionData = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+            
+            const collection = mongoose.connection.db.collection(collectionName);
+            
+            if (options.clearExisting) {
+              await collection.deleteMany({});
+              console.log(`🗑️  Cleared existing data from ${collectionName}`);
+            }
+
+            if (collectionData.data && Array.isArray(collectionData.data)) {
+              if (collectionData.data.length > 0) {
+                // Insert data
+                if (options.dropExisting) {
+                  await collection.drop().catch(() => {});
+                }
+                
+                const result = await collection.insertMany(collectionData.data, { 
+                  ordered: options.ordered || false 
+                });
+                
+                restoreResults.restoredCollections.push({
+                  name: collectionName,
+                  count: result.insertedCount,
+                  total: collectionData.data.length
+                });
+                restoreResults.totalRecordsRestored += result.insertedCount;
+                
+                console.log(`✅ Restored ${result.insertedCount} records to ${collectionName}`);
+              } else {
+                console.log(`⚠️  No data to restore for ${collectionName}`);
+              }
+            }
+          } catch (error) {
+            console.error(`❌ Failed to restore ${file}:`, error.message);
+            restoreResults.failedCollections.push({
+              collection: file,
+              error: error.message
+            });
+          }
+        }
+      }
+
+      // Clean up temp directory
+      fs.rmSync(extractDir, { recursive: true, force: true });
+
+      return restoreResults;
+    } catch (error) {
+      // Clean up temp directory on error
+      if (fs.existsSync(extractDir)) {
+        fs.rmSync(extractDir, { recursive: true, force: true });
+      }
+      throw error;
+    }
+  }
+
+  async cleanupOldAutoBackups() {
+    try {
+      const SystemSetting = mongoose.model('SystemSetting');
+      const settings = await SystemSetting.findOne({});
+      
+      if (!settings || !settings.autoBackupRetention) {
+        return; // Use default retention
+      }
+
+      const retentionDays = settings.autoBackupRetention || 30;
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+
+      // Find old auto backups
+      const oldBackups = await Backup.find({
+        type: 'auto_system_zip',
+        createdAt: { $lt: cutoffDate }
+      });
+
+      for (const backup of oldBackups) {
+        try {
+          await this.deleteBackup(backup.name);
+          console.log(`🧹 Cleaned up old auto backup: ${backup.name}`);
+        } catch (error) {
+          console.error(`❌ Failed to cleanup backup ${backup.name}:`, error.message);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Auto backup cleanup failed:', error);
     }
   }
 
@@ -190,16 +437,24 @@ class BackupService {
   }
 
   async collectBackupData() {
-    // This is used for MongoDB storage, not for ZIP content
     const collections = await mongoose.connection.db.listCollections().toArray();
     const backupData = {
       timestamp: new Date().toISOString(),
-      collections: {}
+      collections: {},
+      statistics: {
+        totalCollections: 0,
+        totalRecords: 0,
+        collectionsWithData: 0
+      }
     };
 
     for (const coll of collections) {
       if (coll.name.startsWith('system.')) continue;
-      backupData.collections[coll.name] = { count: await this.getCollectionCount(coll.name) };
+      const count = await this.getCollectionCount(coll.name);
+      backupData.collections[coll.name] = { count };
+      backupData.statistics.totalCollections++;
+      backupData.statistics.totalRecords += count;
+      if (count > 0) backupData.statistics.collectionsWithData++;
     }
 
     return backupData;
@@ -281,11 +536,17 @@ CONTENTS:
 /database-stats.json  - Database statistics
 /collections/         - Complete collections as JSON files
 
-RESTORATION:
-------------
-1. Extract this ZIP file
-2. Use the JSON files in /collections/ for data restoration
-3. Refer to backup-metadata.json for collection information
+RESTORATION INSTRUCTIONS:
+------------------------
+1. Go to System Settings > Backup Files
+2. Click "Restore" next to the desired backup
+3. Choose restore options:
+   - Clear existing data before restore
+   - Drop and recreate collections
+   - Exclude specific collections
+4. Confirm the restore operation
+
+WARNING: Restoring will overwrite existing data!
 
 NOTES:
 ------
@@ -315,7 +576,8 @@ NOTES:
         isZip: backup.filename.endsWith('.zip'),
         totalCollections: backup.data?.totalCollections || 0,
         format: 'ZIP',
-        fileType: backup.data?.fileType || 'zip'
+        fileType: backup.data?.fileType || 'zip',
+        backupType: backup.type?.includes('auto') ? 'Automatic' : 'Manual'
       }));
     } catch (error) {
       console.error('Error listing backups from MongoDB:', error);

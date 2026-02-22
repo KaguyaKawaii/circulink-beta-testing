@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Save, Wrench, Database, Megaphone, Download, Trash2, RefreshCw, Archive, List, X, Clock, Shield, Users, Calendar, AlertCircle, CheckCircle } from "lucide-react";
+import { Save, Wrench, Database, Megaphone, Download, Trash2, RefreshCw, Archive, List, X, Clock, Shield, Users, Calendar, AlertCircle, CheckCircle, RotateCcw, Settings } from "lucide-react";
 import api from "../../utils/api";
 import socket from "../../utils/socket";
 import AdminNavigation from "../AdminNavigation";
@@ -14,6 +14,7 @@ function SystemSettings({ setView, admin, onLogout }) {
     // Backup Management Settings
     autoBackup: true,
     backupFrequency: "daily",
+    autoBackupRetention: 30, // Days to keep auto backups
 
     // System Announcement Settings
     announcementEnabled: false,
@@ -21,6 +22,7 @@ function SystemSettings({ setView, admin, onLogout }) {
     announcementText: "",
     announcementExpires: ""
   });
+  
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [message, setMessage] = useState({ type: '', text: '' });
@@ -29,6 +31,14 @@ function SystemSettings({ setView, admin, onLogout }) {
   const [backups, setBackups] = useState([]);
   const [isLoadingBackups, setIsLoadingBackups] = useState(false);
   const [isCreatingBackup, setIsCreatingBackup] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const [restoreOptions, setRestoreOptions] = useState({
+    show: false,
+    filename: null,
+    clearExisting: true,
+    dropExisting: false,
+    excludeCollections: []
+  });
 
   const [announcements, setAnnouncements] = useState([]);
   const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false);
@@ -68,6 +78,7 @@ function SystemSettings({ setView, admin, onLogout }) {
           allowAdminAccess: settings.allowAdminAccess !== undefined ? settings.allowAdminAccess : true,
           autoBackup: settings.autoBackup !== undefined ? settings.autoBackup : true,
           backupFrequency: settings.backupFrequency || "daily",
+          autoBackupRetention: settings.autoBackupRetention || 30,
           announcementEnabled: settings.announcementEnabled || false,
           announcementTitle: settings.announcementTitle || "",
           announcementText: settings.announcementText || "",
@@ -192,6 +203,47 @@ function SystemSettings({ setView, admin, onLogout }) {
     }
   };
 
+  const handleRestoreBackup = async () => {
+    if (!restoreOptions.filename) return;
+    
+    if (!window.confirm('⚠️ WARNING: Restoring will overwrite existing data. Are you sure you want to continue?')) {
+      return;
+    }
+
+    setIsRestoring(true);
+    setBackupMessage({ type: 'info', text: 'Restoring backup... This may take a few minutes.' });
+
+    try {
+      const response = await api.post(`/admin/system/backup/restore/${restoreOptions.filename}`, {
+        options: {
+          clearExisting: restoreOptions.clearExisting,
+          dropExisting: restoreOptions.dropExisting,
+          excludeCollections: restoreOptions.excludeCollections
+        }
+      });
+
+      if (response.data.success) {
+        setBackupMessage({ 
+          type: 'success', 
+          text: `✅ Restore completed! Restored ${response.data.result.restoreResults.restoredCollections.length} collections with ${response.data.result.restoreResults.totalRecordsRestored} total records.` 
+        });
+        
+        setRestoreOptions({ show: false, filename: null, clearExisting: true, dropExisting: false, excludeCollections: [] });
+        
+        // Refresh data
+        fetchBackups();
+      }
+    } catch (error) {
+      console.error('Restore failed:', error);
+      setBackupMessage({ 
+        type: 'error', 
+        text: error.response?.data?.message || 'Failed to restore backup' 
+      });
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData({
@@ -258,6 +310,7 @@ function SystemSettings({ setView, admin, onLogout }) {
         allowAdminAccess: formData.allowAdminAccess,
         autoBackup: formData.autoBackup,
         backupFrequency: formData.backupFrequency,
+        autoBackupRetention: formData.autoBackupRetention,
         announcementEnabled: formData.announcementEnabled
       };
 
@@ -274,6 +327,7 @@ function SystemSettings({ setView, admin, onLogout }) {
           allowAdminAccess: settings.allowAdminAccess !== undefined ? settings.allowAdminAccess : true,
           autoBackup: settings.autoBackup !== undefined ? settings.autoBackup : true,
           backupFrequency: settings.backupFrequency || "daily",
+          autoBackupRetention: settings.autoBackupRetention || 30,
           announcementEnabled: settings.announcementEnabled || false
         }));
 
@@ -288,13 +342,6 @@ function SystemSettings({ setView, admin, onLogout }) {
           maintenanceMessage: settings.maintenanceMessage,
           allowAdminAccess: settings.allowAdminAccess
         });
-
-        if (settings.maintenanceMode && settings.allowAdminAccess) {
-          setMessage({ 
-            type: 'success', 
-            text: 'System settings updated successfully! Maintenance mode is active but administrators can still access the system.' 
-          });
-        }
       }
     } catch (error) {
       console.error('Error updating system settings:', error);
@@ -312,7 +359,7 @@ function SystemSettings({ setView, admin, onLogout }) {
     setIsCreatingBackup(true);
     
     try {
-      const response = await api.post('/admin/system/backup');
+      const response = await api.post('/admin/system/backup', { type: 'manual' });
       if (response.data.success) {
         setBackupMessage({ 
           type: 'success', 
@@ -412,6 +459,89 @@ function SystemSettings({ setView, admin, onLogout }) {
                 <RefreshCw size={20} className="flex-shrink-0 mt-0.5 animate-spin" />
               )}
               <span>{backupMessage.text}</span>
+            </div>
+          )}
+
+          {/* Restore Options Modal */}
+          {restoreOptions.show && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl max-w-md w-full p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Restore Options</h3>
+                  <button
+                    onClick={() => setRestoreOptions({ show: false, filename: null, clearExisting: true, dropExisting: false, excludeCollections: [] })}
+                    className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <X size={20} className="text-gray-500" />
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <Shield size={18} className="text-gray-500 mt-0.5" />
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Clear Existing Data</label>
+                        <p className="text-xs text-gray-500">Delete existing records before restore</p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={restoreOptions.clearExisting}
+                        onChange={(e) => setRestoreOptions({ ...restoreOptions, clearExisting: e.target.checked })}
+                        className="sr-only peer outline-0"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <Database size={18} className="text-gray-500 mt-0.5" />
+                      <div>
+                        <label className="text-sm font-medium text-gray-700">Drop & Recreate Collections</label>
+                        <p className="text-xs text-gray-500">Drop collections before inserting data</p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={restoreOptions.dropExisting}
+                        onChange={(e) => setRestoreOptions({ ...restoreOptions, dropExisting: e.target.checked })}
+                        className="sr-only peer outline-0"
+                      />
+                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
+                    </label>
+                  </div>
+
+                  <div className="pt-4 flex gap-3">
+                    <button
+                      onClick={() => setRestoreOptions({ show: false, filename: null, clearExisting: true, dropExisting: false, excludeCollections: [] })}
+                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleRestoreBackup}
+                      disabled={isRestoring}
+                      className="flex-1 px-4 py-2 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    >
+                      {isRestoring ? (
+                        <>
+                          <RefreshCw size={16} className="animate-spin" />
+                          Restoring...
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw size={16} />
+                          Restore
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -549,10 +679,27 @@ function SystemSettings({ setView, admin, onLogout }) {
                       onChange={handleChange}
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm bg-white"
                     >
+                      <option value="hourly">Hourly - Every hour</option>
                       <option value="daily">Daily - Every 24 hours</option>
                       <option value="weekly">Weekly - Every Sunday</option>
                       <option value="monthly">Monthly - First day of month</option>
                     </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                      <Archive size={16} className="text-gray-500" />
+                      <span>Auto Backup Retention (days)</span>
+                    </label>
+                    <input
+                      type="number"
+                      name="autoBackupRetention"
+                      value={formData.autoBackupRetention}
+                      onChange={handleChange}
+                      min="1"
+                      max="365"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm bg-white"
+                    />
                   </div>
 
                   <div className="pt-2">
@@ -783,6 +930,9 @@ function SystemSettings({ setView, admin, onLogout }) {
                   <p className="text-sm text-gray-600">
                     <span className="font-medium text-gray-900">{backups.length}</span> backup files available
                   </p>
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                    Auto-backup: {formData.autoBackup ? formData.backupFrequency : 'Disabled'}
+                  </span>
                 </div>
 
                 {isLoadingBackups ? (
@@ -806,6 +956,20 @@ function SystemSettings({ setView, admin, onLogout }) {
                               {backup.size}
                             </span>
                           </div>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${
+                              backup.backupType === 'Automatic' 
+                                ? 'bg-blue-100 text-blue-700' 
+                                : 'bg-green-100 text-green-700'
+                            }`}>
+                              {backup.backupType}
+                            </span>
+                            {backup.totalCollections > 0 && (
+                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                {backup.totalCollections} collections
+                              </span>
+                            )}
+                          </div>
                         </div>
                         
                         <div className="p-4 space-y-3">
@@ -813,14 +977,6 @@ function SystemSettings({ setView, admin, onLogout }) {
                             <Calendar size={12} />
                             <span>Created: {new Date(backup.date).toLocaleDateString()}</span>
                           </div>
-                          
-                          {backup.totalCollections > 0 && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full border border-green-200">
-                                {backup.totalCollections} collections
-                              </span>
-                            </div>
-                          )}
 
                           <div className="flex gap-2 pt-2">
                             <button
@@ -830,6 +986,21 @@ function SystemSettings({ setView, admin, onLogout }) {
                             >
                               <Download size={14} />
                               Download
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setRestoreOptions({ 
+                                show: true, 
+                                filename: backup.filename,
+                                clearExisting: true,
+                                dropExisting: false,
+                                excludeCollections: []
+                              })}
+                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer outline-0 text-xs font-medium"
+                            >
+                              <RotateCcw size={14} />
+                              Restore
                             </button>
 
                             <button
