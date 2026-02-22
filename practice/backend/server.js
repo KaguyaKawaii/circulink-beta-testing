@@ -29,7 +29,6 @@ import reportRoutes from "./routes/reportRoutes.js";
 import logRoutes from "./routes/logRoutes.js";
 import availabilityRoutes from "./routes/availabilityRoutes.js";
 import systemRoutes from "./routes/system.js";
-import backupRoutes from "./routes/backupRoutes.js";
 import announcementRoutes from './routes/announcement.js';
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 
@@ -78,9 +77,6 @@ app.use(
   express.static(path.join(__dirname, "uploads", "profile-pictures"))
 );
 app.use("/uploads/news", express.static(path.join(__dirname, "uploads", "news")));
-
-// Serve backup files statically
-app.use("/backups", express.static(path.join(__dirname, "backups")));
 
 // ✅ FIXED: Improved Socket.IO events for real-time messaging
 io.on("connection", (socket) => {
@@ -258,7 +254,6 @@ app.use("/api/reports", reportRoutes);
 app.use("/api", availabilityRoutes);
 app.use("/api/system", systemRoutes);
 app.use("/api/announcements", announcementRoutes);
-app.use("/api/admin/system", backupRoutes);
 app.use("/api/analytics", analyticsRoutes);
 
 // Database connection + Start Server
@@ -364,8 +359,7 @@ mongoose
         "/api/logs",
         "/api/news",
         "/api/reports",
-        "/api/system",
-        "/api/backups"
+        "/api/system"
       ];
       routes.forEach(route => console.log(`  ✅ ${route}`));
     });

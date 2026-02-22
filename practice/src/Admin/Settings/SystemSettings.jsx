@@ -11,11 +11,6 @@ function SystemSettings({ setView, admin, onLogout }) {
     maintenanceMessage: "",
     allowAdminAccess: true,
 
-    // Backup Management Settings
-    autoBackup: true,
-    backupFrequency: "daily",
-    autoBackupRetention: 30, // Days to keep auto backups
-
     // System Announcement Settings
     announcementEnabled: false,
     announcementTitle: "",
@@ -26,28 +21,13 @@ function SystemSettings({ setView, admin, onLogout }) {
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [backupMessage, setBackupMessage] = useState({ type: '', text: '' });
   
-  const [backups, setBackups] = useState([]);
-  const [isLoadingBackups, setIsLoadingBackups] = useState(false);
-  const [isCreatingBackup, setIsCreatingBackup] = useState(false);
-  const [isRestoring, setIsRestoring] = useState(false);
-  const [restoreOptions, setRestoreOptions] = useState({
-    show: false,
-    filename: null,
-    clearExisting: true,
-    dropExisting: false,
-    excludeCollections: []
-  });
-
   const [announcements, setAnnouncements] = useState([]);
   const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false);
   const [showAnnouncementsList, setShowAnnouncementsList] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     maintenance: true,
-    backupSettings: true,
-    announcements: true,
-    backupFiles: true
+    announcements: true
   });
 
   const [maintenanceInfo, setMaintenanceInfo] = useState({
@@ -58,7 +38,6 @@ function SystemSettings({ setView, admin, onLogout }) {
 
   useEffect(() => {
     fetchSystemSettings();
-    fetchBackups();
     
     socket.on('maintenance-mode-updated', (data) => {
       setMaintenanceInfo({
@@ -82,9 +61,6 @@ function SystemSettings({ setView, admin, onLogout }) {
           maintenanceMode: settings.maintenanceMode || false,
           maintenanceMessage: settings.maintenanceMessage || "",
           allowAdminAccess: settings.allowAdminAccess !== undefined ? settings.allowAdminAccess : true,
-          autoBackup: settings.autoBackup !== undefined ? settings.autoBackup : true,
-          backupFrequency: settings.backupFrequency || "daily",
-          autoBackupRetention: settings.autoBackupRetention || 30,
           announcementEnabled: settings.announcementEnabled || false,
           announcementTitle: settings.announcementTitle || "",
           announcementText: settings.announcementText || "",
@@ -146,114 +122,6 @@ function SystemSettings({ setView, admin, onLogout }) {
       fetchAnnouncements();
     }
     setShowAnnouncementsList(!showAnnouncementsList);
-  };
-
-  const fetchBackups = async () => {
-    setIsLoadingBackups(true);
-    try {
-      const response = await api.get('/admin/system/backups');
-      if (response.data.success) {
-        setBackups(response.data.backups || []);
-      }
-    } catch (error) {
-      console.error('Error fetching backups:', error);
-      setBackupMessage({ 
-        type: 'error', 
-        text: 'Failed to load backups list' 
-      });
-    } finally {
-      setIsLoadingBackups(false);
-    }
-  };
-
-  const handleDownloadBackup = async (filename) => {
-    try {
-      setBackupMessage({ type: 'info', text: `Preparing download...` });
-      
-      const response = await api.get(`/admin/system/backup/download/${filename}`, {
-        responseType: 'blob'
-      });
-      
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', filename);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-      
-      setBackupMessage({ type: 'success', text: `Downloading ${filename}` });
-      
-      setTimeout(() => {
-        setBackupMessage({ type: '', text: '' });
-      }, 3000);
-    } catch (error) {
-      console.error('Download failed:', error);
-      setBackupMessage({ type: 'error', text: 'Failed to download backup' });
-    }
-  };
-
-  const handleDeleteBackup = async (filename) => {
-    if (window.confirm(`Are you sure you want to delete ${filename}? This action cannot be undone.`)) {
-      try {
-        setBackupMessage({ type: 'info', text: 'Deleting backup...' });
-        
-        const encodedFilename = encodeURIComponent(filename);
-        const response = await api.delete(`/admin/system/backup/${encodedFilename}`);
-        
-        if (response.data.success) {
-          setBackupMessage({ type: 'success', text: 'Backup deleted successfully' });
-          fetchBackups();
-        }
-      } catch (error) {
-        console.error('Delete failed:', error);
-        setBackupMessage({ 
-          type: 'error', 
-          text: error.response?.data?.message || 'Failed to delete backup' 
-        });
-      }
-    }
-  };
-
-  const handleRestoreBackup = async () => {
-    if (!restoreOptions.filename) return;
-    
-    if (!window.confirm('⚠️ WARNING: Restoring will overwrite existing data. Are you sure you want to continue?')) {
-      return;
-    }
-
-    setIsRestoring(true);
-    setBackupMessage({ type: 'info', text: 'Restoring backup... This may take a few minutes.' });
-
-    try {
-      const response = await api.post(`/admin/system/backup/restore/${restoreOptions.filename}`, {
-        options: {
-          clearExisting: restoreOptions.clearExisting,
-          dropExisting: restoreOptions.dropExisting,
-          excludeCollections: restoreOptions.excludeCollections
-        }
-      });
-
-      if (response.data.success) {
-        setBackupMessage({ 
-          type: 'success', 
-          text: `✅ Restore completed! Restored ${response.data.result.restoreResults.restoredCollections.length} collections with ${response.data.result.restoreResults.totalRecordsRestored} total records.` 
-        });
-        
-        setRestoreOptions({ show: false, filename: null, clearExisting: true, dropExisting: false, excludeCollections: [] });
-        
-        fetchBackups();
-      }
-    } catch (error) {
-      console.error('Restore failed:', error);
-      setBackupMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to restore backup' 
-      });
-    } finally {
-      setIsRestoring(false);
-    }
   };
 
   const handleChange = (e) => {
@@ -320,9 +188,6 @@ function SystemSettings({ setView, admin, onLogout }) {
         maintenanceMode: formData.maintenanceMode,
         maintenanceMessage: formData.maintenanceMessage,
         allowAdminAccess: formData.allowAdminAccess,
-        autoBackup: formData.autoBackup,
-        backupFrequency: formData.backupFrequency,
-        autoBackupRetention: formData.autoBackupRetention,
         announcementEnabled: formData.announcementEnabled
       };
 
@@ -337,9 +202,6 @@ function SystemSettings({ setView, admin, onLogout }) {
           maintenanceMode: settings.maintenanceMode || false,
           maintenanceMessage: settings.maintenanceMessage || "",
           allowAdminAccess: settings.allowAdminAccess !== undefined ? settings.allowAdminAccess : true,
-          autoBackup: settings.autoBackup !== undefined ? settings.autoBackup : true,
-          backupFrequency: settings.backupFrequency || "daily",
-          autoBackupRetention: settings.autoBackupRetention || 30,
           announcementEnabled: settings.announcementEnabled || false
         }));
 
@@ -363,33 +225,6 @@ function SystemSettings({ setView, admin, onLogout }) {
       });
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleBackupNow = async () => {
-    setBackupMessage({ type: '', text: '' });
-    setIsCreatingBackup(true);
-    
-    try {
-      const response = await api.post('/admin/system/backup', { type: 'manual' });
-      if (response.data.success) {
-        setBackupMessage({ 
-          type: 'success', 
-          text: 'ZIP backup created successfully! Refreshing list...' 
-        });
-        
-        setTimeout(() => {
-          fetchBackups();
-          setIsCreatingBackup(false);
-        }, 2000);
-      }
-    } catch (error) {
-      console.error('Error initiating backup:', error);
-      setBackupMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to create backup' 
-      });
-      setIsCreatingBackup(false);
     }
   };
 
@@ -459,108 +294,6 @@ function SystemSettings({ setView, admin, onLogout }) {
                 <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
               )}
               <span>{message.text}</span>
-            </div>
-          )}
-
-          {backupMessage.text && (
-            <div className={`max-w-4xl mx-auto mb-6 p-4 rounded-lg flex items-start gap-3 ${
-              backupMessage.type === 'success' 
-                ? 'bg-green-50 border border-green-200 text-green-700'
-                : backupMessage.type === 'error'
-                ? 'bg-red-50 border border-red-200 text-red-700'
-                : 'bg-blue-50 border border-blue-200 text-blue-700'
-            }`}>
-              {backupMessage.type === 'success' ? (
-                <CheckCircle size={20} className="flex-shrink-0 mt-0.5" />
-              ) : backupMessage.type === 'error' ? (
-                <AlertCircle size={20} className="flex-shrink-0 mt-0.5" />
-              ) : (
-                <RefreshCw size={20} className="flex-shrink-0 mt-0.5 animate-spin" />
-              )}
-              <span>{backupMessage.text}</span>
-            </div>
-          )}
-
-          {/* Restore Options Modal */}
-          {restoreOptions.show && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl max-w-md w-full p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Restore Options</h3>
-                  <button
-                    onClick={() => setRestoreOptions({ show: false, filename: null, clearExisting: true, dropExisting: false, excludeCollections: [] })}
-                    className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-                  >
-                    <X size={20} className="text-gray-500" />
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <Shield size={18} className="text-gray-500 mt-0.5" />
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Clear Existing Data</label>
-                        <p className="text-xs text-gray-500">Delete existing records before restore</p>
-                      </div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={restoreOptions.clearExisting}
-                        onChange={(e) => setRestoreOptions({ ...restoreOptions, clearExisting: e.target.checked })}
-                        className="sr-only peer outline-0"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
-                    </label>
-                  </div>
-
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <Database size={18} className="text-gray-500 mt-0.5" />
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Drop & Recreate Collections</label>
-                        <p className="text-xs text-gray-500">Drop collections before inserting data</p>
-                      </div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={restoreOptions.dropExisting}
-                        onChange={(e) => setRestoreOptions({ ...restoreOptions, dropExisting: e.target.checked })}
-                        className="sr-only peer outline-0"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
-                    </label>
-                  </div>
-
-                  <div className="pt-4 flex gap-3">
-                    <button
-                      onClick={() => setRestoreOptions({ show: false, filename: null, clearExisting: true, dropExisting: false, excludeCollections: [] })}
-                      className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleRestoreBackup}
-                      disabled={isRestoring}
-                      className="flex-1 px-4 py-2 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {isRestoring ? (
-                        <>
-                          <RefreshCw size={16} className="animate-spin" />
-                          Restoring...
-                        </>
-                      ) : (
-                        <>
-                          <RotateCcw size={16} />
-                          Restore
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
@@ -654,110 +387,6 @@ function SystemSettings({ setView, admin, onLogout }) {
                       rows="3"
                       className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm resize-none"
                     />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Backup Settings Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div 
-                className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white cursor-pointer hover:bg-gray-50 transition-colors"
-                onClick={() => toggleSection('backupSettings')}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-blue-50 rounded-lg">
-                      <Settings size={22} className="text-blue-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-800">Backup Settings</h2>
-                      <p className="text-sm text-gray-500">Configure automated backups</p>
-                    </div>
-                  </div>
-                  {expandedSections.backupSettings ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
-                </div>
-              </div>
-
-              {expandedSections.backupSettings && (
-                <div className="p-6 space-y-5">
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <Clock size={18} className="text-gray-500 mt-0.5" />
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Auto Backup</label>
-                        <p className="text-xs text-gray-500 mt-0.5">Enable automatic backups</p>
-                      </div>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="autoBackup"
-                        checked={formData.autoBackup}
-                        onChange={handleChange}
-                        className="sr-only peer outline-0"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
-                    </label>
-                  </div>
-
-                  {formData.autoBackup && (
-                    <>
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                          <Calendar size={16} className="text-gray-500" />
-                          <span>Backup Frequency</span>
-                        </label>
-                        <select
-                          name="backupFrequency"
-                          value={formData.backupFrequency || "daily"}
-                          onChange={handleChange}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm bg-white"
-                        >
-                          <option value="hourly">Hourly - Every hour</option>
-                          <option value="daily">Daily - Every 24 hours</option>
-                          <option value="weekly">Weekly - Every Sunday</option>
-                          <option value="monthly">Monthly - First day of month</option>
-                        </select>
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                          <Archive size={16} className="text-gray-500" />
-                          <span>Auto Backup Retention (days)</span>
-                        </label>
-                        <input
-                          type="number"
-                          name="autoBackupRetention"
-                          value={formData.autoBackupRetention}
-                          onChange={handleChange}
-                          min="1"
-                          max="365"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm bg-white"
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={handleBackupNow}
-                      disabled={isCreatingBackup}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-lg hover:from-red-700 hover:to-red-700 focus:ring-2 focus:ring-[#CC0000] focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer outline-0 text-sm font-medium shadow-sm"
-                    >
-                      {isCreatingBackup ? (
-                        <>
-                          <RefreshCw size={16} className="animate-spin" />
-                          Creating Backup...
-                        </>
-                      ) : (
-                        <>
-                          <Archive size={16} />
-                          Create Manual Backup Now
-                        </>
-                      )}
-                    </button>
                   </div>
                 </div>
               )}
@@ -943,139 +572,6 @@ function SystemSettings({ setView, admin, onLogout }) {
                       <Bell size={32} className="mx-auto text-gray-400 mb-3" />
                       <p className="text-gray-600 font-medium">Announcements are disabled</p>
                       <p className="text-gray-400 text-sm mt-1">Enable announcements to create and manage notifications</p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Backup Files Card */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div 
-                className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white cursor-pointer hover:bg-gray-50 transition-colors"
-                onClick={() => toggleSection('backupFiles')}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-green-50 rounded-lg">
-                      <HardDrive size={22} className="text-green-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-800">Backup Files</h2>
-                      <p className="text-sm text-gray-500">Manage and restore system backups</p>
-                    </div>
-                  </div>
-                  {expandedSections.backupFiles ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
-                </div>
-              </div>
-
-              {expandedSections.backupFiles && (
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <p className="text-sm text-gray-600">
-                      <span className="font-medium text-gray-900">{backups.length}</span> backup files available
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                        Auto-backup: {formData.autoBackup ? formData.backupFrequency : 'Disabled'}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={fetchBackups}
-                        disabled={isLoadingBackups}
-                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 cursor-pointer outline-0"
-                        title="Refresh"
-                      >
-                        <RefreshCw size={14} className={isLoadingBackups ? 'animate-spin' : ''} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {isLoadingBackups ? (
-                    <div className="text-center py-12">
-                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#CC0000] mx-auto"></div>
-                      <p className="text-sm text-gray-500 mt-3">Loading backups...</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {backups.map((backup) => (
-                        <div key={backup.id || backup.name} className="border border-gray-200 rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow">
-                          <div className="p-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
-                            <div className="flex items-start justify-between">
-                              <div className="flex items-center gap-2 min-w-0 flex-1">
-                                <Archive size={18} className="text-[#CC0000] flex-shrink-0" />
-                                <span className="font-medium text-sm text-gray-900 truncate" title={backup.name}>
-                                  {backup.name}
-                                </span>
-                              </div>
-                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full flex-shrink-0 ml-2">
-                                {backup.size}
-                              </span>
-                            </div>
-                            <div className="mt-2 flex items-center gap-2">
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                backup.backupType === 'Automatic' 
-                                  ? 'bg-blue-100 text-blue-700' 
-                                  : 'bg-green-100 text-green-700'
-                              }`}>
-                                {backup.backupType}
-                              </span>
-                              {backup.totalCollections > 0 && (
-                                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                                  {backup.totalCollections} collections
-                                </span>
-                              )}
-                              <span className="text-xs text-gray-500 flex items-center gap-1 ml-auto">
-                                <Calendar size={10} />
-                                {new Date(backup.date).toLocaleDateString()}
-                              </span>
-                            </div>
-                          </div>
-                          
-                          <div className="p-3 flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadBackup(backup.filename)}
-                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer outline-0 text-xs font-medium"
-                            >
-                              <Download size={14} />
-                              Download
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setRestoreOptions({ 
-                                show: true, 
-                                filename: backup.filename,
-                                clearExisting: true,
-                                dropExisting: false,
-                                excludeCollections: []
-                              })}
-                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer outline-0 text-xs font-medium"
-                            >
-                              <RotateCcw size={14} />
-                              Restore
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteBackup(backup.filename)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer outline-0 border border-gray-200"
-                              title="Delete Backup"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                      
-                      {backups.length === 0 && (
-                        <div className="col-span-full text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                          <Archive size={40} className="mx-auto text-gray-400 mb-3" />
-                          <p className="text-gray-700 font-medium">No backup files found</p>
-                          <p className="text-gray-400 text-sm mt-1">Create your first backup using the button above</p>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
