@@ -11,7 +11,7 @@ const generateOTP = () => {
   return crypto.randomInt(100000, 999999).toString();
 };
 
-// Helper function to send OTP (using actual email service)
+// Helper function to send OTP with better error handling
 const sendOTP = async (email, otpCode, adminName = "Admin", loginTime = new Date()) => {
   try {
     const subject = "Learning Resource Center - Admin Verification Code";
@@ -126,7 +126,7 @@ const sendOTP = async (email, otpCode, adminName = "Admin", loginTime = new Date
             font-weight: bold;
             color: #CC0000;
             letter-spacing: 8px;
-            font-family: Arial, sans-serif;
+            font-family: monospace;
             background: #ffffff;
             padding: 20px 30px;
             border-radius: 6px;
@@ -310,7 +310,7 @@ const sendOTP = async (email, otpCode, adminName = "Admin", loginTime = new Date
               </div>
               <div class="detail-item">
                 <span class="detail-label">System Access:</span>
-                <span class="detail-value">University of San Agustin – FLD Learning Resource Center Admin Portal</span>
+                <span class="detail-value">Learning Resource Center Admin Portal</span>
               </div>
             </div>
             
@@ -320,7 +320,7 @@ const sendOTP = async (email, otpCode, adminName = "Admin", loginTime = new Date
               <ul class="security-list">
                 <li class="security-item">This verification code is for authorized system access only.</li>
                 <li class="security-item">Do not share this code with anyone.</li>
-                <li class="security-item">Please ensure you are accessing the official University of San Agustin – FLD Learning Resource Center Admin Portal.</li>
+                <li class="security-item">Please ensure you are accessing the official Learning Resource Center Admin Portal.</li>
               </ul>
             </div>
           </div>
@@ -328,12 +328,11 @@ const sendOTP = async (email, otpCode, adminName = "Admin", loginTime = new Date
           <!-- Footer -->
           <div class="footer">
             <div class="footer-text">
-              This is an automated security message from the <span class="institution-brand">University of San Agustin – FLD Learning Resource Center Admin Portal</span>.
+              This is an automated security message from the <span class="institution-brand">Learning Resource Center Admin Portal</span>.
             </div>
             <div class="footer-text">
               Please do not forward or share this email.
             </div>
-            
           </div>
         </div>
       </body>
@@ -361,8 +360,6 @@ SECURITY INFORMATION:
 - Ensure you are accessing the official Learning Resource Center portal
 
 This is an automated security message from the Learning Resource Center Admin System.
-
-For assistance, contact: lrc-support@usa.edu.ph | +63 (033) 123-4567
     `;
 
     await sendEmail({
@@ -372,10 +369,12 @@ For assistance, contact: lrc-support@usa.edu.ph | +63 (033) 123-4567
       html: html
     });
 
-    console.log(`✅ Professional OTP email sent to: ${email}`);
+    console.log(`✅ OTP email sent to: ${email}`);
     return true;
   } catch (error) {
-    console.error("❌ Failed to send professional OTP email:", error);
+    console.error("❌ Failed to send OTP email:", error);
+    // For development/testing, log the OTP to console
+    console.log(`🔐 DEVELOPMENT MODE - OTP for ${email}: ${otpCode}`);
     return false;
   }
 };
@@ -414,9 +413,13 @@ exports.registerAdmin = async (req, res) => {
 exports.loginAdmin = async (req, res) => {
   try {
     const { username, password } = req.body;
-    const ipAddress = req.ip || req.connection.remoteAddress || "Unknown";
     
-    // Find admin and include virtual field
+    // Validate input
+    if (!username || !password) {
+      return res.status(400).json({ message: "Username and password are required." });
+    }
+
+    // Find admin
     const admin = await Admin.findOne({ username: username.toLowerCase() });
     
     if (!admin) {
@@ -473,27 +476,39 @@ exports.loginAdmin = async (req, res) => {
 
     await admin.save();
 
-    // Send OTP to admin's email using actual email service
-    const otpSent = await sendOTP(admin.email, otpCode, admin.name, new Date(), ipAddress);
+    // Try to send OTP via email
+    const otpSent = await sendOTP(admin.email, otpCode, admin.name, new Date());
     
-    if (!otpSent) {
-      // Clear OTP if email failed
+    // For development/testing, always allow login with OTP
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    
+    if (!otpSent && !isDevelopment) {
+      // In production, fail if email fails
       admin.otp = undefined;
       await admin.save();
       
-      return res.status(500).json({ message: "Failed to send OTP. Please try again." });
+      return res.status(500).json({ 
+        message: "Failed to send OTP. Please check email configuration and try again.",
+        error: "EMAIL_SEND_FAILED"
+      });
     }
 
+    // In development, return OTP in response for testing
     res.status(200).json({
-      message: "OTP sent to your email",
+      message: otpSent ? "OTP sent to your email" : "OTP generated (development mode - check console)",
       requiresOTP: true,
       adminId: admin._id,
-      email: admin.email // For display purposes only
+      email: admin.email,
+      // Only include OTP in development mode
+      ...(isDevelopment && !otpSent && { devOTP: otpCode })
     });
 
   } catch (err) {
     console.error("Admin login error:", err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ 
+      message: "Server error during login. Please try again.",
+      error: err.message 
+    });
   }
 };
 
@@ -511,7 +526,13 @@ exports.verifyOTP = async (req, res) => {
     }
 
     // Check if OTP exists and is not expired
-    if (!admin.otp || !admin.otp.code || admin.otp.expiresAt < Date.now()) {
+    if (!admin.otp || !admin.otp.code) {
+      return res.status(401).json({ message: "No OTP found. Please request a new one." });
+    }
+
+    if (admin.otp.expiresAt < Date.now()) {
+      admin.otp = undefined;
+      await admin.save();
       return res.status(401).json({ message: "OTP has expired. Please request a new one." });
     }
 
@@ -539,14 +560,13 @@ exports.verifyOTP = async (req, res) => {
     });
   } catch (err) {
     console.error("OTP verification error:", err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error during OTP verification." });
   }
 };
 
 exports.resendOTP = async (req, res) => {
   try {
     const { adminId } = req.body;
-    const ipAddress = req.ip || req.connection.remoteAddress || "Unknown";
     
     const admin = await Admin.findById(adminId);
     if (!admin) {
@@ -564,25 +584,30 @@ exports.resendOTP = async (req, res) => {
 
     await admin.save();
 
-    // Send new OTP using actual email service
-    const otpSent = await sendOTP(admin.email, otpCode, admin.name, new Date(), ipAddress);
+    // Send new OTP
+    const otpSent = await sendOTP(admin.email, otpCode, admin.name, new Date());
     
-    if (!otpSent) {
-      // Clear OTP if email failed
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    
+    if (!otpSent && !isDevelopment) {
       admin.otp = undefined;
       await admin.save();
       
-      return res.status(500).json({ message: "Failed to send OTP. Please try again." });
+      return res.status(500).json({ 
+        message: "Failed to send OTP. Please try again.",
+        error: "EMAIL_SEND_FAILED"
+      });
     }
 
     res.status(200).json({
-      message: "New OTP sent to your email",
-      email: admin.email
+      message: otpSent ? "New OTP sent to your email" : "New OTP generated (development mode - check console)",
+      email: admin.email,
+      ...(isDevelopment && !otpSent && { devOTP: otpCode })
     });
 
   } catch (err) {
     console.error("Resend OTP error:", err);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error during OTP resend." });
   }
 };
 
@@ -624,7 +649,7 @@ exports.updateAdminProfile = async (req, res) => {
         email,
         updatedAt: Date.now()
       },
-      { new: true }
+      { new: true, runValidators: true }
     );
 
     if (!updatedAdmin) {
@@ -699,10 +724,8 @@ exports.getSystemSettings = async (req, res) => {
         emailNotifications: true,
         reservationAlerts: true,
         systemAlerts: true,
-        autoBackup: true,
-        backupFrequency: "daily",
         sessionTimeout: 30,
-        twoFactorAuth: false,
+        twoFactorAuth: true,
         loginAlerts: true,
         passwordExpiry: 90,
         smtpServer: "",
