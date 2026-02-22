@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Save, Wrench, Database, Megaphone, Download, Trash2, RefreshCw, Archive, List, X, Clock, Shield, Users, Calendar, AlertCircle, CheckCircle, RotateCcw, Settings } from "lucide-react";
+import { Save, Wrench, Database, Megaphone, Download, Trash2, RefreshCw, Archive, List, X, Clock, Shield, Users, Calendar, AlertCircle, CheckCircle, RotateCcw, Settings, ChevronDown, ChevronUp, HardDrive, Bell } from "lucide-react";
 import api from "../../utils/api";
 import socket from "../../utils/socket";
 import AdminNavigation from "../AdminNavigation";
@@ -43,6 +43,12 @@ function SystemSettings({ setView, admin, onLogout }) {
   const [announcements, setAnnouncements] = useState([]);
   const [isLoadingAnnouncements, setIsLoadingAnnouncements] = useState(false);
   const [showAnnouncementsList, setShowAnnouncementsList] = useState(false);
+  const [expandedSections, setExpandedSections] = useState({
+    maintenance: true,
+    backupSettings: true,
+    announcements: true,
+    backupFiles: true
+  });
 
   const [maintenanceInfo, setMaintenanceInfo] = useState({
     enabled: false,
@@ -187,28 +193,28 @@ function SystemSettings({ setView, admin, onLogout }) {
       setBackupMessage({ type: 'error', text: 'Failed to download backup' });
     }
   };
-const handleDeleteBackup = async (filename) => {
-  if (window.confirm(`Are you sure you want to delete ${filename}? This action cannot be undone.`)) {
-    try {
-      setBackupMessage({ type: 'info', text: 'Deleting backup...' });
-      
-      // Encode the filename for the URL
-      const encodedFilename = encodeURIComponent(filename);
-      const response = await api.delete(`/admin/system/backup/${encodedFilename}`);
-      
-      if (response.data.success) {
-        setBackupMessage({ type: 'success', text: 'Backup deleted successfully' });
-        fetchBackups(); // Refresh the list
+
+  const handleDeleteBackup = async (filename) => {
+    if (window.confirm(`Are you sure you want to delete ${filename}? This action cannot be undone.`)) {
+      try {
+        setBackupMessage({ type: 'info', text: 'Deleting backup...' });
+        
+        const encodedFilename = encodeURIComponent(filename);
+        const response = await api.delete(`/admin/system/backup/${encodedFilename}`);
+        
+        if (response.data.success) {
+          setBackupMessage({ type: 'success', text: 'Backup deleted successfully' });
+          fetchBackups();
+        }
+      } catch (error) {
+        console.error('Delete failed:', error);
+        setBackupMessage({ 
+          type: 'error', 
+          text: error.response?.data?.message || 'Failed to delete backup' 
+        });
       }
-    } catch (error) {
-      console.error('Delete failed:', error);
-      setBackupMessage({ 
-        type: 'error', 
-        text: error.response?.data?.message || 'Failed to delete backup' 
-      });
     }
-  }
-};
+  };
 
   const handleRestoreBackup = async () => {
     if (!restoreOptions.filename) return;
@@ -237,7 +243,6 @@ const handleDeleteBackup = async (filename) => {
         
         setRestoreOptions({ show: false, filename: null, clearExisting: true, dropExisting: false, excludeCollections: [] });
         
-        // Refresh data
         fetchBackups();
       }
     } catch (error) {
@@ -388,6 +393,13 @@ const handleDeleteBackup = async (filename) => {
     }
   };
 
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
   const shouldBlockUser = () => {
     if (!maintenanceInfo.enabled) return false;
     
@@ -428,7 +440,7 @@ const handleDeleteBackup = async (filename) => {
       <AdminNavigation setView={setView} currentView="systemSettings" onLogout={onLogout} />
 
       <div className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
-        <header className="bg-white px-6 py-4 border-b border-gray-200">
+        <header className="bg-white px-6 py-4 border-b border-gray-200 sticky top-0 z-10">
           <h1 className="text-2xl font-bold text-[#CC0000]">System Settings</h1>
           <p className="text-gray-600">Configure system-wide settings and preferences</p>
         </header>
@@ -563,343 +575,190 @@ const handleDeleteBackup = async (filename) => {
             </div>
           )}
 
-          <div className="max-w-7xl mx-auto space-y-8">
-            {/* System Status Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Main Content - Two Column Layout */}
+          <div className="max-w-7xl mx-auto">
+            {/* First Row - System Status */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
               {/* Maintenance Mode Card */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-red-50 rounded-lg">
-                      <Wrench size={22} className="text-[#CC0000]" />
+                <div 
+                  className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => toggleSection('maintenance')}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-red-50 rounded-lg">
+                        <Wrench size={22} className="text-[#CC0000]" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-semibold text-gray-800">Maintenance Mode</h2>
+                        <p className="text-sm text-gray-500">Control system access during updates</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-800">Maintenance Mode</h2>
-                      <p className="text-sm text-gray-500">Control system access during updates</p>
-                    </div>
+                    {expandedSections.maintenance ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                   </div>
                 </div>
 
-                <div className="p-6 space-y-5">
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <Shield size={18} className="text-gray-500 mt-0.5" />
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Enable Maintenance</label>
-                        <p className="text-xs text-gray-500 mt-0.5">Restrict regular user access</p>
+                {expandedSections.maintenance && (
+                  <div className="p-6 space-y-5">
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <Shield size={18} className="text-gray-500 mt-0.5" />
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Enable Maintenance</label>
+                          <p className="text-xs text-gray-500 mt-0.5">Restrict regular user access</p>
+                        </div>
                       </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="maintenanceMode"
+                          checked={formData.maintenanceMode}
+                          onChange={handleChange}
+                          className="sr-only peer outline-0"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
+                      </label>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="maintenanceMode"
-                        checked={formData.maintenanceMode}
-                        onChange={handleChange}
-                        className="sr-only peer outline-0"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
-                    </label>
-                  </div>
 
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <Users size={18} className="text-gray-500 mt-0.5" />
-                      <div>
-                        <label className="text-sm font-medium text-gray-700">Admin Access</label>
-                        <p className="text-xs text-gray-500 mt-0.5">Allow admins during maintenance</p>
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <Users size={18} className="text-gray-500 mt-0.5" />
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Admin Access</label>
+                          <p className="text-xs text-gray-500 mt-0.5">Allow admins during maintenance</p>
+                        </div>
                       </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="allowAdminAccess"
+                          checked={formData.allowAdminAccess}
+                          onChange={handleChange}
+                          className="sr-only peer outline-0"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
+                      </label>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="allowAdminAccess"
-                        checked={formData.allowAdminAccess}
-                        onChange={handleChange}
-                        className="sr-only peer outline-0"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
-                    </label>
-                  </div>
 
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                      <span>Maintenance Message</span>
-                      {formData.maintenanceMode && (
-                        <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Visible to users</span>
-                      )}
-                    </label>
-                    <textarea
-                      name="maintenanceMessage"
-                      value={formData.maintenanceMessage || ""}
-                      onChange={handleChange}
-                      placeholder="System is currently under maintenance. We'll be back soon..."
-                      rows="3"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm resize-none"
-                    />
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                        <span>Maintenance Message</span>
+                        {formData.maintenanceMode && (
+                          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded">Visible to users</span>
+                        )}
+                      </label>
+                      <textarea
+                        name="maintenanceMessage"
+                        value={formData.maintenanceMessage || ""}
+                        onChange={handleChange}
+                        placeholder="System is currently under maintenance. We'll be back soon..."
+                        rows="3"
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm resize-none"
+                      />
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Backup Settings Card */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-blue-50 rounded-lg">
-                      <Database size={22} className="text-blue-600" />
-                    </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-800">Backup Settings</h2>
-                      <p className="text-sm text-gray-500">Automated data protection</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="p-6 space-y-5">
-                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <Clock size={18} className="text-gray-500 mt-0.5" />
+                <div 
+                  className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => toggleSection('backupSettings')}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-blue-50 rounded-lg">
+                        <Settings size={22} className="text-blue-600" />
+                      </div>
                       <div>
-                        <label className="text-sm font-medium text-gray-700">Auto Backup</label>
-                        <p className="text-xs text-gray-500 mt-0.5">Enable automatic backups</p>
+                        <h2 className="text-lg font-semibold text-gray-800">Backup Settings</h2>
+                        <p className="text-sm text-gray-500">Configure automated backups</p>
                       </div>
                     </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        name="autoBackup"
-                        checked={formData.autoBackup}
-                        onChange={handleChange}
-                        className="sr-only peer outline-0"
-                      />
-                      <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
-                    </label>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                      <Calendar size={16} className="text-gray-500" />
-                      <span>Backup Frequency</span>
-                    </label>
-                    <select
-                      name="backupFrequency"
-                      value={formData.backupFrequency || "daily"}
-                      onChange={handleChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm bg-white"
-                    >
-                      <option value="hourly">Hourly - Every hour</option>
-                      <option value="daily">Daily - Every 24 hours</option>
-                      <option value="weekly">Weekly - Every Sunday</option>
-                      <option value="monthly">Monthly - First day of month</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
-                      <Archive size={16} className="text-gray-500" />
-                      <span>Auto Backup Retention (days)</span>
-                    </label>
-                    <input
-                      type="number"
-                      name="autoBackupRetention"
-                      value={formData.autoBackupRetention}
-                      onChange={handleChange}
-                      min="1"
-                      max="365"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm bg-white"
-                    />
-                  </div>
-
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={handleBackupNow}
-                      disabled={isCreatingBackup}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-lg hover:from-red-700 hover:to-red-700 focus:ring-2 focus:ring-[#CC0000] focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer outline-0 text-sm font-medium shadow-sm"
-                    >
-                      {isCreatingBackup ? (
-                        <>
-                          <RefreshCw size={16} className="animate-spin" />
-                          Creating Backup...
-                        </>
-                      ) : (
-                        <>
-                          <Archive size={16} />
-                          Create Manual Backup Now
-                        </>
-                      )}
-                    </button>
+                    {expandedSections.backupSettings ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Announcements Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-orange-50 rounded-lg">
-                      <Megaphone size={22} className="text-orange-600" />
+                {expandedSections.backupSettings && (
+                  <div className="p-6 space-y-5">
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-start gap-3">
+                        <Clock size={18} className="text-gray-500 mt-0.5" />
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Auto Backup</label>
+                          <p className="text-xs text-gray-500 mt-0.5">Enable automatic backups</p>
+                        </div>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="autoBackup"
+                          checked={formData.autoBackup}
+                          onChange={handleChange}
+                          className="sr-only peer outline-0"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
+                      </label>
                     </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-800">System Announcements</h2>
-                      <p className="text-sm text-gray-500">Create and manage user notifications</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={toggleAnnouncementsList}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer outline-0 text-sm font-medium"
-                  >
-                    {showAnnouncementsList ? (
+
+                    {formData.autoBackup && (
                       <>
-                        <X size={16} />
-                        Hide List
-                      </>
-                    ) : (
-                      <>
-                        <List size={16} />
-                        View All ({announcements.length})
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                            <Calendar size={16} className="text-gray-500" />
+                            <span>Backup Frequency</span>
+                          </label>
+                          <select
+                            name="backupFrequency"
+                            value={formData.backupFrequency || "daily"}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm bg-white"
+                          >
+                            <option value="hourly">Hourly - Every hour</option>
+                            <option value="daily">Daily - Every 24 hours</option>
+                            <option value="weekly">Weekly - Every Sunday</option>
+                            <option value="monthly">Monthly - First day of month</option>
+                          </select>
+                        </div>
+
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                            <Archive size={16} className="text-gray-500" />
+                            <span>Auto Backup Retention (days)</span>
+                          </label>
+                          <input
+                            type="number"
+                            name="autoBackupRetention"
+                            value={formData.autoBackupRetention}
+                            onChange={handleChange}
+                            min="1"
+                            max="365"
+                            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm bg-white"
+                          />
+                        </div>
                       </>
                     )}
-                  </button>
-                </div>
-              </div>
 
-              {/* Announcements List */}
-              {showAnnouncementsList && (
-                <div className="p-6 border-b border-gray-100 bg-gray-50">
-                  <h3 className="text-md font-medium text-gray-900 mb-4 flex items-center gap-2">
-                    <Megaphone size={16} className="text-orange-600" />
-                    Active Announcements
-                  </h3>
-                  {isLoadingAnnouncements ? (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#CC0000] mx-auto"></div>
-                      <p className="text-sm text-gray-500 mt-3">Loading announcements...</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
-                      {announcements.map((announcement) => (
-                        <div key={announcement._id} className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1.5">
-                              <span className="font-medium text-gray-900">
-                                {announcement.title}
-                              </span>
-                              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                                announcement.isActive 
-                                  ? 'bg-green-100 text-green-700 border border-green-200' 
-                                  : 'bg-gray-100 text-gray-600 border border-gray-200'
-                              }`}>
-                                {announcement.isActive ? 'Active' : 'Inactive'}
-                              </span>
-                            </div>
-                            <p className="text-sm text-gray-600 line-clamp-1">{announcement.message}</p>
-                            <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-2">
-                              <Calendar size={12} />
-                              Created: {new Date(announcement.createdAt).toLocaleDateString()}
-                              {announcement.endDate && (
-                                <>
-                                  <span>•</span>
-                                  <Clock size={12} />
-                                  Expires: {new Date(announcement.endDate).toLocaleDateString()}
-                                </>
-                              )}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteAnnouncement(announcement._id)}
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer outline-0 ml-4"
-                            title="Delete Announcement"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      ))}
-                      {announcements.length === 0 && (
-                        <div className="text-center py-10 bg-white rounded-lg border border-dashed border-gray-300">
-                          <Megaphone size={32} className="mx-auto text-gray-400 mb-3" />
-                          <p className="text-gray-600 font-medium">No announcements found</p>
-                          <p className="text-gray-400 text-sm mt-1">Create your first announcement using the form below</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Announcement Form */}
-              <div className="p-6">
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg mb-5">
-                  <div className="flex items-start gap-3">
-                    <Megaphone size={18} className="text-gray-500 mt-0.5" />
-                    <div>
-                      <label className="text-sm font-medium text-gray-700">Enable Announcements</label>
-                      <p className="text-xs text-gray-500 mt-0.5">Show popup to users on login</p>
-                    </div>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      name="announcementEnabled"
-                      checked={formData.announcementEnabled}
-                      onChange={handleChange}
-                      className="sr-only peer outline-0"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
-                  </label>
-                </div>
-
-                {formData.announcementEnabled && (
-                  <div className="space-y-5 p-5 bg-blue-50 rounded-lg border border-blue-200">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Title <span className="text-red-500">*</span></label>
-                        <input
-                          type="text"
-                          name="announcementTitle"
-                          value={formData.announcementTitle || ""}
-                          onChange={handleChange}
-                          placeholder="e.g., Important System Update"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm bg-white"
-                        />
-                      </div>
-
-                      <div className="space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Expiration</label>
-                        <input
-                          type="datetime-local"
-                          name="announcementExpires"
-                          value={formData.announcementExpires || ""}
-                          onChange={handleChange}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm bg-white"
-                        />
-                      </div>
-
-                      <div className="md:col-span-2 space-y-2">
-                        <label className="text-sm font-medium text-gray-700">Message <span className="text-red-500">*</span></label>
-                        <textarea
-                          name="announcementText"
-                          value={formData.announcementText || ""}
-                          onChange={handleChange}
-                          placeholder="Enter your announcement message here..."
-                          rows="3"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm resize-none bg-white"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end">
+                    <div className="pt-2">
                       <button
                         type="button"
-                        onClick={handleCreateAnnouncement}
-                        disabled={isLoading || !formData.announcementTitle || !formData.announcementText}
-                        className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-lg hover:from-red-700 hover:to-red-700 focus:ring-2 focus:ring-[#CC0000] focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer outline-0 text-sm font-medium shadow-sm"
+                        onClick={handleBackupNow}
+                        disabled={isCreatingBackup}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-lg hover:from-red-700 hover:to-red-700 focus:ring-2 focus:ring-[#CC0000] focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer outline-0 text-sm font-medium shadow-sm"
                       >
-                        <Megaphone size={16} />
-                        {isLoading ? 'Creating Announcement...' : 'Create Announcement'}
+                        {isCreatingBackup ? (
+                          <>
+                            <RefreshCw size={16} className="animate-spin" />
+                            Creating Backup...
+                          </>
+                        ) : (
+                          <>
+                            <Archive size={16} />
+                            Create Manual Backup Now
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -907,127 +766,321 @@ const handleDeleteBackup = async (filename) => {
               </div>
             </div>
 
-            {/* Backup Files Section */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-green-50 rounded-lg">
-                      <Archive size={22} className="text-green-600" />
+            {/* Second Row - Announcements and Backup Files */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              {/* Announcements Section */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div 
+                  className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => toggleSection('announcements')}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-orange-50 rounded-lg">
+                        <Bell size={22} className="text-orange-600" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-semibold text-gray-800">Announcements</h2>
+                        <p className="text-sm text-gray-500">Create and manage system notifications</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-800">Backup Files</h2>
-                      <p className="text-sm text-gray-500">Manage your system backups</p>
-                    </div>
+                    {expandedSections.announcements ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
                   </div>
-                  <button
-                    type="button"
-                    onClick={fetchBackups}
-                    disabled={isLoadingBackups}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 cursor-pointer outline-0 text-sm font-medium"
-                  >
-                    <RefreshCw size={14} className={isLoadingBackups ? 'animate-spin' : ''} />
-                    Refresh
-                  </button>
-                </div>
-              </div>
-
-              <div className="p-6">
-                <div className="mb-4 flex items-center justify-between">
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium text-gray-900">{backups.length}</span> backup files available
-                  </p>
-                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                    Auto-backup: {formData.autoBackup ? formData.backupFrequency : 'Disabled'}
-                  </span>
                 </div>
 
-                {isLoadingBackups ? (
-                  <div className="text-center py-12">
-                    <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#CC0000] mx-auto"></div>
-                    <p className="text-sm text-gray-500 mt-3">Loading backups...</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {backups.map((backup) => (
-                      <div key={backup.id || backup.name} className="border border-gray-200 rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow">
-                        <div className="p-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <Archive size={18} className="text-[#CC0000] flex-shrink-0" />
-                              <span className="font-medium text-sm text-gray-900 truncate" title={backup.name}>
-                                {backup.name}
-                              </span>
-                            </div>
-                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full flex-shrink-0 ml-2">
-                              {backup.size}
-                            </span>
-                          </div>
-                          <div className="mt-1 flex items-center gap-2">
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              backup.backupType === 'Automatic' 
-                                ? 'bg-blue-100 text-blue-700' 
-                                : 'bg-green-100 text-green-700'
-                            }`}>
-                              {backup.backupType}
-                            </span>
-                            {backup.totalCollections > 0 && (
-                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
-                                {backup.totalCollections} collections
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="p-4 space-y-3">
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
-                            <Calendar size={12} />
-                            <span>Created: {new Date(backup.date).toLocaleDateString()}</span>
-                          </div>
-
-                          <div className="flex gap-2 pt-2">
-                            <button
-                              type="button"
-                              onClick={() => handleDownloadBackup(backup.filename)}
-                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer outline-0 text-xs font-medium"
-                            >
-                              <Download size={14} />
-                              Download
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => setRestoreOptions({ 
-                                show: true, 
-                                filename: backup.filename,
-                                clearExisting: true,
-                                dropExisting: false,
-                                excludeCollections: []
-                              })}
-                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer outline-0 text-xs font-medium"
-                            >
-                              <RotateCcw size={14} />
-                              Restore
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteBackup(backup.filename)}
-                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer outline-0 border border-gray-200"
-                              title="Delete Backup"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
+                {expandedSections.announcements && (
+                  <div className="p-6">
+                    {/* Announcement Toggle */}
+                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg mb-5">
+                      <div className="flex items-start gap-3">
+                        <Megaphone size={18} className="text-gray-500 mt-0.5" />
+                        <div>
+                          <label className="text-sm font-medium text-gray-700">Enable Announcements</label>
+                          <p className="text-xs text-gray-500 mt-0.5">Show popup to users on login</p>
                         </div>
                       </div>
-                    ))}
-                    
-                    {backups.length === 0 && (
-                      <div className="col-span-full text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-                        <Archive size={40} className="mx-auto text-gray-400 mb-3" />
-                        <p className="text-gray-700 font-medium">No backup files found</p>
-                        <p className="text-gray-400 text-sm mt-1">Create your first backup using the button above</p>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="announcementEnabled"
+                          checked={formData.announcementEnabled}
+                          onChange={handleChange}
+                          className="sr-only peer outline-0"
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#CC0000]"></div>
+                      </label>
+                    </div>
+
+                    {formData.announcementEnabled && (
+                      <>
+                        {/* Create Announcement Form */}
+                        <div className="mb-5 p-5 bg-blue-50 rounded-lg border border-blue-200">
+                          <h3 className="text-md font-medium text-gray-900 mb-4 flex items-center gap-2">
+                            <Megaphone size={16} className="text-orange-600" />
+                            Create New Announcement
+                          </h3>
+                          <div className="space-y-4">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-gray-700">Title <span className="text-red-500">*</span></label>
+                              <input
+                                type="text"
+                                name="announcementTitle"
+                                value={formData.announcementTitle || ""}
+                                onChange={handleChange}
+                                placeholder="e.g., Important System Update"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm bg-white"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-gray-700">Message <span className="text-red-500">*</span></label>
+                              <textarea
+                                name="announcementText"
+                                value={formData.announcementText || ""}
+                                onChange={handleChange}
+                                placeholder="Enter your announcement message here..."
+                                rows="3"
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm resize-none bg-white"
+                              />
+                            </div>
+
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium text-gray-700">Expiration (Optional)</label>
+                              <input
+                                type="datetime-local"
+                                name="announcementExpires"
+                                value={formData.announcementExpires || ""}
+                                onChange={handleChange}
+                                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:border-transparent transition-colors outline-0 text-sm bg-white"
+                              />
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={handleCreateAnnouncement}
+                              disabled={isLoading || !formData.announcementTitle || !formData.announcementText}
+                              className="w-full flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-lg hover:from-red-700 hover:to-red-700 focus:ring-2 focus:ring-[#CC0000] focus:ring-offset-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer outline-0 text-sm font-medium shadow-sm"
+                            >
+                              <Megaphone size={16} />
+                              {isLoading ? 'Creating...' : 'Create Announcement'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* View Announcements List */}
+                        <div>
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-md font-medium text-gray-900 flex items-center gap-2">
+                              <List size={16} className="text-gray-500" />
+                              Recent Announcements
+                            </h3>
+                            <button
+                              type="button"
+                              onClick={toggleAnnouncementsList}
+                              className="text-sm text-[#CC0000] hover:text-red-700 font-medium flex items-center gap-1"
+                            >
+                              {showAnnouncementsList ? 'Hide' : 'View All'} ({announcements.length})
+                            </button>
+                          </div>
+
+                          {showAnnouncementsList && (
+                            <div className="space-y-3 max-h-80 overflow-y-auto pr-2">
+                              {isLoadingAnnouncements ? (
+                                <div className="text-center py-8">
+                                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#CC0000] mx-auto"></div>
+                                  <p className="text-sm text-gray-500 mt-3">Loading announcements...</p>
+                                </div>
+                              ) : (
+                                announcements.map((announcement) => (
+                                  <div key={announcement._id} className="flex items-center justify-between p-4 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+                                    <div className="flex-1">
+                                      <div className="flex items-center gap-2 mb-1.5">
+                                        <span className="font-medium text-gray-900">
+                                          {announcement.title}
+                                        </span>
+                                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                          announcement.isActive 
+                                            ? 'bg-green-100 text-green-700 border border-green-200' 
+                                            : 'bg-gray-100 text-gray-600 border border-gray-200'
+                                        }`}>
+                                          {announcement.isActive ? 'Active' : 'Inactive'}
+                                        </span>
+                                      </div>
+                                      <p className="text-sm text-gray-600 line-clamp-1">{announcement.message}</p>
+                                      <p className="text-xs text-gray-500 mt-1.5 flex items-center gap-2">
+                                        <Calendar size={12} />
+                                        Created: {new Date(announcement.createdAt).toLocaleDateString()}
+                                        {announcement.endDate && (
+                                          <>
+                                            <span>•</span>
+                                            <Clock size={12} />
+                                            Expires: {new Date(announcement.endDate).toLocaleDateString()}
+                                          </>
+                                        )}
+                                      </p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteAnnouncement(announcement._id)}
+                                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer outline-0 ml-4"
+                                      title="Delete Announcement"
+                                    >
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                ))
+                              )}
+                              {announcements.length === 0 && !isLoadingAnnouncements && (
+                                <div className="text-center py-10 bg-white rounded-lg border border-dashed border-gray-300">
+                                  <Megaphone size={32} className="mx-auto text-gray-400 mb-3" />
+                                  <p className="text-gray-600 font-medium">No announcements found</p>
+                                  <p className="text-gray-400 text-sm mt-1">Create your first announcement using the form above</p>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+
+                    {!formData.announcementEnabled && (
+                      <div className="text-center py-10 bg-gray-50 rounded-lg border border-dashed border-gray-300">
+                        <Bell size={32} className="mx-auto text-gray-400 mb-3" />
+                        <p className="text-gray-600 font-medium">Announcements are disabled</p>
+                        <p className="text-gray-400 text-sm mt-1">Enable announcements to create and manage notifications</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Backup Files Section */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div 
+                  className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white cursor-pointer hover:bg-gray-50 transition-colors"
+                  onClick={() => toggleSection('backupFiles')}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 bg-green-50 rounded-lg">
+                        <HardDrive size={22} className="text-green-600" />
+                      </div>
+                      <div>
+                        <h2 className="text-lg font-semibold text-gray-800">Backup Files</h2>
+                        <p className="text-sm text-gray-500">Manage and restore system backups</p>
+                      </div>
+                    </div>
+                    {expandedSections.backupFiles ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+                  </div>
+                </div>
+
+                {expandedSections.backupFiles && (
+                  <div className="p-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-sm text-gray-600">
+                        <span className="font-medium text-gray-900">{backups.length}</span> backup files available
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                          Auto-backup: {formData.autoBackup ? formData.backupFrequency : 'Disabled'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={fetchBackups}
+                          disabled={isLoadingBackups}
+                          className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50 cursor-pointer outline-0"
+                          title="Refresh"
+                        >
+                          <RefreshCw size={14} className={isLoadingBackups ? 'animate-spin' : ''} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {isLoadingBackups ? (
+                      <div className="text-center py-12">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-[#CC0000] mx-auto"></div>
+                        <p className="text-sm text-gray-500 mt-3">Loading backups...</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
+                        {backups.map((backup) => (
+                          <div key={backup.id || backup.name} className="border border-gray-200 rounded-lg overflow-hidden bg-white hover:shadow-md transition-shadow">
+                            <div className="p-4 bg-gradient-to-r from-gray-50 to-white border-b border-gray-100">
+                              <div className="flex items-start justify-between">
+                                <div className="flex items-center gap-2 min-w-0 flex-1">
+                                  <Archive size={18} className="text-[#CC0000] flex-shrink-0" />
+                                  <span className="font-medium text-sm text-gray-900 truncate" title={backup.name}>
+                                    {backup.name}
+                                  </span>
+                                </div>
+                                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full flex-shrink-0 ml-2">
+                                  {backup.size}
+                                </span>
+                              </div>
+                              <div className="mt-2 flex items-center gap-2">
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                  backup.backupType === 'Automatic' 
+                                    ? 'bg-blue-100 text-blue-700' 
+                                    : 'bg-green-100 text-green-700'
+                                }`}>
+                                  {backup.backupType}
+                                </span>
+                                {backup.totalCollections > 0 && (
+                                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">
+                                    {backup.totalCollections} collections
+                                  </span>
+                                )}
+                                <span className="text-xs text-gray-500 flex items-center gap-1 ml-auto">
+                                  <Calendar size={10} />
+                                  {new Date(backup.date).toLocaleDateString()}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="p-3 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadBackup(backup.filename)}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer outline-0 text-xs font-medium"
+                              >
+                                <Download size={14} />
+                                Download
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setRestoreOptions({ 
+                                  show: true, 
+                                  filename: backup.filename,
+                                  clearExisting: true,
+                                  dropExisting: false,
+                                  excludeCollections: []
+                                })}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer outline-0 text-xs font-medium"
+                              >
+                                <RotateCcw size={14} />
+                                Restore
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteBackup(backup.filename)}
+                                className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer outline-0 border border-gray-200"
+                                title="Delete Backup"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {backups.length === 0 && (
+                          <div className="text-center py-16 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                            <Archive size={40} className="mx-auto text-gray-400 mb-3" />
+                            <p className="text-gray-700 font-medium">No backup files found</p>
+                            <p className="text-gray-400 text-sm mt-1">Create your first backup using the button above</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -1035,8 +1088,8 @@ const handleDeleteBackup = async (filename) => {
               </div>
             </div>
 
-            {/* Save Settings */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            {/* Save Settings - Full Width */}
+            <div className="mt-8 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden sticky bottom-4">
               <div className="p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
