@@ -80,13 +80,14 @@ class BackupService {
   async createBackup(userId = null, type = 'manual') {
     let output = null;
     let archive = null;
+    let filePath = null;
     
     try {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const backupType = type === 'auto' ? 'auto' : 'manual';
       const backupName = `system-backup-${backupType}-${timestamp}`;
       const fileName = `${backupName}.zip`;
-      const filePath = path.join(this.backupDir, fileName);
+      filePath = path.join(this.backupDir, fileName);
 
       console.log(`🔄 Starting ${type} ZIP backup creation...`);
       console.log(`📁 Backup file path: ${filePath}`);
@@ -138,6 +139,9 @@ class BackupService {
 
             console.log(`✅ ${type} backup saved to MongoDB:`, backupName);
             
+            // Verify the backup file contains data
+            console.log(`📊 Backup file size: ${fileSize}`);
+            
             // Clean up old auto backups if needed
             if (type === 'auto') {
               await this.cleanupOldAutoBackups();
@@ -176,6 +180,10 @@ class BackupService {
           console.log(`📦 Archive progress: ${progress.fs.processedBytes} bytes processed`);
         });
 
+        archive.on('entry', (entry) => {
+          console.log(`📄 Added to archive: ${entry.name}`);
+        });
+
         // Pipe archive data to the file
         archive.pipe(output);
 
@@ -195,10 +203,13 @@ class BackupService {
       console.error('❌ Backup creation failed:', error);
       
       // Clean up if file was created but empty
-      if (output && archive && archive.pointer() === 0) {
+      if (filePath && fs.existsSync(filePath)) {
         try {
-          fs.unlinkSync(filePath);
-          console.log('🗑️ Removed empty backup file');
+          const stats = fs.statSync(filePath);
+          if (stats.size === 0) {
+            fs.unlinkSync(filePath);
+            console.log('🗑️ Removed empty backup file');
+          }
         } catch (e) {
           console.error('❌ Failed to remove empty backup file:', e);
         }
@@ -244,6 +255,12 @@ class BackupService {
           
           console.log(`📦 Collection ${collectionName}: ${allData.length} records found`);
           
+          if (allData.length > 0) {
+            // Log sample of first record to verify data structure
+            console.log(`📝 Sample record from ${collectionName}:`, 
+              JSON.stringify(allData[0]).substring(0, 200) + '...');
+          }
+          
           // Create JSON file for the collection
           const collectionData = {
             collection: collectionName,
@@ -252,9 +269,13 @@ class BackupService {
             data: allData
           };
 
+          // Convert to JSON string
+          const jsonString = JSON.stringify(collectionData, null, 2);
+          console.log(`📄 JSON size for ${collectionName}: ${(jsonString.length / 1024).toFixed(2)} KB`);
+
           // Add to ZIP with organized path
           const collectionPath = `collections/${collectionName}.json`;
-          archive.append(JSON.stringify(collectionData, null, 2), { name: collectionPath });
+          archive.append(jsonString, { name: collectionPath });
 
           collectionStats[collectionName] = {
             count: allData.length
@@ -286,11 +307,16 @@ class BackupService {
       };
 
       console.log(`📊 Metadata: ${metadata.totalCollections} collections backed up, ${metadata.totalRecords} total records`);
-      archive.append(JSON.stringify(metadata, null, 2), { name: 'backup-metadata.json' });
+      
+      const metadataJson = JSON.stringify(metadata, null, 2);
+      console.log(`📄 Metadata JSON size: ${(metadataJson.length / 1024).toFixed(2)} KB`);
+      archive.append(metadataJson, { name: 'backup-metadata.json' });
 
       // Add database stats
       const dbStats = await this.getDatabaseStats();
-      archive.append(JSON.stringify(dbStats, null, 2), { name: 'database-stats.json' });
+      const dbStatsJson = JSON.stringify(dbStats, null, 2);
+      console.log(`📄 Database stats JSON size: ${(dbStatsJson.length / 1024).toFixed(2)} KB`);
+      archive.append(dbStatsJson, { name: 'database-stats.json' });
 
       console.log('✅ Organized backup structure created in ZIP');
     } catch (error) {
@@ -393,7 +419,11 @@ class BackupService {
             console.log(`🔄 Restoring collection: ${collectionName}`);
             
             const collectionFilePath = path.join(collectionsDir, file);
-            const collectionData = JSON.parse(fs.readFileSync(collectionFilePath, 'utf8'));
+            const fileContent = fs.readFileSync(collectionFilePath, 'utf8');
+            console.log(`📄 ${file} size: ${(fileContent.length / 1024).toFixed(2)} KB`);
+            
+            const collectionData = JSON.parse(fileContent);
+            console.log(`📊 ${collectionName} has ${collectionData.data?.length || 0} records to restore`);
             
             const collection = mongoose.connection.db.collection(collectionName);
             
@@ -420,7 +450,7 @@ class BackupService {
                     ordered: options.ordered || false 
                   });
                   insertedCount += result.length;
-                  console.log(`📥 Inserted batch ${i/batchSize + 1}: ${result.length} records`);
+                  console.log(`📥 Inserted batch ${Math.floor(i/batchSize) + 1}: ${result.length} records`);
                 }
                 
                 restoreResults.restoredCollections.push({
@@ -518,6 +548,7 @@ class BackupService {
       if (count > 0) backupData.statistics.collectionsWithData++;
     }
 
+    console.log('📊 Collected backup data:', backupData.statistics);
     return backupData;
   }
 
