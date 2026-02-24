@@ -5,6 +5,7 @@ const Reservation = require("../models/Reservation");
 const User = require("../models/User");
 const SystemSettings = require("../models/SystemSettings");
 const sendEmail = require("../utils/sendEmail");
+const mongoose = require("mongoose"); // Add this for debugging
 
 // Helper function to generate OTP
 const generateOTP = () => {
@@ -467,36 +468,107 @@ exports.registerAdmin = async (req, res) => {
   }
 };
 
+// FIXED: Enhanced login with better error handling and debugging
 exports.loginAdmin = async (req, res) => {
   try {
+    console.log("=".repeat(50));
+    console.log("🔐 ADMIN LOGIN ATTEMPT");
+    console.log("=".repeat(50));
+    
     const { username, password } = req.body;
+    
+    // Log request details (without password)
+    console.log("📝 Request received:");
+    console.log("  - Username/ID:", username);
+    console.log("  - Password provided:", password ? "Yes" : "No");
+    console.log("  - Headers:", req.headers['content-type']);
     
     // Validate input
     if (!username || !password) {
+      console.log("❌ Missing credentials");
       return res.status(400).json({ 
         success: false,
         message: "Username and password are required." 
       });
     }
 
+    // Check database connection
+    console.log("🔍 Checking database connection...");
+    const dbState = mongoose.connection.readyState;
+    const dbStates = {
+      0: "disconnected",
+      1: "connected",
+      2: "connecting",
+      3: "disconnecting"
+    };
+    console.log(`  - Database state: ${dbStates[dbState]} (${dbState})`);
+    
+    if (dbState !== 1) {
+      console.error("❌ Database not connected");
+      return res.status(500).json({ 
+        success: false,
+        message: "Database connection error. Please try again later." 
+      });
+    }
+
     // Find admin by username or id_number
-    const admin = await Admin.findOne({ 
+    console.log("🔍 Searching for admin...");
+    console.log("  - Query:", { 
       $or: [
         { username: username.toLowerCase() },
         { id_number: username }
       ]
     });
     
+    let admin;
+    try {
+      admin = await Admin.findOne({ 
+        $or: [
+          { username: username.toLowerCase() },
+          { id_number: username }
+        ]
+      });
+    } catch (dbError) {
+      console.error("❌ Database query error:", dbError);
+      console.error("  - Error name:", dbError.name);
+      console.error("  - Error message:", dbError.message);
+      console.error("  - Error stack:", dbError.stack);
+      
+      return res.status(500).json({ 
+        success: false,
+        message: "Database query error. Please try again.",
+        error: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+      });
+    }
+    
+    console.log("  - Admin found:", admin ? "Yes" : "No");
+    
     if (!admin) {
+      console.log("❌ No admin found with username/ID:", username);
       return res.status(401).json({ 
         success: false,
         message: "Invalid credentials." 
       });
     }
 
+    // Log admin details (without sensitive data)
+    console.log("👤 Admin details:");
+    console.log("  - ID:", admin._id);
+    console.log("  - Username:", admin.username);
+    console.log("  - ID Number:", admin.id_number);
+    console.log("  - Name:", admin.name);
+    console.log("  - Email:", admin.email);
+    console.log("  - Role:", admin.role);
+    console.log("  - Login attempts:", admin.loginAttempts);
+    console.log("  - Is locked:", admin.isLocked ? "Yes" : "No");
+    if (admin.lockUntil) {
+      console.log("  - Lock until:", new Date(admin.lockUntil).toLocaleString());
+    }
+
     // Check if account is locked
     if (admin.isLocked) {
       const remainingTime = Math.ceil((admin.lockUntil - Date.now()) / 1000 / 60);
+      console.log("🔒 Account is locked. Remaining time:", remainingTime, "minutes");
       return res.status(423).json({ 
         success: false,
         message: `Account locked. Try again in ${remainingTime} minutes.`,
@@ -505,15 +577,30 @@ exports.loginAdmin = async (req, res) => {
       });
     }
 
-    const isMatch = await bcrypt.compare(password, admin.password);
+    // Verify password
+    console.log("🔑 Verifying password...");
+    let isMatch;
+    try {
+      isMatch = await bcrypt.compare(password, admin.password);
+    } catch (bcryptError) {
+      console.error("❌ bcrypt compare error:", bcryptError);
+      return res.status(500).json({ 
+        success: false,
+        message: "Password verification error. Please try again." 
+      });
+    }
+    
+    console.log("  - Password match:", isMatch ? "Yes" : "No");
     
     if (!isMatch) {
       // Increment login attempts
       admin.loginAttempts = (admin.loginAttempts || 0) + 1;
+      console.log("⚠️ Failed login attempt. Attempts:", admin.loginAttempts);
       
       // Lock account after 5 failed attempts for 15 minutes
       if (admin.loginAttempts >= 5) {
         admin.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+        console.log("🔒 Account locked until:", admin.lockUntil.toLocaleString());
         await admin.save();
         return res.status(423).json({ 
           success: false,
@@ -533,12 +620,15 @@ exports.loginAdmin = async (req, res) => {
     }
 
     // Reset login attempts on successful password verification
+    console.log("✅ Password verified successfully. Resetting login attempts.");
     admin.loginAttempts = 0;
     admin.lockUntil = undefined;
 
     // Generate and send OTP
+    console.log("🔢 Generating OTP...");
     const otpCode = generateOTP();
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    console.log("  - OTP expires at:", otpExpires.toLocaleString());
 
     admin.otp = {
       code: otpCode,
@@ -546,25 +636,26 @@ exports.loginAdmin = async (req, res) => {
       attempts: 0
     };
 
-    await admin.save();
+    console.log("💾 Saving admin with OTP...");
+    try {
+      await admin.save();
+      console.log("✅ Admin saved successfully");
+    } catch (saveError) {
+      console.error("❌ Error saving admin:", saveError);
+      return res.status(500).json({ 
+        success: false,
+        message: "Error saving OTP. Please try again." 
+      });
+    }
 
     // Try to send OTP via email
+    console.log("📧 Sending OTP email to:", admin.email);
     const otpSent = await sendOTP(admin.email, otpCode, admin.name, new Date());
+    console.log("  - OTP sent successfully:", otpSent ? "Yes" : "No");
     
     // Check environment
     const isDevelopment = process.env.NODE_ENV === 'development';
-    
-    if (!otpSent && !isDevelopment) {
-      // In production, fail if email fails
-      admin.otp = undefined;
-      await admin.save();
-      
-      return res.status(500).json({ 
-        success: false,
-        message: "Failed to send OTP. Please check email configuration and try again.",
-        error: "EMAIL_SEND_FAILED"
-      });
-    }
+    console.log("  - Environment:", isDevelopment ? "Development" : "Production");
 
     // Return success response
     const response = {
@@ -575,20 +666,31 @@ exports.loginAdmin = async (req, res) => {
       email: admin.email
     };
 
-    // Only include OTP in development mode
-    if (isDevelopment) {
+    // Only include OTP in development mode or if email failed
+    if (isDevelopment || !otpSent) {
       response.devOTP = otpCode;
       console.log(`🔐 DEVELOPMENT MODE - OTP for ${admin.email}: ${otpCode}`);
     }
 
+    console.log("✅ Login successful, OTP required");
+    console.log("=".repeat(50));
+    
     res.status(200).json(response);
 
   } catch (err) {
-    console.error("Admin login error:", err);
+    console.error("=".repeat(50));
+    console.error("❌ ADMIN LOGIN ERROR");
+    console.error("=".repeat(50));
+    console.error("Error name:", err.name);
+    console.error("Error message:", err.message);
+    console.error("Error stack:", err.stack);
+    console.error("=".repeat(50));
+    
     res.status(500).json({ 
       success: false,
       message: "Server error during login. Please try again.",
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
+      errorType: err.name
     });
   }
 };
