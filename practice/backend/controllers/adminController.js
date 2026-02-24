@@ -382,20 +382,32 @@ This is an automated security message from the Learning Resource Center Admin Sy
 // Controller functions
 exports.registerAdmin = async (req, res) => {
   try {
-    const { username, password, name, email } = req.body;
-    if (!username || !password || !name || !email) {
+    const { id_number, username, password, name, email } = req.body;
+    if (!id_number || !username || !password || !name || !email) {
       return res.status(400).json({ message: "All fields are required." });
     }
 
-    const existingAdmin = await Admin.findOne({ username: username.toLowerCase() });
+    const existingAdmin = await Admin.findOne({ 
+      $or: [
+        { username: username.toLowerCase() },
+        { id_number: id_number }
+      ]
+    });
+    
     if (existingAdmin) {
-      return res.status(409).json({ message: "Username already exists." });
+      if (existingAdmin.username === username.toLowerCase()) {
+        return res.status(409).json({ message: "Username already exists." });
+      }
+      if (existingAdmin.id_number === id_number) {
+        return res.status(409).json({ message: "ID number already exists." });
+      }
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const newAdmin = new Admin({
+      id_number,
       username: username.toLowerCase(),
       password: hashedPassword,
       name,
@@ -419,8 +431,10 @@ exports.loginAdmin = async (req, res) => {
       return res.status(400).json({ message: "Username and password are required." });
     }
 
-    // Find admin
-    const admin = await Admin.findOne({ username: username.toLowerCase() });
+    // Find admin by username (case insensitive)
+    const admin = await Admin.findOne({ 
+      username: { $regex: new RegExp(`^${username}$`, 'i') } 
+    });
     
     if (!admin) {
       return res.status(401).json({ message: "Invalid credentials." });
@@ -482,25 +496,14 @@ exports.loginAdmin = async (req, res) => {
     // For development/testing, always allow login with OTP
     const isDevelopment = process.env.NODE_ENV !== 'production';
     
-    if (!otpSent && !isDevelopment) {
-      // In production, fail if email fails
-      admin.otp = undefined;
-      await admin.save();
-      
-      return res.status(500).json({ 
-        message: "Failed to send OTP. Please check email configuration and try again.",
-        error: "EMAIL_SEND_FAILED"
-      });
-    }
-
-    // In development, return OTP in response for testing
+    // In development, always return OTP for testing
     res.status(200).json({
       message: otpSent ? "OTP sent to your email" : "OTP generated (development mode - check console)",
       requiresOTP: true,
       adminId: admin._id,
       email: admin.email,
-      // Only include OTP in development mode
-      ...(isDevelopment && !otpSent && { devOTP: otpCode })
+      // Always include OTP in development mode for testing
+      ...(isDevelopment && { devOTP: otpCode })
     });
 
   } catch (err) {
@@ -536,8 +539,11 @@ exports.verifyOTP = async (req, res) => {
       return res.status(401).json({ message: "OTP has expired. Please request a new one." });
     }
 
-    // Verify OTP
-    if (admin.otp.code !== otp) {
+    // Verify OTP (allow development mode OTP from console)
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const isValidOTP = admin.otp.code === otp;
+
+    if (!isValidOTP) {
       return res.status(401).json({ message: "Invalid OTP." });
     }
 
@@ -550,6 +556,7 @@ exports.verifyOTP = async (req, res) => {
       message: "Login successful",
       admin: {
         _id: admin._id,
+        id_number: admin.id_number,
         username: admin.username,
         name: admin.name,
         email: admin.email,
@@ -589,20 +596,10 @@ exports.resendOTP = async (req, res) => {
     
     const isDevelopment = process.env.NODE_ENV !== 'production';
     
-    if (!otpSent && !isDevelopment) {
-      admin.otp = undefined;
-      await admin.save();
-      
-      return res.status(500).json({ 
-        message: "Failed to send OTP. Please try again.",
-        error: "EMAIL_SEND_FAILED"
-      });
-    }
-
     res.status(200).json({
       message: otpSent ? "New OTP sent to your email" : "New OTP generated (development mode - check console)",
       email: admin.email,
-      ...(isDevelopment && !otpSent && { devOTP: otpCode })
+      ...(isDevelopment && { devOTP: otpCode })
     });
 
   } catch (err) {
@@ -661,6 +658,7 @@ exports.updateAdminProfile = async (req, res) => {
       message: "Profile updated successfully",
       admin: {
         _id: updatedAdmin._id,
+        id_number: updatedAdmin.id_number,
         username: updatedAdmin.username,
         name: updatedAdmin.name,
         email: updatedAdmin.email,

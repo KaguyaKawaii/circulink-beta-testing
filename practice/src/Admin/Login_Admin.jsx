@@ -18,6 +18,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
   const [remainingAttempts, setRemainingAttempts] = useState(5);
   const [otpCountdown, setOtpCountdown] = useState(0);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [devOTP, setDevOTP] = useState("");
 
   // Check maintenance mode on component mount
   useEffect(() => {
@@ -83,6 +84,13 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
         setAdminId(data.adminId);
         setAdminEmail(data.email);
         setOtpCountdown(60); // 60 seconds countdown for resend
+        
+        // Store dev OTP if provided (development mode)
+        if (data.devOTP) {
+          setDevOTP(data.devOTP);
+          console.log("🔐 Development OTP:", data.devOTP);
+        }
+        
         setError("");
       }
     } catch (err) {
@@ -145,7 +153,19 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
         setError(data.message || "Failed to resend OTP.");
       } else {
         setOtpCountdown(60);
+        
+        // Update dev OTP if provided
+        if (data.devOTP) {
+          setDevOTP(data.devOTP);
+          console.log("🔐 New Development OTP:", data.devOTP);
+        }
+        
         setError("New OTP sent to your email.");
+        
+        // Auto-clear success message after 3 seconds
+        setTimeout(() => {
+          setError("");
+        }, 3000);
       }
     } catch (err) {
       console.error("Resend OTP error:", err);
@@ -160,6 +180,7 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
     setOtp("");
     setError("");
     setLockUntil(null);
+    setDevOTP("");
   };
 
   const handleBackToUserLogin = () => {
@@ -167,6 +188,14 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
       onBackToUserLogin();
     }
   };
+
+  // Auto-fill dev OTP if available (for development)
+  useEffect(() => {
+    if (devOTP && requiresOTP) {
+      // Optional: auto-fill OTP for development
+      setOtp(devOTP);
+    }
+  }, [devOTP, requiresOTP]);
 
   // Check if account is still locked
   if (lockUntil && lockUntil > Date.now()) {
@@ -192,8 +221,6 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
                 alt="University of San Agustin Logo" 
                 className="h-40 w-40 bg-white/10 p-6 rounded-full backdrop-blur-sm mx-auto"
               />
-              
-              
             </div>
             <h1 className="text-4xl font-bold text-white mb-4">University of San Agustin</h1>
             <h2 className="text-2xl font-semibold text-white mb-8">Learning Resource Center</h2>
@@ -379,12 +406,23 @@ function Login_Admin({ onAdminLoginSuccess, onBackToUserLogin }) {
           </div>
 
           {error && (
-            <div className="bg-red-900/20 border border-red-800/50 text-red-200 p-4 rounded-lg mb-6 animate-fade-in">
+            <div className={`${error.includes("sent") ? "bg-green-900/20 border-green-800/50 text-green-200" : "bg-red-900/20 border-red-800/50 text-red-200"} border p-4 rounded-lg mb-6 animate-fade-in`}>
               <p className="font-bold flex items-center gap-2 text-sm">
                 <Shield size={16} />
-                Authentication Required
+                {error.includes("sent") ? "Success" : "Authentication Required"}
               </p>
               <p className="mt-1 text-sm">{error}</p>
+            </div>
+          )}
+
+          {devOTP && requiresOTP && (
+            <div className="bg-blue-900/20 border border-blue-800/50 text-blue-200 p-4 rounded-lg mb-6">
+              <p className="font-bold flex items-center gap-2 text-sm">
+                <Shield size={16} />
+                Development Mode
+              </p>
+              <p className="mt-1 text-sm">OTP: <span className="font-mono font-bold">{devOTP}</span></p>
+              <p className="text-xs mt-2 opacity-75">This code is shown only in development mode</p>
             </div>
           )}
 
