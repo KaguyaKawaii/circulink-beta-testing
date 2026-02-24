@@ -1,5 +1,5 @@
-const User = require("../models/User");
-const sendEmail = require("../utils/sendEmail");
+import User from "../models/User.js";
+import sendEmail from "../utils/sendEmail.js";
 
 const tempUsers = new Map();
 
@@ -7,7 +7,7 @@ function generateOtp() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-exports.signup = async (req, res) => {
+export const signup = async (req, res) => {
   try {
     const { name, email, id_number, password, role, department, course, year_level } = req.body;
 
@@ -89,7 +89,7 @@ exports.signup = async (req, res) => {
   }
 };
 
-exports.verifyOtp = async (req, res) => {
+export const verifyOtp = async (req, res) => {
   try {
     const { email, otp } = req.body;
     const tempUser = tempUsers.get(email);
@@ -161,7 +161,7 @@ exports.verifyOtp = async (req, res) => {
   }
 };
 
-exports.resendOtp = async (req, res) => {
+export const resendOtp = async (req, res) => {
   try {
     const { email } = req.body;
     const tempUser = tempUsers.get(email);

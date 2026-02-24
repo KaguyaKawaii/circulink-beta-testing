@@ -1,24 +1,27 @@
-const express = require("express");
+import express from 'express';
+import * as authController from '../controllers/authController.js';
+
 const router = express.Router();
-const authController = require("../controllers/authController");
-const loginController = require("../controllers/loginController"); // ADD THIS
-const sessionController = require("../controllers/sessionController");
 
-// ✅ NEW: Login routes with session management
-router.post("/login", loginController.login);
-router.post("/admin-login", loginController.adminLogin);
-router.post("/logout", loginController.logout);
-router.post("/force-logout", loginController.forceLogout);
+// User registration
+router.post('/register', authController.register);
 
-// Session management routes
-router.post("/check-login-status", sessionController.checkLoginStatus);
-router.post("/update-session-login", sessionController.updateSessionLogin);
-router.post("/update-session-logout", sessionController.updateSessionLogout);
-router.post("/validate-session", sessionController.validateSession);
+// User login
+router.post('/login', authController.login);
 
-// Signup + OTP verification
-router.post("/signup", authController.signup);
-router.post("/verify-otp", authController.verifyOtp);
-router.post("/resend-otp", authController.resendOtp);
+// User logout
+router.post('/logout', authController.logout);
 
-module.exports = router;
+// Get current user
+router.get('/me', authController.getCurrentUser);
+
+// Email verification
+router.get('/verify-email/:token', authController.verifyEmail);
+
+// Resend verification email
+router.post('/resend-verification', authController.resendVerification);
+
+// Check session
+router.get('/check-session', authController.checkSession);
+
+export default router;
