@@ -382,31 +382,88 @@ This is an automated security message from the Learning Resource Center Admin Sy
 // Controller functions
 exports.registerAdmin = async (req, res) => {
   try {
-    const { username, password, name, email } = req.body;
-    if (!username || !password || !name || !email) {
-      return res.status(400).json({ message: "All fields are required." });
+    const { id_number, username, password, name, email } = req.body;
+    
+    // Validate required fields
+    if (!id_number || !username || !password || !name || !email) {
+      return res.status(400).json({ 
+        success: false,
+        message: "All fields are required (id_number, username, password, name, email)." 
+      });
     }
 
-    const existingAdmin = await Admin.findOne({ username: username.toLowerCase() });
+    // Check if admin already exists
+    const existingAdmin = await Admin.findOne({ 
+      $or: [
+        { username: username.toLowerCase() },
+        { id_number: id_number }
+      ]
+    });
+    
     if (existingAdmin) {
-      return res.status(409).json({ message: "Username already exists." });
+      if (existingAdmin.username === username.toLowerCase()) {
+        return res.status(409).json({ 
+          success: false,
+          message: "Username already exists." 
+        });
+      }
+      if (existingAdmin.id_number === id_number) {
+        return res.status(409).json({ 
+          success: false,
+          message: "ID number already exists." 
+        });
+      }
     }
 
+    // Hash password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Create new admin
     const newAdmin = new Admin({
+      id_number,
       username: username.toLowerCase(),
       password: hashedPassword,
       name,
-      email,
+      email: email.toLowerCase(),
+      role: "admin",
+      loginAttempts: 0,
+      createdAt: new Date(),
+      updatedAt: new Date()
     });
 
     await newAdmin.save();
-    res.status(201).json({ message: "Admin account created successfully." });
+
+    // Return success without sensitive data
+    res.status(201).json({ 
+      success: true,
+      message: "Admin account created successfully.",
+      admin: {
+        id: newAdmin._id,
+        id_number: newAdmin.id_number,
+        username: newAdmin.username,
+        name: newAdmin.name,
+        email: newAdmin.email,
+        role: newAdmin.role
+      }
+    });
   } catch (err) {
     console.error("Admin registration error:", err);
-    res.status(500).json({ message: "Failed to create admin account." });
+    
+    // Handle duplicate key error
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyPattern)[0];
+      return res.status(409).json({ 
+        success: false,
+        message: `${field} already exists.` 
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to create admin account. Please try again.",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 
@@ -416,20 +473,32 @@ exports.loginAdmin = async (req, res) => {
     
     // Validate input
     if (!username || !password) {
-      return res.status(400).json({ message: "Username and password are required." });
+      return res.status(400).json({ 
+        success: false,
+        message: "Username and password are required." 
+      });
     }
 
-    // Find admin
-    const admin = await Admin.findOne({ username: username.toLowerCase() });
+    // Find admin by username or id_number
+    const admin = await Admin.findOne({ 
+      $or: [
+        { username: username.toLowerCase() },
+        { id_number: username }
+      ]
+    });
     
     if (!admin) {
-      return res.status(401).json({ message: "Invalid credentials." });
+      return res.status(401).json({ 
+        success: false,
+        message: "Invalid credentials." 
+      });
     }
 
     // Check if account is locked
     if (admin.isLocked) {
       const remainingTime = Math.ceil((admin.lockUntil - Date.now()) / 1000 / 60);
       return res.status(423).json({ 
+        success: false,
         message: `Account locked. Try again in ${remainingTime} minutes.`,
         locked: true,
         remainingTime 
@@ -440,22 +509,24 @@ exports.loginAdmin = async (req, res) => {
     
     if (!isMatch) {
       // Increment login attempts
-      admin.loginAttempts += 1;
+      admin.loginAttempts = (admin.loginAttempts || 0) + 1;
       
-      // Lock account after 5 failed attempts for 5 minutes
+      // Lock account after 5 failed attempts for 15 minutes
       if (admin.loginAttempts >= 5) {
-        admin.lockUntil = Date.now() + 5 * 60 * 1000; // 5 minutes
+        admin.lockUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
         await admin.save();
         return res.status(423).json({ 
-          message: "Account locked due to too many failed attempts. Try again in 5 minutes.",
+          success: false,
+          message: "Account locked due to too many failed attempts. Try again in 15 minutes.",
           locked: true,
-          remainingTime: 5
+          remainingTime: 15
         });
       }
       
       await admin.save();
       const remainingAttempts = 5 - admin.loginAttempts;
       return res.status(401).json({ 
+        success: false,
         message: `Invalid credentials. ${remainingAttempts} attempts remaining.`,
         remainingAttempts 
       });
@@ -467,11 +538,12 @@ exports.loginAdmin = async (req, res) => {
 
     // Generate and send OTP
     const otpCode = generateOTP();
-    const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     admin.otp = {
       code: otpCode,
-      expiresAt: otpExpires
+      expiresAt: otpExpires,
+      attempts: 0
     };
 
     await admin.save();
@@ -479,8 +551,8 @@ exports.loginAdmin = async (req, res) => {
     // Try to send OTP via email
     const otpSent = await sendOTP(admin.email, otpCode, admin.name, new Date());
     
-    // For development/testing, always allow login with OTP
-    const isDevelopment = process.env.NODE_ENV !== 'production';
+    // Check environment
+    const isDevelopment = process.env.NODE_ENV === 'development';
     
     if (!otpSent && !isDevelopment) {
       // In production, fail if email fails
@@ -488,26 +560,35 @@ exports.loginAdmin = async (req, res) => {
       await admin.save();
       
       return res.status(500).json({ 
+        success: false,
         message: "Failed to send OTP. Please check email configuration and try again.",
         error: "EMAIL_SEND_FAILED"
       });
     }
 
-    // In development, return OTP in response for testing
-    res.status(200).json({
-      message: otpSent ? "OTP sent to your email" : "OTP generated (development mode - check console)",
+    // Return success response
+    const response = {
+      success: true,
+      message: otpSent ? "OTP sent to your email" : "OTP generated (development mode)",
       requiresOTP: true,
       adminId: admin._id,
-      email: admin.email,
-      // Only include OTP in development mode
-      ...(isDevelopment && !otpSent && { devOTP: otpCode })
-    });
+      email: admin.email
+    };
+
+    // Only include OTP in development mode
+    if (isDevelopment) {
+      response.devOTP = otpCode;
+      console.log(`🔐 DEVELOPMENT MODE - OTP for ${admin.email}: ${otpCode}`);
+    }
+
+    res.status(200).json(response);
 
   } catch (err) {
     console.error("Admin login error:", err);
     res.status(500).json({ 
+      success: false,
       message: "Server error during login. Please try again.",
-      error: err.message 
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
@@ -517,50 +598,88 @@ exports.verifyOTP = async (req, res) => {
     const { adminId, otp } = req.body;
     
     if (!adminId || !otp) {
-      return res.status(400).json({ message: "Admin ID and OTP are required." });
+      return res.status(400).json({ 
+        success: false,
+        message: "Admin ID and OTP are required." 
+      });
     }
 
     const admin = await Admin.findById(adminId);
     if (!admin) {
-      return res.status(404).json({ message: "Admin not found." });
+      return res.status(404).json({ 
+        success: false,
+        message: "Admin not found." 
+      });
     }
 
-    // Check if OTP exists and is not expired
+    // Check if OTP exists
     if (!admin.otp || !admin.otp.code) {
-      return res.status(401).json({ message: "No OTP found. Please request a new one." });
+      return res.status(401).json({ 
+        success: false,
+        message: "No OTP found. Please request a new one." 
+      });
     }
 
-    if (admin.otp.expiresAt < Date.now()) {
+    // Check if OTP is expired
+    if (admin.otp.expiresAt < new Date()) {
       admin.otp = undefined;
       await admin.save();
-      return res.status(401).json({ message: "OTP has expired. Please request a new one." });
+      return res.status(401).json({ 
+        success: false,
+        message: "OTP has expired. Please request a new one." 
+      });
+    }
+
+    // Track OTP attempts
+    admin.otp.attempts = (admin.otp.attempts || 0) + 1;
+
+    // Lock after 3 failed OTP attempts
+    if (admin.otp.attempts >= 3) {
+      admin.otp = undefined;
+      admin.lockUntil = new Date(Date.now() + 30 * 60 * 1000); // 30 minutes
+      await admin.save();
+      return res.status(423).json({ 
+        success: false,
+        message: "Too many invalid OTP attempts. Account locked for 30 minutes.",
+        locked: true
+      });
     }
 
     // Verify OTP
     if (admin.otp.code !== otp) {
-      return res.status(401).json({ message: "Invalid OTP." });
+      await admin.save();
+      return res.status(401).json({ 
+        success: false,
+        message: `Invalid OTP. ${3 - admin.otp.attempts} attempts remaining.` 
+      });
     }
 
     // Clear OTP after successful verification
     admin.otp = undefined;
+    admin.loginAttempts = 0;
     await admin.save();
 
     // Return admin data for login success
     res.status(200).json({
+      success: true,
       message: "Login successful",
       admin: {
         _id: admin._id,
+        id_number: admin.id_number,
         username: admin.username,
         name: admin.name,
         email: admin.email,
         role: admin.role,
         createdAt: admin.createdAt,
         updatedAt: admin.updatedAt
-      },
+      }
     });
   } catch (err) {
     console.error("OTP verification error:", err);
-    res.status(500).json({ message: "Server error during OTP verification." });
+    res.status(500).json({ 
+      success: false,
+      message: "Server error during OTP verification." 
+    });
   }
 };
 
@@ -568,18 +687,40 @@ exports.resendOTP = async (req, res) => {
   try {
     const { adminId } = req.body;
     
+    if (!adminId) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Admin ID is required." 
+      });
+    }
+
     const admin = await Admin.findById(adminId);
     if (!admin) {
-      return res.status(404).json({ message: "Admin not found." });
+      return res.status(404).json({ 
+        success: false,
+        message: "Admin not found." 
+      });
+    }
+
+    // Check if account is locked
+    if (admin.isLocked) {
+      const remainingTime = Math.ceil((admin.lockUntil - Date.now()) / 1000 / 60);
+      return res.status(423).json({ 
+        success: false,
+        message: `Account locked. Try again in ${remainingTime} minutes.`,
+        locked: true,
+        remainingTime 
+      });
     }
 
     // Generate new OTP
     const otpCode = generateOTP();
-    const otpExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     admin.otp = {
       code: otpCode,
-      expiresAt: otpExpires
+      expiresAt: otpExpires,
+      attempts: 0
     };
 
     await admin.save();
@@ -587,27 +728,37 @@ exports.resendOTP = async (req, res) => {
     // Send new OTP
     const otpSent = await sendOTP(admin.email, otpCode, admin.name, new Date());
     
-    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const isDevelopment = process.env.NODE_ENV === 'development';
     
     if (!otpSent && !isDevelopment) {
       admin.otp = undefined;
       await admin.save();
       
       return res.status(500).json({ 
+        success: false,
         message: "Failed to send OTP. Please try again.",
         error: "EMAIL_SEND_FAILED"
       });
     }
 
-    res.status(200).json({
-      message: otpSent ? "New OTP sent to your email" : "New OTP generated (development mode - check console)",
-      email: admin.email,
-      ...(isDevelopment && !otpSent && { devOTP: otpCode })
-    });
+    const response = {
+      success: true,
+      message: otpSent ? "New OTP sent to your email" : "New OTP generated (development mode)",
+      email: admin.email
+    };
+
+    if (isDevelopment) {
+      response.devOTP = otpCode;
+    }
+
+    res.status(200).json(response);
 
   } catch (err) {
     console.error("Resend OTP error:", err);
-    res.status(500).json({ message: "Server error during OTP resend." });
+    res.status(500).json({ 
+      success: false,
+      message: "Server error during OTP resend." 
+    });
   }
 };
 
@@ -616,10 +767,17 @@ exports.getSummaryCounts = async (req, res) => {
     const reservations = await Reservation.countDocuments();
     const users = await User.countDocuments();
 
-    res.status(200).json({ reservations, users });
+    res.status(200).json({ 
+      success: true,
+      reservations, 
+      users 
+    });
   } catch (err) {
     console.error("Summary fetch error:", err);
-    res.status(500).json({ message: "Failed to fetch summary counts." });
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to fetch summary counts." 
+    });
   }
 };
 
@@ -629,7 +787,10 @@ exports.updateAdminProfile = async (req, res) => {
     const { username, name, email } = req.body;
 
     if (!username || !name || !email) {
-      return res.status(400).json({ message: "All fields are required." });
+      return res.status(400).json({ 
+        success: false,
+        message: "All fields are required." 
+      });
     }
 
     const existingAdmin = await Admin.findOne({ 
@@ -638,7 +799,10 @@ exports.updateAdminProfile = async (req, res) => {
     });
     
     if (existingAdmin) {
-      return res.status(409).json({ message: "Username already exists." });
+      return res.status(409).json({ 
+        success: false,
+        message: "Username already exists." 
+      });
     }
 
     const updatedAdmin = await Admin.findByIdAndUpdate(
@@ -646,32 +810,30 @@ exports.updateAdminProfile = async (req, res) => {
       {
         username: username.toLowerCase(),
         name,
-        email,
-        updatedAt: Date.now()
+        email: email.toLowerCase(),
+        updatedAt: new Date()
       },
       { new: true, runValidators: true }
-    );
+    ).select('-password -otp');
 
     if (!updatedAdmin) {
-      return res.status(404).json({ message: "Admin not found." });
+      return res.status(404).json({ 
+        success: false,
+        message: "Admin not found." 
+      });
     }
 
     res.status(200).json({
       success: true,
       message: "Profile updated successfully",
-      admin: {
-        _id: updatedAdmin._id,
-        username: updatedAdmin.username,
-        name: updatedAdmin.name,
-        email: updatedAdmin.email,
-        role: updatedAdmin.role,
-        createdAt: updatedAdmin.createdAt,
-        updatedAt: updatedAdmin.updatedAt
-      }
+      admin: updatedAdmin
     });
   } catch (err) {
     console.error("Profile update error:", err);
-    res.status(500).json({ message: "Failed to update profile." });
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to update profile." 
+    });
   }
 };
 
@@ -681,28 +843,53 @@ exports.updateAdminPassword = async (req, res) => {
     const { currentPassword, newPassword } = req.body;
 
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ message: "Current password and new password are required." });
+      return res.status(400).json({ 
+        success: false,
+        message: "Current password and new password are required." 
+      });
     }
 
     const admin = await Admin.findById(id);
     if (!admin) {
-      return res.status(404).json({ message: "Admin not found." });
+      return res.status(404).json({ 
+        success: false,
+        message: "Admin not found." 
+      });
     }
 
     const isMatch = await bcrypt.compare(currentPassword, admin.password);
     if (!isMatch) {
-      return res.status(401).json({ message: "Current password is incorrect." });
+      return res.status(401).json({ 
+        success: false,
+        message: "Current password is incorrect." 
+      });
     }
 
     if (newPassword.length < 8) {
-      return res.status(400).json({ message: "New password must be at least 8 characters long." });
+      return res.status(400).json({ 
+        success: false,
+        message: "New password must be at least 8 characters long." 
+      });
+    }
+
+    // Check password strength
+    const hasUpperCase = /[A-Z]/.test(newPassword);
+    const hasLowerCase = /[a-z]/.test(newPassword);
+    const hasNumbers = /\d/.test(newPassword);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
+
+    if (!hasUpperCase || !hasLowerCase || !hasNumbers || !hasSpecialChar) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character." 
+      });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
     admin.password = hashedPassword;
-    admin.updatedAt = Date.now();
+    admin.updatedAt = new Date();
     await admin.save();
 
     res.status(200).json({
@@ -711,7 +898,10 @@ exports.updateAdminPassword = async (req, res) => {
     });
   } catch (err) {
     console.error("Password update error:", err);
-    res.status(500).json({ message: "Failed to update password." });
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to update password." 
+    });
   }
 };
 
@@ -741,7 +931,10 @@ exports.getSystemSettings = async (req, res) => {
     });
   } catch (err) {
     console.error("Get system settings error:", err);
-    res.status(500).json({ message: "Failed to fetch system settings." });
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to fetch system settings." 
+    });
   }
 };
 
@@ -755,7 +948,7 @@ exports.updateSystemSettings = async (req, res) => {
       settings = new SystemSettings(settingsData);
     } else {
       Object.assign(settings, settingsData);
-      settings.updatedAt = Date.now();
+      settings.updatedAt = new Date();
     }
 
     await settings.save();
@@ -767,6 +960,9 @@ exports.updateSystemSettings = async (req, res) => {
     });
   } catch (err) {
     console.error("Update system settings error:", err);
-    res.status(500).json({ message: "Failed to update system settings." });
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to update system settings." 
+    });
   }
 };
