@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const adminSchema = new mongoose.Schema({
   id_number: { type: String, required: true, unique: true },
-  username: { type: String, required: true, unique: true }, // Keep both for flexibility
+  username: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   name: { type: String, required: true },
   email: { type: String, required: true },
@@ -18,10 +18,8 @@ const adminSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-// Index for better query performance
-adminSchema.index({ username: 1 });
+// ✅ Only keep this (since email is not unique)
 adminSchema.index({ email: 1 });
-adminSchema.index({ id_number: 1 });
 
 adminSchema.virtual("isLocked").get(function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
@@ -38,7 +36,7 @@ adminSchema.pre("save", function (next) {
 
 adminSchema.set("toJSON", {
   virtuals: true,
-  transform: function(doc, ret) {
+  transform: function (doc, ret) {
     delete ret.password;
     delete ret.otp;
     return ret;
