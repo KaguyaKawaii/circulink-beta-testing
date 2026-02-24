@@ -477,11 +477,10 @@ exports.loginAdmin = async (req, res) => {
     
     const { username, password } = req.body;
     
-    // Log request details (without password)
+    // Log request details
     console.log("📝 Request received:");
     console.log("  - Username/ID:", username);
     console.log("  - Password provided:", password ? "Yes" : "No");
-    console.log("  - Headers:", req.headers['content-type']);
     
     // Validate input
     if (!username || !password) {
@@ -530,14 +529,9 @@ exports.loginAdmin = async (req, res) => {
       });
     } catch (dbError) {
       console.error("❌ Database query error:", dbError);
-      console.error("  - Error name:", dbError.name);
-      console.error("  - Error message:", dbError.message);
-      console.error("  - Error stack:", dbError.stack);
-      
       return res.status(500).json({ 
         success: false,
-        message: "Database query error. Please try again.",
-        error: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+        message: "Database query error. Please try again." 
       });
     }
     
@@ -551,7 +545,7 @@ exports.loginAdmin = async (req, res) => {
       });
     }
 
-    // Log admin details (without sensitive data)
+    // Log admin details
     console.log("👤 Admin details:");
     console.log("  - ID:", admin._id);
     console.log("  - Username:", admin.username);
@@ -560,13 +554,14 @@ exports.loginAdmin = async (req, res) => {
     console.log("  - Email:", admin.email);
     console.log("  - Role:", admin.role);
     console.log("  - Login attempts:", admin.loginAttempts);
-    console.log("  - Is locked:", admin.isLocked ? "Yes" : "No");
-    if (admin.lockUntil) {
-      console.log("  - Lock until:", new Date(admin.lockUntil).toLocaleString());
-    }
+    console.log("  - Lock until:", admin.lockUntil || "Not locked");
+    console.log("  - Has OTP:", admin.otp ? "Yes" : "No");
 
-    // Check if account is locked
-    if (admin.isLocked) {
+    // Check if account is locked - FIXED: Handle case when lockUntil is undefined
+    const isLocked = admin.lockUntil && admin.lockUntil > Date.now();
+    console.log("  - Is locked:", isLocked ? "Yes" : "No");
+    
+    if (isLocked) {
       const remainingTime = Math.ceil((admin.lockUntil - Date.now()) / 1000 / 60);
       console.log("🔒 Account is locked. Remaining time:", remainingTime, "minutes");
       return res.status(423).json({ 
@@ -660,16 +655,19 @@ exports.loginAdmin = async (req, res) => {
     // Return success response
     const response = {
       success: true,
-      message: otpSent ? "OTP sent to your email" : "OTP generated (development mode)",
+      message: otpSent ? "OTP sent to your email" : "OTP generated (check server console)",
       requiresOTP: true,
       adminId: admin._id,
       email: admin.email
     };
 
-    // Only include OTP in development mode or if email failed
-    if (isDevelopment || !otpSent) {
+    // Only include OTP in development mode
+    if (isDevelopment) {
       response.devOTP = otpCode;
       console.log(`🔐 DEVELOPMENT MODE - OTP for ${admin.email}: ${otpCode}`);
+    } else {
+      // In production, still log OTP to server console for debugging
+      console.log(`🔐 PRODUCTION - OTP for ${admin.email}: ${otpCode}`);
     }
 
     console.log("✅ Login successful, OTP required");
@@ -689,8 +687,7 @@ exports.loginAdmin = async (req, res) => {
     res.status(500).json({ 
       success: false,
       message: "Server error during login. Please try again.",
-      error: process.env.NODE_ENV === 'development' ? err.message : undefined,
-      errorType: err.name
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
