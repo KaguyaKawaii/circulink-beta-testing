@@ -18,7 +18,6 @@ const adminSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-// ✅ Only keep this (since email is not unique)
 adminSchema.index({ email: 1 });
 
 adminSchema.virtual("isLocked").get(function () {
@@ -44,3 +43,5 @@ adminSchema.set("toJSON", {
 });
 
 const Admin = mongoose.model("Admin", adminSchema);
+
+export default Admin;   // ✅ REQUIRED
