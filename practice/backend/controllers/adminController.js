@@ -1,6 +1,6 @@
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
-const Admin = require("../models/Admin");
+import Admin from "../models/Admin.js"; // Add .js extension
 const Reservation = require("../models/Reservation");
 const User = require("../models/User");
 const SystemSettings = require("../models/SystemSettings");
