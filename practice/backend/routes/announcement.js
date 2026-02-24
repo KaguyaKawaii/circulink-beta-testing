@@ -1,15 +1,27 @@
-const express = require('express');
-const router = express.Router();
-const announcementController = require('../controllers/announcementController');
+import express from 'express';
+import * as announcementController from '../controllers/announcementController.js';
 
-// Announcement routes
-router.post('/', announcementController.createAnnouncement);
+const router = express.Router();
+
+// Get all announcements
 router.get('/', announcementController.getAnnouncements);
-router.get('/active', announcementController.getActiveAnnouncements);
-router.get('/management', announcementController.getAllAnnouncementsForManagement); // NEW ROUTE
-router.get('/:id', announcementController.getAnnouncementById);
+
+// Get single announcement
+router.get('/:id', announcementController.getAnnouncement);
+
+// Create announcement
+router.post('/', announcementController.createAnnouncement);
+
+// Update announcement
 router.put('/:id', announcementController.updateAnnouncement);
+
+// Delete announcement
 router.delete('/:id', announcementController.deleteAnnouncement);
+
+// Dismiss announcement for user
 router.post('/:id/dismiss', announcementController.dismissAnnouncement);
 
-module.exports = router;
+// Get active announcements for user
+router.get('/user/:userId', announcementController.getUserAnnouncements);
+
+export default router;

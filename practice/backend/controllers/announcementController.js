@@ -1,5 +1,5 @@
-const Announcement = require('../models/Announcement');
-const Log = require('../models/Log');
+import Announcement from '../models/Announcement.js';
+import Log from '../models/Log.js';
 
 const announcementController = {
   // Create new announcement
@@ -295,4 +295,4 @@ const announcementController = {
   }
 };
 
-module.exports = announcementController;
+export default announcementController;
