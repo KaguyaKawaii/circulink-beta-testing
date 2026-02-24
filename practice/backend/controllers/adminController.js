@@ -1,10 +1,10 @@
-const bcrypt = require("bcryptjs");
-const crypto = require("crypto");
-import Admin from "../models/Admin.js"; // Add .js extension
-const Reservation = require("../models/Reservation");
-const User = require("../models/User");
-const SystemSettings = require("../models/SystemSettings");
-const sendEmail = require("../utils/sendEmail");
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
+import Admin from "../models/Admin.js";
+import Reservation from "../models/Reservation.js";
+import User from "../models/User.js";
+import SystemSettings from "../models/SystemSettings.js";
+import sendEmail from "../utils/sendEmail.js";
 
 // Helper function to generate OTP
 const generateOTP = () => {
@@ -380,7 +380,7 @@ This is an automated security message from the Learning Resource Center Admin Sy
 };
 
 // Controller functions
-exports.registerAdmin = async (req, res) => {
+export const registerAdmin = async (req, res) => {
   try {
     const { id_number, username, password, name, email } = req.body;
     if (!id_number || !username || !password || !name || !email) {
@@ -422,9 +422,11 @@ exports.registerAdmin = async (req, res) => {
   }
 };
 
-exports.loginAdmin = async (req, res) => {
+export const loginAdmin = async (req, res) => {
   try {
     const { username, password } = req.body;
+    
+    console.log("Login attempt for username:", username);
     
     // Validate input
     if (!username || !password) {
@@ -435,6 +437,8 @@ exports.loginAdmin = async (req, res) => {
     const admin = await Admin.findOne({ 
       username: { $regex: new RegExp(`^${username}$`, 'i') } 
     });
+    
+    console.log("Admin found:", admin ? "Yes" : "No");
     
     if (!admin) {
       return res.status(401).json({ message: "Invalid credentials." });
@@ -451,6 +455,7 @@ exports.loginAdmin = async (req, res) => {
     }
 
     const isMatch = await bcrypt.compare(password, admin.password);
+    console.log("Password match:", isMatch ? "Yes" : "No");
     
     if (!isMatch) {
       // Increment login attempts
@@ -491,31 +496,37 @@ exports.loginAdmin = async (req, res) => {
     await admin.save();
 
     // Try to send OTP via email
-    const otpSent = await sendOTP(admin.email, otpCode, admin.name, new Date());
+    let otpSent = false;
+    try {
+      otpSent = await sendOTP(admin.email, otpCode, admin.name, new Date());
+      console.log("OTP sent status:", otpSent);
+    } catch (emailError) {
+      console.error("Email sending failed:", emailError);
+    }
     
-    // For development/testing, always allow login with OTP
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    
-    // In development, always return OTP for testing
+    // In production, still allow login but warn about email
     res.status(200).json({
-      message: otpSent ? "OTP sent to your email" : "OTP generated (development mode - check console)",
+      message: otpSent ? "OTP sent to your email" : "OTP generated but email sending failed. Check server logs.",
       requiresOTP: true,
       adminId: admin._id,
       email: admin.email,
-      // Always include OTP in development mode for testing
-      ...(isDevelopment && { devOTP: otpCode })
     });
 
   } catch (err) {
     console.error("Admin login error:", err);
+    console.error("Error details:", {
+      message: err.message,
+      stack: err.stack,
+      name: err.name
+    });
     res.status(500).json({ 
       message: "Server error during login. Please try again.",
-      error: err.message 
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
 
-exports.verifyOTP = async (req, res) => {
+export const verifyOTP = async (req, res) => {
   try {
     const { adminId, otp } = req.body;
     
@@ -539,8 +550,7 @@ exports.verifyOTP = async (req, res) => {
       return res.status(401).json({ message: "OTP has expired. Please request a new one." });
     }
 
-    // Verify OTP (allow development mode OTP from console)
-    const isDevelopment = process.env.NODE_ENV !== 'production';
+    // Verify OTP
     const isValidOTP = admin.otp.code === otp;
 
     if (!isValidOTP) {
@@ -571,7 +581,7 @@ exports.verifyOTP = async (req, res) => {
   }
 };
 
-exports.resendOTP = async (req, res) => {
+export const resendOTP = async (req, res) => {
   try {
     const { adminId } = req.body;
     
@@ -594,12 +604,9 @@ exports.resendOTP = async (req, res) => {
     // Send new OTP
     const otpSent = await sendOTP(admin.email, otpCode, admin.name, new Date());
     
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    
     res.status(200).json({
       message: otpSent ? "New OTP sent to your email" : "New OTP generated (development mode - check console)",
       email: admin.email,
-      ...(isDevelopment && { devOTP: otpCode })
     });
 
   } catch (err) {
@@ -608,7 +615,7 @@ exports.resendOTP = async (req, res) => {
   }
 };
 
-exports.getSummaryCounts = async (req, res) => {
+export const getSummaryCounts = async (req, res) => {
   try {
     const reservations = await Reservation.countDocuments();
     const users = await User.countDocuments();
@@ -620,7 +627,7 @@ exports.getSummaryCounts = async (req, res) => {
   }
 };
 
-exports.updateAdminProfile = async (req, res) => {
+export const updateAdminProfile = async (req, res) => {
   try {
     const { id } = req.params;
     const { username, name, email } = req.body;
@@ -673,7 +680,7 @@ exports.updateAdminProfile = async (req, res) => {
   }
 };
 
-exports.updateAdminPassword = async (req, res) => {
+export const updateAdminPassword = async (req, res) => {
   try {
     const { id } = req.params;
     const { currentPassword, newPassword } = req.body;
@@ -713,7 +720,7 @@ exports.updateAdminPassword = async (req, res) => {
   }
 };
 
-exports.getSystemSettings = async (req, res) => {
+export const getSystemSettings = async (req, res) => {
   try {
     let settings = await SystemSettings.findOne();
     
@@ -743,7 +750,7 @@ exports.getSystemSettings = async (req, res) => {
   }
 };
 
-exports.updateSystemSettings = async (req, res) => {
+export const updateSystemSettings = async (req, res) => {
   try {
     const settingsData = req.body;
 

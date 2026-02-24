@@ -1,8 +1,7 @@
-// routes/analyticsRoutes.js
+import express from "express";
+import * as analyticsController from "../controllers/analyticsController.js";
 
-const express = require("express");
 const router = express.Router();
-const analyticsController = require("../controllers/analyticsController");
 
 // User analytics
 router.get("/users", analyticsController.getUserAnalytics);
@@ -22,13 +21,10 @@ router.get("/rooms", analyticsController.getRoomAnalytics);
 // Detailed room analytics with trends and growth data
 router.get("/rooms/detailed", analyticsController.getDetailedRoomAnalytics);
 
-// routes/analyticsRoutes.js
-// This is already correct - keep it as is
+// Engagement metrics
 router.get("/engagement", analyticsController.getEngagementMetrics);
 
 // Export analytics
 router.get("/export", analyticsController.exportAnalytics);
 
-
-
-module.exports = router;
+export default router;
