@@ -1,5 +1,4 @@
-// models/Reservation.js - Updated schema
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const reservationSchema = new mongoose.Schema({
   userId: {
@@ -43,9 +42,9 @@ const reservationSchema = new mongoose.Schema({
   participants: [
     {
       name: String,
-      id_number: String,  // ← CHANGE FROM idNumber TO id_number
-      course: String,     // ← ADD THIS FIELD
-      year_level: String, // ← ADD THIS FIELD  
+      id_number: String,
+      course: String,
+      year_level: String,
       department: String,
     },
   ],
@@ -54,7 +53,6 @@ const reservationSchema = new mongoose.Schema({
     enum: ["Pending", "Approved", "Rejected", "Ongoing", "Cancelled", "Expired", "Completed"],
     default: "Pending",
   },
-  // Extension request fields
   extensionRequested: {
     type: Boolean,
     default: false,
@@ -84,7 +82,6 @@ const reservationSchema = new mongoose.Schema({
   maxExtendedEndDatetime: {
     type: Date,
   },
-  // Actual usage times
   actualStartTime: {
     type: Date,
   },
@@ -100,4 +97,5 @@ reservationSchema.index({ userId: 1, datetime: 1 });
 reservationSchema.index({ roomId: 1, datetime: 1 });
 reservationSchema.index({ status: 1 });
 
-module.exports = mongoose.model("Reservation", reservationSchema);
+const Reservation = mongoose.model("Reservation", reservationSchema);
+export default Reservation;

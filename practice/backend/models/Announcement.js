@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
 const announcementSchema = new mongoose.Schema({
   title: {
@@ -114,4 +114,5 @@ announcementSchema.methods.dismissForUser = function(userId) {
   return this.save();
 };
 
-module.exports = mongoose.model('Announcement', announcementSchema);
+const Announcement = mongoose.model('Announcement', announcementSchema);
+export default Announcement;

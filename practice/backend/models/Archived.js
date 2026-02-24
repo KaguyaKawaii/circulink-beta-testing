@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const archivedReservationSchema = new mongoose.Schema(
   {
@@ -18,6 +18,6 @@ const archivedReservationSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports =
-  mongoose.models.ArchivedReservation ||
+const ArchivedReservation = mongoose.models.ArchivedReservation || 
   mongoose.model("ArchivedReservation", archivedReservationSchema);
+export default ArchivedReservation;

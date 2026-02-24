@@ -1,5 +1,4 @@
-const mongoose = require("mongoose"); // ✅ ADD THIS
-// const User = require("./User"); // optional, you can copy fields manually
+import mongoose from "mongoose";
 
 const archivedUserSchema = new mongoose.Schema(
   {
@@ -19,6 +18,6 @@ const archivedUserSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports =
-  mongoose.models.ArchivedUser ||
+const ArchivedUser = mongoose.models.ArchivedUser || 
   mongoose.model("ArchivedUser", archivedUserSchema);
+export default ArchivedUser;

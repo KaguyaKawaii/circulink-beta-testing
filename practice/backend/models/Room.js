@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const RoomSchema = new mongoose.Schema(
   {
@@ -14,7 +14,6 @@ const RoomSchema = new mongoose.Schema(
       projector: { type: Boolean, default: false },
       monitor: { type: Boolean, default: false }
     },
-    // Add image field to store the image data
     image: {
       id: { type: String, default: null },
       url: { type: String, default: null },
@@ -27,4 +26,5 @@ const RoomSchema = new mongoose.Schema(
 
 RoomSchema.index({ floor: 1, room: 1 }, { unique: true });
 
-module.exports = mongoose.models.Room || mongoose.model("Room", RoomSchema);
+const Room = mongoose.models.Room || mongoose.model("Room", RoomSchema);
+export default Room;

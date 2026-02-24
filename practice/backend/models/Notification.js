@@ -1,137 +1,69 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const notificationSchema = new mongoose.Schema(
   {
-    // Target user (optional - for user-specific notifications)
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
     },
-
-    // Notification content
     message: {
       type: String,
       required: true,
       trim: true,
     },
-
-    // Status (for reservation-related notifications) - UPDATED ENUM
     status: {
       type: String,
       enum: [
-        "Pending", 
-        "Approved", 
-        "Rejected", 
-        "Cancelled", 
-        "Ongoing", 
-        "Expired", 
-        "Completed", 
-        "System",
-        "New",        
-        "Verified",   
-        "Unverified",
-        "added",        // ADDED FOR PARTICIPANT NOTIFICATIONS
-        "removed",      // ADDED FOR PARTICIPANT NOTIFICATIONS
-        "participant_added" // ADDED FOR PARTICIPANT NOTIFICATIONS
+        "Pending", "Approved", "Rejected", "Cancelled", "Ongoing", 
+        "Expired", "Completed", "System", "New", "Verified", 
+        "Unverified", "added", "removed", "participant_added"
       ],
       default: "Pending",
     },
-
-    // Notification type
     type: {
       type: String,
       enum: [
-        "reservation",
-        "report", 
-        "system",
-        "announcement",
-        "reminder",
-        "extension",
-        "maintenance",
-        "participant"  // ADDED
+        "reservation", "report", "system", "announcement",
+        "reminder", "extension", "maintenance", "participant"
       ],
       default: "reservation",
     },
-
-    // Associated reservation (if any)
     reservationId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Reservation",
       default: null,
     },
-
-    // Associated report (if any)
     reportId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Report",
       default: null,
     },
-
-    // Target audience role
     targetRole: {
       type: String,
       enum: ["user", "staff", "admin", "all"],
       default: "user",
     },
-
-    // Read status
     isRead: {
       type: Boolean,
       default: false,
     },
-
-    // Dismissed status (for temporary notifications)
     dismissed: {
       type: Boolean,
       default: false,
     },
-
-    // Additional context fields for dynamic message generation
-    adminName: {
-      type: String,
-      trim: true,
-    },
-    issue: {
-      type: String,
-      trim: true,
-    },
-    roomName: {
-      type: String,
-      trim: true,
-    },
-    date: {
-      type: String,
-      trim: true,
-    },
-    startTime: {
-      type: String,
-      trim: true,
-    },
-    endTime: {
-      type: String,
-      trim: true,
-    },
-    newEndTime: {
-      type: String,
-      trim: true,
-    },
-    userName: {
-      type: String,
-      trim: true,
-    },
-    idNumber: {
-      type: String,
-      trim: true,
-    },
-    staffName: {
-      type: String,
-      trim: true,
-    },
+    adminName: { type: String, trim: true },
+    issue: { type: String, trim: true },
+    roomName: { type: String, trim: true },
+    date: { type: String, trim: true },
+    startTime: { type: String, trim: true },
+    endTime: { type: String, trim: true },
+    newEndTime: { type: String, trim: true },
+    userName: { type: String, trim: true },
+    idNumber: { type: String, trim: true },
+    staffName: { type: String, trim: true },
   },
-  {
-    timestamps: true, // Adds createdAt and updatedAt automatically
-  }
+  { timestamps: true }
 );
 
 // Index for better query performance
@@ -154,7 +86,6 @@ notificationSchema.statics.getUnreadCount = async function (userId, role = "user
       dismissed: false
     };
 
-    // For admin, show notifications without specific userId or with admin target
     if (role === "admin") {
       query.$or = [
         { userId: null },
@@ -194,7 +125,6 @@ notificationSchema.statics.markAllAsRead = async function (userId, role = "user"
       isRead: false
     };
 
-    // For admin, show notifications without specific userId or with admin target
     if (role === "admin") {
       query.$or = [
         { userId: null },
@@ -235,12 +165,10 @@ const normalizeStatus = (status) => {
   return statusMap[status.toLowerCase()] || 'Pending';
 };
 
-// Pre-save middleware to ensure consistent data
+// Pre-save middleware
 notificationSchema.pre("save", function (next) {
-  // Normalize status to have proper casing
   this.status = normalizeStatus(this.status);
   
-  // Auto-generate message if not provided
   if (!this.message) {
     this.message = this.generateReservationMessage();
   }
@@ -248,9 +176,8 @@ notificationSchema.pre("save", function (next) {
   next();
 });
 
-// Method to generate dynamic message based on context
+// Method to generate dynamic message
 notificationSchema.methods.generateReservationMessage = function () {
-  // Handle participant-specific notifications
   if (this.type === "participant") {
     switch (this.status) {
       case "added":
@@ -263,7 +190,6 @@ notificationSchema.methods.generateReservationMessage = function () {
     }
   }
 
-  // Handle reservation notifications
   switch (this.status) {
     case "Approved":
       return `Your reservation for ${this.roomName} on ${this.date} has been approved.`;
@@ -288,4 +214,5 @@ notificationSchema.methods.generateReservationMessage = function () {
   }
 };
 
-module.exports = mongoose.model("Notification", notificationSchema);
+const Notification = mongoose.model("Notification", notificationSchema);
+export default Notification;

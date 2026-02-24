@@ -1,8 +1,8 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const archivedReportSchema = new mongoose.Schema(
   {
-    originalReportId: { type: mongoose.Schema.Types.ObjectId, ref: "Report" }, // reference original
+    originalReportId: { type: mongoose.Schema.Types.ObjectId, ref: "Report" },
     reportedBy: { type: String, required: true },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     category: { type: String, required: true },
@@ -14,4 +14,5 @@ const archivedReportSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("ArchivedReport", archivedReportSchema);
+const ArchivedReport = mongoose.model("ArchivedReport", archivedReportSchema);
+export default ArchivedReport;

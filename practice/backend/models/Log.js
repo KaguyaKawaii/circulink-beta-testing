@@ -1,10 +1,9 @@
-// models/Log.js
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const logSchema = new mongoose.Schema(
   {
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    id_number: { type: String }, // ✅ consistent with User schema
+    id_number: { type: String },
     userName: { type: String },
     action: { type: String, required: true },
     details: { type: String },
@@ -12,4 +11,5 @@ const logSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model("Log", logSchema);
+const Log = mongoose.model("Log", logSchema);
+export default Log;

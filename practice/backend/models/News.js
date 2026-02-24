@@ -1,11 +1,12 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const newsSchema = new mongoose.Schema({
   title: { type: String, required: true },
   content: { type: String, required: true },
-  image: { type: String, default: null }, // For backward compatibility
-  images: { type: [String], default: [] }, // NEW: Array for multiple images
+  image: { type: String, default: null },
+  images: { type: [String], default: [] },
   archived: { type: Boolean, default: false },
 }, { timestamps: true });
 
-module.exports = mongoose.model("News", newsSchema);
+const News = mongoose.model("News", newsSchema);
+export default News;
