@@ -1,7 +1,7 @@
-// routes/messageRoutes.js
-const express = require("express");
+import express from "express";
+import * as messageController from "../controllers/messageController.js";
+
 const router = express.Router();
-const messageController = require("../controllers/messageController");
 
 // Generic message sending route
 router.post("/send", messageController.sendMessage);
@@ -18,8 +18,7 @@ router.post("/staff-to-admin", messageController.staffMessageToAdmin);
 router.post("/admin-to-user", messageController.adminMessageToUser);
 router.post("/admin-to-staff", messageController.adminMessageToStaff);
 router.post("/admin-to-floor", messageController.adminMessageToFloor);
-router.post("/send", messageController.sendMessage); // This should already be there
-
+// Note: Duplicate "/send" route removed - keep only one
 
 // Conversation fetching routes
 router.get("/floor-conversation/:userId/:floor", messageController.getFloorConversation);
@@ -38,19 +37,18 @@ router.put("/mark-read", messageController.markMessagesAsRead);
 router.get("/unread-count/:userId", messageController.getUnreadCount);
 router.get("/unread-count/:userId/:conversationId", messageController.getUnreadCountByConversation);
 
-// NEW ROUTES for staff unread counts
+// Staff unread counts
 router.get("/staff-total-unread/:staffId", messageController.getStaffTotalUnreadCount);
 router.get("/staff-floor-unread/:staffId/:floor", messageController.getStaffFloorUnreadCount);
 
-// NEW ROUTES for per-user unread counts (these were missing)
+// Per-user unread counts
 router.get("/unread-count-by-user/:staffId/:userId", messageController.getUnreadCountByUser);
 router.get("/staff-unread-breakdown/:staffId", messageController.getStaffUnreadBreakdown);
 
-// MARK AS READ ROUTES - ADD THESE
+// Mark as read routes
 router.post("/mark-read-on-reply", messageController.markMessagesAsReadOnReply);
-router.post("/mark-conversation-read", messageController.markConversationAsRead); // ADD THIS LINE
+router.post("/mark-conversation-read", messageController.markConversationAsRead);
 
 router.get("/unread-messages/:userId", messageController.getUnreadMessages);
 
-
-module.exports = router;
+export default router;

@@ -1,6 +1,4 @@
-const multer = require("multer");
-const path = require("path");
-
+import multer from "multer";
 
 // Use memory storage for Cloudinary (instead of disk storage)
 const storage = multer.memoryStorage();
@@ -20,4 +18,4 @@ const upload = multer({
   }
 });
 
-module.exports = upload;
+export default upload;

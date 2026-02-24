@@ -1,7 +1,7 @@
-// routes/system.js
-const express = require('express');
+import express from 'express';
+import SystemSettings from '../models/SystemSettings.js';
+
 const router = express.Router();
-const SystemSettings = require('../models/SystemSettings');
 
 // Get maintenance status (public route)
 router.get('/maintenance-status', async (req, res) => {
@@ -97,4 +97,4 @@ router.put('/admin/system/settings', async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;

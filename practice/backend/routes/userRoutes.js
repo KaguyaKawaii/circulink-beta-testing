@@ -1,8 +1,8 @@
-// routes/userRoutes.js
-const express = require("express");
+import express from "express";
+import * as userController from "../controllers/userController.js";
+import upload from "../middleware/upload.js";
+
 const router = express.Router();
-const userController = require("../controllers/userController");
-const upload = require("../middleware/upload");
 
 // ================== PUBLIC ROUTES ==================
 router.post("/signup", upload.single("profile"), userController.signup);
@@ -54,4 +54,4 @@ router.get("/:userId/unread-counts", userController.getUserUnreadCounts);
 // ================== GET ALL USERS (for admin messaging) ==================
 router.get("/", userController.getAllUsersForMessaging);
 
-module.exports = router;
+export default router;

@@ -1,8 +1,8 @@
-const Log = require("../models/Log");
-const User = require("../models/User");
+import Log from "../models/Log.js";
+import User from "../models/User.js";
 
 // 📌 Get all logs
-exports.getAllLogs = async (req, res) => {
+export const getAllLogs = async (req, res) => {
   try {
     const logs = await Log.find()
       .populate('userId', 'name id_number') // ✅ Add this line to populate user data

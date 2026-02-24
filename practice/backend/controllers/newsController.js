@@ -1,9 +1,9 @@
-const News = require("../models/News");
-const Log = require("../models/Log");
-const { uploadToCloudinary } = require("../services/cloudinaryService");
+import News from "../models/News.js";
+import Log from "../models/Log.js";
+import { uploadToCloudinary } from "../services/cloudinaryService.js";
 
 // 🔍 Search news
-exports.searchNews = async (req, res) => {
+export const searchNews = async (req, res) => {
   try {
     const regex = new RegExp(req.params.query, "i");
     const newsList = await News.find({
@@ -18,7 +18,7 @@ exports.searchNews = async (req, res) => {
 };
 
 // 📄 Get all active news
-exports.getAllNews = async (req, res) => {
+export const getAllNews = async (req, res) => {
   try {
     const newsList = await News.find({ archived: false }).sort({ createdAt: -1 });
     res.json(newsList);
@@ -29,7 +29,7 @@ exports.getAllNews = async (req, res) => {
 };
 
 // 📄 Get archived news
-exports.getArchivedNews = async (req, res) => {
+export const getArchivedNews = async (req, res) => {
   try {
     const archivedList = await News.find({ archived: true }).sort({ createdAt: -1 });
     res.json(archivedList);
@@ -40,7 +40,7 @@ exports.getArchivedNews = async (req, res) => {
 };
 
 // 🗄 Archive a news item
-exports.archiveNews = async (req, res) => {
+export const archiveNews = async (req, res) => {
   try {
     const news = await News.findByIdAndUpdate(
       req.params.id,
@@ -68,7 +68,7 @@ exports.archiveNews = async (req, res) => {
 };
 
 // ♻️ Restore a news item
-exports.restoreNews = async (req, res) => {
+export const restoreNews = async (req, res) => {
   try {
     const news = await News.findByIdAndUpdate(
       req.params.id,
@@ -96,7 +96,7 @@ exports.restoreNews = async (req, res) => {
 };
 
 // 📄 Get single news item
-exports.getNewsById = async (req, res) => {
+export const getNewsById = async (req, res) => {
   try {
     const newsItem = await News.findById(req.params.id);
     if (!newsItem) {
@@ -111,7 +111,7 @@ exports.getNewsById = async (req, res) => {
 };
 
 // 🆕 Create news (with multiple images)
-exports.createNews = async (req, res) => {
+export const createNews = async (req, res) => {
   const { title, content } = req.body;
   
   console.log("📝 Create News Request:");
@@ -174,7 +174,7 @@ exports.createNews = async (req, res) => {
 };
 
 // ✏️ Update news (with multiple images)
-exports.updateNews = async (req, res) => {
+export const updateNews = async (req, res) => {
   const { title, content } = req.body;
   
   console.log("📝 Update News Request:");
@@ -249,7 +249,7 @@ exports.updateNews = async (req, res) => {
 };
 
 // ❌ Delete news (only archived)
-exports.deleteNews = async (req, res) => {
+export const deleteNews = async (req, res) => {
   try {
     const deletedNews = await News.findOneAndDelete({ _id: req.params.id, archived: true });
     if (!deletedNews) {

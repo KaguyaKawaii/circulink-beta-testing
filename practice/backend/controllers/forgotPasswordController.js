@@ -1,6 +1,6 @@
-const User = require("../models/User");
-const bcrypt = require("bcryptjs");
-const nodemailer = require("nodemailer");
+import User from "../models/User.js";
+import bcrypt from "bcryptjs";
+import nodemailer from "nodemailer";
 
 // PH time helper
 function nowPH() {
@@ -18,7 +18,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-exports.requestOtp = async (req, res) => {
+export const requestOtp = async (req, res) => {
   const { email } = req.body;
   try {
     const user = await User.findOne({ email });
@@ -54,7 +54,7 @@ exports.requestOtp = async (req, res) => {
   }
 };
 
-exports.verifyOtpAndResetPassword = async (req, res) => {
+export const verifyOtpAndResetPassword = async (req, res) => {
   const { email, otp, newPassword, confirmPassword } = req.body;
   try {
     const user = await User.findOne({ email });

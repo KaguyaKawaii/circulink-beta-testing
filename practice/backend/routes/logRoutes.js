@@ -1,8 +1,9 @@
-const express = require("express");
+import express from "express";
+import * as logController from "../controllers/logController.js";
+
 const router = express.Router();
-const logController = require("../controllers/logController");
 
 // GET /api/logs
 router.get("/", logController.getAllLogs);
 
-module.exports = router;
+export default router;

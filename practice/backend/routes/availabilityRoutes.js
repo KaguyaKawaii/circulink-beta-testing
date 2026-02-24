@@ -1,8 +1,8 @@
 import express from "express";
-import availabilityController from "../controllers/availabilityController.js";
+import { getAvailability } from "../controllers/availabilityController.js";
 
 const router = express.Router();
 
-router.get("/availability", availabilityController.getAvailability);
+router.get("/availability", getAvailability);
 
 export default router;

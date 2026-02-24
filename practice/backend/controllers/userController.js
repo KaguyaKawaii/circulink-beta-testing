@@ -1,11 +1,8 @@
-// controllers/userController.js
-const mongoose = require("mongoose");
-const userService = require("../services/userService");
-const User = require("../models/User");
-const Notification = require("../models/Notification");
-
-// ✅ FIXED: Single Cloudinary import without duplicate declaration
-const cloudinary = require('cloudinary').v2;
+import mongoose from "mongoose";
+import * as userService from "../services/userService.js";
+import User from "../models/User.js";
+import Notification from "../models/Notification.js";
+import { v2 as cloudinary } from 'cloudinary';
 
 // ✅ FIXED: Ensure Cloudinary is properly configured
 try {
@@ -23,7 +20,7 @@ try {
 }
 
 // 📌 Fetch users by role (used in AdminReports for staff assignment)
-exports.getUsersByRole = async (req, res) => {
+export const getUsersByRole = async (req, res) => {
   try {
     const query = {};
     if (req.query.role) {
@@ -38,7 +35,7 @@ exports.getUsersByRole = async (req, res) => {
 };
 
 // 📌 Add User (Admin)
-exports.addUser = async (req, res) => {
+export const addUser = async (req, res) => {
   try {
     const newUser = await userService.addUser(req.body, req.file);
     res.status(201).json({ success: true, message: "User added successfully.", user: newUser });
@@ -48,7 +45,7 @@ exports.addUser = async (req, res) => {
 };
 
 // 📌 Signup
-exports.signup = async (req, res) => {
+export const signup = async (req, res) => {
   try {
     const newUser = await userService.signup(req.body, req.file);
     res.status(201).json({ success: true, message: "User registered successfully.", user: newUser });
@@ -58,7 +55,7 @@ exports.signup = async (req, res) => {
 };
 
 // 📌 Login
-exports.login = async (req, res) => {
+export const login = async (req, res) => {
   try {
     const userData = await userService.login(req.body);
     res.json({ success: true, message: "Login successful.", user: userData });
@@ -68,7 +65,7 @@ exports.login = async (req, res) => {
 };
 
 // 📌 Update Profile (Self) - FIXED ENDPOINT
-exports.updateProfile = async (req, res) => {
+export const updateProfile = async (req, res) => {
   try {
     const updatedUser = await userService.updateProfile(req.params.id, req.body);
     res.json({ success: true, message: "Profile updated successfully.", user: updatedUser });
@@ -79,7 +76,7 @@ exports.updateProfile = async (req, res) => {
 };
 
 // 📌 Upload Profile Picture - CLOUDINARY VERSION (FIXED)
-exports.uploadPicture = async (req, res) => {
+export const uploadPicture = async (req, res) => {
   try {
     console.log("=== UPLOAD DEBUG ===");
     console.log("User ID:", req.params.id);
@@ -181,7 +178,7 @@ exports.uploadPicture = async (req, res) => {
 };
 
 // 📌 Remove Profile Picture - CLOUDINARY VERSION
-exports.removePicture = async (req, res) => {
+export const removePicture = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
     if (!user) {
@@ -225,7 +222,7 @@ exports.removePicture = async (req, res) => {
 };
 
 // 📌 Change Password - ENHANCED DEBUGGING
-exports.changePassword = async (req, res) => {
+export const changePassword = async (req, res) => {
   try {
     console.log("=== PASSWORD CHANGE CONTROLLER ===");
     console.log("User ID:", req.params.id);
@@ -255,7 +252,7 @@ exports.changePassword = async (req, res) => {
 };
 
 // 📌 Admin Edit User
-exports.adminEditUser = async (req, res) => {
+export const adminEditUser = async (req, res) => {
   try {
     const updatedUser = await userService.adminEditUser(req.params.id, req.body, req.file);
     res.json({ success: true, message: "User updated successfully.", user: updatedUser });
@@ -266,7 +263,7 @@ exports.adminEditUser = async (req, res) => {
 };
 
 // 📌 Archive User
-exports.archiveUser = async (req, res) => {
+export const archiveUser = async (req, res) => {
   try {
     const archivedUser = await userService.archiveUser(req.params.id);
     if (!archivedUser) return res.status(404).json({ success: false, message: "User not found." });
@@ -278,7 +275,7 @@ exports.archiveUser = async (req, res) => {
 };
 
 // 📌 Restore User
-exports.restoreUser = async (req, res) => {
+export const restoreUser = async (req, res) => {
   try {
     const restoredUser = await userService.restoreUser(req.params.id);
     if (!restoredUser) return res.status(404).json({ success: false, message: "User not found." });
@@ -290,7 +287,7 @@ exports.restoreUser = async (req, res) => {
 };
 
 // 📌 Get Archived Users
-exports.getArchivedUsers = async (req, res) => {
+export const getArchivedUsers = async (req, res) => {
   try {
     const archivedUsers = await userService.getArchivedUsers();
     res.json({ success: true, users: archivedUsers });
@@ -301,7 +298,7 @@ exports.getArchivedUsers = async (req, res) => {
 };
 
 // 📌 Delete Archived User
-exports.deleteArchivedUser = async (req, res) => {
+export const deleteArchivedUser = async (req, res) => {
   try {
     const deletedUser = await userService.deleteArchivedUser(req.params.id);
     if (!deletedUser) return res.status(404).json({ success: false, message: "User not found." });
@@ -313,7 +310,7 @@ exports.deleteArchivedUser = async (req, res) => {
 };
 
 // 📌 Get All Users (non-archived)
-exports.getAllUsers = async (req, res) => {
+export const getAllUsers = async (req, res) => {
   try {
     const users = await userService.getAllUsers();
     res.json({ success: true, users });
@@ -324,7 +321,7 @@ exports.getAllUsers = async (req, res) => {
 };
 
 // ✅ Toggle suspend
-exports.toggleSuspendUser = async (req, res) => {
+export const toggleSuspendUser = async (req, res) => {
   try {
     const suspend = req.body.suspend === true || req.body.suspend === "true";
     const io = req.io || null;
@@ -346,7 +343,7 @@ exports.toggleSuspendUser = async (req, res) => {
 };
 
 // ✅ Suspend User
-exports.suspendUser = async (req, res) => {
+export const suspendUser = async (req, res) => {
   try {
     const user = await userService.suspendUser(req.params.id, req.io);
     if (!user) {
@@ -360,7 +357,7 @@ exports.suspendUser = async (req, res) => {
 };
 
 // ✅ Unsuspend User
-exports.unsuspendUser = async (req, res) => {
+export const unsuspendUser = async (req, res) => {
   try {
     const user = await userService.unsuspendUser(req.params.id, req.io);
     if (!user) {
@@ -374,7 +371,7 @@ exports.unsuspendUser = async (req, res) => {
 };
 
 // ✅ Toggle Verify User with WebSocket Notifications - FIXED VERSION
-exports.toggleVerifyUser = async (req, res) => {
+export const toggleVerifyUser = async (req, res) => {
   try {
     const { verify } = req.body;
     const verifyStatus = verify === true || verify === "true";
@@ -398,9 +395,6 @@ exports.toggleVerifyUser = async (req, res) => {
     // ✅ WebSocket notification to the user
     if (io) {
       try {
-        // Dynamically import Notification model to avoid circular dependency
-        const Notification = require("../models/Notification");
-        
         // Create notification in database
         const notification = new Notification({
           userId: user._id,
@@ -465,7 +459,7 @@ exports.toggleVerifyUser = async (req, res) => {
 };
 
 // 📌 Verify User (simple version without notifications)
-exports.verifyUser = async (req, res) => {
+export const verifyUser = async (req, res) => {
   try {
     const { verified } = req.body;
     if (verified === undefined) {
@@ -487,7 +481,7 @@ exports.verifyUser = async (req, res) => {
 };
 
 // 📌 Get User By ID
-exports.getUserById = async (req, res) => {
+export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -505,7 +499,7 @@ exports.getUserById = async (req, res) => {
 };
 
 // 📌 Search Users - FIXED VERSION
-exports.searchUsers = async (req, res) => {
+export const searchUsers = async (req, res) => {
   try {
     const { q, verified } = req.query;
     
@@ -558,7 +552,7 @@ exports.searchUsers = async (req, res) => {
 };
 
 // 📌 Get Unread Counts
-exports.getUnreadCounts = async (req, res) => {
+export const getUnreadCounts = async (req, res) => {
   try {
     res.json({ success: true, counts: { notifications: 0, messages: 0 } });
   } catch (err) {
@@ -568,7 +562,7 @@ exports.getUnreadCounts = async (req, res) => {
 };
 
 // 📌 Check if participant exists and is verified
-exports.checkParticipant = async (req, res) => {
+export const checkParticipant = async (req, res) => {
   try {
     const { id_number } = req.query;
     if (!id_number) {
@@ -597,7 +591,7 @@ exports.checkParticipant = async (req, res) => {
 };
 
 // 📌 Get User Unread Counts (for Navigation_User) - FIXED VERSION
-exports.getUserUnreadCounts = async (req, res) => {
+export const getUserUnreadCounts = async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -606,7 +600,7 @@ exports.getUserUnreadCounts = async (req, res) => {
     }
 
     // Get unread messages count
-    const Message = require("../models/Message");
+    const Message = (await import("../models/Message.js")).default;
     const messagesCount = await Message.countDocuments({
       receiver: userId,
       read: false
@@ -615,7 +609,7 @@ exports.getUserUnreadCounts = async (req, res) => {
     // Get unread notifications count
     let notificationsCount = 0;
     try {
-      const Notification = require("../models/Notification");
+      const Notification = (await import("../models/Notification.js")).default;
       notificationsCount = await Notification.countDocuments({
         userId: userId,
         isRead: false
@@ -639,7 +633,7 @@ exports.getUserUnreadCounts = async (req, res) => {
 };
 
 // Get all users for admin messaging
-exports.getAllUsersForMessaging = async (req, res) => {
+export const getAllUsersForMessaging = async (req, res) => {
   try {
     const users = await User.find({ 
       archived: { $ne: true },
@@ -662,7 +656,7 @@ exports.getAllUsersForMessaging = async (req, res) => {
 };
 
 // 📌 Test Cloudinary Configuration
-exports.testCloudinary = async (req, res) => {
+export const testCloudinary = async (req, res) => {
   try {
     if (!cloudinary) {
       return res.status(500).json({ 
@@ -704,7 +698,7 @@ exports.testCloudinary = async (req, res) => {
 };
 
 // ✅ NEW: Revoke all verification for specific roles (students only)
-exports.revokeAllVerification = async (req, res) => {
+export const revokeAllVerification = async (req, res) => {
   try {
     const { roles } = req.body;
     const rolesToRevoke = roles || ["Student"]; // Default to students only
@@ -804,7 +798,7 @@ exports.revokeAllVerification = async (req, res) => {
 };
 
 // ✅ NEW: Bulk verify/unverify selected users
-exports.bulkVerifyUsers = async (req, res) => {
+export const bulkVerifyUsers = async (req, res) => {
   try {
     const { userIds, verified } = req.body;
     const verifyStatus = verified === true || verified === "true";
@@ -898,7 +892,7 @@ exports.bulkVerifyUsers = async (req, res) => {
 };
 
 // ✅ NEW: Get verification statistics
-exports.getVerificationStats = async (req, res) => {
+export const getVerificationStats = async (req, res) => {
   try {
     const stats = await User.aggregate([
       { $match: { archived: { $ne: true } } },

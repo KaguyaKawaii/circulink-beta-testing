@@ -1,15 +1,15 @@
-const Room = require("../models/Room");
-const logAction = require("../utils/logAction");
+import Room from "../models/Room.js";
+import logAction from "../utils/logAction.js";
 
-exports.getAllRooms = async () => {
+export const getAllRooms = async () => {
   return await Room.find().sort({ floor: 1, room: 1 });
 };
 
-exports.getRoomById = async (roomId) => {
+export const getRoomById = async (roomId) => {
   return await Room.findById(roomId);
 };
 
-exports.createRoom = async (data, req) => {
+export const createRoom = async (data, req) => {
   const room = await Room.create(data);
 
   // Log the room creation action
@@ -24,7 +24,7 @@ exports.createRoom = async (data, req) => {
   return room;
 };
 
-exports.updateRoom = async (roomId, data, req) => {
+export const updateRoom = async (roomId, data, req) => {
   const oldRoom = await Room.findById(roomId);
   const room = await Room.findByIdAndUpdate(roomId, data, { new: true, runValidators: true });
 
@@ -65,7 +65,7 @@ exports.updateRoom = async (roomId, data, req) => {
   return room;
 };
 
-exports.deleteRoom = async (roomId, req) => {
+export const deleteRoom = async (roomId, req) => {
   const room = await Room.findByIdAndDelete(roomId);
   
   if (!room) return null;
@@ -82,7 +82,7 @@ exports.deleteRoom = async (roomId, req) => {
   return room;
 };
 
-exports.toggleRoomStatus = async (roomId, req) => {
+export const toggleRoomStatus = async (roomId, req) => {
   const room = await Room.findById(roomId);
   if (!room) return null;
 
@@ -104,19 +104,19 @@ exports.toggleRoomStatus = async (roomId, req) => {
   return updatedRoom;
 };
 
-exports.getRoomsByFloor = async (floor) => {
+export const getRoomsByFloor = async (floor) => {
   return await Room.find({ floor }).sort({ room: 1 }); // ✅ Removed isActive filter
 };
 
-exports.getRoomsByType = async (type) => {
+export const getRoomsByType = async (type) => {
   return await Room.find({ type }).sort({ floor: 1, room: 1 }); // ✅ Removed isActive filter
 };
 
-exports.getAvailableRooms = async () => {
+export const getAvailableRooms = async () => {
   return await Room.find({ isActive: true }).sort({ floor: 1, room: 1 }); // Keep this one filtered (it's for available rooms)
 };
 
-exports.getRoomStats = async () => {
+export const getRoomStats = async () => {
   const stats = await Room.aggregate([
     {
       $group: {

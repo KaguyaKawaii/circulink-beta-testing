@@ -1,7 +1,8 @@
-const express = require("express");
+import express from "express";
+import multer from "multer";
+import * as newsController from "../controllers/newsController.js";
+
 const router = express.Router();
-const multer = require("multer");
-const newsController = require("../controllers/newsController");
 
 // Multer (memory storage for images)
 const storage = multer.memoryStorage();
@@ -30,10 +31,10 @@ router.get("/active", newsController.getAllNews);
 // Get single news item by ID
 router.get("/:id", newsController.getNewsById);
 
-// Create news - CHANGED: upload.array("images") instead of upload.single("image")
+// Create news - upload.array("images") instead of upload.single("image")
 router.post("/", upload.array("images", 10), newsController.createNews);
 
-// Update news - CHANGED: upload.array("images") instead of upload.single("image")
+// Update news - upload.array("images") instead of upload.single("image")
 router.put("/:id", upload.array("images", 10), newsController.updateNews);
 
 // Archive / Restore
@@ -43,4 +44,4 @@ router.put("/restore/:id", newsController.restoreNews);
 // Delete news (only archived)
 router.delete("/:id", newsController.deleteNews);
 
-module.exports = router;
+export default router;

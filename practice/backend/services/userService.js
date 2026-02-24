@@ -1,12 +1,10 @@
-const User = require("../models/User");
-const bcrypt = require("bcryptjs");
-const logAction = require("../utils/logAction");
-const cloudinary = require("../config/cloudinary");
-const { Readable } = require("stream");
-const Notification = require("../models/Notification");
-const { createNotification } = require("./notificationService");
-
-
+import User from "../models/User.js";
+import bcrypt from "bcryptjs";
+import logAction from "../utils/logAction.js";
+import cloudinary from "../config/cloudinary.js";
+import { Readable } from "stream";
+import Notification from "../models/Notification.js";
+import notificationService from "./notificationService.js";
 
 // Cloudinary upload helper
 const uploadToCloudinary = (fileBuffer, folder) => {
@@ -34,7 +32,7 @@ const getLeastPopulatedFloor = async () => {
 };
 
 // Add User (Admin) - FIXED: Let the model's pre-save hook hash the password
-const addUser = async (data, file) => {
+export const addUser = async (data, file) => {
   const { name, email, id_number, password, role, department, course, yearLevel, floor, verified } = data;
 
   if (!name || !email || !id_number || !password || !role) throw new Error("Missing required fields.");
@@ -86,7 +84,7 @@ const addUser = async (data, file) => {
 };
 
 // Signup - FIXED: Let the model's pre-save hook hash the password
-const signup = async (data, file) => {
+export const signup = async (data, file) => {
   const { name, email, id_number, password, role, department, course, yearLevel } = data;
 
   if (!name || !email || !id_number || !password || !role) throw new Error("Missing required fields.");
@@ -134,7 +132,7 @@ const signup = async (data, file) => {
 };
 
 // Login
-const login = async ({ email, password }) => {
+export const login = async ({ email, password }) => {
   const user = await User.findOne({ email: email.toLowerCase() });
   if (!user) throw new Error("Invalid credentials.");
 
@@ -152,7 +150,7 @@ const login = async ({ email, password }) => {
 };
 
 // Update Profile
-const updateProfile = async (id, data, file) => {
+export const updateProfile = async (id, data, file) => {
   const user = await User.findById(id);
   if (!user) throw new Error("User not found.");
 
@@ -178,7 +176,7 @@ const updateProfile = async (id, data, file) => {
 };
 
 // Admin Edit User - FIXED: Password handling is correct (let pre-save hook hash it)
-const adminEditUser = async (id, data, file) => {
+export const adminEditUser = async (id, data, file) => {
   const user = await User.findById(id);
   if (!user) throw new Error("User not found.");
 
@@ -230,10 +228,8 @@ const adminEditUser = async (id, data, file) => {
   return userResponse;
 };
 
-
-
 // Change Password - FIXED VERSION with debugging
-const changePassword = async (id, oldPassword, newPassword) => {
+export const changePassword = async (id, oldPassword, newPassword) => {
   console.log("=== PASSWORD CHANGE DEBUG ===");
   console.log("User ID:", id);
   console.log("Old password length:", oldPassword.length);
@@ -271,19 +267,18 @@ const changePassword = async (id, oldPassword, newPassword) => {
 };
 
 // ✅ Get all non-archived users
-const getAllUsers = async () => User.find({ archived: { $ne: true } }).select("-password").sort({ created_at: -1 });
+export const getAllUsers = async () => User.find({ archived: { $ne: true } }).select("-password").sort({ created_at: -1 });
 
 // ✅ Get archived users with archivedAt timestamp
-const getArchivedUsers = async () => User.find({ archived: true })
+export const getArchivedUsers = async () => User.find({ archived: true })
   .select("-password")
   .sort({ archivedAt: -1 });
 
 // ✅ Get user by ID
-const getUserById = async (id) => User.findById(id).select("-password");
-
+export const getUserById = async (id) => User.findById(id).select("-password");
 
 // ✅ Verify or Unverify user
-const verifyUser = async (id, verified, io) => {
+export const verifyUser = async (id, verified, io) => {
   const user = await User.findByIdAndUpdate(
     id,
     { verified },
@@ -318,7 +313,7 @@ const verifyUser = async (id, verified, io) => {
 };
 
 // Suspend user (set suspended: true)
-const suspendUser = async (id, io) => {
+export const suspendUser = async (id, io) => {
   const user = await User.findByIdAndUpdate(
     id,
     { suspended: true },
@@ -342,7 +337,7 @@ const suspendUser = async (id, io) => {
 };
 
 // Unsuspend user (set suspended: false)
-const unsuspendUser = async (id, io) => {
+export const unsuspendUser = async (id, io) => {
   const user = await User.findByIdAndUpdate(
     id,
     { suspended: false },
@@ -366,7 +361,7 @@ const unsuspendUser = async (id, io) => {
 };
 
 // Toggle suspend state (accepts boolean suspend)
-const toggleSuspend = async (id, suspend, io) => {
+export const toggleSuspend = async (id, suspend, io) => {
   const user = await User.findByIdAndUpdate(
     id,
     { suspended: !!suspend },
@@ -399,7 +394,7 @@ const toggleSuspend = async (id, suspend, io) => {
 };
 
 // ✅ Archive user with timestamp
-const archiveUser = async (id) => {
+export const archiveUser = async (id) => {
   const user = await User.findByIdAndUpdate(
     id,
     { archived: true, archivedAt: new Date() },
@@ -411,7 +406,7 @@ const archiveUser = async (id) => {
 };
 
 // ✅ Restore user
-const restoreUser = async (id) => {
+export const restoreUser = async (id) => {
   const user = await User.findByIdAndUpdate(
     id,
     { archived: false, archivedAt: null },
@@ -423,58 +418,8 @@ const restoreUser = async (id) => {
 };
 
 // ✅ Delete archived user
-const deleteArchivedUser = async (id) => {
+export const deleteArchivedUser = async (id) => {
   const user = await User.findByIdAndDelete(id);
   if (user) await logAction(user._id, user.id_number, user.name, "User Deleted", "Archived user permanently deleted");
   return user;
-};
-
-// Add this to userService.js
-exports.updateProfile = async (userId, updateData, file) => {
-  try {
-    const user = await User.findById(userId);
-    if (!user) throw new Error("User not found");
-
-    // Handle file upload if provided
-    if (file) {
-      const upload = await uploadToCloudinary(file.buffer, "users/profile_pictures");
-      updateData.profilePicture = upload.secure_url;
-    }
-
-    // Update user data
-    Object.keys(updateData).forEach(key => {
-      if (updateData[key] !== undefined) {
-        user[key] = updateData[key];
-      }
-    });
-
-    await user.save();
-    
-    // Return user without password
-    const userResponse = user.toObject();
-    delete userResponse.password;
-    return userResponse;
-  } catch (error) {
-    throw new Error(error.message);
-  }
-};
-
-module.exports = {
-  addUser,
-  signup,
-  login,
-  updateProfile,
-  adminEditUser,
-  changePassword,
-  getAllUsers,
-  getUserById,
-  verifyUser,
-  archiveUser,
-  restoreUser,
-  deleteArchivedUser,
-  getArchivedUsers,
-  // note: updateProfile is already exported above — keep it once
-  suspendUser,
-  unsuspendUser,
-  toggleSuspend,
 };

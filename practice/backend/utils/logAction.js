@@ -1,4 +1,4 @@
-const Log = require("../models/Log");
+import Log from "../models/Log.js";
 
 async function logAction(userId, id_number, userName, action, details = "") {
   try {
@@ -14,4 +14,4 @@ async function logAction(userId, id_number, userName, action, details = "") {
   }
 }
 
-module.exports = logAction;
+export default logAction;

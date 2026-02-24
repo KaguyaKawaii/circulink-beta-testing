@@ -1,13 +1,12 @@
-const messageService = require("../services/messageService");
-const Message = require("../models/Message");
+import * as messageService from "../services/messageService.js";
+import Message from "../models/Message.js";
+import User from "../models/User.js";
 
 /* ───────────────────────────────
    User Messaging Endpoints
 ─────────────────────────────── */
-// In messageController.js - Update sendMessage function
-// In messageController.js - Update sendMessage function
-// In messageController.js - UPDATE the sendMessage function
-exports.sendMessage = async (req, res) => {
+
+export const sendMessage = async (req, res) => {
   try {
     const { sender, receiver, content } = req.body;
 
@@ -80,7 +79,7 @@ exports.sendMessage = async (req, res) => {
 };
 
 // User sends message to floor - FIXED for staff notifications
-exports.sendMessageToFloor = async (req, res) => {
+export const sendMessageToFloor = async (req, res) => {
   try {
     const { userId, floor, content } = req.body;
     
@@ -93,8 +92,7 @@ exports.sendMessageToFloor = async (req, res) => {
     io.to(userId).emit("newMessage", messageData);
 
     // Get all staff members assigned to this floor and update their unread counts
-    const Staff = require("../models/User"); // Assuming User model is used for staff
-    const floorStaff = await Staff.find({ 
+    const floorStaff = await User.find({ 
       role: "staff", 
       floor: floor 
     }, "_id");
@@ -116,7 +114,7 @@ exports.sendMessageToFloor = async (req, res) => {
 };
 
 // User sends message to admin
-exports.sendMessageToAdmin = async (req, res) => {
+export const sendMessageToAdmin = async (req, res) => {
   try {
     const { userId, content } = req.body;
     
@@ -140,7 +138,7 @@ exports.sendMessageToAdmin = async (req, res) => {
 ─────────────────────────────── */
 
 // Staff replies to user (appears as floor staff) - FIXED: Auto-mark as read when staff replies
-exports.staffReplyToUser = async (req, res) => {
+export const staffReplyToUser = async (req, res) => {
   try {
     const { staffId, userId, content } = req.body;
     
@@ -179,7 +177,7 @@ exports.staffReplyToUser = async (req, res) => {
 };
 
 // Staff sends message to admin
-exports.staffMessageToAdmin = async (req, res) => {
+export const staffMessageToAdmin = async (req, res) => {
   try {
     const { staffId, content } = req.body;
     
@@ -210,7 +208,7 @@ exports.staffMessageToAdmin = async (req, res) => {
 ─────────────────────────────── */
 
 // Admin sends message to user
-exports.adminMessageToUser = async (req, res) => {
+export const adminMessageToUser = async (req, res) => {
   try {
     const { userId, content } = req.body;
     
@@ -234,7 +232,7 @@ exports.adminMessageToUser = async (req, res) => {
 };
 
 // Admin sends message to staff
-exports.adminMessageToStaff = async (req, res) => {
+export const adminMessageToStaff = async (req, res) => {
   try {
     const { staffId, content } = req.body;
     
@@ -258,7 +256,7 @@ exports.adminMessageToStaff = async (req, res) => {
 };
 
 // Admin sends message to floor
-exports.adminMessageToFloor = async (req, res) => {
+export const adminMessageToFloor = async (req, res) => {
   try {
     const { floor, content } = req.body;
     
@@ -271,8 +269,7 @@ exports.adminMessageToFloor = async (req, res) => {
     io.to("admin").emit("newMessage", messageData);
 
     // Get all staff members assigned to this floor and update their unread counts
-    const Staff = require("../models/User");
-    const floorStaff = await Staff.find({ 
+    const floorStaff = await User.find({ 
       role: "staff", 
       floor: floor 
     }, "_id");
@@ -298,7 +295,7 @@ exports.adminMessageToFloor = async (req, res) => {
 ─────────────────────────────── */
 
 // Get floor conversation (user perspective)
-exports.getFloorConversation = async (req, res) => {
+export const getFloorConversation = async (req, res) => {
   try {
     const { userId, floor } = req.params;
     
@@ -311,7 +308,7 @@ exports.getFloorConversation = async (req, res) => {
 };
 
 // Get user-admin conversation
-exports.getUserAdminConversation = async (req, res) => {
+export const getUserAdminConversation = async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -324,7 +321,7 @@ exports.getUserAdminConversation = async (req, res) => {
 };
 
 // Get staff's conversation with a user
-exports.getStaffUserConversation = async (req, res) => {
+export const getStaffUserConversation = async (req, res) => {
   try {
     const { staffId, userId } = req.params;
     
@@ -337,7 +334,7 @@ exports.getStaffUserConversation = async (req, res) => {
 };
 
 // Get staff-admin conversation
-exports.getStaffAdminConversation = async (req, res) => {
+export const getStaffAdminConversation = async (req, res) => {
   try {
     const { staffId } = req.params;
     
@@ -350,7 +347,7 @@ exports.getStaffAdminConversation = async (req, res) => {
 };
 
 // Get admin conversation
-exports.getAdminConversation = async (req, res) => {
+export const getAdminConversation = async (req, res) => {
   try {
     const { entityId } = req.params;
     
@@ -377,7 +374,7 @@ exports.getAdminConversation = async (req, res) => {
 ─────────────────────────────── */
 
 // Get users for a floor (staff perspective)
-exports.getFloorUsers = async (req, res) => {
+export const getFloorUsers = async (req, res) => {
   try {
     const { floor } = req.params;
     
@@ -390,10 +387,8 @@ exports.getFloorUsers = async (req, res) => {
 };
 
 // In messageController.js - Update getAdminRecipients
-exports.getAdminRecipients = async (req, res) => {
+export const getAdminRecipients = async (req, res) => {
   try {
-    const User = require("../models/User");
-    
     // ONLY find direct admin conversations
     const conversations = await Message.aggregate([
       {
@@ -485,7 +480,7 @@ exports.getAdminRecipients = async (req, res) => {
 };
 
 // Get recipients for staff
-exports.getStaffRecipients = async (req, res) => {
+export const getStaffRecipients = async (req, res) => {
   try {
     const { staffId } = req.params;
     
@@ -502,7 +497,7 @@ exports.getStaffRecipients = async (req, res) => {
 ─────────────────────────────── */
 
 // FIXED: Mark messages as read - UPDATED for staff-user marking
-exports.markMessagesAsRead = async (req, res) => {
+export const markMessagesAsRead = async (req, res) => {
   try {
     const { userId, conversationId, messageIds, staffId, targetUserId } = req.body;
     
@@ -582,7 +577,7 @@ exports.markMessagesAsRead = async (req, res) => {
 };
 
 // Get unread message count for user
-exports.getUnreadCount = async (req, res) => {
+export const getUnreadCount = async (req, res) => {
   try {
     const { userId } = req.params;
     const { conversationId } = req.query;
@@ -606,7 +601,7 @@ exports.getUnreadCount = async (req, res) => {
 };
 
 // Get unread count by conversation
-exports.getUnreadCountByConversation = async (req, res) => {
+export const getUnreadCountByConversation = async (req, res) => {
   try {
     const { userId, conversationId } = req.params;
     
@@ -623,7 +618,7 @@ exports.getUnreadCountByConversation = async (req, res) => {
 };
 
 // NEW: Get unread count for specific user (for staff)
-exports.getUnreadCountByUser = async (req, res) => {
+export const getUnreadCountByUser = async (req, res) => {
   try {
     const { staffId, userId } = req.params;
     
@@ -640,7 +635,7 @@ exports.getUnreadCountByUser = async (req, res) => {
 };
 
 // Get total unread count for staff (floor users + admin)
-exports.getStaffTotalUnreadCount = async (req, res) => {
+export const getStaffTotalUnreadCount = async (req, res) => {
   try {
     const { staffId } = req.params;
     
@@ -657,7 +652,7 @@ exports.getStaffTotalUnreadCount = async (req, res) => {
 };
 
 // Get unread count for staff from specific floor
-exports.getStaffFloorUnreadCount = async (req, res) => {
+export const getStaffFloorUnreadCount = async (req, res) => {
   try {
     const { staffId, floor } = req.params;
     
@@ -674,7 +669,7 @@ exports.getStaffFloorUnreadCount = async (req, res) => {
 };
 
 // NEW: Get unread breakdown for staff (per user counts)
-exports.getStaffUnreadBreakdown = async (req, res) => {
+export const getStaffUnreadBreakdown = async (req, res) => {
   try {
     const { staffId } = req.params;
     
@@ -691,8 +686,7 @@ exports.getStaffUnreadBreakdown = async (req, res) => {
 };
 
 // 📌 Mark messages as read when user replies - FIXED VERSION
-// 📌 Mark messages as read when user replies - FIXED VERSION
-exports.markMessagesAsReadOnReply = async (req, res) => {
+export const markMessagesAsReadOnReply = async (req, res) => {
   try {
     const { userId, receiver, conversationType } = req.body;
 
@@ -746,7 +740,7 @@ exports.markMessagesAsReadOnReply = async (req, res) => {
 
 
 // 📌 Mark entire conversation as read
-exports.markConversationAsRead = async (req, res) => {
+export const markConversationAsRead = async (req, res) => {
   try {
     const { userId, receiver, conversationType } = req.body;
 
@@ -795,7 +789,7 @@ exports.markConversationAsRead = async (req, res) => {
 };
 
 // 📌 Get unread messages for a user (NEW FUNCTION)
-exports.getUnreadMessages = async (req, res) => {
+export const getUnreadMessages = async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -819,7 +813,7 @@ exports.getUnreadMessages = async (req, res) => {
 };
 
 // NEW: Get unread count for specific floor
-exports.getUnreadCountForFloor = async (req, res) => {
+export const getUnreadCountForFloor = async (req, res) => {
   try {
     const { userId, floor } = req.params;
     
@@ -836,7 +830,7 @@ exports.getUnreadCountForFloor = async (req, res) => {
 };
 
 // NEW: Get unread count for admin conversation
-exports.getUnreadCountForAdmin = async (req, res) => {
+export const getUnreadCountForAdmin = async (req, res) => {
   try {
     const { userId } = req.params;
     

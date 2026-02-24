@@ -1,10 +1,9 @@
-const Notification = require("../models/Notification");
-const notificationService = require("../services/notificationService");
-const Report = require("../models/Report"); // Make sure this path is correct
-
+import Notification from "../models/Notification.js";
+import notificationService from "../services/notificationService.js";
+import Report from "../models/Report.js"; // Make sure this path is correct
 
 // 📌 Get all notifications (for admin)
-exports.getAllNotifications = async (req, res) => {
+export const getAllNotifications = async (req, res) => {
   try {
     const { filter } = req.query;
     
@@ -38,7 +37,7 @@ exports.getAllNotifications = async (req, res) => {
 };
 
 // 📌 Create a new notification using the service
-exports.createNotification = async (req, res) => {
+export const createNotification = async (req, res) => {
   try {
     const { userId, message, status, reservationId, type, reportId, targetRole, adminName, issue, roomName, date, startTime, endTime, newEndTime, userName, idNumber, staffName } = req.body;
 
@@ -73,7 +72,7 @@ exports.createNotification = async (req, res) => {
 };
 
 // 📌 Get user-specific notifications
-exports.getUserNotifications = async (req, res) => {
+export const getUserNotifications = async (req, res) => {
   try {
     const { userId } = req.params;
     const { filter } = req.query;
@@ -107,7 +106,7 @@ exports.getUserNotifications = async (req, res) => {
 };
 
 // 📌 Get staff-specific notifications
-exports.getStaffNotifications = async (req, res) => {
+export const getStaffNotifications = async (req, res) => {
   try {
     const { staffId } = req.params;
     const { filter } = req.query;
@@ -144,7 +143,7 @@ exports.getStaffNotifications = async (req, res) => {
 };
 
 // 📌 Mark single notification as read
-exports.markAsRead = async (req, res) => {
+export const markAsRead = async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -166,7 +165,7 @@ exports.markAsRead = async (req, res) => {
 };
 
 // 📌 Mark all as read for a user/admin/staff
-exports.markAllAsRead = async (req, res) => {
+export const markAllAsRead = async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -200,7 +199,7 @@ exports.markAllAsRead = async (req, res) => {
 };
 
 // 📌 Get unread count for a user
-exports.getUnreadCount = async (req, res) => {
+export const getUnreadCount = async (req, res) => {
   try {
     const { userId } = req.params;
     
@@ -228,7 +227,7 @@ exports.getUnreadCount = async (req, res) => {
 };
 
 // 📌 Get only report notifications
-exports.getReportNotifications = async (req, res) => {
+export const getReportNotifications = async (req, res) => {
   try {
     const notifications = await Notification.find({
       type: { $regex: "^report$", $options: "i" },
@@ -242,7 +241,7 @@ exports.getReportNotifications = async (req, res) => {
 };
 
 // 📌 Mark as dismissed
-exports.markAsDismissed = async (req, res) => {
+export const markAsDismissed = async (req, res) => {
   try {
     const notification = await Notification.findByIdAndUpdate(
       req.params.id,

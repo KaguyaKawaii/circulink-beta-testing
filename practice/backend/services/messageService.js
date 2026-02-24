@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
-const Message = require("../models/Message");
-const User = require("../models/User");
+import mongoose from "mongoose";
+import Message from "../models/Message.js";
+import User from "../models/User.js";
 
 /**
  * Utility functions for display names
@@ -16,7 +16,7 @@ const getAdminDisplayName = () => {
 /**
  * User → Floor messaging
  */
-exports.sendMessageToFloor = async (userId, floor, content) => {
+export const sendMessageToFloor = async (userId, floor, content) => {
   const user = await User.findById(userId);
   if (!user) throw new Error("User not found");
 
@@ -42,7 +42,7 @@ exports.sendMessageToFloor = async (userId, floor, content) => {
 /**
  * User → Admin messaging
  */
-exports.sendMessageToAdmin = async (userId, content) => {
+export const sendMessageToAdmin = async (userId, content) => {
   const user = await User.findById(userId);
   if (!user) throw new Error("User not found");
 
@@ -67,7 +67,7 @@ exports.sendMessageToAdmin = async (userId, content) => {
 /**
  * Staff → User messaging (appears as floor staff)
  */
-exports.sendMessageFromStaff = async (staffId, userId, content) => {
+export const sendMessageFromStaff = async (staffId, userId, content) => {
   const staff = await User.findById(staffId);
   if (!staff) throw new Error("Staff not found");
 
@@ -96,7 +96,7 @@ exports.sendMessageFromStaff = async (staffId, userId, content) => {
 /**
  * Staff → Admin messaging
  */
-exports.sendMessageFromStaffToAdmin = async (staffId, content) => {
+export const sendMessageFromStaffToAdmin = async (staffId, content) => {
   const staff = await User.findById(staffId);
   if (!staff) throw new Error("Staff not found");
 
@@ -121,7 +121,7 @@ exports.sendMessageFromStaffToAdmin = async (staffId, content) => {
 /**
  * Admin → User messaging
  */
-exports.sendMessageFromAdminToUser = async (userId, content) => {
+export const sendMessageFromAdminToUser = async (userId, content) => {
   const user = await User.findById(userId);
   if (!user) throw new Error("User not found");
 
@@ -145,7 +145,7 @@ exports.sendMessageFromAdminToUser = async (userId, content) => {
 /**
  * Admin → Staff messaging
  */
-exports.sendMessageFromAdminToStaff = async (staffId, content) => {
+export const sendMessageFromAdminToStaff = async (staffId, content) => {
   const staff = await User.findById(staffId);
   if (!staff) throw new Error("Staff not found");
 
@@ -169,7 +169,7 @@ exports.sendMessageFromAdminToStaff = async (staffId, content) => {
 /**
  * Admin → Floor messaging
  */
-exports.sendMessageFromAdminToFloor = async (floor, content) => {
+export const sendMessageFromAdminToFloor = async (floor, content) => {
   const newMessage = await new Message({
     sender: "admin",
     receiver: floor,
@@ -191,7 +191,7 @@ exports.sendMessageFromAdminToFloor = async (floor, content) => {
 /**
  * User → User messaging (fallback)
  */
-exports.sendMessageUserToUser = async (senderId, receiverId, content) => {
+export const sendMessageUserToUser = async (senderId, receiverId, content) => {
   const sender = await User.findById(senderId);
   const receiver = await User.findById(receiverId);
   
@@ -216,7 +216,7 @@ exports.sendMessageUserToUser = async (senderId, receiverId, content) => {
 /**
  * Conversation fetching methods
  */
-exports.getFloorConversation = async (userId, floor) => {
+export const getFloorConversation = async (userId, floor) => {
   const query = {
     $or: [
       { sender: userId, receiver: floor },
@@ -244,7 +244,7 @@ exports.getFloorConversation = async (userId, floor) => {
   return processedMessages;
 };
 
-exports.getUserAdminConversation = async (userId) => {
+export const getUserAdminConversation = async (userId) => {
   const query = {
     $or: [
       { sender: userId, receiver: "admin" },
@@ -270,7 +270,7 @@ exports.getUserAdminConversation = async (userId) => {
   return processedMessages;
 };
 
-exports.getStaffUserConversation = async (staffId, userId) => {
+export const getStaffUserConversation = async (staffId, userId) => {
   const staff = await User.findById(staffId);
   if (!staff || !staff.floor) throw new Error("Staff not found or no floor assigned");
 
@@ -300,7 +300,7 @@ exports.getStaffUserConversation = async (staffId, userId) => {
   return processedMessages;
 };
 
-exports.getStaffAdminConversation = async (staffId) => {
+export const getStaffAdminConversation = async (staffId) => {
   const query = {
     $or: [
       { sender: staffId, receiver: "admin" },
@@ -326,7 +326,7 @@ exports.getStaffAdminConversation = async (staffId) => {
   return processedMessages;
 };
 
-exports.getAdminConversation = async (entityId) => {
+export const getAdminConversation = async (entityId) => {
   const query = {
     $or: [
       { sender: "admin", receiver: entityId },
@@ -359,7 +359,7 @@ exports.getAdminConversation = async (entityId) => {
 /**
  * Recipient list methods
  */
-exports.getFloorUsers = async (floor) => {
+export const getFloorUsers = async (floor) => {
   const userMessages = await Message.find({ 
     receiver: floor,
     senderType: "user"
@@ -400,7 +400,7 @@ exports.getFloorUsers = async (floor) => {
   );
 };
 
-exports.getAdminRecipients = async () => {
+export const getAdminRecipients = async () => {
   const recipients = [];
 
   // Add floors
@@ -482,7 +482,7 @@ exports.getAdminRecipients = async () => {
   );
 };
 
-exports.getStaffRecipients = async (staffId) => {
+export const getStaffRecipients = async (staffId) => {
   const staff = await User.findById(staffId);
   if (!staff) throw new Error("Staff not found");
 
@@ -506,7 +506,7 @@ exports.getStaffRecipients = async (staffId) => {
 
   // Add floor users
   if (staff.floor) {
-    const floorUsers = await this.getFloorUsers(staff.floor);
+    const floorUsers = await getFloorUsers(staff.floor);
     floorUsers.forEach(user => {
       recipients.push({
         _id: user._id.toString(),
@@ -530,7 +530,7 @@ exports.getStaffRecipients = async (staffId) => {
  */
 
 // Mark messages as read
-exports.markMessagesAsRead = async (userId, conversationId, messageIds = null) => {
+export const markMessagesAsRead = async (userId, conversationId, messageIds = null) => {
   let query = {
     receiver: userId,
     read: false
@@ -575,7 +575,7 @@ exports.markMessagesAsRead = async (userId, conversationId, messageIds = null) =
 };
 
 // In messageService.js - make sure this function works correctly
-exports.markMessagesAsReadFromUser = async (staffId, userId) => {
+export const markMessagesAsReadFromUser = async (staffId, userId) => {
   try {
     const result = await Message.updateMany(
       {
@@ -600,13 +600,13 @@ exports.markMessagesAsReadFromUser = async (staffId, userId) => {
   }
 };
 
-exports.getUnreadCount = async (userId) => {
+export const getUnreadCount = async (userId) => {
   const user = await User.findById(userId);
   if (!user) return 0;
 
   // If user is staff, count both direct messages and floor messages
   if (user.role === "Staff") {
-    return await this.getStaffTotalUnreadCount(userId);
+    return await getStaffTotalUnreadCount(userId);
   }
 
   // For regular users and admin, count direct messages only
@@ -619,7 +619,7 @@ exports.getUnreadCount = async (userId) => {
 };
 
 // Get unread count by conversation - FIXED for staff
-exports.getUnreadCountByConversation = async (userId, conversationId) => {
+export const getUnreadCountByConversation = async (userId, conversationId) => {
   const user = await User.findById(userId);
   if (!user) return 0;
 
@@ -680,7 +680,7 @@ exports.getUnreadCountByConversation = async (userId, conversationId) => {
 };
 
 // NEW: Get unread count for specific user (for staff badges)
-exports.getUnreadCountByUser = async (staffId, userId) => {
+export const getUnreadCountByUser = async (staffId, userId) => {
   const staff = await User.findById(staffId);
   if (!staff || !staff.floor) return 0;
 
@@ -695,7 +695,7 @@ exports.getUnreadCountByUser = async (staffId, userId) => {
 };
 
 // Get unread count for staff from floor users - FIXED
-exports.getStaffUnreadCountFromFloor = async (staffId, floor) => {
+export const getStaffUnreadCountFromFloor = async (staffId, floor) => {
   const count = await Message.countDocuments({
     $or: [
       // Direct messages to staff from floor users
@@ -709,7 +709,7 @@ exports.getStaffUnreadCountFromFloor = async (staffId, floor) => {
 };
 
 // Get total unread count for staff (floor users + admin) - FIXED
-exports.getStaffTotalUnreadCount = async (staffId) => {
+export const getStaffTotalUnreadCount = async (staffId) => {
   const staff = await User.findById(staffId);
   if (!staff || !staff.floor) return 0;
 
@@ -734,7 +734,7 @@ exports.getStaffTotalUnreadCount = async (staffId) => {
 };
 
 // NEW: Get detailed unread breakdown for staff
-exports.getStaffUnreadBreakdown = async (staffId) => {
+export const getStaffUnreadBreakdown = async (staffId) => {
   const staff = await User.findById(staffId);
   if (!staff || !staff.floor) {
     return {
@@ -795,7 +795,7 @@ exports.getStaffUnreadBreakdown = async (staffId) => {
 /**
  * Mark messages as read when admin replies to a user/staff
  */
-exports.markMessagesAsReadFromUser = async (adminId, userId) => {
+export const markMessagesAsReadFromUser_Admin = async (adminId, userId) => {
   try {
     console.log(`🔄 Admin ${adminId} replying to ${userId} - marking messages as read`);
     
@@ -826,7 +826,7 @@ exports.markMessagesAsReadFromUser = async (adminId, userId) => {
 /**
  * Get admin recipients with unread counts (for dashboard)
  */
-exports.getAdminRecipientsWithUnread = async () => {
+export const getAdminRecipientsWithUnread = async () => {
   try {
     // Get all conversations involving admin
     const conversations = await Message.aggregate([

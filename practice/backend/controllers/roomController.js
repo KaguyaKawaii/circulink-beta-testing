@@ -1,6 +1,6 @@
-const roomService = require("../services/roomService");
+import * as roomService from "../services/roomService.js";
 
-exports.getRooms = async (req, res) => {
+export const getRooms = async (req, res) => {
   try {
     const rooms = await roomService.getAllRooms();
     res.status(200).json(rooms);
@@ -10,7 +10,7 @@ exports.getRooms = async (req, res) => {
   }
 };
 
-exports.getRoomById = async (req, res) => {
+export const getRoomById = async (req, res) => {
   try {
     const room = await roomService.getRoomById(req.params.id);
     if (!room) {
@@ -23,7 +23,7 @@ exports.getRoomById = async (req, res) => {
   }
 };
 
-exports.createRoom = async (req, res) => {
+export const createRoom = async (req, res) => {
   try {
     const room = await roomService.createRoom(req.body, req);
     res.status(201).json(room);
@@ -36,7 +36,7 @@ exports.createRoom = async (req, res) => {
   }
 };
 
-exports.updateRoom = async (req, res) => {
+export const updateRoom = async (req, res) => {
   try {
     const room = await roomService.updateRoom(req.params.id, req.body, req);
     if (!room) {
@@ -52,7 +52,7 @@ exports.updateRoom = async (req, res) => {
   }
 };
 
-exports.deleteRoom = async (req, res) => {
+export const deleteRoom = async (req, res) => {
   try {
     const room = await roomService.deleteRoom(req.params.id, req);
     if (!room) {
@@ -65,7 +65,7 @@ exports.deleteRoom = async (req, res) => {
   }
 };
 
-exports.toggleRoomStatus = async (req, res) => {
+export const toggleRoomStatus = async (req, res) => {
   try {
     const room = await roomService.toggleRoomStatus(req.params.id, req);
     if (!room) {
@@ -81,7 +81,7 @@ exports.toggleRoomStatus = async (req, res) => {
   }
 };
 
-exports.getRoomsByFloor = async (req, res) => {
+export const getRoomsByFloor = async (req, res) => {
   try {
     const rooms = await roomService.getRoomsByFloor(req.params.floor);
     res.status(200).json(rooms);
@@ -91,7 +91,7 @@ exports.getRoomsByFloor = async (req, res) => {
   }
 };
 
-exports.getRoomsByType = async (req, res) => {
+export const getRoomsByType = async (req, res) => {
   try {
     const rooms = await roomService.getRoomsByType(req.params.type);
     res.status(200).json(rooms);
@@ -101,7 +101,7 @@ exports.getRoomsByType = async (req, res) => {
   }
 };
 
-exports.getRoomStats = async (req, res) => {
+export const getRoomStats = async (req, res) => {
   try {
     const stats = await roomService.getRoomStats();
     res.status(200).json(stats);

@@ -1,22 +1,21 @@
-// controllers/reservationController.js
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
-const Reservation = require("../models/Reservation");
-const Notification = require("../models/Notification");
-const ArchivedReservation = require("../models/ArchivedReservation");
-const User = require("../models/User");
-const Room = require("../models/Room");
-const sendEmail = require("../utils/sendEmail");
-const logAction = require("../utils/logAction");
-const generateReservationEmail = require("../utils/generateReservationEmail");
-const availabilityService = require("../services/availabilityService");
-const Admin = require("../models/Admin");
-const notificationService = require("../services/notificationService");
+import Reservation from "../models/Reservation.js";
+import Notification from "../models/Notification.js";
+import ArchivedReservation from "../models/ArchivedReservation.js";
+import User from "../models/User.js";
+import Room from "../models/Room.js";
+import Admin from "../models/Admin.js";
+import sendEmail from "../utils/sendEmail.js";
+import logAction from "../utils/logAction.js";
+import generateReservationEmail from "../utils/generateReservationEmail.js";
+import * as availabilityService from "../services/availabilityService.js";
+import * as notificationService from "../services/notificationService.js";
 
 /* ------------------------------------------------
    ✅ CHECK USER RESERVATION LIMIT
 ------------------------------------------------ */
-exports.checkUserReservationLimit = async (req, res) => {
+export const checkUserReservationLimit = async (req, res) => {
   try {
     const { userId } = req.params;
     const { date, time, asMain } = req.query;
@@ -159,7 +158,7 @@ const getFloorRestrictionMessage = (floor) => {
 };
 
 // ✅ FIXED: Export the floor access validation function
-exports.validateFloorAccess = async (req, res) => {
+export const validateFloorAccessController = async (req, res) => {
   try {
     console.log('🔍 Floor access validation request received:', {
       body: req.body,
@@ -302,7 +301,7 @@ exports.validateFloorAccess = async (req, res) => {
 /* ------------------------------------------------
    ✅ GET RESERVATIONS
 ------------------------------------------------ */
-exports.getAllReservations = async (req, res) => {
+export const getAllReservations = async (req, res) => {
   try {
     const { userId } = req.query;
     let query = {};
@@ -348,7 +347,7 @@ exports.getAllReservations = async (req, res) => {
   }
 };
 
-exports.getUserReservations = async (req, res) => {
+export const getUserReservations = async (req, res) => {
   try {
     const user = await User.findById(req.params.userId);
     if (!user) return res.status(404).json({ message: "User not found." });
@@ -368,7 +367,7 @@ exports.getUserReservations = async (req, res) => {
   }
 };
 
-exports.getActiveReservation = async (req, res) => {
+export const getActiveReservation = async (req, res) => {
   try {
     const twentyFourHoursAgo = new Date();
     twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
@@ -397,7 +396,7 @@ exports.getActiveReservation = async (req, res) => {
 /* ------------------------------------------------
    ✅ CREATE RESERVATION (WITH FLOOR ACCESS VALIDATION) - UPDATED TO 2 HOURS
 ------------------------------------------------ */
-exports.createReservation = async (req, res) => {
+export const createReservation = async (req, res) => {
   try {
     const {
       userId,
@@ -768,7 +767,7 @@ exports.createReservation = async (req, res) => {
 /* ------------------------------------------------
    ✅ UPDATE / CANCEL RESERVATION
 ------------------------------------------------ */
-exports.updateReservationStatus = async (req, res) => {
+export const updateReservationStatus = async (req, res) => {
   try {
     const { status } = req.body;
     const allowedStatuses = ["Pending", "Approved", "Rejected", "Cancelled", "Ongoing", "Expired"];
@@ -880,7 +879,7 @@ exports.updateReservationStatus = async (req, res) => {
   }
 };
 
-exports.cancelReservation = async (req, res) => {
+export const cancelReservation = async (req, res) => {
   try {
     const reservation = await Reservation.findById(req.params.id).populate("userId");
     if (!reservation) return res.status(404).json({ message: "Reservation not found." });
@@ -967,7 +966,7 @@ exports.cancelReservation = async (req, res) => {
 /* ------------------------------------------------
    ✅ GET PARTICIPANTS DETAILS
 ------------------------------------------------ */
-exports.getParticipantsDetails = async (req, res) => {
+export const getParticipantsDetails = async (req, res) => {
   try {
     const { reservationId } = req.params;
     
@@ -1017,7 +1016,7 @@ exports.getParticipantsDetails = async (req, res) => {
 /* ------------------------------------------------
    ✅ START RESERVATION (NO TIME RESTRICTIONS FOR TESTING)
 ------------------------------------------------ */
-exports.startReservation = async (req, res) => {
+export const startReservation = async (req, res) => {
   try {
     console.log("🔄 Starting reservation with ID:", req.params.id);
     
@@ -1122,7 +1121,7 @@ exports.startReservation = async (req, res) => {
 /* ------------------------------------------------
    ✅ END RESERVATION EARLY (FIXED)
 ------------------------------------------------ */
-exports.endReservationEarly = async (req, res) => {
+export const endReservationEarly = async (req, res) => {
   try {
     console.log("🔄 Ending reservation early with ID:", req.params.id);
     
@@ -1224,7 +1223,7 @@ exports.endReservationEarly = async (req, res) => {
 /* ------------------------------------------------
    ✅ REQUEST TIME EXTENSION
 ------------------------------------------------ */
-exports.requestExtension = async (req, res) => {
+export const requestExtension = async (req, res) => {
   try {
     const { id } = req.params;
     const { 
@@ -1333,7 +1332,7 @@ exports.requestExtension = async (req, res) => {
 /* ------------------------------------------------
    ✅ HANDLE EXTENSION REQUEST
 ------------------------------------------------ */
-exports.handleExtension = async (req, res) => {
+export const handleExtension = async (req, res) => {
   try {
     const { id } = req.params;
     const { action } = req.body; // "approve" or "reject"
@@ -1453,7 +1452,7 @@ exports.handleExtension = async (req, res) => {
 /* ------------------------------------------------
    ✅ ARCHIVE / RESTORE
 ------------------------------------------------ */
-exports.archiveReservation = async (req, res) => {
+export const archiveReservation = async (req, res) => {
   try {
     const reservation = await Reservation.findById(req.params.id).populate("userId");
     if (!reservation) return res.status(404).json({ message: "Reservation not found" });
@@ -1475,7 +1474,7 @@ exports.archiveReservation = async (req, res) => {
   }
 };
 
-exports.getArchivedReservations = async (req, res) => {
+export const getArchivedReservations = async (req, res) => {
   try {
     const archived = await ArchivedReservation.find().populate("userId");
     res.json(archived);
@@ -1484,7 +1483,7 @@ exports.getArchivedReservations = async (req, res) => {
   }
 };
 
-exports.restoreReservation = async (req, res) => {
+export const restoreReservation = async (req, res) => {
   try {
     const archived = await ArchivedReservation.findById(req.params.id).populate("userId");
     if (!archived) return res.status(404).json({ message: "Not found in archive" });
@@ -1514,7 +1513,7 @@ exports.restoreReservation = async (req, res) => {
   }
 };
 
-exports.deleteArchivedReservation = async (req, res) => {
+export const deleteArchivedReservation = async (req, res) => {
   try {
     const archived = await ArchivedReservation.findById(req.params.id).populate("userId");
     if (!archived) return res.status(404).json({ message: "Archived reservation not found." });
@@ -1539,7 +1538,7 @@ exports.deleteArchivedReservation = async (req, res) => {
 /* ------------------------------------------------
    ✅ AVAILABILITY - FIXED: REMOVE INACTIVE ROOM FILTER
 ------------------------------------------------ */
-exports.generateAvailability = async (date, userId) => {
+export const generateAvailability = async (date, userId) => {
   try {
     // ✅ FIXED: Remove isActive filter to include all rooms
     const rooms = await Room.find({}).sort({ floor: 1, room: 1 });
@@ -1577,14 +1576,14 @@ exports.generateAvailability = async (date, userId) => {
 };
 
 // ✅ Availability route controller - UPDATED
-exports.getAvailability = async (req, res) => {
+export const getAvailability = async (req, res) => {
   try {
     const { date, userId } = req.query;
     if (!date) {
       return res.status(400).json({ message: "Date is required" });
     }
 
-    const availability = await exports.generateAvailability(date, userId);
+    const availability = await generateAvailability(date, userId);
     res.json(availability);
   } catch (error) {
     res.status(500).json({ message: "Failed to fetch availability", error: error.message });
@@ -1594,7 +1593,7 @@ exports.getAvailability = async (req, res) => {
 /* ------------------------------------------------
    ✅ CHECK AND MARK EXPIRED RESERVATIONS + NOTIFY (FIXED FOR PENDING & APPROVED RESERVATIONS)
 ------------------------------------------------ */
-exports.checkExpiredReservations = async (req, res) => {
+export const checkExpiredReservations = async (req, res) => {
   try {
     console.log("🔄 Running checkExpiredReservations...");
     const now = new Date();
@@ -1805,7 +1804,7 @@ exports.checkExpiredReservations = async (req, res) => {
   }
 };
 
-exports.getReservationsByFloor = async (req, res) => {
+export const getReservationsByFloor = async (req, res) => {
   try {
     const floor = req.query.floor || req.params.floor;
     let query = {};
@@ -1827,7 +1826,7 @@ exports.getReservationsByFloor = async (req, res) => {
 /* ------------------------------------------------
    ✅ GET SINGLE RESERVATION BY ID (FIXED)
 ------------------------------------------------ */
-exports.getReservationById = async (req, res) => {
+export const getReservationById = async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -1896,7 +1895,7 @@ exports.getReservationById = async (req, res) => {
 /* ------------------------------------------------
    ✅ GET AVAILABLE USERS FOR PARTICIPANT REPLACEMENT
 ------------------------------------------------ */
-exports.getAvailableUsers = async (req, res) => {
+export const getAvailableUsers = async (req, res) => {
   try {
     const { reservationId, searchTerm = '' } = req.query;
     
@@ -1937,7 +1936,7 @@ exports.getAvailableUsers = async (req, res) => {
 /* ------------------------------------------------
    ✅ REMOVE PARTICIPANT FROM RESERVATION
 ------------------------------------------------ */
-exports.removeParticipant = async (req, res) => {
+export const removeParticipant = async (req, res) => {
   try {
     const { reservationId, participantIdNumber } = req.body;
 
@@ -2041,7 +2040,7 @@ exports.removeParticipant = async (req, res) => {
 /* ------------------------------------------------
    ✅ ADD PARTICIPANT TO RESERVATION - FIXED VERSION
 ------------------------------------------------ */
-exports.addParticipant = async (req, res) => {
+export const addParticipant = async (req, res) => {
   try {
     const { reservationId, participantIdNumber } = req.body;
 
@@ -2186,17 +2185,10 @@ exports.addParticipant = async (req, res) => {
   }
 };
 
-// controllers/reservationController.js - FIXED adminCreateReservation
-
 /* ------------------------------------------------
    ✅ ADMIN CREATE RESERVATION - WITH BETTER ERROR HANDLING
 ------------------------------------------------ */
-// controllers/reservationController.js - FIXED adminCreateReservation
-
-/* ------------------------------------------------
-   ✅ ADMIN CREATE RESERVATION - WITH BETTER ERROR HANDLING
------------------------------------------------- */
-exports.adminCreateReservation = async (req, res) => {
+export const adminCreateReservation = async (req, res) => {
   try {
     const {
       room_Id,
@@ -2568,7 +2560,7 @@ exports.adminCreateReservation = async (req, res) => {
 /* ------------------------------------------------
    ✅ ADMIN EDIT RESERVATION - NO RESTRICTIONS
 ------------------------------------------------ */
-exports.editReservation = async (req, res) => {
+export const editReservation = async (req, res) => {
   try {
     const { id } = req.params;
     const { datetime, endDatetime, purpose, participants, date, time, numUsers } = req.body;
@@ -2770,7 +2762,7 @@ exports.editReservation = async (req, res) => {
 /* ------------------------------------------------
    ✅ SEARCH USERS (FOR ADMIN)
 ------------------------------------------------ */
-exports.searchUsers = async (req, res) => {
+export const searchUsers = async (req, res) => {
   try {
     const { q } = req.query;
     

@@ -1,7 +1,7 @@
-const Room = require("../models/Room");
-const Reservation = require("../models/Reservation");
+import Room from "../models/Room.js";
+import Reservation from "../models/Reservation.js";
 
-exports.generateAvailability = async (date, userId) => {
+export const generateAvailability = async (date, userId) => {
   try {
     console.log('🔄 Generating availability for:', { date, userId });
     
@@ -102,3 +102,5 @@ exports.generateAvailability = async (date, userId) => {
     throw error;
   }
 };
+
+export default { generateAvailability };

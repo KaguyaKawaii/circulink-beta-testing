@@ -1,6 +1,4 @@
-// utils/generateReservationEmail.js
-
-module.exports = function generateReservationEmail({
+export default function generateReservationEmail({
   status,
   toName,
   reservation,
@@ -100,4 +98,4 @@ module.exports = function generateReservationEmail({
     </div>
   </div>
   `;
-};
+}

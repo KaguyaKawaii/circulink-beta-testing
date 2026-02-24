@@ -1,5 +1,5 @@
 import express from 'express';
-import * as announcementController from '../controllers/announcementController.js';
+import announcementController from '../controllers/announcementController.js';
 
 const router = express.Router();
 
@@ -7,7 +7,7 @@ const router = express.Router();
 router.get('/', announcementController.getAnnouncements);
 
 // Get single announcement
-router.get('/:id', announcementController.getAnnouncement);
+router.get('/:id', announcementController.getAnnouncementById);
 
 // Create announcement
 router.post('/', announcementController.createAnnouncement);
@@ -22,6 +22,6 @@ router.delete('/:id', announcementController.deleteAnnouncement);
 router.post('/:id/dismiss', announcementController.dismissAnnouncement);
 
 // Get active announcements for user
-router.get('/user/:userId', announcementController.getUserAnnouncements);
+router.get('/user/:userId', announcementController.getActiveAnnouncements);
 
 export default router;

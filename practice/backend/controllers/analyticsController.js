@@ -1,14 +1,11 @@
-// controllers/analyticsController.js
+import User from "../models/User.js";
+import Log from "../models/Log.js";
+import Reservation from "../models/Reservation.js";
+import Room from "../models/Room.js";
 
-const User = require("../models/User");
-const Log = require("../models/Log");
-const Reservation = require("../models/Reservation");
-const Room = require("../models/Room"); // Add Room model
+// ==================== USER ANALYTICS ====================
 
-// @desc    Get user analytics
-// @route   GET /api/analytics/users
-// @access  Public
-exports.getUserAnalytics = async (req, res) => {
+export const getUserAnalytics = async (req, res) => {
   try {
     const { range = "month", startDate, endDate } = req.query;
     
@@ -623,7 +620,7 @@ function getDepartmentStats(users) {
 }
 
 // ================= OVERVIEW ANALYTICS =================
-exports.getAnalyticsOverview = async (req, res) => {
+export const getAnalyticsOverview = async (req, res) => {
   try {
     const totalUsers = await User.countDocuments({ archived: { $ne: true } });
     const totalReservations = await Reservation.countDocuments();
@@ -648,7 +645,7 @@ exports.getAnalyticsOverview = async (req, res) => {
 
 // ================= SIMPLE RESERVATION ANALYTICS =================
 // This version returns just the 4 metrics for the simple dashboard
-exports.getReservationAnalytics = async (req, res) => {
+export const getReservationAnalytics = async (req, res) => {
   try {
     const { range = "month", startDate, endDate } = req.query;
     
@@ -764,7 +761,7 @@ exports.getReservationAnalytics = async (req, res) => {
 
 // ================= COMPREHENSIVE RESERVATION ANALYTICS =================
 // This version returns detailed analytics with trends and growth data
-exports.getDetailedReservationAnalytics = async (req, res) => {
+export const getDetailedReservationAnalytics = async (req, res) => {
   try {
     const { range = "month", startDate, endDate } = req.query;
     
@@ -1247,7 +1244,7 @@ function generateReservationGrowthData(
 }
 
 // ================= SIMPLE ROOM ANALYTICS =================
-exports.getRoomAnalytics = async (req, res) => {
+export const getRoomAnalytics = async (req, res) => {
   try {
     const { range = "month", startDate, endDate } = req.query;
     
@@ -1394,7 +1391,7 @@ exports.getRoomAnalytics = async (req, res) => {
 };
 
 // ================= COMPREHENSIVE ROOM ANALYTICS =================
-exports.getDetailedRoomAnalytics = async (req, res) => {
+export const getDetailedRoomAnalytics = async (req, res) => {
   try {
     const { range = "month", startDate, endDate } = req.query;
     
@@ -2027,7 +2024,7 @@ function getTypeColor(type) {
 }
 
 // ================= ENGAGEMENT METRICS =================
-exports.getEngagementMetrics = async (req, res) => {
+export const getEngagementMetricsSimple = async (req, res) => {
   try {
     const totalLogs = await Log.countDocuments();
 
@@ -2047,7 +2044,7 @@ exports.getEngagementMetrics = async (req, res) => {
 };
 
 // ================= EXPORT ANALYTICS =================
-exports.exportAnalytics = async (req, res) => {
+export const exportAnalytics = async (req, res) => {
   try {
     res.json({
       success: true,
@@ -2063,7 +2060,7 @@ exports.exportAnalytics = async (req, res) => {
 };
 
 // ================= COMPREHENSIVE ENGAGEMENT METRICS =================
-exports.getEngagementMetrics = async (req, res) => {
+export const getEngagementMetrics = async (req, res) => {
   try {
     const { range = "month", startDate, endDate } = req.query;
     

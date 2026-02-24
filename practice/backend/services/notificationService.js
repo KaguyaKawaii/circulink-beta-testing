@@ -1,4 +1,4 @@
-const Notification = require("../models/Notification");
+import Notification from "../models/Notification.js";
 
 class NotificationService {
   createNotification = async (notificationData, io) => {
@@ -415,4 +415,6 @@ class NotificationService {
   }
 }
 
-module.exports = new NotificationService();
+// Create and export a single instance
+const notificationService = new NotificationService();
+export default notificationService;

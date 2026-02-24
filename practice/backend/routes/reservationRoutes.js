@@ -1,7 +1,7 @@
-// routes/reservationRoutes.js
-const express = require('express');
+import express from 'express';
+import * as reservationController from '../controllers/reservationController.js';
+
 const router = express.Router();
-const reservationController = require('../controllers/reservationController');
 
 // User limit check
 router.get('/check-limit/:userId', reservationController.checkUserReservationLimit);
@@ -55,10 +55,10 @@ router.get('/participants/available-users', reservationController.getAvailableUs
 router.post('/participants/remove', reservationController.removeParticipant);
 router.post('/participants/add', reservationController.addParticipant);
 
-// Floor access validation
-router.post('/validate-floor-access', reservationController.validateFloorAccess);
+// Floor access validation - FIXED: Use the correct function name
+router.post('/validate-floor-access', reservationController.validateFloorAccessController);
 
 // Maintenance
 router.post('/check-expired', reservationController.checkExpiredReservations);
 
-module.exports = router;
+export default router;

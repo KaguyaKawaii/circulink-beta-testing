@@ -1,6 +1,7 @@
-const express = require("express");
+import express from "express";
+import * as reportController from "../controllers/reportController.js";
+
 const router = express.Router();
-const reportController = require("../controllers/reportController");
 
 // ================== REPORT ROUTES ==================
 router.get("/", reportController.getReports); // GET all reports
@@ -14,11 +15,10 @@ router.post("/:id/start", reportController.startReport); // START report (staff 
 router.put("/:id/status", reportController.updateReportStatus); // UPDATE report status
 router.put("/:id/resolve", reportController.resolveReport); // RESOLVE report
 router.put("/:id/archive", reportController.archiveReport); // ARCHIVE report
-router.put("/:id/restore", reportController.restoreReport); // RESTORE report ← KEEP ONLY THIS ONE
-// REMOVE THIS LINE: router.put("/restore/:id", reportController.restoreReport);
+router.put("/:id/restore", reportController.restoreReport); // RESTORE report
 
 router.put("/:id/assign", reportController.assignReport); // ASSIGN report to staff
 
 router.delete("/:id", reportController.deleteArchivedReport); // DELETE archived report permanently
 
-module.exports = router;
+export default router;

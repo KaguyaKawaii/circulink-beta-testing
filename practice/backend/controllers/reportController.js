@@ -1,13 +1,13 @@
-const Report = require("../models/Report");
-const ArchivedReport = require("../models/ArchivedReport");
-const Notification = require("../models/Notification");
-const User = require("../models/User");
-const logAction = require("../utils/logAction");
+import Report from "../models/Report.js";
+import ArchivedReport from "../models/ArchivedReport.js";
+import Notification from "../models/Notification.js";
+import User from "../models/User.js";
+import logAction from "../utils/logAction.js";
 
 /* ------------------------------------------------
    ✅ Get all active reports
 ------------------------------------------------ */
-exports.getReports = async (req, res) => {
+export const getReports = async (req, res) => {
   try {
     const reports = await Report.find()
       .populate("assignedTo", "name email floor")
@@ -23,7 +23,7 @@ exports.getReports = async (req, res) => {
 /* ------------------------------------------------
    ✅ Get report by ID
 ------------------------------------------------ */
-exports.getReportById = async (req, res) => {
+export const getReportById = async (req, res) => {
   try {
     const report = await Report.findById(req.params.id).populate(
       "userId",
@@ -45,7 +45,7 @@ exports.getReportById = async (req, res) => {
 /* ------------------------------------------------
    ✅ Get archived reports
 ------------------------------------------------ */
-exports.getArchivedReports = async (req, res) => {
+export const getArchivedReports = async (req, res) => {
   try {
     const archived = await ArchivedReport.find()
       .populate("userId")
@@ -60,7 +60,7 @@ exports.getArchivedReports = async (req, res) => {
 /* ------------------------------------------------
    ✅ Create Report + Notify Admin ONLY - FIXED
 ------------------------------------------------ */
-exports.createReport = async (req, res) => {
+export const createReport = async (req, res) => {
   try {
     let { reportedBy, userId, category, details, floor, room } = req.body;
 
@@ -132,7 +132,7 @@ exports.createReport = async (req, res) => {
 /* ------------------------------------------------
    ✅ Start Report (Staff begins work) - NO USER NOTIFICATION
 ------------------------------------------------ */
-exports.startReport = async (req, res) => {
+export const startReport = async (req, res) => {
   try {
     const { startedBy } = req.body;
 
@@ -187,7 +187,7 @@ exports.startReport = async (req, res) => {
 /* ------------------------------------------------
    ✅ Resolve Report - NO USER NOTIFICATION
 ------------------------------------------------ */
-exports.resolveReport = async (req, res) => {
+export const resolveReport = async (req, res) => {
   try {
     const { actionTaken, resolvedBy } = req.body;
 
@@ -247,7 +247,7 @@ exports.resolveReport = async (req, res) => {
 /* ------------------------------------------------
    ✅ Admin Updates Report Status / Action Taken
 ------------------------------------------------ */
-exports.updateReportStatus = async (req, res) => {
+export const updateReportStatus = async (req, res) => {
   try {
     const { status, updatedBy } = req.body;
     const allowedStatuses = ["Pending", "In Progress", "Resolved", "Archived"];
@@ -296,7 +296,7 @@ exports.updateReportStatus = async (req, res) => {
 /* ------------------------------------------------
    ✅ Archive Report (Move to ArchivedReport collection) - FIXED
 ------------------------------------------------ */
-exports.archiveReport = async (req, res) => {
+export const archiveReport = async (req, res) => {
   try {
     const { archivedBy } = req.body;
     const report = await Report.findById(req.params.id);
@@ -357,7 +357,7 @@ exports.archiveReport = async (req, res) => {
 /* ------------------------------------------------
    ✅ Restore Report (from Archived status) - FIXED
 ------------------------------------------------ */
-exports.restoreReport = async (req, res) => {
+export const restoreReport = async (req, res) => {
   try {
     const { restoredBy } = req.body;
     
@@ -416,7 +416,7 @@ exports.restoreReport = async (req, res) => {
 /* ------------------------------------------------
    ✅ Delete Archived Report (Permanently delete) - FIXED
 ------------------------------------------------ */
-exports.deleteArchivedReport = async (req, res) => {
+export const deleteArchivedReport = async (req, res) => {
   try {
     const { deletedBy } = req.body;
     
@@ -462,7 +462,7 @@ exports.deleteArchivedReport = async (req, res) => {
 /* ------------------------------------------------
    ✅ Assign Report to Staff
 ------------------------------------------------ */
-exports.assignReport = async (req, res) => {
+export const assignReport = async (req, res) => {
   try {
     const { staffId, assignedBy } = req.body;
 
@@ -536,7 +536,7 @@ exports.assignReport = async (req, res) => {
 /* ------------------------------------------------
    ✅ Get Reports by Staff
 ------------------------------------------------ */
-exports.getReportsByStaff = async (req, res) => {
+export const getReportsByStaff = async (req, res) => {
   try {
     const staffId = req.params.staffId;
     const reports = await Report.find({ assignedTo: staffId })

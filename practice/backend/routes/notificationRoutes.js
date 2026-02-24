@@ -1,10 +1,14 @@
-const express = require("express");
+import express from "express";
+
 const router = express.Router();
 
 // Import the controller with error handling
 let notificationController;
+
 try {
-  notificationController = require("../controllers/notificationController");
+  // Dynamic import for ES modules
+  const notificationModule = await import("../controllers/notificationController.js");
+  notificationController = notificationModule;
   console.log("✅ Notification controller loaded successfully");
 } catch (error) {
   console.error("❌ Failed to load notification controller:", error);
@@ -55,4 +59,4 @@ router.put("/:id/dismiss", notificationController.markAsDismissed);
 // 📌 Get unread count for a user
 router.get("/unread-count/:userId", notificationController.getUnreadCount);
 
-module.exports = router;
+export default router;

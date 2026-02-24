@@ -1,10 +1,11 @@
-const express = require("express");
+import express from "express";
+import * as roomController from "../controllers/roomController.js";
+import { getAvailability } from "../controllers/availabilityController.js"; // ✅ Fixed import
+
 const router = express.Router();
-const roomController = require("../controllers/roomController");
-const availabilityController = require("../controllers/availabilityController"); // Add this import
 
 // ✅ ADD THIS ROUTE - MUST BE AT THE TOP
-router.get("/availability", availabilityController.getAvailability);
+router.get("/availability", getAvailability); // ✅ Using the named import directly
 
 // GET /rooms
 router.get("/", roomController.getRooms);
@@ -33,4 +34,4 @@ router.patch("/:id/toggle-status", roomController.toggleRoomStatus);
 // DELETE /rooms/:id
 router.delete("/:id", roomController.deleteRoom);
 
-module.exports = router;
+export default router;
