@@ -44,4 +44,3 @@ adminSchema.set("toJSON", {
 });
 
 const Admin = mongoose.model("Admin", adminSchema);
-export default Admin;
