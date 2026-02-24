@@ -1,8 +1,7 @@
-import express from "express";
-import adminController from "../controllers/adminController.js";
-import analyticsRoutes from "./analyticsRoutes.js";
-
+const express = require("express");
 const router = express.Router();
+const adminController = require("../controllers/adminController");
+const analyticsRoutes = require("./analyticsRoutes");
 
 // Admin authentication
 router.post("/register", adminController.registerAdmin);
@@ -24,4 +23,4 @@ router.get("/summary", adminController.getSummaryCounts);
 // Analytics routes
 router.use("/analytics", analyticsRoutes);
 
-export default router;
+module.exports = router;

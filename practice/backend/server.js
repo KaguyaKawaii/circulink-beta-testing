@@ -236,37 +236,6 @@ io.on("connection", (socket) => {
   });
 });
 
-// TEMPORARY: Add this route to reset password (REMOVE AFTER USE)
-app.post('/api/admin/reset-password/:id', async (req, res) => {
-  try {
-    const Admin = (await import("./models/Admin.js")).default;
-    const bcrypt = (await import("bcryptjs")).default;
-    
-    const admin = await Admin.findById(req.params.id);
-    if (!admin) {
-      return res.status(404).json({ message: "Admin not found" });
-    }
-    
-    // Set new password (change this to your desired password)
-    const newPassword = "Admin123!"; // Change this
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(newPassword, salt);
-    
-    admin.password = hashedPassword;
-    admin.loginAttempts = 0;
-    admin.lockUntil = undefined;
-    await admin.save();
-    
-    res.json({ 
-      success: true, 
-      message: "Password reset successfully",
-      newPassword: newPassword // Remove this in production!
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // Make io accessible to routes
 app.set("io", io);
 

@@ -11,21 +11,14 @@ const adminSchema = new mongoose.Schema({
   lockUntil: { type: Date },
   otp: { 
     code: String,
-    expiresAt: Date,
-    attempts: { type: Number, default: 0 }
+    expiresAt: Date
   },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 });
 
-adminSchema.index({ email: 1 });
-
 adminSchema.virtual("isLocked").get(function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
-});
-
-adminSchema.virtual("otpAttempts").get(function () {
-  return this.otp?.attempts || 0;
 });
 
 adminSchema.pre("save", function (next) {
@@ -34,14 +27,8 @@ adminSchema.pre("save", function (next) {
 });
 
 adminSchema.set("toJSON", {
-  virtuals: true,
-  transform: function (doc, ret) {
-    delete ret.password;
-    delete ret.otp;
-    return ret;
-  }
+  virtuals: true
 });
 
 const Admin = mongoose.model("Admin", adminSchema);
-
-export default Admin;   // ✅ REQUIRED
+export default Admin;
