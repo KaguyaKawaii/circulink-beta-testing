@@ -178,58 +178,61 @@ function AdminUsers({ setView, onLogout }) {
     }
   };
 
-  // ✅ NEW: Revoke all verification for students only
-  const revokeAllStudentVerification = async () => {
-    try {
-      const res = await axios.post(
-        `${import.meta.env.VITE_API_URL}/api/users/revoke-all-verification`,
-        {
-          roles: ["Student"] // Only revoke for students
-        }
+// ✅ NEW: Revoke all verification for students only
+const revokeAllStudentVerification = async () => {
+  try {
+    const res = await axios.post(
+      `${import.meta.env.VITE_API_URL}/api/users/revoke-all-verification`,
+      {
+        roles: ["Student"] // Only revoke for students
+      }
+    );
+
+    if (res.data.success) {
+      // Update local state
+      setUsers(prevUsers => 
+        prevUsers.map(user => {
+          if (user.role === "Student") {
+            return { ...user, verified: false };
+          }
+          return user;
+        })
       );
 
-      if (res.data.success) {
-        // Update local state
-        setUsers(prevUsers => 
-          prevUsers.map(user => {
-            if (user.role === "Student") {
-              return { ...user, verified: false };
-            }
-            return user;
-          })
-        );
+      // Clear selections
+      setSelectedUsers([]);
+      setSelectAll(false);
 
-        // Clear selections
-        setSelectedUsers([]);
-        setSelectAll(false);
-
-        // Show success message
-        showConfirmation(
-          "Success",
-          `Successfully revoked verification for ${res.data.count} students.`,
-          null
-        );
-
-        // Emit socket event for real-time updates
-        socket.emit("bulk-verification-updated", {
-          roles: ["Student"],
-          verified: false,
-          count: res.data.count
-        });
-
-        console.log("Revoked all student verifications successfully");
-      } else {
-        throw new Error(res.data.message || "Failed to revoke verifications");
-      }
-    } catch (err) {
-      console.error("Failed to revoke verifications:", err);
+      // Show success message
       showConfirmation(
-        "Error",
-        err.response?.data?.message || "Failed to revoke verifications. Please try again.",
+        "Success",
+        `Successfully revoked verification for ${res.data.count} students.`,
         null
       );
+
+      // Emit socket event for real-time updates
+      socket.emit("bulk-verification-updated", {
+        roles: ["Student"],
+        verified: false,
+        count: res.data.count
+      });
+
+      // Refresh users to ensure we have the latest data
+      fetchUsers();
+
+      console.log("Revoked all student verifications successfully");
+    } else {
+      throw new Error(res.data.message || "Failed to revoke verifications");
     }
-  };
+  } catch (err) {
+    console.error("Failed to revoke verifications:", err);
+    showConfirmation(
+      "Error",
+      err.response?.data?.message || "Failed to revoke verifications. Please try again.",
+      null
+    );
+  }
+};
 
   // ✅ NEW: Bulk verify selected users
   const bulkVerifyUsers = async (verifyStatus) => {

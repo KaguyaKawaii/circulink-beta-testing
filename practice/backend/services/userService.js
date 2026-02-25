@@ -83,7 +83,7 @@ export const addUser = async (data, file) => {
   return userResponse;
 };
 
-// Signup - FIXED: Let the model's pre-save hook hash the password
+// Signup - FIXED: Students should NOT be verified by default
 export const signup = async (data, file) => {
   const { name, email, id_number, password, role, department, course, yearLevel } = data;
 
@@ -102,14 +102,14 @@ export const signup = async (data, file) => {
     if (existing.id_number === id_number) throw new Error("ID number already used.");
   }
 
-  // ✅ FIXED: Don't hash here - let the model's pre-save hook handle it
-
   let profilePicture = null;
   if (file) {
     const upload = await uploadToCloudinary(file.buffer, "users/profile_pictures");
     profilePicture = upload.secure_url;
   }
 
+  // IMPORTANT FIX: Explicitly set verified to false for all new signups
+  // This overrides any automatic verification in the model
   const newUser = new User({
     name,
     email: email.toLowerCase(),
@@ -120,6 +120,7 @@ export const signup = async (data, file) => {
     year_level: role === "Student" ? yearLevel : "N/A",
     role,
     profilePicture,
+    verified: false, // Explicitly set to false for all new signups
   });
 
   await newUser.save();

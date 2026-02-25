@@ -64,8 +64,14 @@ userSchema.pre("save", async function (next) {
       }
     }
 
+    // IMPORTANT FIX: Only auto-verify if this is a new document AND the role is Faculty/Staff/Staff_Office
+    // AND verified is not explicitly set to false
     if (this.isNew && ["Faculty", "Staff", "Staff_Office"].includes(this.role)) {
-      this.verified = true;
+      // Only auto-verify if verified hasn't been set explicitly
+      if (this.verified === undefined) {
+        this.verified = true;
+        console.log(`✅ Auto-verified ${this.role} user: ${this.email}`);
+      }
     }
 
     if (this.isNew) {
