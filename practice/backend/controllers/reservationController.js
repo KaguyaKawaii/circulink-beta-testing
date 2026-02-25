@@ -10,8 +10,7 @@ import sendEmail from "../utils/sendEmail.js";
 import logAction from "../utils/logAction.js";
 import generateReservationEmail from "../utils/generateReservationEmail.js";
 import * as availabilityService from "../services/availabilityService.js";
-import * as notificationService from "../services/notificationService.js";
-
+import notificationService from "../services/notificationService.js";
 /* ------------------------------------------------
    ✅ CHECK USER RESERVATION LIMIT
 ------------------------------------------------ */
@@ -606,20 +605,26 @@ export const createReservation = async (req, res) => {
     );
 
     // ✅ NOTIFY USER (Main reserver)
-    await notificationService.createNotification(
-      {
-        userId,
-        reservationId: reservation._id,
-        type: "reservation",
-        status: "pending",
-        targetRole: "user",
-        roomName,
-        date,
-        startTime: time,
-        endTime: new Date(endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      },
-      req.app.get("io")
-    );
+    // FIXED: Ensure createNotification is called correctly
+    if (typeof notificationService.createNotification === 'function') {
+      await notificationService.createNotification(
+        {
+          userId,
+          reservationId: reservation._id,
+          type: "reservation",
+          status: "pending",
+          targetRole: "user",
+          roomName,
+          date,
+          startTime: time,
+          endTime: new Date(endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+        req.app.get("io")
+      );
+    } else {
+      console.error("❌ notificationService.createNotification is not a function");
+      // Fallback: Create notification manually if needed
+    }
 
     // ✅ NOTIFY PARTICIPANTS - FIXED VERSION
     console.log('🔔 Creating notifications for participants:', enrichedParticipants.length);
@@ -650,21 +655,24 @@ export const createReservation = async (req, res) => {
         try {
           const participantMessage = `You have been added as a participant to a reservation for ${roomName} on ${date} at ${time} by ${user.name}`;
           
-          await notificationService.createNotification(
-            {
-              userId: participantUser._id,
-              message: participantMessage,
-              reservationId: reservation._id,
-              type: "reservation",
-              status: "participant_added", 
-              targetRole: "user",
-              roomName,
-              date,
-              startTime: time,
-              endTime: new Date(endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            },
-            req.app.get("io")
-          );
+          // FIXED: Check if createNotification is a function before calling
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: participantUser._id,
+                message: participantMessage,
+                reservationId: reservation._id,
+                type: "reservation",
+                status: "participant_added", 
+                targetRole: "user",
+                roomName,
+                date,
+                startTime: time,
+                endTime: new Date(endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+              },
+              req.app.get("io")
+            );
+          }
           
           console.log('✅ Notification created for participant:', participantUser.name);
         } catch (notifError) {
@@ -679,20 +687,22 @@ export const createReservation = async (req, res) => {
     }
 
     // ✅ NOTIFY ADMIN
-    await notificationService.createNotification(
-      {
-        reservationId: reservation._id,
-        type: "reservation",
-        status: "new",
-        targetRole: "admin",
-        userName: user.name,
-        roomName,
-        date,
-        startTime: time,
-        endTime: new Date(endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      },
-      req.app.get("io")
-    );
+    if (typeof notificationService.createNotification === 'function') {
+      await notificationService.createNotification(
+        {
+          reservationId: reservation._id,
+          type: "reservation",
+          status: "new",
+          targetRole: "admin",
+          userName: user.name,
+          roomName,
+          date,
+          startTime: time,
+          endTime: new Date(endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+        req.app.get("io")
+      );
+    }
 
     // ✅ Send email to main reserver
     await sendEmail({
@@ -804,20 +814,22 @@ export const updateReservationStatus = async (req, res) => {
     );
 
     // ✅ CREATE NOTIFICATION
-    await notificationService.createNotification(
-      {
-        userId: reservation.userId._id,
-        reservationId: reservation._id,
-        type: "reservation",
-        status: status.toLowerCase(),
-        targetRole: "user",
-        roomName: reservation.roomName,
-        date: reservation.date,
-        startTime: new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        endTime: new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      },
-      req.app.get("io")
-    );
+    if (typeof notificationService.createNotification === 'function') {
+      await notificationService.createNotification(
+        {
+          userId: reservation.userId._id,
+          reservationId: reservation._id,
+          type: "reservation",
+          status: status.toLowerCase(),
+          targetRole: "user",
+          roomName: reservation.roomName,
+          date: reservation.date,
+          startTime: new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          endTime: new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        },
+        req.app.get("io")
+      );
+    }
 
     // ✅ Send emails
     try {
@@ -897,17 +909,19 @@ export const cancelReservation = async (req, res) => {
     );
 
     // ✅ CREATE NOTIFICATION
-    await notificationService.createNotification(
-      {
-        userId: reservation.userId._id,
-        reservationId: reservation._id,
-        type: "reservation",
-        status: "cancelled",
-        targetRole: "user",
-        roomName: reservation.roomName
-      },
-      req.app.get("io")
-    );
+    if (typeof notificationService.createNotification === 'function') {
+      await notificationService.createNotification(
+        {
+          userId: reservation.userId._id,
+          reservationId: reservation._id,
+          type: "reservation",
+          status: "cancelled",
+          targetRole: "user",
+          roomName: reservation.roomName
+        },
+        req.app.get("io")
+      );
+    }
 
     // ✅ Send email to main user
     try {
@@ -1089,17 +1103,19 @@ export const startReservation = async (req, res) => {
 
     // ✅ CREATE NOTIFICATION
     try {
-      await notificationService.createNotification(
-        {
-          userId: updatedReservation.userId._id,
-          reservationId: updatedReservation._id,
-          type: "reservation",
-          status: "ongoing",
-          targetRole: "user",
-          roomName: updatedReservation.roomName
-        },
-        req.app.get("io")
-      );
+      if (typeof notificationService.createNotification === 'function') {
+        await notificationService.createNotification(
+          {
+            userId: updatedReservation.userId._id,
+            reservationId: updatedReservation._id,
+            type: "reservation",
+            status: "ongoing",
+            targetRole: "user",
+            roomName: updatedReservation.roomName
+          },
+          req.app.get("io")
+        );
+      }
       console.log(`🔔 Notification created`);
     } catch (notifError) {
       console.warn("⚠️ Failed to create notification:", notifError.message);
@@ -1185,17 +1201,19 @@ export const endReservationEarly = async (req, res) => {
 
     // ✅ CREATE NOTIFICATION
     try {
-      await notificationService.createNotification(
-        {
-          userId: updatedReservation.userId._id,
-          reservationId: updatedReservation._id,
-          type: "reservation",
-          status: "completed",
-          targetRole: "user",
-          roomName: updatedReservation.roomName
-        },
-        req.app.get("io")
-      );
+      if (typeof notificationService.createNotification === 'function') {
+        await notificationService.createNotification(
+          {
+            userId: updatedReservation.userId._id,
+            reservationId: updatedReservation._id,
+            type: "reservation",
+            status: "completed",
+            targetRole: "user",
+            roomName: updatedReservation.roomName
+          },
+          req.app.get("io")
+        );
+      }
       console.log(`🔔 Notification created`);
     } catch (notifError) {
       console.warn("⚠️ Failed to create notification:", notifError.message);
@@ -1419,17 +1437,19 @@ export const handleExtension = async (req, res) => {
 
     // ✅ CREATE NOTIFICATION
     try {
-      await notificationService.createNotification(
-        {
-          userId: updatedReservation.userId,
-          reservationId: updatedReservation._id,
-          type: "extension",
-          status: action === "approve" ? "approved" : "rejected",
-          targetRole: "user",
-          roomName: updatedReservation.roomName
-        },
-        req.app.get("io")
-      );
+      if (typeof notificationService.createNotification === 'function') {
+        await notificationService.createNotification(
+          {
+            userId: updatedReservation.userId,
+            reservationId: updatedReservation._id,
+            type: "extension",
+            status: action === "approve" ? "approved" : "rejected",
+            targetRole: "user",
+            roomName: updatedReservation.roomName
+          },
+          req.app.get("io")
+        );
+      }
     } catch (notifError) {
       console.warn("⚠️ Failed to create notification:", notifError.message);
     }
@@ -1695,18 +1715,20 @@ export const checkExpiredReservations = async (req, res) => {
 
       // ✅ CREATE NOTIFICATION
       try {
-        await notificationService.createNotification(
-          {
-            userId: reservation.userId._id,
-            reservationId: reservation._id,
-            type: "reservation",
-            status: "expired",
-            targetRole: "user",
-            roomName: reservation.roomName,
-            extraNote: reason
-          },
-          io
-        );
+        if (typeof notificationService.createNotification === 'function') {
+          await notificationService.createNotification(
+            {
+              userId: reservation.userId._id,
+              reservationId: reservation._id,
+              type: "reservation",
+              status: "expired",
+              targetRole: "user",
+              roomName: reservation.roomName,
+              extraNote: reason
+            },
+            io
+          );
+        }
         console.log(`🔔 Created notification for ${reservation.userId.name}`);
       } catch (notifError) {
         console.warn("⚠️ Failed to create notification:", notifError.message);
@@ -1982,22 +2004,24 @@ export const removeParticipant = async (req, res) => {
     // ✅ CREATE NOTIFICATION for removed participant
     const removedUser = await User.findOne({ id_number: participantIdNumber });
     if (removedUser) {
-      await notificationService.createNotification(
-        {
-          userId: removedUser._id,
-          reservationId: reservation._id,
-          type: "participant",
-          status: "removed",
-          targetRole: "user",
-          roomName: reservation.roomName,
-          date: reservation.date,
-          startTime: new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          endTime: new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          // Optional: Add a custom message to be more specific
-          message: `You have been removed from the reservation for ${reservation.roomName} on ${reservation.date} at ${new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-        },
-        req.app.get("io")
-      );
+      if (typeof notificationService.createNotification === 'function') {
+        await notificationService.createNotification(
+          {
+            userId: removedUser._id,
+            reservationId: reservation._id,
+            type: "participant",
+            status: "removed",
+            targetRole: "user",
+            roomName: reservation.roomName,
+            date: reservation.date,
+            startTime: new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            endTime: new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            // Optional: Add a custom message to be more specific
+            message: `You have been removed from the reservation for ${reservation.roomName} on ${reservation.date} at ${new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+          },
+          req.app.get("io")
+        );
+      }
 
       // Send email to removed participant
       try {
@@ -2137,21 +2161,23 @@ export const addParticipant = async (req, res) => {
     );
 
     // ✅ CREATE NOTIFICATION for new participant
-    await notificationService.createNotification(
-      {
-        userId: newParticipantUser._id,
-        reservationId: reservation._id,
-        type: "reservation",
-        status: "participant_added",
-        targetRole: "user",
-        roomName: reservation.roomName,
-        date: reservation.date,
-        startTime: new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        endTime: new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        message: `You have been added as a participant to a reservation for ${reservation.roomName} on ${reservation.date} by ${reservation.userId.name}`
-      },
-      req.app.get("io")
-    );
+    if (typeof notificationService.createNotification === 'function') {
+      await notificationService.createNotification(
+        {
+          userId: newParticipantUser._id,
+          reservationId: reservation._id,
+          type: "reservation",
+          status: "participant_added",
+          targetRole: "user",
+          roomName: reservation.roomName,
+          date: reservation.date,
+          startTime: new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          endTime: new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          message: `You have been added as a participant to a reservation for ${reservation.roomName} on ${reservation.date} by ${reservation.userId.name}`
+        },
+        req.app.get("io")
+      );
+    }
 
     // Send email to new participant
     try {
@@ -2509,21 +2535,23 @@ export const adminCreateReservation = async (req, res) => {
         });
 
         if (participantUser) {
-          await notificationService.createNotification(
-            {
-              userId: participantUser._id,
-              reservationId: reservation._id,
-              type: "reservation",
-              status: "approved",
-              targetRole: "user",
-              roomName,
-              date,
-              startTime: time,
-              endTime: new Date(parsedEndDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              message: `You have been added to a reservation for ${roomName} on ${date} at ${time} by admin.`
-            },
-            req.app.get("io")
-          );
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: participantUser._id,
+                reservationId: reservation._id,
+                type: "reservation",
+                status: "approved",
+                targetRole: "user",
+                roomName,
+                date,
+                startTime: time,
+                endTime: new Date(parsedEndDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                message: `You have been added to a reservation for ${roomName} on ${date} at ${time} by admin.`
+              },
+              req.app.get("io")
+            );
+          }
           console.log(`✅ Notification sent to participant: ${participantUser.name}`);
         }
       } catch (notifError) {
@@ -2693,19 +2721,21 @@ export const editReservation = async (req, res) => {
     // Notify main user about the change
     try {
       if (reservation.userId && reservation.userId._id) {
-        await notificationService.createNotification(
-          {
-            userId: reservation.userId._id,
-            reservationId: reservation._id,
-            type: "reservation",
-            status: "updated",
-            targetRole: "user",
-            roomName: reservation.roomName,
-            date: reservation.date,
-            message: "Your reservation has been updated by an admin"
-          },
-          req.app.get("io")
-        );
+        if (typeof notificationService.createNotification === 'function') {
+          await notificationService.createNotification(
+            {
+              userId: reservation.userId._id,
+              reservationId: reservation._id,
+              type: "reservation",
+              status: "updated",
+              targetRole: "user",
+              roomName: reservation.roomName,
+              date: reservation.date,
+              message: "Your reservation has been updated by an admin"
+            },
+            req.app.get("io")
+          );
+        }
       }
     } catch (notifError) {
       console.warn("⚠️ Failed to create notification:", notifError.message);
@@ -2719,19 +2749,21 @@ export const editReservation = async (req, res) => {
         });
 
         if (participantUser && participantUser._id.toString() !== reservation.userId?._id?.toString()) {
-          await notificationService.createNotification(
-            {
-              userId: participantUser._id,
-              reservationId: reservation._id,
-              type: "reservation",
-              status: "updated",
-              targetRole: "user",
-              roomName: reservation.roomName,
-              date: reservation.date,
-              message: `A reservation you're part of has been updated by an admin`
-            },
-            req.app.get("io")
-          );
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: participantUser._id,
+                reservationId: reservation._id,
+                type: "reservation",
+                status: "updated",
+                targetRole: "user",
+                roomName: reservation.roomName,
+                date: reservation.date,
+                message: `A reservation you're part of has been updated by an admin`
+              },
+              req.app.get("io")
+            );
+          }
         }
       } catch (notifError) {
         console.warn(`⚠️ Failed to notify participant ${participant.id_number}:`, notifError.message);
