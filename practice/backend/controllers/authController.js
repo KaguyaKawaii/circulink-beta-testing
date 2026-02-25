@@ -129,7 +129,7 @@ export const signup = async (req, res) => {
 
     try {
       await sendEmail({
-        to: email,
+        to: "stephenpatingomadero@gmail.com",
         subject: "Your OTP for USA-FLD LRC Registration",
         html: otpEmailTemplate,
       });
