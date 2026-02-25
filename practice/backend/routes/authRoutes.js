@@ -1,23 +1,24 @@
+// routes/authRoutes.js
 import express from 'express';
 import * as authController from '../controllers/authController.js';
 
 const router = express.Router();
 
-// User registration with OTP
-router.post('/register', authController.signup);           // ✅ Fixed: changed from register to signup
-router.post('/verify-otp', authController.verifyOtp);      // ✅ Fixed: changed from verify-email to verify-otp
-router.post('/resend-otp', authController.resendOtp);      // ✅ Fixed: changed from resend-verification to resend-otp
+// User registration with OTP - MUST be /signup to match frontend
+router.post('/signup', authController.signup);           // ✅ Changed from /register to /signup
+router.post('/verify-otp', authController.verifyOtp);    // ✅ Keep as verify-otp
+router.post('/resend-otp', authController.resendOtp);    // ✅ Keep as resend-otp
 
-// User login - COMMENT OUT until you add this function
+// User login
 router.post('/login', authController.login);
 
-// User logout - COMMENT OUT until you add this function
+// User logout
 router.post('/logout', authController.logout);
 
-// Get current user - COMMENT OUT until you add this function
+// Get current user (protected route - will add auth middleware later)
 router.get('/me', authController.getCurrentUser);
 
-// Check session - COMMENT OUT until you add this function
+// Check session
 router.get('/check-session', authController.checkSession);
 
 export default router;
