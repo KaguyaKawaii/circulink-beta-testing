@@ -558,7 +558,8 @@ export const createReservation = async (req, res) => {
         name: participantUser.name,
         course: participantUser.course || "N/A",
         year_level: participantUser.yearLevel || "N/A",
-        department: participantUser.department || "N/A"
+        department: participantUser.department || "N/A",
+        email: participantUser.email // ✅ Store email for later use
       });
     }
 
@@ -605,7 +606,6 @@ export const createReservation = async (req, res) => {
     );
 
     // ✅ NOTIFY USER (Main reserver)
-    // FIXED: Ensure createNotification is called correctly
     if (typeof notificationService.createNotification === 'function') {
       await notificationService.createNotification(
         {
@@ -621,13 +621,31 @@ export const createReservation = async (req, res) => {
         },
         req.app.get("io")
       );
-    } else {
-      console.error("❌ notificationService.createNotification is not a function");
-      // Fallback: Create notification manually if needed
     }
 
-    // ✅ NOTIFY PARTICIPANTS - FIXED VERSION
+    // ✅ Send email to main reserver - FIXED: Make sure this runs
+    try {
+      console.log(`📧 Sending email to main reserver: ${user.email}`);
+      const emailResult = await sendEmail({
+        to: user.email,
+        subject: "Reservation Pending",
+        html: generateReservationEmail({
+          status: "Pending",
+          toName: user.name,
+          reservation,
+          formattedDate: date,
+          time,
+          participants: enrichedParticipants
+        })
+      });
+      console.log(`✅ Email sent to main reserver:`, emailResult);
+    } catch (emailError) {
+      console.error(`❌ Failed to send email to main reserver:`, emailError);
+    }
+
+    // ✅ NOTIFY PARTICIPANTS AND SEND EMAILS - FIXED VERSION
     console.log('🔔 Creating notifications for participants:', enrichedParticipants.length);
+    
     for (const participant of enrichedParticipants) {
       // Skip if this is the main user
       if (participant.id_number === user.id_number) {
@@ -646,16 +664,16 @@ export const createReservation = async (req, res) => {
       });
 
       if (participantUser) {
-        console.log('✅ Found participant user for notification:', {
+        console.log('✅ Found participant user:', {
           name: participantUser.name,
           userId: participantUser._id,
           email: participantUser.email
         });
 
+        // Create notification
         try {
           const participantMessage = `You have been added as a participant to a reservation for ${roomName} on ${date} at ${time} by ${user.name}`;
           
-          // FIXED: Check if createNotification is a function before calling
           if (typeof notificationService.createNotification === 'function') {
             await notificationService.createNotification(
               {
@@ -663,7 +681,7 @@ export const createReservation = async (req, res) => {
                 message: participantMessage,
                 reservationId: reservation._id,
                 type: "reservation",
-                status: "Participant Added", 
+                status: "participant_added",
                 targetRole: "user",
                 roomName,
                 date,
@@ -673,13 +691,33 @@ export const createReservation = async (req, res) => {
               req.app.get("io")
             );
           }
-          
           console.log('✅ Notification created for participant:', participantUser.name);
         } catch (notifError) {
           console.error('❌ Failed to create notification for participant:', participantUser.name, notifError);
         }
+
+        // ✅ FIXED: Send email to participant - separate try-catch block
+        try {
+          console.log(`📧 Sending email to participant: ${participantUser.email}`);
+          const emailResult = await sendEmail({
+            to: participantUser.email,
+            subject: "You have been added as a participant",
+            html: generateReservationEmail({
+              status: "Pending",
+              toName: participantUser.name,
+              reservation,
+              formattedDate: date,
+              time,
+              participants: enrichedParticipants,
+              isParticipant: true
+            })
+          });
+          console.log(`✅ Email sent to participant: ${participantUser.name}`, emailResult);
+        } catch (emailError) {
+          console.error(`❌ Failed to send email to participant ${participantUser.name}:`, emailError);
+        }
       } else {
-        console.warn('⚠️ Participant user not found for notification:', {
+        console.warn('⚠️ Participant user not found for notification/email:', {
           id_number: participant.id_number,
           name: participant.name
         });
@@ -704,72 +742,12 @@ export const createReservation = async (req, res) => {
       );
     }
 
-    // ✅ Send email to main reserver
-    await sendEmail({
-      to: user.email,
-      subject: "Reservation Pending",
-      html: generateReservationEmail({
-        status: "Pending",
-        toName: user.name,
-        reservation,
-        formattedDate: date,
-        time,
-        participants: enrichedParticipants
-      })
-    });
-
-    // ✅ FIXED: Send email to participants
-    for (const participant of enrichedParticipants) {
-      // Skip if this is the main user
-      if (participant.id_number === user.id_number) continue;
-      
-      console.log('🔍 Looking up participant for email:', {
-        id_number: participant.id_number,
-        name: participant.name
-      });
-
-      // Find participant user by id_number
-      const participantUser = await User.findOne({ 
-        id_number: participant.id_number.toString().trim()
-      });
-
-      if (participantUser && participantUser.email) {
-        console.log('📧 Sending email to participant:', {
-          name: participantUser.name,
-          email: participantUser.email
-        });
-
-        try {
-          await sendEmail({
-            to: participantUser.email,
-            subject: "You have been added as a participant",
-            html: generateReservationEmail({
-              status: "Pending",
-              toName: participantUser.name, // Use the name from user record
-              reservation,
-              formattedDate: date,
-              time,
-              participants: enrichedParticipants,
-              isParticipant: true
-            })
-          });
-          console.log('✅ Email sent to participant:', participantUser.name);
-        } catch (emailError) {
-          console.warn('⚠️ Failed to send email to participant:', participantUser.name, emailError.message);
-        }
-      } else {
-        console.warn('⚠️ Participant user not found or no email:', {
-          id_number: participant.id_number,
-          name: participant.name,
-          found: !!participantUser,
-          hasEmail: participantUser?.email
-        });
-      }
-    }
-
+    console.log('✅ Reservation created successfully with all emails sent');
     res.status(201).json(reservation);
+    
   } catch (err) {
-    console.error("Reservation creation error:", err);
+    console.error("❌ Reservation creation error:", err);
+    console.error("❌ Error stack:", err.stack);
     res.status(500).json({ message: "Internal server error." });
   }
 };
@@ -2167,7 +2145,7 @@ export const addParticipant = async (req, res) => {
           userId: newParticipantUser._id,
           reservationId: reservation._id,
           type: "reservation",
-          status: "Participant Added",
+          status: "participant_added",
           targetRole: "user",
           roomName: reservation.roomName,
           date: reservation.date,
