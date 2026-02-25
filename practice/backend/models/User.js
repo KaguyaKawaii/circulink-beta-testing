@@ -52,6 +52,7 @@ userSchema.set("toObject", { virtuals: true });
 // Pre-save hook
 userSchema.pre("save", async function (next) {
   try {
+    // Hash password if modified and not already hashed
     if (this.isModified("password")) {
       const isAlreadyHashed = this.password.startsWith('$2a$') || this.password.startsWith('$2b$');
       
@@ -64,16 +65,17 @@ userSchema.pre("save", async function (next) {
       }
     }
 
-    // IMPORTANT FIX: Only auto-verify if this is a new document AND the role is Faculty/Staff/Staff_Office
-    // AND verified is not explicitly set to false
+    // FIXED: Only auto-verify faculty/staff if this is a NEW document
+    // AND verified hasn't been explicitly set to false
     if (this.isNew && ["Faculty", "Staff", "Staff_Office"].includes(this.role)) {
-      // Only auto-verify if verified hasn't been set explicitly
+      // Only auto-verify if verified is not explicitly set
       if (this.verified === undefined) {
         this.verified = true;
         console.log(`✅ Auto-verified ${this.role} user: ${this.email}`);
       }
     }
 
+    // Set default values for non-student roles
     if (this.isNew) {
       if (this.role === "Faculty" || this.role === "Staff_Office") {
         this.course = "N/A";

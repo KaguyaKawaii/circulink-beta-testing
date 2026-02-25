@@ -458,21 +458,34 @@ export const toggleVerifyUser = async (req, res) => {
   }
 };
 
-// 📌 Verify User (simple version without notifications)
+// 📌 Verify User (simple version for PATCH /verify/:id)
 export const verifyUser = async (req, res) => {
   try {
     const { verified } = req.body;
     if (verified === undefined) {
       return res.status(400).json({ success: false, message: "Verified status is required." });
     }
-    const updatedUser = await userService.verifyUser(req.params.id, verified);
-    if (!updatedUser) {
+    
+    console.log("=== VERIFY USER ===");
+    console.log("User ID:", req.params.id);
+    console.log("Verified status:", verified);
+    
+    const user = await User.findById(req.params.id);
+    if (!user) {
       return res.status(404).json({ success: false, message: "User not found." });
     }
+    
+    user.verified = verified;
+    await user.save();
+    
+    // Return user without password
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    
     res.json({
       success: true,
       message: `User ${verified ? "verified" : "unverified"}.`,
-      user: updatedUser
+      user: userResponse
     });
   } catch (err) {
     console.error("Verify User Error:", err);

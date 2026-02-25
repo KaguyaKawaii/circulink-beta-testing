@@ -298,74 +298,56 @@ const revokeAllStudentVerification = async () => {
   };
 
   // ✅ FIXED: Improved toggleVerified function with notification creation
-  const toggleVerified = async (user) => {
-    try {
-      const res = await axios.patch(
-        `${import.meta.env.VITE_API_URL}/api/users/verify/${user._id}`,
-        { verified: !user.verified }
+// FIXED: toggleVerified function with correct endpoint
+const toggleVerified = async (user) => {
+  try {
+    console.log("Toggling verification for:", user._id, "Current verified:", user.verified);
+    
+    // Use PATCH method as defined in routes - FIXED: Using /verify/:id endpoint
+    const res = await axios.patch(
+      `${import.meta.env.VITE_API_URL}/api/users/verify/${user._id}`,
+      { verified: !user.verified } // Send as 'verified' not 'verify'
+    );
+
+    if (res.data.success) {
+      const updatedUser = res.data.user;
+      
+      // Update local state
+      setUsers((prevUsers) =>
+        prevUsers.map((u) =>
+          u._id === user._id ? { ...u, verified: updatedUser.verified } : u
+        )
       );
 
-      if (res.data.success) {
-        const updatedUser = res.data.user;
-        
-        // Update local state
-        setUsers((prevUsers) =>
-          prevUsers.map((u) =>
-            u._id === user._id ? { ...u, verified: updatedUser.verified } : u
-          )
-        );
+      // Update modal state if open
+      setModal((m) =>
+        m.user && m.user._id === user._id
+          ? { ...m, user: updatedUser }
+          : m
+      );
 
-        // Update modal state if open
-        setModal((m) =>
-          m.user && m.user._id === user._id
-            ? { ...m, user: updatedUser }
-            : m
-        );
-
-        // ✅ FIXED: Emit socket event for real-time updates
-        socket.emit("user-updated", updatedUser);
-        
-        // ✅ FIXED: Create notification for the user
-        try {
-          const notificationData = {
-            userId: user._id,
-            message: `Your account has been ${updatedUser.verified ? 'verified' : 'unverified'} by an administrator`,
-            type: 'user_verification',
-            status: updatedUser.verified ? 'Verified' : 'Unverified',
-            targetRole: 'user'
-          };
-
-          // Create notification in database
-          const notificationRes = await axios.post(`${import.meta.env.VITE_API_URL}/api/notifications`, notificationData);
-          
-          // Emit socket event for real-time notification
-          if (notificationRes.data.success) {
-            socket.emit('new-notification', notificationRes.data.notification);
-            console.log("Notification created successfully");
-          }
-        } catch (notifError) {
-          console.error('Failed to create notification:', notifError);
-          // Continue even if notification creation fails
-        }
-        
-        console.log("Verification toggled successfully:", updatedUser.verified);
-      } else {
-        console.error("Failed to toggle verification:", res.data.message);
-        showConfirmation(
-          "Error",
-          `Failed to change verification status: ${res.data.message}`,
-          null
-        );
-      }
-    } catch (err) {
-      console.error("Failed to toggle verification:", err);
+      // Emit socket event for real-time updates
+      socket.emit("user-updated", updatedUser);
+      
+      console.log("Verification toggled successfully:", updatedUser.verified);
+    } else {
+      console.error("Failed to toggle verification:", res.data.message);
       showConfirmation(
         "Error",
-        "Failed to change verification status. Please try again.",
+        `Failed to change verification status: ${res.data.message}`,
         null
       );
     }
-  };
+  } catch (err) {
+    console.error("Failed to toggle verification:", err);
+    console.error("Error response:", err.response?.data);
+    showConfirmation(
+      "Error",
+      err.response?.data?.message || "Failed to change verification status. Please try again.",
+      null
+    );
+  }
+};
 
   const archiveUser = async (user) => {
     showConfirmation(

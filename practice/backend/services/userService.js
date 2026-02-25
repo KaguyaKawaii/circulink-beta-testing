@@ -31,7 +31,7 @@ const getLeastPopulatedFloor = async () => {
   return counts[0].floor;
 };
 
-// Add User (Admin) - FIXED: Let the model's pre-save hook hash the password
+// Add User (Admin)
 export const addUser = async (data, file) => {
   const { name, email, id_number, password, role, department, course, yearLevel, floor, verified } = data;
 
@@ -50,9 +50,6 @@ export const addUser = async (data, file) => {
     if (existing.email === email.toLowerCase()) throw new Error("Email already used.");
     if (existing.id_number === id_number) throw new Error("ID number already used.");
   }
-
-  // ✅ FIXED: Don't hash here - let the model's pre-save hook handle it
-  // Just pass the plain password to the model
 
   let profilePicture = null;
   if (file) {
@@ -83,7 +80,7 @@ export const addUser = async (data, file) => {
   return userResponse;
 };
 
-// Signup - FIXED: Students should NOT be verified by default
+// FIXED: Signup - Students should NOT be verified by default
 export const signup = async (data, file) => {
   const { name, email, id_number, password, role, department, course, yearLevel } = data;
 
@@ -115,9 +112,9 @@ export const signup = async (data, file) => {
     email: email.toLowerCase(),
     id_number,
     password, // Plain password - will be hashed by pre-save hook
-    department,
-    course: role === "Student" ? course : "N/A",
-    year_level: role === "Student" ? yearLevel : "N/A",
+    department: department || "N/A",
+    course: role === "Student" ? course || "N/A" : "N/A",
+    year_level: role === "Student" ? yearLevel || "N/A" : "N/A",
     role,
     profilePicture,
     verified: false, // Explicitly set to false for all new signups
@@ -176,7 +173,7 @@ export const updateProfile = async (id, data, file) => {
   return userResponse;
 };
 
-// Admin Edit User - FIXED: Password handling is correct (let pre-save hook hash it)
+// Admin Edit User
 export const adminEditUser = async (id, data, file) => {
   const user = await User.findById(id);
   if (!user) throw new Error("User not found.");
@@ -207,7 +204,7 @@ export const adminEditUser = async (id, data, file) => {
     user.verified = data.verified === "true" || data.verified === true;
   }
 
-  // ✅ Password handling is correct - let pre-save hook hash it
+  // Password handling
   if (data.password && data.password.trim() !== "") {
     if (data.password.length < 8) {
       throw new Error("Password must be at least 8 characters.");
@@ -229,7 +226,7 @@ export const adminEditUser = async (id, data, file) => {
   return userResponse;
 };
 
-// Change Password - FIXED VERSION with debugging
+// Change Password
 export const changePassword = async (id, oldPassword, newPassword) => {
   console.log("=== PASSWORD CHANGE DEBUG ===");
   console.log("User ID:", id);
@@ -252,7 +249,7 @@ export const changePassword = async (id, oldPassword, newPassword) => {
     throw new Error("Password must be at least 8 characters.");
   }
 
-  // ✅ FIXED: Set the plain new password and let the model's pre-save hook hash it
+  // Set the plain new password and let the model's pre-save hook hash it
   user.password = newPassword;
   await user.save();
 
