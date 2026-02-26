@@ -65,6 +65,14 @@ function ReserveRoom({ user, setView }) {
   // Add state to track if submission is in progress
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Add refs for scrolling to invalid fields
+  const dateRef = useRef(null);
+  const timeRef = useRef(null);
+  const locationRef = useRef(null);
+  const roomRef = useRef(null);
+  const purposeRef = useRef(null);
+  const participantRefs = useRef([]);
+
   // Check if user is from College of Law
   const isCollegeOfLawUser = useCallback(() => {
     return user?.department === "COL";
@@ -259,6 +267,173 @@ function ReserveRoom({ user, setView }) {
     return value.replace(/\D/g, '');
   };
 
+  // ✅ NEW: Scroll to element function
+  const scrollToElement = (ref) => {
+    if (ref && ref.current) {
+      ref.current.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center',
+        inline: 'nearest'
+      });
+      
+      // Add a temporary highlight effect
+      ref.current.classList.add('ring-4', 'ring-yellow-300', 'ring-opacity-50');
+      setTimeout(() => {
+        ref.current.classList.remove('ring-4', 'ring-yellow-300', 'ring-opacity-50');
+      }, 2000);
+    }
+  };
+
+  // ✅ NEW: Enhanced validateForm with scroll to first invalid field
+  const validateForm = () => {
+    // Check date
+    if (!formData.date) {
+      showAlert("Please select a date.");
+      scrollToElement(dateRef);
+      return false;
+    }
+
+    // Check time
+    if (!formData.time) {
+      showAlert("Please select a time.");
+      scrollToElement(timeRef);
+      return false;
+    }
+
+    // Check location
+    if (!formData.location) {
+      showAlert("Please select a location/floor.");
+      scrollToElement(locationRef);
+      return false;
+    }
+
+    // Check if selected room is disabled
+    const selectedRoom = rooms.find(room => room._id === formData.room_Id);
+    if (!formData.roomName || !formData.room_Id) {
+      showAlert("Please select a room.");
+      scrollToElement(roomRef);
+      return false;
+    }
+
+    if (selectedRoom && !selectedRoom.isActive) {
+      showAlert("This room is currently unavailable. Please select another room.");
+      scrollToElement(roomRef);
+      return false;
+    }
+
+    // Check if user can reserve the selected floor
+    if (!canReserveFloor(formData.location)) {
+      if (formData.location === "Ground Floor") {
+        showAlert("Ground Floor is reserved for Graduate students only.");
+      } else if (formData.location === "2nd Floor") {
+        showAlert("2nd Floor is reserved for College of Law students only.");
+      } else {
+        showAlert("You don't have access to this floor.");
+      }
+      scrollToElement(locationRef);
+      return false;
+    }
+
+    // Check purpose
+    if (!formData.purpose) {
+      showAlert("Please enter the purpose of reservation.");
+      scrollToElement(purposeRef);
+      return false;
+    }
+
+    // Check if selected date/time is in the past
+    const now = new Date();
+    const selectedDate = new Date(`${formData.date}T${formData.time}`);
+    if (selectedDate < now) {
+      showAlert("You cannot reserve a room in the past. Please select a future date and time.");
+      scrollToElement(dateRef);
+      return false;
+    }
+
+    // ✅ FIXED: The participants array now includes ALL users including main reserver
+    const totalUsers = parseInt(formData.numUsers);
+    
+    // Debug log to see what's happening
+    console.log('🔍 Form validation debug:', {
+      selectedUsers: totalUsers,
+      currentParticipants: formData.participants.length,
+      participants: formData.participants
+    });
+
+    // Check if we have the exact number of participants for the selected group size
+    if (formData.participants.length !== totalUsers) {
+      showAlert(`Form error: Expected ${totalUsers} participants for ${totalUsers} users. Please refresh the page and try again.`);
+      return false;
+    }
+
+    // ✅ FIXED: Count how many participants are actually filled (excluding main reserver)
+    const filledParticipants = formData.participants
+      .filter((p, index) => index !== 0) // Exclude main reserver
+      .filter(p => p.name && p.name.trim() && p.id_number && p.id_number.toString().trim())
+      .length;
+
+    // ✅ FIXED: For the selected group size, we need (totalUsers - 1) additional participants
+    const expectedAdditionalParticipants = totalUsers - 1;
+
+    if (filledParticipants !== expectedAdditionalParticipants) {
+      showAlert(`Please complete all ${expectedAdditionalParticipants} additional participant fields for ${totalUsers} total users.`);
+      // Find the first empty participant field and scroll to it
+      for (let i = 1; i < formData.participants.length; i++) {
+        const p = formData.participants[i];
+        if (!p.name || !p.name.trim() || !p.id_number || !p.id_number.toString().trim()) {
+          if (participantRefs.current[i]) {
+            scrollToElement({ current: participantRefs.current[i] });
+          }
+          break;
+        }
+      }
+      return false;
+    }
+
+    // ✅ FIXED: Validate that ALL filled participants are verified and complete
+    for (let i = 0; i < formData.participants.length; i++) {
+      const p = formData.participants[i];
+      
+      // Check if all required fields are filled
+      if (!p.name || !p.department || !p.id_number) {
+        showAlert(`Please complete all fields for participant ${i + 1}.`);
+        if (participantRefs.current[i]) {
+          scrollToElement({ current: participantRefs.current[i] });
+        }
+        return false;
+      }
+
+      // Validate ID number format (numeric only)
+      if (!/^\d+$/.test(p.id_number)) {
+        showAlert(`Participant ${i + 1} ID number should contain only numbers.`);
+        if (participantRefs.current[i]) {
+          scrollToElement({ current: participantRefs.current[i] });
+        }
+        return false;
+      }
+
+      // For students, check course and year level (unless they are Faculty/Staff)
+      if (p.role !== "Faculty" && p.role !== "Staff" && (!p.course || !p.year_level)) {
+        showAlert(`Please complete course and year level for participant ${i + 1} (${p.name}).`);
+        if (participantRefs.current[i]) {
+          scrollToElement({ current: participantRefs.current[i] });
+        }
+        return false;
+      }
+
+      // Check verification status
+      if (validation[i].status !== "valid") {
+        showAlert(`Participant ${i + 1} (${p.name}) is not verified or registered.`);
+        if (participantRefs.current[i]) {
+          scrollToElement({ current: participantRefs.current[i] });
+        }
+        return false;
+      }
+    }
+
+    return true;
+  };
+
   const handleParticipantChange = async (idx, field, val) => {
     if (idx === 0 && validation[0]?.status === "valid") return;
 
@@ -308,7 +483,13 @@ function ReserveRoom({ user, setView }) {
         if (!res.data.exists) {
           v[idx] = { status: "invalid", message: "Not registered", loading: false };
           updated[idx] = { ...updated[idx], name: "", course: "", year_level: "", department: "", id_number: numericId, role: "" };
-        } else if (!res.data.verified) {
+        } 
+        // ✅ NEW: Check if user is suspended
+        else if (res.data.suspended) {
+          v[idx] = { status: "invalid", message: "Account suspended", loading: false };
+          updated[idx] = { ...updated[idx], name: "", course: "", year_level: "", department: "", id_number: numericId, role: "" };
+        }
+        else if (!res.data.verified) {
           v[idx] = { status: "invalid", message: "Not verified", loading: false };
           updated[idx] = { ...updated[idx], name: "", course: "", year_level: "", department: "", id_number: numericId, role: "" };
         } else {
@@ -413,9 +594,23 @@ function ReserveRoom({ user, setView }) {
 
       if (!response.data.valid) {
         const invalidNames = response.data.invalidParticipants.map(p => p.name || p.identifier).join(', ');
-        const errorMessage = `The following participants don't have access to ${formData.location}: ${invalidNames}\n\n${response.data.restrictionMessage}`;
+        const reasons = response.data.invalidParticipants.map(p => p.reason).join(', ');
+        const errorMessage = `The following participants cannot join this reservation: ${invalidNames}\n\nReasons: ${reasons}`;
         
         showAlert(errorMessage);
+        
+        // Find the first invalid participant and scroll to them
+        for (let i = 1; i < formData.participants.length; i++) {
+          const participantId = formData.participants[i].id_number;
+          const isInvalid = response.data.invalidParticipants.some(
+            p => p.id_number === participantId || p.identifier === participantId
+          );
+          if (isInvalid && participantRefs.current[i]) {
+            scrollToElement({ current: participantRefs.current[i] });
+            break;
+          }
+        }
+        
         return false;
       }
       
@@ -443,102 +638,6 @@ function ReserveRoom({ user, setView }) {
       showAlert(`Floor access validation failed: ${errorMsg}`);
       return false;
     }
-  };
-
-  const validateForm = () => {
-    if (!formData.date || !formData.time || !formData.location || !formData.roomName || !formData.purpose) {
-      showAlert("Please complete all required fields.");
-      return false;
-    }
-
-    // Check if selected room is disabled
-    const selectedRoom = rooms.find(room => room._id === formData.room_Id);
-    if (selectedRoom && !selectedRoom.isActive) {
-      showAlert("This room is currently unavailable. Please select another room.");
-      return false;
-    }
-
-    // Check if selected date/time is in the past
-    const now = new Date();
-    const selectedDate = new Date(`${formData.date}T${formData.time}`);
-    if (selectedDate < now) {
-      showAlert("You cannot reserve a room in the past. Please select a future date and time.");
-      return false;
-    }
-
-    // Check if user can reserve the selected floor
-    if (!canReserveFloor(formData.location)) {
-      if (formData.location === "Ground Floor") {
-        showAlert("Ground Floor is reserved for Graduate students only.");
-      } else if (formData.location === "2nd Floor") {
-        showAlert("2nd Floor is reserved for College of Law students only.");
-      } else {
-        showAlert("You don't have access to this floor.");
-      }
-      return false;
-    }
-
-    // ✅ FIXED: The participants array now includes ALL users including main reserver
-    const totalUsers = parseInt(formData.numUsers);
-    
-    // Debug log to see what's happening
-    console.log('🔍 Form validation debug:', {
-      selectedUsers: totalUsers,
-      currentParticipants: formData.participants.length,
-      participants: formData.participants
-    });
-
-    // Check if we have the exact number of participants for the selected group size
-    // Now it should be totalUsers (not totalUsers - 1) because participants includes everyone
-    if (formData.participants.length !== totalUsers) {
-      showAlert(`Form error: Expected ${totalUsers} participants for ${totalUsers} users. Please refresh the page and try again.`);
-      return false;
-    }
-
-    // ✅ FIXED: Count how many participants are actually filled (excluding main reserver)
-    const filledParticipants = formData.participants
-      .filter((p, index) => index !== 0) // Exclude main reserver
-      .filter(p => p.name && p.name.trim() && p.id_number && p.id_number.toString().trim())
-      .length;
-
-    // ✅ FIXED: For the selected group size, we need (totalUsers - 1) additional participants
-    const expectedAdditionalParticipants = totalUsers - 1;
-
-    if (filledParticipants !== expectedAdditionalParticipants) {
-      showAlert(`Please complete all ${expectedAdditionalParticipants} additional participant fields for ${totalUsers} total users.`);
-      return false;
-    }
-
-    // ✅ FIXED: Validate that ALL filled participants are verified and complete
-    for (let i = 0; i < formData.participants.length; i++) {
-      const p = formData.participants[i];
-      
-      // Check if all required fields are filled
-      if (!p.name || !p.department || !p.id_number) {
-        showAlert(`Please complete all fields for participant ${i + 1}.`);
-        return false;
-      }
-
-      // Validate ID number format (numeric only)
-      if (!/^\d+$/.test(p.id_number)) {
-        showAlert(`Participant ${i + 1} ID number should contain only numbers.`);
-        return false;
-      }
-
-      // For students, check course and year level (unless they are Faculty/Staff)
-      if (p.role !== "Faculty" && p.role !== "Staff" && (!p.course || !p.year_level)) {
-        showAlert(`Please complete course and year level for participant ${i + 1} (${p.name}).`);
-        return false;
-      }
-
-      // Check verification status
-      if (validation[i].status !== "valid") {
-        showAlert(`Participant ${i + 1} (${p.name}) is not verified or registered.`);
-        return false;
-      }
-    }
-
-    return true;
   };
 
   const submitReservation = async () => {
@@ -792,6 +891,17 @@ function ReserveRoom({ user, setView }) {
     
     const timeoutRef = useRef(null);
     
+    // Create a ref for this participant card
+    const cardRef = useRef(null);
+    
+    // Store the ref in the parent's refs array
+    useEffect(() => {
+      participantRefs.current[index] = cardRef.current;
+      return () => {
+        participantRefs.current[index] = null;
+      };
+    }, [index]);
+    
     // Sync local state when props change (but not during typing)
     useEffect(() => {
       if (!isFocused) {
@@ -883,7 +993,10 @@ function ReserveRoom({ user, setView }) {
     }, []);
 
     return (
-      <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm mb-4 touch-manipulation">
+      <div 
+        ref={cardRef}
+        className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm mb-4 touch-manipulation transition-all duration-200"
+      >
         <div className="flex justify-between items-start mb-3">
           <h3 className="font-semibold text-gray-800 text-sm">Participant {index + 1}</h3>
           {index === 0 && (
@@ -1110,7 +1223,7 @@ function ReserveRoom({ user, setView }) {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
             {/* Date Selector */}
-            <div className="space-y-1">
+            <div className="space-y-1" ref={dateRef}>
               <p className="font-medium text-gray-700 flex items-center text-sm sm:text-base">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -1119,7 +1232,9 @@ function ReserveRoom({ user, setView }) {
               </p>
               <button
                 onClick={() => setShowDateModal(true)}
-                className="w-full p-3 sm:p-3 border rounded-lg border-gray-300 shadow-sm outline-none focus:border-[#CC0000] flex items-center cursor-pointer hover:bg-gray-50 transition-colors text-sm sm:text-base min-h-[44px] justify-between"
+                className={`w-full p-3 sm:p-3 border rounded-lg shadow-sm outline-none focus:border-[#CC0000] flex items-center cursor-pointer hover:bg-gray-50 transition-colors text-sm sm:text-base min-h-[44px] justify-between ${
+                  !formData.date ? "border-red-300 bg-red-50" : "border-gray-300"
+                }`}
               >
                 <span className={formData.date ? "text-gray-800" : "text-gray-400 font-semibold"}>
                   {formData.date ? (
@@ -1134,10 +1249,13 @@ function ReserveRoom({ user, setView }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
+              {!formData.date && (
+                <p className="text-xs text-red-500 mt-1">Date is required</p>
+              )}
             </div>
 
             {/* Time Selector */}
-            <div className="space-y-1">
+            <div className="space-y-1" ref={timeRef}>
               <p className="font-medium text-gray-700 flex items-center text-sm sm:text-base">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1146,7 +1264,9 @@ function ReserveRoom({ user, setView }) {
               </p>
               <button
                 onClick={() => setShowTimeModal(true)}
-                className="w-full p-3 sm:p-3 border rounded-lg border-gray-300 shadow-sm outline-none focus:border-[#CC0000] flex items-center cursor-pointer hover:bg-gray-50 transition-colors text-sm sm:text-base min-h-[44px] justify-between"
+                className={`w-full p-3 sm:p-3 border rounded-lg shadow-sm outline-none focus:border-[#CC0000] flex items-center cursor-pointer hover:bg-gray-50 transition-colors text-sm sm:text-base min-h-[44px] justify-between ${
+                  !formData.time ? "border-red-300 bg-red-50" : "border-gray-300"
+                }`}
               >
                 <span className={formData.time ? "text-gray-800" : "text-gray-400 font-semibold"}>
                   {formData.time ? formatDisplayTime(formData.time) : "Select Time"}
@@ -1155,6 +1275,9 @@ function ReserveRoom({ user, setView }) {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
+              {!formData.time && (
+                <p className="text-xs text-red-500 mt-1">Time is required</p>
+              )}
             </div>
 
             {/* Number of Users Selector */}
@@ -1180,7 +1303,7 @@ function ReserveRoom({ user, setView }) {
           </div>
 
           {/* Purpose */}
-          <div className="mt-3 sm:mt-4">
+          <div className="mt-3 sm:mt-4" ref={purposeRef}>
             <p className="font-medium text-gray-700 flex items-center text-sm sm:text-base">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1188,7 +1311,9 @@ function ReserveRoom({ user, setView }) {
               Purpose
             </p>
             <input
-              className="w-full p-3 sm:p-3 mt-1 border rounded-lg border-gray-300 shadow-sm outline-none focus:border-[#CC0000] text-sm sm:text-base font-semibold min-h-[44px]"
+              className={`w-full p-3 sm:p-3 mt-1 border rounded-lg shadow-sm outline-none focus:border-[#CC0000] text-sm sm:text-base font-semibold min-h-[44px] ${
+                !formData.purpose ? "border-red-300 bg-red-50" : "border-gray-300"
+              }`}
               type="text"
               value={formData.purpose}
               onChange={(e) =>
@@ -1196,6 +1321,9 @@ function ReserveRoom({ user, setView }) {
               }
               placeholder="Enter purpose of reservation"
             />
+            {!formData.purpose && (
+              <p className="text-xs text-red-500 mt-1">Purpose is required</p>
+            )}
           </div>
         </div>
 
@@ -1401,12 +1529,13 @@ function ReserveRoom({ user, setView }) {
         )}
 
         {/* Room Location */}
-        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100">
+        <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100" ref={locationRef}>
           <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 pb-2 border-b border-gray-100">Room Location</h2>
           <div className="flex flex-wrap gap-3 sm:gap-5 justify-center">
             {roomLocations.map((loc) => {
               const imageSrc = getFloorImage(loc);
               const canReserve = canReserveFloor(loc);
+              const isSelected = formData.location === loc;
 
               return (
                 <button
@@ -1430,7 +1559,7 @@ function ReserveRoom({ user, setView }) {
                     });
                   }}
                   className={`border-2 rounded-2xl w-full xs:w-[150px] sm:w-[180px] md:w-[200px] h-[120px] sm:h-[150px] md:h-[200px] flex flex-col justify-center items-center cursor-pointer transition-all duration-200 overflow-hidden relative min-h-[120px] ${
-                    formData.location === loc 
+                    isSelected 
                       ? "border-[#CC0000] ring-2 ring-red-100 opacity-100 scale-105" 
                       : !canReserve
                       ? "border-gray-200 opacity-50 cursor-not-allowed"
@@ -1470,11 +1599,14 @@ function ReserveRoom({ user, setView }) {
               );
             })}
           </div>
+          {!formData.location && (
+            <p className="text-xs text-red-500 text-center mt-2">Please select a location</p>
+          )}
         </div>
 
         {/* Room Selection */}
         {formData.location && (
-          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100">
+          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100" ref={roomRef}>
             <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 pb-2 border-b border-gray-100">Select Room</h2>
 
             <div className="flex flex-wrap gap-3 sm:gap-5 justify-center">
@@ -1496,6 +1628,7 @@ function ReserveRoom({ user, setView }) {
                   const roomImage = getRoomImage(room);
                   const isDisabled = !room.isActive;
                   const canReserve = canReserveFloor(room.floor);
+                  const isSelected = formData.room_Id === room._id;
 
                   return (
                     <button
@@ -1516,7 +1649,7 @@ function ReserveRoom({ user, setView }) {
                         }
                       }}
                       className={`border-2 rounded-2xl w-full sm:w-[280px] md:w-[300px] h-[250px] sm:h-[280px] md:h-[300px] flex justify-center items-center cursor-pointer relative overflow-hidden transition-all duration-200 ${
-                        formData.room_Id === room._id
+                        isSelected
                           ? "border-[#CC0000] ring-2 ring-red-100 bg-red-50"
                           : isDisabled
                           ? "border-gray-300 bg-gray-100 cursor-not-allowed opacity-60"
@@ -1586,6 +1719,9 @@ function ReserveRoom({ user, setView }) {
                   );
                 })}
             </div>
+            {!formData.roomName && (
+              <p className="text-xs text-red-500 text-center mt-2">Please select a room</p>
+            )}
           </div>
         )}
 
@@ -1711,7 +1847,11 @@ function ReserveRoom({ user, setView }) {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {formData.participants.map((p, idx) => (
-                    <tr key={idx} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50 hover:bg-gray-100"}>
+                    <tr 
+                      key={idx} 
+                      ref={el => participantRefs.current[idx] = el}
+                      className={`${idx % 2 === 0 ? "bg-white" : "bg-gray-50 hover:bg-gray-100"} transition-colors duration-200`}
+                    >
                       <td className="py-2 px-2 sm:py-3 sm:px-4">
                         <div className="relative">
                           <input
@@ -1746,31 +1886,44 @@ function ReserveRoom({ user, setView }) {
                             </div>
                           )}
                         </div>
+                        {!p.id_number && (
+                          <p className="text-xs text-red-500 mt-1">ID is required</p>
+                        )}
                       </td>
                       <td className="py-2 px-2 sm:py-3 sm:px-4">
                         <input
                           type="text"
                           placeholder="Full Name"
-                          className="w-full p-2 sm:p-2 border border-gray-300 rounded-lg outline-none focus:border-[#CC0000] transition-colors text-xs sm:text-sm min-h-[36px]"
+                          className={`w-full p-2 sm:p-2 border rounded-lg outline-none focus:border-[#CC0000] transition-colors text-xs sm:text-sm min-h-[36px] ${
+                            !p.name ? "border-red-300 bg-red-50" : "border-gray-300"
+                          }`}
                           value={p.name}
                           disabled={idx === 0 || validation[idx].status === "valid"}
                           onChange={(e) =>
                             handleParticipantChange(idx, "name", e.target.value)
                           }
                         />
+                        {!p.name && (
+                          <p className="text-xs text-red-500 mt-1">Name is required</p>
+                        )}
                       </td>
                       {!p.role || (p.role !== "Faculty" && p.role !== "Staff") ? (
                         <td className="py-2 px-2 sm:py-3 sm:px-4">
                           <input
                             type="text"
                             placeholder="Course"
-                            className="w-full p-2 sm:p-2 border border-gray-300 rounded-lg outline-none focus:border-[#CC0000] transition-colors text-xs sm:text-sm min-h-[36px]"
+                            className={`w-full p-2 sm:p-2 border rounded-lg outline-none focus:border-[#CC0000] transition-colors text-xs sm:text-sm min-h-[36px] ${
+                              !p.course ? "border-red-300 bg-red-50" : "border-gray-300"
+                            }`}
                             value={p.course}
                             disabled={idx === 0 || validation[idx].status === "valid"}
                             onChange={(e) =>
                               handleParticipantChange(idx, "course", e.target.value)
                             }
                           />
+                          {!p.course && (
+                            <p className="text-xs text-red-500 mt-1">Course is required</p>
+                          )}
                         </td>
                       ) : (
                         <td className="py-2 px-2 sm:py-3 sm:px-4 text-gray-400 italic text-xs sm:text-sm">N/A</td>
@@ -1780,13 +1933,18 @@ function ReserveRoom({ user, setView }) {
                           <input
                             type="text"
                             placeholder="Year Level"
-                            className="w-full p-2 sm:p-2 border border-gray-300 rounded-lg outline-none focus:border-[#CC0000] transition-colors text-xs sm:text-sm min-h-[36px]"
+                            className={`w-full p-2 sm:p-2 border rounded-lg outline-none focus:border-[#CC0000] transition-colors text-xs sm:text-sm min-h-[36px] ${
+                              !p.year_level ? "border-red-300 bg-red-50" : "border-gray-300"
+                            }`}
                             value={p.year_level}
                             disabled={idx === 0 || validation[idx].status === "valid"}
                             onChange={(e) =>
                               handleParticipantChange(idx, "year_level", e.target.value)
                             }
                           />
+                          {!p.year_level && (
+                            <p className="text-xs text-red-500 mt-1">Year level is required</p>
+                          )}
                         </td>
                       ) : (
                         <td className="py-2 px-2 sm:py-3 sm:px-4 text-gray-400 italic text-xs sm:text-sm">N/A</td>
@@ -1795,13 +1953,18 @@ function ReserveRoom({ user, setView }) {
                         <input
                           type="text"
                           placeholder="Department"
-                          className="w-full p-2 sm:p-2 border border-gray-300 rounded-lg outline-none focus:border-[#CC0000] transition-colors text-xs sm:text-sm min-h-[36px]"
+                          className={`w-full p-2 sm:p-2 border rounded-lg outline-none focus:border-[#CC0000] transition-colors text-xs sm:text-sm min-h-[36px] ${
+                            !p.department ? "border-red-300 bg-red-50" : "border-gray-300"
+                          }`}
                           value={p.department}
                           disabled={idx === 0 || validation[idx].status === "valid"}
                           onChange={(e) =>
                             handleParticipantChange(idx, "department", e.target.value)
                           }
                         />
+                        {!p.department && (
+                          <p className="text-xs text-red-500 mt-1">Department is required</p>
+                        )}
                       </td>
                       <td className="py-2 px-2 sm:py-3 sm:px-4">
                         {validation[idx]?.status === "valid" && (

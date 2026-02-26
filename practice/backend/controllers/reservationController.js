@@ -231,8 +231,21 @@ export const validateFloorAccessController = async (req, res) => {
           department: participantUser.department,
           course: participantUser.course,
           program: participantUser.program,
-          verified: participantUser.verified
+          verified: participantUser.verified,
+          suspended: participantUser.suspended
         });
+
+        // ✅ Check if participant is suspended
+        if (participantUser.suspended) {
+          invalidParticipants.push({
+            name: participantUser.name,
+            id_number: participantUser.id_number,
+            department: participantUser.department,
+            course: participantUser.course,
+            reason: "User account is suspended"
+          });
+          continue;
+        }
 
         // ✅ Check if participant is verified
         if (!participantUser.verified) {
@@ -393,7 +406,7 @@ export const getActiveReservation = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ CREATE RESERVATION (WITH FLOOR ACCESS VALIDATION) - UPDATED TO 2 HOURS
+   ✅ CREATE RESERVATION (WITH SUSPENDED USER CHECK) - UPDATED TO 2 HOURS
 ------------------------------------------------ */
 export const createReservation = async (req, res) => {
   try {
@@ -428,9 +441,17 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    // ✅ Get main user FIRST
+    // ✅ Get main user FIRST and CHECK IF SUSPENDED
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found." });
+    
+    // ✅ NEW: Check if main user is suspended
+    if (user.suspended) {
+      return res.status(403).json({ 
+        message: "Your account is suspended. You cannot make reservations while suspended. Please contact the administrator for assistance." 
+      });
+    }
+    
     if (!user.verified)
       return res.status(400).json({ message: "Main user account is not verified." });
 
@@ -507,7 +528,7 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    // ✅ Validate participants & collect emails + FLOOR ACCESS VALIDATION
+    // ✅ Validate participants & collect emails + FLOOR ACCESS VALIDATION + SUSPENDED CHECK
     const enrichedParticipants = [];
     const invalidParticipants = [];
 
@@ -523,6 +544,19 @@ export const createReservation = async (req, res) => {
       if (!participantUser) {
         return res.status(400).json({ message: `Participant ${participant.name} not found.` });
       }
+      
+      // ✅ NEW: Check if participant is suspended
+      if (participantUser.suspended) {
+        invalidParticipants.push({
+          name: participantUser.name,
+          id_number: participantUser.id_number,
+          department: participantUser.department,
+          course: participantUser.course,
+          reason: "User account is suspended"
+        });
+        continue; // Continue to check all participants for comprehensive error reporting
+      }
+      
       if (!participantUser.verified) {
         return res.status(400).json({ message: `Participant ${participantUser.name} is not verified.` });
       }
@@ -563,20 +597,20 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    // ✅ Check if any participants failed floor access validation
+    // ✅ Check if any participants failed floor access validation or are suspended
     if (invalidParticipants.length > 0) {
       const invalidNames = invalidParticipants.map(p => p.name).join(', ');
+      const reasons = [...new Set(invalidParticipants.map(p => p.reason))].join(' and ');
       return res.status(400).json({
-        message: `The following participants do not have access to ${location}: ${invalidNames}. ${getFloorRestrictionMessage(location)}`,
-        invalidParticipants: invalidParticipants,
-        restriction: getFloorRestrictionMessage(location)
+        message: `The following participants cannot join this reservation because they are ${reasons}: ${invalidNames}`,
+        invalidParticipants: invalidParticipants
       });
     }
 
     // ✅ Ensure we have enough valid participants after validation
     if (enrichedParticipants.length !== participants.length) {
       return res.status(400).json({
-        message: "Some participants could not be validated for floor access."
+        message: "Some participants could not be validated."
       });
     }
 
@@ -983,7 +1017,8 @@ export const getParticipantsDetails = async (req, res) => {
           course: participant.course || user?.course || "N/A",
           year_level: participant.year_level || user?.yearLevel || "N/A",
           department: participant.department || user?.department || "N/A",
-          email: user?.email || "N/A"
+          email: user?.email || "N/A",
+          suspended: user?.suspended || false
         };
       })
     );
@@ -995,7 +1030,8 @@ export const getParticipantsDetails = async (req, res) => {
         course: reservation.userId.course || "N/A",
         year_level: reservation.userId.yearLevel || "N/A",
         department: reservation.userId.department || "N/A",
-        email: reservation.userId.email
+        email: reservation.userId.email,
+        suspended: reservation.userId.suspended || false
       },
       participants: participantsDetails
     });
@@ -1863,14 +1899,16 @@ export const getReservationById = async (req, res) => {
           course: participant.course || user?.course || "N/A",
           year_level: participant.year_level || user?.yearLevel || "N/A",
           department: participant.department || user?.department || "N/A",
-          email: user?.email || "N/A"
+          email: user?.email || "N/A",
+          suspended: user?.suspended || false
         };
       })
     );
 
     const response = {
       ...reservation,
-      participants: enrichedParticipants
+      participants: enrichedParticipants,
+      mainUserSuspended: reservation.userId?.suspended || false
     };
 
     console.log('✅ Successfully fetched reservation:', reservation._id);
@@ -1923,7 +1961,8 @@ export const getAvailableUsers = async (req, res) => {
     const availableUsers = await User.find({
       ...searchFilter,
       id_number: { $nin: currentParticipantIds },
-      verified: true
+      verified: true,
+      suspended: false // ✅ NEW: Exclude suspended users
     }).select('name id_number course year_level department email').limit(20);
 
     res.json(availableUsers);
@@ -2040,7 +2079,7 @@ export const removeParticipant = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ ADD PARTICIPANT TO RESERVATION - FIXED VERSION
+   ✅ ADD PARTICIPANT TO RESERVATION - FIXED VERSION WITH SUSPENDED CHECK
 ------------------------------------------------ */
 export const addParticipant = async (req, res) => {
   try {
@@ -2086,10 +2125,11 @@ export const addParticipant = async (req, res) => {
     // Find the user to add
     const newParticipantUser = await User.findOne({ 
       id_number: participantIdNumber,
-      verified: true 
+      verified: true,
+      suspended: false // ✅ NEW: Exclude suspended users
     });
     if (!newParticipantUser) {
-      return res.status(404).json({ message: "User not found or not verified" });
+      return res.status(404).json({ message: "User not found, not verified, or is suspended" });
     }
 
     // Check floor access for new participant
@@ -2190,7 +2230,7 @@ export const addParticipant = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ ADMIN CREATE RESERVATION - WITH BETTER ERROR HANDLING
+   ✅ ADMIN CREATE RESERVATION - WITH BETTER ERROR HANDLING AND SUSPENDED CHECK
 ------------------------------------------------ */
 export const adminCreateReservation = async (req, res) => {
   try {
@@ -2296,6 +2336,7 @@ export const adminCreateReservation = async (req, res) => {
 
     // For admin, we accept participants as-is without strict validation
     const enrichedParticipants = [];
+    const invalidParticipants = [];
 
     for (const [index, participant] of participants.entries()) {
       console.log(`🔍 Processing participant ${index + 1}:`, participant);
@@ -2316,6 +2357,17 @@ export const adminCreateReservation = async (req, res) => {
 
         if (participantUser) {
           console.log(`✅ Found user for participant: ${participantUser.name}`);
+          
+          // ✅ NEW: Check if participant is suspended
+          if (participantUser.suspended) {
+            invalidParticipants.push({
+              name: participantUser.name,
+              id_number: participantUser.id_number,
+              reason: "User account is suspended"
+            });
+            continue;
+          }
+          
           // Use data from database
           enrichedParticipants.push({
             id_number: participantUser.id_number,
@@ -2327,7 +2379,7 @@ export const adminCreateReservation = async (req, res) => {
           });
         } else {
           console.log(`⚠️ User not found for ID ${idNumber}, using provided data`);
-          // Use provided data
+          // Use provided data (can't check suspension for non-existent users)
           enrichedParticipants.push({
             id_number: idNumber,
             name: participant.name || "Unknown",
@@ -2349,6 +2401,15 @@ export const adminCreateReservation = async (req, res) => {
           role: participant.role || ""
         });
       }
+    }
+
+    // ✅ Check if any participants are suspended
+    if (invalidParticipants.length > 0) {
+      const invalidNames = invalidParticipants.map(p => p.name).join(', ');
+      return res.status(400).json({
+        message: `The following participants cannot be added because they are suspended: ${invalidNames}`,
+        invalidParticipants
+      });
     }
 
     console.log(`✅ Enriched ${enrichedParticipants.length} participants`);
@@ -2613,6 +2674,7 @@ export const editReservation = async (req, res) => {
 
     // Process participants - admin can add any participants without strict validation
     const processedParticipants = [];
+    const invalidParticipants = [];
 
     for (const participant of participants) {
       // Skip completely empty participants
@@ -2626,6 +2688,16 @@ export const editReservation = async (req, res) => {
         participantUser = await User.findOne({ 
           id_number: participant.id_number.toString().trim() 
         });
+      }
+
+      // ✅ NEW: Check if participant is suspended
+      if (participantUser && participantUser.suspended) {
+        invalidParticipants.push({
+          name: participantUser.name,
+          id_number: participantUser.id_number,
+          reason: "User account is suspended"
+        });
+        continue;
       }
 
       if (participantUser) {
@@ -2649,6 +2721,15 @@ export const editReservation = async (req, res) => {
           role: participant.role || ""
         });
       }
+    }
+
+    // ✅ Check if any participants are suspended
+    if (invalidParticipants.length > 0) {
+      const invalidNames = invalidParticipants.map(p => p.name).join(', ');
+      return res.status(400).json({
+        message: `The following participants cannot be added because they are suspended: ${invalidNames}`,
+        invalidParticipants
+      });
     }
 
     // Make sure we have at least one participant after processing
@@ -2770,7 +2851,7 @@ export const editReservation = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ SEARCH USERS (FOR ADMIN)
+   ✅ SEARCH USERS (FOR ADMIN) - EXCLUDE SUSPENDED USERS
 ------------------------------------------------ */
 export const searchUsers = async (req, res) => {
   try {
@@ -2783,6 +2864,7 @@ export const searchUsers = async (req, res) => {
     const users = await User.find({
       $and: [
         { verified: true },
+        { suspended: false }, // ✅ NEW: Exclude suspended users
         {
           $or: [
             { name: { $regex: q, $options: 'i' } },
