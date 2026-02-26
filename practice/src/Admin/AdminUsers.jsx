@@ -38,7 +38,7 @@ function AdminUsers({ setView, onLogout }) {
     message: "", 
     action: null, 
     loading: false,
-    type: "default" // "default", "revokeAll", "bulkVerify"
+    type: "default" // "default", "revokeAll", "bulkVerify", "bulkArchive"
   });
 
   const formatPHDateTime = (date) => {
@@ -141,11 +141,21 @@ function AdminUsers({ setView, onLogout }) {
       setSelectAll(false);
     });
 
+    socket.on("bulk-archive-completed", (data) => {
+      console.log("Bulk archive completed via socket:", data);
+      // Refresh users to get latest data
+      fetchUsers();
+      // Clear selections
+      setSelectedUsers([]);
+      setSelectAll(false);
+    });
+
     return () => {
       socket.off("user-updated");
       socket.off("user-created");
       socket.off("user-archived");
       socket.off("bulk-verification-updated");
+      socket.off("bulk-archive-completed");
     };
   }, []);
 
@@ -178,61 +188,117 @@ function AdminUsers({ setView, onLogout }) {
     }
   };
 
-// ✅ NEW: Revoke all verification for students only
-const revokeAllStudentVerification = async () => {
-  try {
-    const res = await axios.post(
-      `${import.meta.env.VITE_API_URL}/api/users/revoke-all-verification`,
-      {
-        roles: ["Student"] // Only revoke for students
-      }
-    );
-
-    if (res.data.success) {
-      // Update local state
-      setUsers(prevUsers => 
-        prevUsers.map(user => {
-          if (user.role === "Student") {
-            return { ...user, verified: false };
-          }
-          return user;
-        })
-      );
-
-      // Clear selections
-      setSelectedUsers([]);
-      setSelectAll(false);
-
-      // Show success message
+  // ✅ NEW: Bulk archive selected users
+  const bulkArchiveUsers = async () => {
+    if (selectedUsers.length === 0) {
       showConfirmation(
-        "Success",
-        `Successfully revoked verification for ${res.data.count} students.`,
+        "No Users Selected",
+        "Please select at least one user to archive.",
         null
       );
-
-      // Emit socket event for real-time updates
-      socket.emit("bulk-verification-updated", {
-        roles: ["Student"],
-        verified: false,
-        count: res.data.count
-      });
-
-      // Refresh users to ensure we have the latest data
-      fetchUsers();
-
-      console.log("Revoked all student verifications successfully");
-    } else {
-      throw new Error(res.data.message || "Failed to revoke verifications");
+      return;
     }
-  } catch (err) {
-    console.error("Failed to revoke verifications:", err);
-    showConfirmation(
-      "Error",
-      err.response?.data?.message || "Failed to revoke verifications. Please try again.",
-      null
-    );
-  }
-};
+
+    try {
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/users/bulk-archive`,
+        {
+          userIds: selectedUsers
+        }
+      );
+
+      if (res.data.success) {
+        // Update local state
+        setUsers(prevUsers => 
+          prevUsers.filter(user => !selectedUsers.includes(user._id))
+        );
+
+        // Clear selections
+        setSelectedUsers([]);
+        setSelectAll(false);
+
+        // Show success message
+        showConfirmation(
+          "Success",
+          `Successfully archived ${res.data.count} users.`,
+          null
+        );
+
+        // Emit socket event for real-time updates
+        socket.emit("bulk-archive-completed", {
+          userIds: selectedUsers,
+          count: res.data.count
+        });
+
+        console.log(`Bulk archive successful: ${res.data.count} users archived`);
+      } else {
+        throw new Error(res.data.message || "Failed to archive users");
+      }
+    } catch (err) {
+      console.error("Bulk archive error:", err);
+      showConfirmation(
+        "Error",
+        err.response?.data?.message || "Failed to archive users. Please try again.",
+        null
+      );
+    }
+  };
+
+  // ✅ NEW: Revoke all verification for students only
+  const revokeAllStudentVerification = async () => {
+    try {
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/users/revoke-all-verification`,
+        {
+          roles: ["Student"] // Only revoke for students
+        }
+      );
+
+      if (res.data.success) {
+        // Update local state
+        setUsers(prevUsers => 
+          prevUsers.map(user => {
+            if (user.role === "Student") {
+              return { ...user, verified: false };
+            }
+            return user;
+          })
+        );
+
+        // Clear selections
+        setSelectedUsers([]);
+        setSelectAll(false);
+
+        // Show success message
+        showConfirmation(
+          "Success",
+          `Successfully revoked verification for ${res.data.count} students.`,
+          null
+        );
+
+        // Emit socket event for real-time updates
+        socket.emit("bulk-verification-updated", {
+          roles: ["Student"],
+          verified: false,
+          count: res.data.count
+        });
+
+        // Refresh users to ensure we have the latest data
+        fetchUsers();
+
+        console.log("Revoked all student verifications successfully");
+      } else {
+        throw new Error(res.data.message || "Failed to revoke verifications");
+      }
+    } catch (err) {
+      console.error("Failed to revoke verifications:", err);
+      showConfirmation(
+        "Error",
+        err.response?.data?.message || "Failed to revoke verifications. Please try again.",
+        null
+      );
+    }
+  };
 
   // ✅ NEW: Bulk verify selected users
   const bulkVerifyUsers = async (verifyStatus) => {
@@ -297,57 +363,56 @@ const revokeAllStudentVerification = async () => {
     }
   };
 
-  // ✅ FIXED: Improved toggleVerified function with notification creation
-// FIXED: toggleVerified function with correct endpoint
-const toggleVerified = async (user) => {
-  try {
-    console.log("Toggling verification for:", user._id, "Current verified:", user.verified);
-    
-    // Use PATCH method as defined in routes - FIXED: Using /verify/:id endpoint
-    const res = await axios.patch(
-      `${import.meta.env.VITE_API_URL}/api/users/verify/${user._id}`,
-      { verified: !user.verified } // Send as 'verified' not 'verify'
-    );
-
-    if (res.data.success) {
-      const updatedUser = res.data.user;
+  // ✅ FIXED: toggleVerified function with correct endpoint
+  const toggleVerified = async (user) => {
+    try {
+      console.log("Toggling verification for:", user._id, "Current verified:", user.verified);
       
-      // Update local state
-      setUsers((prevUsers) =>
-        prevUsers.map((u) =>
-          u._id === user._id ? { ...u, verified: updatedUser.verified } : u
-        )
+      // Use PATCH method as defined in routes - FIXED: Using /verify/:id endpoint
+      const res = await axios.patch(
+        `${import.meta.env.VITE_API_URL}/api/users/verify/${user._id}`,
+        { verified: !user.verified } // Send as 'verified' not 'verify'
       );
 
-      // Update modal state if open
-      setModal((m) =>
-        m.user && m.user._id === user._id
-          ? { ...m, user: updatedUser }
-          : m
-      );
+      if (res.data.success) {
+        const updatedUser = res.data.user;
+        
+        // Update local state
+        setUsers((prevUsers) =>
+          prevUsers.map((u) =>
+            u._id === user._id ? { ...u, verified: updatedUser.verified } : u
+          )
+        );
 
-      // Emit socket event for real-time updates
-      socket.emit("user-updated", updatedUser);
-      
-      console.log("Verification toggled successfully:", updatedUser.verified);
-    } else {
-      console.error("Failed to toggle verification:", res.data.message);
+        // Update modal state if open
+        setModal((m) =>
+          m.user && m.user._id === user._id
+            ? { ...m, user: updatedUser }
+            : m
+        );
+
+        // Emit socket event for real-time updates
+        socket.emit("user-updated", updatedUser);
+        
+        console.log("Verification toggled successfully:", updatedUser.verified);
+      } else {
+        console.error("Failed to toggle verification:", res.data.message);
+        showConfirmation(
+          "Error",
+          `Failed to change verification status: ${res.data.message}`,
+          null
+        );
+      }
+    } catch (err) {
+      console.error("Failed to toggle verification:", err);
+      console.error("Error response:", err.response?.data);
       showConfirmation(
         "Error",
-        `Failed to change verification status: ${res.data.message}`,
+        err.response?.data?.message || "Failed to change verification status. Please try again.",
         null
       );
     }
-  } catch (err) {
-    console.error("Failed to toggle verification:", err);
-    console.error("Error response:", err.response?.data);
-    showConfirmation(
-      "Error",
-      err.response?.data?.message || "Failed to change verification status. Please try again.",
-      null
-    );
-  }
-};
+  };
 
   const archiveUser = async (user) => {
     showConfirmation(
@@ -556,6 +621,18 @@ const toggleVerified = async (user) => {
                     <Square size={16} />
                     <span>Unverify Selected</span>
                   </button>
+                  <button
+                    onClick={() => showConfirmation(
+                      "Archive Selected Users",
+                      `Are you sure you want to archive ${selectedUsers.length} selected user${selectedUsers.length !== 1 ? 's' : ''}? This action cannot be undone.`,
+                      bulkArchiveUsers,
+                      "bulkArchive"
+                    )}
+                    className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer text-sm"
+                  >
+                    <Trash2 size={16} />
+                    <span>Archive Selected</span>
+                  </button>
                 </>
               )}
 
@@ -711,6 +788,11 @@ const toggleVerified = async (user) => {
                     <CheckSquare size={24} className="text-green-600" />
                   </div>
                 )}
+                {confirmationModal.type === "bulkArchive" && (
+                  <div className="p-2 bg-red-100 rounded-full">
+                    <Trash2 size={24} className="text-red-600" />
+                  </div>
+                )}
                 <h3 className="text-lg font-semibold text-gray-900">
                   {confirmationModal.title}
                 </h3>
@@ -734,6 +816,8 @@ const toggleVerified = async (user) => {
                       ? "bg-orange-600 hover:bg-orange-700" 
                       : confirmationModal.type === "bulkVerify"
                       ? "bg-green-600 hover:bg-green-700"
+                      : confirmationModal.type === "bulkArchive"
+                      ? "bg-red-600 hover:bg-red-700"
                       : "bg-[#CC0000] hover:bg-[#990000]"
                   }`}
                 >
