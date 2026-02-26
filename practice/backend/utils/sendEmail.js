@@ -70,16 +70,7 @@ const sendEmail = async (options) => {
     console.log(`📧 Redirecting email from ${options.to} to ${TEST_EMAIL} (Resend.dev testing mode)`);
     
     // Add note in email content that it was redirected
-    const redirectedHtml = `
-      <div style="background-color: #fff3cd; border: 1px solid #ffeeba; padding: 10px; margin-bottom: 20px; border-radius: 5px;">
-        <p style="margin: 0; color: #856404;">
-          <strong>⚠️ TEST MODE - Email Redirected</strong><br>
-          This email was originally intended for: <strong>${options.to}</strong><br>
-          Sent to test email: <strong>${TEST_EMAIL}</strong> (Resend.dev restriction)
-        </p>
-      </div>
-      ${options.html}
-    `;
+
 
     // Add note in text version if provided
     let redirectedText = options.text;
@@ -91,10 +82,10 @@ const sendEmail = async (options) => {
 
     // Send email via Resend to your test email only
     const { data, error } = await resend.emails.send({
-      from: "USA-FLD <onboarding@resend.dev>",
+      from: "University of San Agustin - LRC FLD <onboarding@resend.dev>",
       to: [TEST_EMAIL], // Always send to your test email
-      subject: `[TEST] ${options.subject} (for: ${options.to})`,
-      html: redirectedHtml,
+      subject: `${options.subject} for: ${options.to}`,
+      html: `<p><em>Originally intended for: ${options.to}</em></p>${options.html}`,
       text: redirectedText,
     });
 
