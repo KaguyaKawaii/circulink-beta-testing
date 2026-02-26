@@ -188,7 +188,7 @@ function AdminUsers({ setView, onLogout }) {
     }
   };
 
-  // ✅ NEW: Bulk archive selected users
+  // ✅ FIXED: Bulk archive selected users
   const bulkArchiveUsers = async () => {
     if (selectedUsers.length === 0) {
       showConfirmation(
@@ -837,8 +837,8 @@ function AdminUsers({ setView, onLogout }) {
         <UserViewModal
           user={modal.user}
           onClose={closeModal}
-          onToggleVerified={toggleVerified} // ✅ FIXED: Pass the function directly
-          onUserUpdated={handleUserUpdated} // ✅ FIXED: Use the new handler
+          onToggleVerified={toggleVerified}
+          onUserUpdated={handleUserUpdated}
         />
       )}
 
@@ -849,7 +849,6 @@ function AdminUsers({ setView, onLogout }) {
           onClose={closeModal}
           onSuccess={(updatedUser) => {
             if (updatedUser) {
-              // ✅ FIXED: Handle both add and edit scenarios properly
               if (modal.type === "add") {
                 // Add new user to the list
                 setUsers(prev => [...prev, updatedUser]);

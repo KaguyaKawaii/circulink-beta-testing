@@ -1053,3 +1053,97 @@ export const getVerificationStats = async (req, res) => {
     });
   }
 };
+
+// 📌 Bulk Archive Users - Add this function
+export const bulkArchiveUsers = async (req, res) => {
+  try {
+    const { userIds } = req.body;
+    
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "User IDs array is required" 
+      });
+    }
+    
+    console.log("=== BULK ARCHIVE ===");
+    console.log("User IDs to archive:", userIds);
+    console.log("Count:", userIds.length);
+    
+    // Update all specified users to archived
+    const updateResult = await User.updateMany(
+      { 
+        _id: { $in: userIds },
+        archived: { $ne: true } // Don't re-archive already archived users
+      },
+      { archived: true }
+    );
+    
+    console.log(`Archived ${updateResult.modifiedCount} users`);
+    
+    // Create notifications for all affected users
+    const usersToNotify = await User.find({ _id: { $in: userIds } });
+    const notifications = [];
+    const io = req.io || null;
+    
+    for (const user of usersToNotify) {
+      try {
+        const notification = new Notification({
+          userId: user._id,
+          title: "Account Archived",
+          message: "Your account has been archived by an administrator. Please contact support for assistance.",
+          type: "system",
+          status: "Archived",
+          isRead: false,
+          targetRole: "user",
+          userName: user.name,
+          idNumber: user.id_number
+        });
+        await notification.save();
+        notifications.push(notification);
+        
+        // Emit real-time notification if io is available
+        if (io) {
+          io.to(user._id.toString()).emit('notification', {
+            _id: notification._id,
+            title: notification.title,
+            message: notification.message,
+            type: notification.type,
+            status: notification.status,
+            isRead: notification.isRead,
+            createdAt: notification.createdAt
+          });
+          
+          // Also emit that user is archived to disconnect them
+          io.to(user._id.toString()).emit('account-archived', {
+            message: "Your account has been archived"
+          });
+        }
+      } catch (notifError) {
+        console.error(`Failed to create notification for user ${user._id}:`, notifError);
+      }
+    }
+    
+    // Emit socket event for admin UI update
+    if (io) {
+      io.to('admin').emit('bulk-archive-completed', {
+        userIds: userIds,
+        count: updateResult.modifiedCount
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `Successfully archived ${updateResult.modifiedCount} users.`,
+      count: updateResult.modifiedCount,
+      notificationsCreated: notifications.length
+    });
+    
+  } catch (error) {
+    console.error("Bulk Archive Error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || "Failed to bulk archive users" 
+    });
+  }
+};

@@ -9,12 +9,12 @@ router.post("/signup", upload.single("profile"), userController.signup);
 router.post("/login", userController.login);
 
 // ================== SEARCH ROUTES (MUST COME BEFORE /:id) ==================
-router.get("/search", userController.searchUsers); // FIXED: Changed from /search/users to /search
+router.get("/search", userController.searchUsers);
 router.get("/check-participant", userController.checkParticipant);
 
 // ================== STATIC ROUTES ==================
 router.get("/archived/all", userController.getArchivedUsers);
-router.get("/all/users", userController.getAllUsers); // This is /api/users/all/users
+router.get("/all/users", userController.getAllUsers);
 router.get("/role/users", userController.getUsersByRole);
 router.get("/test/cloudinary", userController.testCloudinary);
 router.get("/verification-stats", userController.getVerificationStats);
@@ -32,14 +32,14 @@ router.get("/:id", userController.getUserById);
 router.put("/profile/:id", userController.updateProfile);
 router.post("/:id/upload-picture", upload.single("profile"), userController.uploadPicture);
 router.delete("/:id/remove-picture", userController.removePicture);
-router.put("/change-password/:id", userController.changePassword); // FIXED: Consistent endpoint
+router.put("/change-password/:id", userController.changePassword);
 
 // ================== ADMIN ROUTES ==================
 router.put("/toggle-suspend/:id", userController.toggleSuspendUser);
 router.put("/toggle-verify/:id", userController.toggleVerifyUser);
 router.put("/suspend/:id", userController.suspendUser);
 router.put("/unsuspend/:id", userController.unsuspendUser);
-router.patch("/verify/:id", userController.verifyUser); // FIXED: This matches frontend call
+router.patch("/verify/:id", userController.verifyUser);
 router.put("/archive/:id", userController.archiveUser);
 router.put("/restore/:id", userController.restoreUser);
 router.put("/admin-edit/:id", upload.single("profile"), userController.adminEditUser);
@@ -49,5 +49,6 @@ router.delete("/archived/:id", userController.deleteArchivedUser);
 // ================== BULK OPERATIONS ROUTES ==================
 router.post("/revoke-all-verification", userController.revokeAllVerification);
 router.post("/bulk-verify", userController.bulkVerifyUsers);
+router.post("/bulk-archive", userController.bulkArchiveUsers); // ADDED THIS LINE
 
 export default router;
