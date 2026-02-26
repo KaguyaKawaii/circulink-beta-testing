@@ -320,53 +320,164 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-// ✅ Toggle suspend
+
+;// ✅ Toggle suspend - FIXED VERSION
 export const toggleSuspendUser = async (req, res) => {
   try {
-    const suspend = req.body.suspend === true || req.body.suspend === "true";
-    const io = req.io || null;
-
-    const user = await userService.toggleSuspend(req.params.id, suspend, io);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+    const { id } = req.params;
+    const { suspend } = req.body;
+    
+    console.log("=== TOGGLE SUSPENSION ===");
+    console.log("User ID:", id);
+    console.log("Suspend value:", suspend);
+    
+    // Validate suspend parameter
+    if (suspend === undefined) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Suspend status is required" 
+      });
     }
-
+    
+    // Convert to boolean if it's a string
+    const suspendStatus = suspend === true || suspend === "true";
+    
+    // Find user first
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "User not found" 
+      });
+    }
+    
+    console.log("User found:", user.name, "Current suspended:", user.suspended);
+    
+    // Update suspension status
+    user.suspended = suspendStatus;
+    await user.save();
+    
+    console.log("User suspension updated to:", user.suspended);
+    
+    // Create notification if WebSocket is available
+    const io = req.io || null;
+    if (io) {
+      try {
+        const notification = new Notification({
+          userId: user._id,
+          title: `Account ${suspendStatus ? 'Suspended' : 'Unsuspended'}`,
+          message: `Your account has been ${suspendStatus ? 'suspended' : 'unsuspended'}. ${suspendStatus ? 'Please contact support for assistance.' : 'You can now access your account normally.'}`,
+          type: "system",
+          status: suspendStatus ? "Suspended" : "Active",
+          isRead: false,
+          targetRole: "user",
+          userName: user.name,
+          idNumber: user.id_number
+        });
+        await notification.save();
+        
+        // Emit to user's room
+        io.to(user._id.toString()).emit('notification', {
+          _id: notification._id,
+          title: notification.title,
+          message: notification.message,
+          type: notification.type,
+          status: notification.status,
+          isRead: notification.isRead,
+          createdAt: notification.createdAt
+        });
+        
+        // Emit to admin room for real-time updates
+        io.to('admin').emit('userSuspensionUpdated', {
+          userId: user._id,
+          suspended: suspendStatus,
+          userName: user.name
+        });
+        
+        console.log("✅ Notifications sent");
+      } catch (notifyError) {
+        console.error("Notification error:", notifyError);
+        // Don't fail the whole request if notification fails
+      }
+    }
+    
+    // Return user without password
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    
     res.json({
       success: true,
-      message: `User ${user.suspended ? "suspended" : "unsuspended"} successfully`,
-      user,
+      message: `User ${suspendStatus ? "suspended" : "unsuspended"} successfully`,
+      user: userResponse
     });
+    
   } catch (error) {
-    console.error("Toggle Suspend Error:", error);
-    res.status(500).json({ success: false, message: error.message || "Failed to toggle suspension" });
+    console.error("❌ Toggle Suspend Error:", error);
+    console.error("Error stack:", error.stack);
+    
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || "Failed to toggle suspension",
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 };
 
-// ✅ Suspend User
+// ✅ Suspend User (simplified version)
 export const suspendUser = async (req, res) => {
   try {
-    const user = await userService.suspendUser(req.params.id, req.io);
+    const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
-    res.json({ success: true, message: "User suspended successfully", user });
+    
+    user.suspended = true;
+    await user.save();
+    
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    
+    res.json({ 
+      success: true, 
+      message: "User suspended successfully", 
+      user: userResponse 
+    });
   } catch (error) {
     console.error("Suspend User Error:", error);
-    res.status(500).json({ success: false, message: "Error suspending user", error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      message: "Error suspending user", 
+      error: error.message 
+    });
   }
 };
 
-// ✅ Unsuspend User
+// ✅ Unsuspend User (simplified version)
 export const unsuspendUser = async (req, res) => {
   try {
-    const user = await userService.unsuspendUser(req.params.id, req.io);
+    const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
-    res.json({ success: true, message: "User unsuspended successfully", user });
+    
+    user.suspended = false;
+    await user.save();
+    
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    
+    res.json({ 
+      success: true, 
+      message: "User unsuspended successfully", 
+      user: userResponse 
+    });
   } catch (error) {
     console.error("Unsuspend User Error:", error);
-    res.status(500).json({ success: false, message: "Error unsuspending user", error: error.message });
+    res.status(500).json({ 
+      success: false, 
+      message: "Error unsuspending user", 
+      error: error.message 
+    });
   }
 };
 
