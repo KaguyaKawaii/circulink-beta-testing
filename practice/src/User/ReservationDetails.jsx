@@ -24,6 +24,9 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   const [showReportModal, setShowReportModal] = useState(false);
   // Track if the current action is participant-related
   const [isParticipantAction, setIsParticipantAction] = useState(false);
+  // Separate modal for participant results
+  const [showParticipantResultModal, setShowParticipantResultModal] = useState(false);
+  const [participantModalMessage, setParticipantModalMessage] = useState("");
 
   // Participant management states
   const [showManageParticipants, setShowManageParticipants] = useState(false);
@@ -223,8 +226,9 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         }
       );
 
-      setModalMessage(response.data.message || "Participant removed successfully");
-      setShowResultModal(true);
+      // Use separate state for participant messages
+      setParticipantModalMessage(response.data.message || "Participant removed successfully");
+      setShowParticipantResultModal(true);
       
       // Close any open modals
       setShowManageParticipants(false);
@@ -239,8 +243,8 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
     } catch (error) {
       console.error("Error removing participant:", error);
       const errorMessage = error.response?.data?.message || "Failed to remove participant";
-      setModalMessage(errorMessage);
-      setShowResultModal(true);
+      setParticipantModalMessage(errorMessage);
+      setShowParticipantResultModal(true);
     } finally {
       setProcessingParticipantAction("");
       setIsParticipantAction(false);
@@ -263,8 +267,9 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         }
       );
 
-      setModalMessage(response.data.message || "Participant added successfully");
-      setShowResultModal(true);
+      // Use separate state for participant messages
+      setParticipantModalMessage(response.data.message || "Participant added successfully");
+      setShowParticipantResultModal(true);
       
       setSelectedUser(null);
       setSearchTerm("");
@@ -279,8 +284,8 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
     } catch (error) {
       console.error("Error adding participant:", error);
       const errorMessage = error.response?.data?.message || "Failed to add participant";
-      setModalMessage(errorMessage);
-      setShowResultModal(true);
+      setParticipantModalMessage(errorMessage);
+      setShowParticipantResultModal(true);
     } finally {
       setProcessingParticipantAction("");
       setIsParticipantAction(false);
@@ -315,7 +320,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
     
     setProcessingAction(action);
     setModalMessage("");
-    setIsParticipantAction(false); // Reset participant action flag
 
     try {
       let endpoint = "";
@@ -441,13 +445,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   const handleResultModalClose = () => {
     setShowResultModal(false);
     
-    // Check if this was a participant action - if so, stay on current page
-    if (isParticipantAction) {
-      // Just close the modal, don't redirect
-      return;
-    }
-    
-    // For non-participant actions, handle as before
+    // Check if this is a critical error that should redirect
     if (modalMessage.includes("no longer available") || modalMessage.includes("deleted")) {
       localStorage.removeItem('selectedReservation');
       setLocalReservation(null);
@@ -456,10 +454,17 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         setRefreshInterval(null);
       }
       setView("dashboard");
+    } else {
+      // Just refresh the data but stay on the page
+      refreshReservationData();
     }
-    
-    if (refreshReservations) refreshReservations();
-    setView("dashboard");
+  };
+
+  // Separate handler for participant result modal
+  const handleParticipantResultModalClose = () => {
+    setShowParticipantResultModal(false);
+    // Stay on the same page, just refresh data
+    refreshReservationData();
   };
 
   const formatTimeOnly = (datetime) =>
@@ -1359,7 +1364,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         </div>
       )}
 
-      {/* Result Modal */}
+      {/* Result Modal (for non-participant actions) */}
       {showResultModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[95] p-2 sm:p-4">
           <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 mx-2">
@@ -1375,6 +1380,31 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
             <div className="flex justify-end">
               <button
                 onClick={handleResultModalClose}
+                className="w-full sm:w-auto px-6 py-3 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer font-medium min-h-[44px]"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Participant Result Modal (separate from main actions) */}
+      {showParticipantResultModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[96] p-2 sm:p-4">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 mx-2">
+            <div className="flex items-center mb-4">
+              <div className="bg-green-100 p-2 rounded-full mr-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-800">Participant Management</h3>
+            </div>
+            <p className="text-gray-600 mb-6">{participantModalMessage}</p>
+            <div className="flex justify-end">
+              <button
+                onClick={handleParticipantResultModalClose}
                 className="w-full sm:w-auto px-6 py-3 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer font-medium min-h-[44px]"
               >
                 OK
