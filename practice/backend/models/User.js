@@ -26,6 +26,12 @@ const userSchema = new mongoose.Schema({
   suspended: { type: Boolean, default: false },
   isLoggedIn: { type: Boolean, default: false },
   currentSessionId: { type: String, default: null },
+  // NEW: Session token for single device login
+  sessionToken: { 
+    type: String, 
+    default: null,
+    index: true // Add index for faster lookups
+  },
   lastLogin: { type: Date, default: null },
   otp:        { type: String },
   otpExpiry:  { type: Date },
@@ -97,6 +103,11 @@ userSchema.methods.comparePassword = async function(candidatePassword) {
   } catch (error) {
     throw error;
   }
+};
+
+// Method to validate session
+userSchema.methods.validateSession = function(sessionToken) {
+  return this.sessionToken === sessionToken;
 };
 
 const User = mongoose.models.User || mongoose.model("User", userSchema);

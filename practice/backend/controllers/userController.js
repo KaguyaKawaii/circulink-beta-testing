@@ -3,6 +3,7 @@ import * as userService from "../services/userService.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 import { v2 as cloudinary } from 'cloudinary';
+import crypto from 'crypto';
 
 // ✅ FIXED: Ensure Cloudinary is properly configured
 try {
@@ -19,6 +20,11 @@ try {
   console.error("❌ Cloudinary configuration error:", error);
 }
 
+// Helper function to generate session token
+const generateSessionToken = () => {
+  return crypto.randomBytes(32).toString('hex');
+};
+
 // 📌 Fetch users by role (used in AdminReports for staff assignment)
 export const getUsersByRole = async (req, res) => {
   try {
@@ -26,7 +32,7 @@ export const getUsersByRole = async (req, res) => {
     if (req.query.role) {
       query.role = req.query.role;
     }
-    const users = await User.find(query).select("-password");
+    const users = await User.find(query).select("-password -sessionToken");
     res.json({ success: true, users });
   } catch (err) {
     console.error("Get Users By Role Error:", err);
@@ -54,13 +60,157 @@ export const signup = async (req, res) => {
   }
 };
 
-// 📌 Login
+// 📌 Login - UPDATED with session token
 export const login = async (req, res) => {
   try {
-    const userData = await userService.login(req.body);
-    res.json({ success: true, message: "Login successful.", user: userData });
+    const { id_number, password } = req.body;
+    
+    // Find user by id_number
+    const user = await User.findOne({ id_number });
+    if (!user) {
+      return res.status(401).json({ success: false, message: "Invalid credentials." });
+    }
+
+    // Check if user is archived
+    if (user.archived) {
+      return res.status(403).json({ success: false, message: "Account is archived. Please contact administrator." });
+    }
+
+    // Check if user is suspended
+    if (user.suspended) {
+      return res.status(403).json({ success: false, message: "Account is suspended. Please contact administrator." });
+    }
+
+    // Verify password
+    const isPasswordValid = await user.comparePassword(password);
+    if (!isPasswordValid) {
+      return res.status(401).json({ success: false, message: "Invalid credentials." });
+    }
+
+    // Store the previous session token before generating new one
+    const previousSessionToken = user.sessionToken;
+
+    // Generate new session token
+    const sessionToken = generateSessionToken();
+    
+    // Update user with new session token
+    user.sessionToken = sessionToken;
+    user.lastLogin = new Date();
+    user.isLoggedIn = true;
+    await user.save();
+
+    // Remove sensitive data
+    const userData = user.toObject();
+    delete userData.password;
+    delete userData.sessionToken;
+
+    // If there's an existing session, notify it to logout (via WebSocket)
+    const io = req.io || null;
+    if (io && previousSessionToken) {
+      // Find all sockets with this session token and force logout
+      io.to(previousSessionToken).emit('force-logout', {
+        message: 'You have been logged out because another device logged in.',
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log(`✅ Force logout notification sent for previous session of user: ${user._id}`);
+    }
+
+    res.json({ 
+      success: true, 
+      message: "Login successful.", 
+      user: userData,
+      sessionToken: sessionToken // Send session token to client
+    });
   } catch (err) {
+    console.error("Login Error:", err);
     res.status(401).json({ success: false, message: err.message || "Invalid credentials." });
+  }
+};
+
+// 📌 Logout - UPDATED to clear session token
+export const logout = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { sessionToken } = req.body;
+
+    const user = await User.findById(userId);
+    if (user && user.sessionToken === sessionToken) {
+      user.sessionToken = null;
+      user.isLoggedIn = false;
+      await user.save();
+      
+      console.log(`✅ User ${userId} logged out successfully`);
+    }
+
+    res.json({ success: true, message: "Logged out successfully." });
+  } catch (err) {
+    console.error("Logout Error:", err);
+    res.status(500).json({ success: false, message: "Failed to logout." });
+  }
+};
+
+// 📌 Validate Session - NEW function to check if session is valid
+export const validateSession = async (req, res) => {
+  try {
+    const { userId, sessionToken } = req.body;
+
+    if (!userId || !sessionToken) {
+      return res.json({ 
+        valid: false, 
+        message: "User ID and session token are required" 
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.json({ 
+        valid: false, 
+        message: "User not found" 
+      });
+    }
+
+    // Check if user is archived or suspended
+    if (user.archived) {
+      return res.json({ 
+        valid: false, 
+        message: "Account has been archived" 
+      });
+    }
+
+    if (user.suspended) {
+      return res.json({ 
+        valid: false, 
+        message: "Account has been suspended" 
+      });
+    }
+
+    // Check if session token matches
+    if (user.sessionToken !== sessionToken) {
+      return res.json({ 
+        valid: false, 
+        message: "Session expired. You have been logged in from another device."
+      });
+    }
+
+    res.json({ 
+      valid: true, 
+      user: {
+        _id: user._id,
+        name: user.name,
+        role: user.role,
+        verified: user.verified,
+        email: user.email,
+        id_number: user.id_number,
+        profilePicture: user.profilePicture
+      }
+    });
+  } catch (err) {
+    console.error("Session Validation Error:", err);
+    res.status(500).json({ 
+      valid: false, 
+      message: "Failed to validate session" 
+    });
   }
 };
 
@@ -144,7 +294,7 @@ export const uploadPicture = async (req, res) => {
       req.params.id,
       { profilePicture: cloudinaryResult.secure_url },
       { new: true }
-    ).select('-password');
+    ).select('-password -sessionToken');
 
     if (!updatedUser) {
       return res.status(404).json({ success: false, message: "User not found." });
@@ -207,10 +357,14 @@ export const removePicture = async (req, res) => {
     user.profilePicture = null;
     await user.save();
 
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    delete userResponse.sessionToken;
+
     res.json({ 
       success: true, 
       message: "Profile picture removed successfully.", 
-      user 
+      user: userResponse
     });
   } catch (err) {
     console.error("Remove Picture Error:", err);
@@ -262,12 +416,31 @@ export const adminEditUser = async (req, res) => {
   }
 };
 
-// 📌 Archive User
+// 📌 Archive User - UPDATED to clear session token
 export const archiveUser = async (req, res) => {
   try {
     const archivedUser = await userService.archiveUser(req.params.id);
     if (!archivedUser) return res.status(404).json({ success: false, message: "User not found." });
-    res.json({ success: true, message: "User archived.", user: archivedUser });
+    
+    // Clear session token
+    archivedUser.sessionToken = null;
+    archivedUser.isLoggedIn = false;
+    await archivedUser.save();
+    
+    // Notify user to logout via WebSocket
+    const io = req.io || null;
+    if (io) {
+      io.to(req.params.id).emit('force-logout', {
+        message: 'Your account has been archived.',
+        reason: 'archived'
+      });
+    }
+    
+    const userResponse = archivedUser.toObject();
+    delete userResponse.password;
+    delete userResponse.sessionToken;
+    
+    res.json({ success: true, message: "User archived.", user: userResponse });
   } catch (err) {
     console.error("Archive User Error:", err);
     res.status(400).json({ success: false, message: err.message || "Failed to archive user." });
@@ -279,7 +452,12 @@ export const restoreUser = async (req, res) => {
   try {
     const restoredUser = await userService.restoreUser(req.params.id);
     if (!restoredUser) return res.status(404).json({ success: false, message: "User not found." });
-    res.json({ success: true, message: "User restored.", user: restoredUser });
+    
+    const userResponse = restoredUser.toObject();
+    delete userResponse.password;
+    delete userResponse.sessionToken;
+    
+    res.json({ success: true, message: "User restored.", user: userResponse });
   } catch (err) {
     console.error("Restore User Error:", err);
     res.status(400).json({ success: false, message: err.message || "Failed to restore user." });
@@ -290,7 +468,14 @@ export const restoreUser = async (req, res) => {
 export const getArchivedUsers = async (req, res) => {
   try {
     const archivedUsers = await userService.getArchivedUsers();
-    res.json({ success: true, users: archivedUsers });
+    // Remove sensitive data
+    const users = archivedUsers.map(user => {
+      const u = user.toObject();
+      delete u.password;
+      delete u.sessionToken;
+      return u;
+    });
+    res.json({ success: true, users });
   } catch (err) {
     console.error("Get Archived Users Error:", err);
     res.status(500).json({ success: false, message: err.message || "Failed to fetch archived users." });
@@ -313,15 +498,21 @@ export const deleteArchivedUser = async (req, res) => {
 export const getAllUsers = async (req, res) => {
   try {
     const users = await userService.getAllUsers();
-    res.json({ success: true, users });
+    // Remove sensitive data
+    const filteredUsers = users.map(user => {
+      const u = user.toObject();
+      delete u.password;
+      delete u.sessionToken;
+      return u;
+    });
+    res.json({ success: true, users: filteredUsers });
   } catch (err) {
     console.error("Get All Users Error:", err);
     res.status(500).json({ success: false, message: err.message || "Failed to fetch users." });
   }
 };
 
-
-;// ✅ Toggle suspend - FIXED VERSION
+// ✅ Toggle suspend - UPDATED to clear session token when suspended
 export const toggleSuspendUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -355,6 +546,13 @@ export const toggleSuspendUser = async (req, res) => {
     
     // Update suspension status
     user.suspended = suspendStatus;
+    
+    // Clear session token if suspending
+    if (suspendStatus) {
+      user.sessionToken = null;
+      user.isLoggedIn = false;
+    }
+    
     await user.save();
     
     console.log("User suspension updated to:", user.suspended);
@@ -387,6 +585,14 @@ export const toggleSuspendUser = async (req, res) => {
           createdAt: notification.createdAt
         });
         
+        // Force logout if suspended
+        if (suspendStatus) {
+          io.to(user._id.toString()).emit('force-logout', {
+            message: 'Your account has been suspended.',
+            reason: 'suspended'
+          });
+        }
+        
         // Emit to admin room for real-time updates
         io.to('admin').emit('userSuspensionUpdated', {
           userId: user._id,
@@ -401,9 +607,10 @@ export const toggleSuspendUser = async (req, res) => {
       }
     }
     
-    // Return user without password
+    // Return user without sensitive data
     const userResponse = user.toObject();
     delete userResponse.password;
+    delete userResponse.sessionToken;
     
     res.json({
       success: true,
@@ -432,10 +639,13 @@ export const suspendUser = async (req, res) => {
     }
     
     user.suspended = true;
+    user.sessionToken = null; // Clear session token
+    user.isLoggedIn = false;
     await user.save();
     
     const userResponse = user.toObject();
     delete userResponse.password;
+    delete userResponse.sessionToken;
     
     res.json({ 
       success: true, 
@@ -465,6 +675,7 @@ export const unsuspendUser = async (req, res) => {
     
     const userResponse = user.toObject();
     delete userResponse.password;
+    delete userResponse.sessionToken;
     
     res.json({ 
       success: true, 
@@ -555,10 +766,14 @@ export const toggleVerifyUser = async (req, res) => {
       console.log("❌ WebSocket (io) not available - notifications skipped");
     }
 
+    const userResponse = user.toObject();
+    delete userResponse.password;
+    delete userResponse.sessionToken;
+
     res.json({
       success: true,
       message: `User ${verifyStatus ? "verified" : "unverified"} successfully`,
-      user,
+      user: userResponse,
     });
   } catch (error) {
     console.error("Toggle Verify Error:", error);
@@ -589,9 +804,10 @@ export const verifyUser = async (req, res) => {
     user.verified = verified;
     await user.save();
     
-    // Return user without password
+    // Return user without sensitive data
     const userResponse = user.toObject();
     delete userResponse.password;
+    delete userResponse.sessionToken;
     
     res.json({
       success: true,
@@ -611,7 +827,7 @@ export const getUserById = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, message: "Invalid user ID format" });
     }
-    const user = await User.findById(id).select("-password");
+    const user = await User.findById(id).select("-password -sessionToken");
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
@@ -1054,7 +1270,7 @@ export const getVerificationStats = async (req, res) => {
   }
 };
 
-// 📌 Bulk Archive Users - Add this function
+// 📌 Bulk Archive Users - UPDATED to clear session tokens
 export const bulkArchiveUsers = async (req, res) => {
   try {
     const { userIds } = req.body;
@@ -1070,13 +1286,17 @@ export const bulkArchiveUsers = async (req, res) => {
     console.log("User IDs to archive:", userIds);
     console.log("Count:", userIds.length);
     
-    // Update all specified users to archived
+    // Update all specified users to archived and clear session tokens
     const updateResult = await User.updateMany(
       { 
         _id: { $in: userIds },
         archived: { $ne: true } // Don't re-archive already archived users
       },
-      { archived: true }
+      { 
+        archived: true,
+        sessionToken: null, // Clear session tokens
+        isLoggedIn: false
+      }
     );
     
     console.log(`Archived ${updateResult.modifiedCount} users`);
@@ -1118,6 +1338,12 @@ export const bulkArchiveUsers = async (req, res) => {
           io.to(user._id.toString()).emit('account-archived', {
             message: "Your account has been archived"
           });
+
+          // Force logout
+          io.to(user._id.toString()).emit('force-logout', {
+            message: 'Your account has been archived.',
+            reason: 'archived'
+          });
         }
       } catch (notifError) {
         console.error(`Failed to create notification for user ${user._id}:`, notifError);
@@ -1144,6 +1370,45 @@ export const bulkArchiveUsers = async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: error.message || "Failed to bulk archive users" 
+    });
+  }
+};
+
+// ✅ NEW: Force logout all sessions for a user
+export const forceLogoutUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    
+    // Clear session token
+    user.sessionToken = null;
+    user.isLoggedIn = false;
+    await user.save();
+    
+    // Notify user to logout via WebSocket
+    const io = req.io || null;
+    if (io) {
+      io.to(userId).emit('force-logout', {
+        message: 'You have been logged out by an administrator.',
+        reason: 'admin_force_logout'
+      });
+      
+      console.log(`✅ Force logout notification sent to user: ${userId}`);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: "User logged out successfully" 
+    });
+  } catch (error) {
+    console.error("Force Logout Error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || "Failed to force logout user" 
     });
   }
 };

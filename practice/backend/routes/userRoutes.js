@@ -7,6 +7,8 @@ const router = express.Router();
 // ================== PUBLIC ROUTES ==================
 router.post("/signup", upload.single("profile"), userController.signup);
 router.post("/login", userController.login);
+router.post("/logout/:userId", userController.logout); // NEW: Logout route
+router.post("/validate-session", userController.validateSession); // NEW: Session validation
 
 // ================== SEARCH ROUTES (MUST COME BEFORE /:id) ==================
 router.get("/search", userController.searchUsers);
@@ -46,9 +48,12 @@ router.put("/admin-edit/:id", upload.single("profile"), userController.adminEdit
 router.post("/add-user", upload.single("profile"), userController.addUser);
 router.delete("/archived/:id", userController.deleteArchivedUser);
 
+// NEW: Force logout a specific user (admin only)
+router.post("/force-logout/:userId", userController.forceLogoutUser);
+
 // ================== BULK OPERATIONS ROUTES ==================
 router.post("/revoke-all-verification", userController.revokeAllVerification);
 router.post("/bulk-verify", userController.bulkVerifyUsers);
-router.post("/bulk-archive", userController.bulkArchiveUsers); // ADDED THIS LINE
+router.post("/bulk-archive", userController.bulkArchiveUsers);
 
 export default router;
