@@ -1,14 +1,9 @@
-// 📁 utils/socket.js
+// utils/socket.js
 import { io } from "socket.io-client";
-import AuthService from "../services/authService"; // 🔴 ADD THIS LINE
+import { getSessionToken, clearSession } from "./tokenHelper"; // Use helper instead of AuthService
 
 // Remove /api from socket URL since Socket.io doesn't use it
 const socketURL = import.meta.env.VITE_API_URL?.replace('/api', '') || import.meta.env.VITE_API_URL;
-
-// Get session token from AuthService
-const getSessionToken = () => {
-  return AuthService.getSessionToken(); // Now this will work
-};
 
 // Create socket connection with auth
 const socket = io(socketURL, {
@@ -19,7 +14,7 @@ const socket = io(socketURL, {
   reconnectionAttempts: 10,
   transports: ["polling", "websocket"],
   auth: {
-    token: getSessionToken()
+    token: getSessionToken() // Use helper function
   }
 });
 
@@ -46,8 +41,9 @@ socket.on('connect_error', (error) => {
 socket.on('force-logout', (data) => {
   console.log('🔴 Force logout received:', data);
   
-  AuthService.clearUser();
+  clearSession(); // Clear session using helper
   
+  // Dispatch event for React components
   const event = new CustomEvent('force-logout', { 
     detail: { message: data.message || 'You have been logged out from another device.' } 
   });
