@@ -60,29 +60,29 @@ export const signup = async (req, res) => {
   }
 };
 
-// 📌 Login - UPDATED with better error handling
+// 📌 Login - UPDATED to use email instead of id_number
 export const login = async (req, res) => {
   try {
     console.log("=== LOGIN ATTEMPT ===");
     console.log("Request body:", req.body);
     
-    const { id_number, password } = req.body;
+    const { email, password } = req.body; // Changed from id_number to email
     
     // Validate input
-    if (!id_number || !password) {
-      console.log("❌ Missing credentials:", { id_number: !!id_number, password: !!password });
+    if (!email || !password) {
+      console.log("❌ Missing credentials:", { email: !!email, password: !!password });
       return res.status(400).json({ 
         success: false, 
-        message: "ID number and password are required" 
+        message: "Email and password are required" 
       });
     }
 
-    // Find user by id_number
-    const user = await User.findOne({ id_number });
+    // Find user by email (not id_number)
+    const user = await User.findOne({ email: email.toLowerCase() }); // Case-insensitive search
     console.log("User found:", user ? "Yes" : "No");
     
     if (!user) {
-      console.log("❌ User not found with ID:", id_number);
+      console.log("❌ User not found with email:", email);
       return res.status(401).json({ 
         success: false, 
         message: "Invalid credentials." 
@@ -93,6 +93,8 @@ export const login = async (req, res) => {
     console.log("User details:", {
       id: user._id,
       name: user.name,
+      email: user.email,
+      id_number: user.id_number,
       role: user.role,
       archived: user.archived,
       suspended: user.suspended,
@@ -872,17 +874,31 @@ export const verifyUser = async (req, res) => {
   }
 };
 
-// 📌 Get User By ID
+// 📌 Get User By ID - Enhanced to handle email lookups
 export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ success: false, message: "Invalid user ID format" });
+    
+    // Check if the ID parameter is actually an email
+    const isEmail = id.includes('@');
+    
+    let user;
+    
+    if (isEmail) {
+      // Find by email
+      user = await User.findOne({ email: id.toLowerCase() }).select("-password -sessionToken");
+    } else if (mongoose.Types.ObjectId.isValid(id)) {
+      // Find by MongoDB ObjectId
+      user = await User.findById(id).select("-password -sessionToken");
+    } else {
+      // Try to find by id_number as fallback
+      user = await User.findOne({ id_number: id }).select("-password -sessionToken");
     }
-    const user = await User.findById(id).select("-password -sessionToken");
+    
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
+    
     res.json({ success: true, user });
   } catch (err) {
     console.error("Error fetching user by ID:", err);
