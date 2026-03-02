@@ -1903,9 +1903,7 @@ function ReserveRoom({ user, setView }) {
                             handleParticipantChange(idx, "name", e.target.value)
                           }
                         />
-                        {!p.name && (
-                          <p className="text-xs text-red-500 mt-1">Name is required</p>
-                        )}
+                        
                       </td>
                       {!p.role || (p.role !== "Faculty" && p.role !== "Staff") ? (
                         <td className="py-2 px-2 sm:py-3 sm:px-4">
@@ -1921,9 +1919,7 @@ function ReserveRoom({ user, setView }) {
                               handleParticipantChange(idx, "course", e.target.value)
                             }
                           />
-                          {!p.course && (
-                            <p className="text-xs text-red-500 mt-1">Course is required</p>
-                          )}
+                          
                         </td>
                       ) : (
                         <td className="py-2 px-2 sm:py-3 sm:px-4 text-gray-400 italic text-xs sm:text-sm">N/A</td>
@@ -1942,9 +1938,7 @@ function ReserveRoom({ user, setView }) {
                               handleParticipantChange(idx, "year_level", e.target.value)
                             }
                           />
-                          {!p.year_level && (
-                            <p className="text-xs text-red-500 mt-1">Year level is required</p>
-                          )}
+                         
                         </td>
                       ) : (
                         <td className="py-2 px-2 sm:py-3 sm:px-4 text-gray-400 italic text-xs sm:text-sm">N/A</td>
@@ -1962,9 +1956,7 @@ function ReserveRoom({ user, setView }) {
                             handleParticipantChange(idx, "department", e.target.value)
                           }
                         />
-                        {!p.department && (
-                          <p className="text-xs text-red-500 mt-1">Department is required</p>
-                        )}
+                       
                       </td>
                       <td className="py-2 px-2 sm:py-3 sm:px-4">
                         {validation[idx]?.status === "valid" && (
