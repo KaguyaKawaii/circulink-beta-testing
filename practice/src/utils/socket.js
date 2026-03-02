@@ -1,17 +1,13 @@
+// 📁 utils/socket.js
 import { io } from "socket.io-client";
+import AuthService from "../services/authService"; // 🔴 ADD THIS LINE
 
 // Remove /api from socket URL since Socket.io doesn't use it
 const socketURL = import.meta.env.VITE_API_URL?.replace('/api', '') || import.meta.env.VITE_API_URL;
 
-// Get session token from localStorage
+// Get session token from AuthService
 const getSessionToken = () => {
-  try {
-    const session = JSON.parse(localStorage.getItem("userSession") || "{}");
-    return session.sessionToken || null;
-  } catch (error) {
-    console.error("Error getting session token:", error);
-    return null;
-  }
+  return AuthService.getSessionToken(); // Now this will work
 };
 
 // Create socket connection with auth
@@ -23,7 +19,7 @@ const socket = io(socketURL, {
   reconnectionAttempts: 10,
   transports: ["polling", "websocket"],
   auth: {
-    token: getSessionToken() // Send session token for authentication
+    token: getSessionToken()
   }
 });
 
@@ -31,7 +27,6 @@ const socket = io(socketURL, {
 socket.on('connect', () => {
   console.log('✅ Connected to server with ID:', socket.id);
   
-  // Join user's room based on session
   const sessionToken = getSessionToken();
   if (sessionToken) {
     socket.emit('join-session-room', sessionToken);
@@ -51,19 +46,12 @@ socket.on('connect_error', (error) => {
 socket.on('force-logout', (data) => {
   console.log('🔴 Force logout received:', data);
   
-  // Clear user session from localStorage
-  try {
-    localStorage.removeItem("userSession");
-    
-    // Show alert or custom modal
-    const event = new CustomEvent('force-logout', { 
-      detail: { message: data.message || 'You have been logged out from another device.' } 
-    });
-    window.dispatchEvent(event);
-    
-  } catch (error) {
-    console.error('Error handling force logout:', error);
-  }
+  AuthService.clearUser();
+  
+  const event = new CustomEvent('force-logout', { 
+    detail: { message: data.message || 'You have been logged out from another device.' } 
+  });
+  window.dispatchEvent(event);
 });
 
 // Reconnect with updated token
