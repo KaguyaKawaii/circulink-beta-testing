@@ -22,7 +22,8 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   const [showRejectExtensionConfirm, setShowRejectExtensionConfirm] = useState(false);
   const [refreshInterval, setRefreshInterval] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
-
+  // Track if the current action is participant-related
+  const [isParticipantAction, setIsParticipantAction] = useState(false);
 
   // Participant management states
   const [showManageParticipants, setShowManageParticipants] = useState(false);
@@ -211,6 +212,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
     
     const participantId = getParticipantId(participant);
     setProcessingParticipantAction(`remove-${participantId}`);
+    setIsParticipantAction(true); // Mark as participant action
     
     try {
       const response = await axios.post(
@@ -224,9 +226,15 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
       setModalMessage(response.data.message || "Participant removed successfully");
       setShowResultModal(true);
       
+      // Close any open modals
+      setShowManageParticipants(false);
+      setShowRemoveConfirm(false);
+      setParticipantToRemove(null);
+      
+      // Refresh the data
       setTimeout(() => {
         refreshReservationData();
-      }, 1000);
+      }, 500);
       
     } catch (error) {
       console.error("Error removing participant:", error);
@@ -235,8 +243,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
       setShowResultModal(true);
     } finally {
       setProcessingParticipantAction("");
-      setShowRemoveConfirm(false);
-      setParticipantToRemove(null);
+      setIsParticipantAction(false);
     }
   };
 
@@ -245,6 +252,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
     
     const participantId = getParticipantId(selectedUser);
     setProcessingParticipantAction(`add-${participantId}`);
+    setIsParticipantAction(true); // Mark as participant action
     
     try {
       const response = await axios.post(
@@ -261,10 +269,12 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
       setSelectedUser(null);
       setSearchTerm("");
       setShowAddParticipantModal(false);
+      setShowManageParticipants(false);
       
+      // Refresh the data
       setTimeout(() => {
         refreshReservationData();
-      }, 1000);
+      }, 500);
       
     } catch (error) {
       console.error("Error adding participant:", error);
@@ -273,6 +283,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
       setShowResultModal(true);
     } finally {
       setProcessingParticipantAction("");
+      setIsParticipantAction(false);
     }
   };
 
@@ -304,6 +315,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
     
     setProcessingAction(action);
     setModalMessage("");
+    setIsParticipantAction(false); // Reset participant action flag
 
     try {
       let endpoint = "";
@@ -429,6 +441,13 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   const handleResultModalClose = () => {
     setShowResultModal(false);
     
+    // Check if this was a participant action - if so, stay on current page
+    if (isParticipantAction) {
+      // Just close the modal, don't redirect
+      return;
+    }
+    
+    // For non-participant actions, handle as before
     if (modalMessage.includes("no longer available") || modalMessage.includes("deleted")) {
       localStorage.removeItem('selectedReservation');
       setLocalReservation(null);
@@ -436,6 +455,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         clearInterval(refreshInterval);
         setRefreshInterval(null);
       }
+      setView("dashboard");
     }
     
     if (refreshReservations) refreshReservations();
