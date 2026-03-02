@@ -32,6 +32,9 @@ import systemRoutes from "./routes/system.js";
 import announcementRoutes from './routes/announcement.js';
 import analyticsRoutes from "./routes/analyticsRoutes.js";
 
+// Import User model for socket authentication
+import User from "./models/User.js";
+
 const app = express();
 const server = http.createServer(app);
 
@@ -50,7 +53,7 @@ app.use(cors({
 
 app.use(express.json());
 
-// ✅ Define Socket.io FIRST
+// ✅ Define Socket.io with authentication middleware
 const io = new Server(server, {
   cors: {
     origin: [
@@ -63,6 +66,50 @@ const io = new Server(server, {
     credentials: true
   },
   transports: ["polling", "websocket"]
+});
+
+// ✅ Socket.io Authentication Middleware
+io.use(async (socket, next) => {
+  try {
+    const token = socket.handshake.auth.token;
+    
+    if (!token) {
+      // Allow connection but with limited access (not authenticated)
+      socket.user = null;
+      return next();
+    }
+
+    // Find user by session token
+    const user = await User.findOne({ sessionToken: token });
+    
+    if (!user) {
+      // Invalid token, but still allow connection (just without auth)
+      socket.user = null;
+      return next();
+    }
+
+    // Check if user is archived or suspended
+    if (user.archived || user.suspended) {
+      socket.user = null;
+      return next();
+    }
+
+    // Attach user to socket
+    socket.user = {
+      _id: user._id.toString(),
+      name: user.name,
+      role: user.role,
+      email: user.email,
+      id_number: user.id_number,
+      sessionToken: token
+    };
+
+    console.log(`✅ Socket authenticated for user: ${user.name} (${user.role})`);
+    next();
+  } catch (error) {
+    console.error("❌ Socket authentication error:", error);
+    next(new Error("Authentication error"));
+  }
 });
 
 // ✅ NOW attach io to requests (after io is defined)
@@ -78,11 +125,26 @@ app.use(
 );
 app.use("/uploads/news", express.static(path.join(__dirname, "uploads", "news")));
 
-// ✅ FIXED: Improved Socket.IO events for real-time messaging
+// ✅ FIXED: Improved Socket.IO events for real-time messaging with session support
 io.on("connection", (socket) => {
   console.log("✅ User connected:", socket.id);
+  
+  // Join user's personal room if authenticated
+  if (socket.user) {
+    // Join user's personal room (using user ID)
+    socket.join(socket.user._id.toString());
+    console.log(`👤 User ${socket.user.name} joined personal room: ${socket.user._id}`);
+    
+    // Join session token room for force logout
+    socket.join(socket.user.sessionToken);
+    console.log(`🔐 User joined session room: ${socket.user.sessionToken.substring(0, 10)}...`);
+    
+    // Join role-based room
+    socket.join(socket.user.role.toLowerCase());
+    console.log(`👥 User joined role room: ${socket.user.role.toLowerCase()}`);
+  }
 
-  // FIXED: Handle general join event (used by both frontend components)
+  // Handle join events
   socket.on("join", (data) => {
     if (data.userId) {
       socket.join(data.userId);
@@ -106,8 +168,12 @@ io.on("connection", (socket) => {
     console.log(`👨‍💼 Admin joined admin room: ${socket.id}`);
   });
 
-  // 🆕 ADD THESE NEW EVENT HANDLERS:
-  
+  // ✅ Handle join session room for force logout
+  socket.on("join-session-room", (sessionToken) => {
+    socket.join(sessionToken);
+    console.log(`🔐 Socket ${socket.id} joined session room: ${sessionToken.substring(0, 10)}...`);
+  });
+
   // Handle when staff marks conversation as read
   socket.on("markConversationRead", (data) => {
     console.log("📋 Conversation marked as read:", data);
@@ -163,7 +229,7 @@ io.on("connection", (socket) => {
       io.to("admin-room").emit("newMessage", msg);
     }
     
-    // FIXED: Emit unread count updates
+    // Emit unread count updates
     if (msg.receiver && msg.sender !== msg.receiver) {
       io.to(msg.receiver).emit("unreadCountUpdate", {
         userId: msg.receiver,
@@ -172,7 +238,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // FIXED: Handle unread count updates
+  // Handle unread count updates
   socket.on("updateUnreadCount", (data) => {
     if (data.userId) {
       io.to(data.userId).emit("unreadCountUpdate", data);
@@ -192,7 +258,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // FIXED: Handle conversation-specific unread updates
+  // Handle conversation-specific unread updates
   socket.on("updateConversationUnread", (data) => {
     if (data.staffId) {
       io.to(data.staffId).emit("conversationUnreadUpdate", data);
@@ -210,7 +276,7 @@ io.on("connection", (socket) => {
     socket.to(`user-${data.userId}`).emit("notifications-read");
   });
 
-  // FIXED: Handle refresh unread counts
+  // Handle refresh unread counts
   socket.on("refreshUnreadCounts", (data) => {
     if (data.userId) {
       io.to(data.userId).emit("refresh-unread-counts", data);
@@ -223,7 +289,7 @@ io.on("connection", (socket) => {
     console.log(`✅ User ${userId} joined verification room`);
   });
 
-  // 🆕 ADD: Handle floor unread count refresh
+  // Handle floor unread count refresh
   socket.on("refreshFloorUnreadCounts", (data) => {
     if (data.floor) {
       io.to(data.floor).emit("refreshFloorUnreadCounts", data);
@@ -233,6 +299,11 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     console.log("❌ User disconnected:", socket.id);
+    
+    // Clean up any rooms or data if needed
+    if (socket.user) {
+      console.log(`👋 User ${socket.user.name} disconnected`);
+    }
   });
 });
 
@@ -309,7 +380,7 @@ mongoose
       try {
         console.log("🔄 Running scheduled expired reservation check...");
         
-        // ✅ FIXED: Use process.env instead of import.meta.env
+        // Use process.env instead of import.meta.env
         const baseUrl = process.env.VITE_API_URL || `http://localhost:${process.env.PORT || 5000}`;
         
         // Try API route first
@@ -333,9 +404,12 @@ mongoose
 
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => {
+      console.log("\n🚀 ===== SERVER STARTED =====\n");
       console.log(`✅ Server running on port ${PORT}`);
       console.log(`✅ CORS configured for all methods (GET, POST, PUT, DELETE, PATCH)`);
       console.log(`✅ Socket.IO with polling + websocket transports`);
+      console.log(`✅ Socket.IO authentication middleware enabled`);
+      console.log(`✅ Single-device login support enabled`);
       console.log(`✅ Real-time messaging enabled with improved room handling`);
       console.log(`✅ Auto-expired reservation checker running every 5 minutes`);
       console.log(`✅ WebSocket (io) attached to all requests`);
@@ -346,6 +420,9 @@ mongoose
       console.log("\n📋 Registered Routes:");
       const routes = [
         "/api/users",
+        "/api/users/login",
+        "/api/users/logout/:userId",
+        "/api/users/validate-session",
         "/api/users/search/users",
         "/api/reservations",
         "/api/reservations/admin-create",
@@ -362,6 +439,13 @@ mongoose
         "/api/system"
       ];
       routes.forEach(route => console.log(`  ✅ ${route}`));
+      console.log("\n📊 Socket.IO Events:");
+      console.log("  ✅ force-logout - Emitted when user is logged out from another device");
+      console.log("  ✅ join-session-room - Client joins session-specific room");
+      console.log("  ✅ sendMessage - Real-time messaging");
+      console.log("  ✅ newMessage - Broadcast new messages");
+      console.log("  ✅ notification-read - Mark notifications as read");
+      console.log("\n================================\n");
     });
   })
   .catch((err) => {

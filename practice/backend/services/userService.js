@@ -5,6 +5,12 @@ import cloudinary from "../config/cloudinary.js";
 import { Readable } from "stream";
 import Notification from "../models/Notification.js";
 import notificationService from "./notificationService.js";
+import crypto from 'crypto';
+
+// Helper function to generate session token
+const generateSessionToken = () => {
+  return crypto.randomBytes(32).toString('hex');
+};
 
 // Cloudinary upload helper
 const uploadToCloudinary = (fileBuffer, folder) => {
@@ -69,6 +75,8 @@ export const addUser = async (data, file) => {
     role,
     verified: verified === "true" || verified === true || false,
     profilePicture,
+    sessionToken: null, // Initialize with no session
+    isLoggedIn: false
   });
 
   await newUser.save();
@@ -77,6 +85,7 @@ export const addUser = async (data, file) => {
   // Return user without password
   const userResponse = newUser.toObject();
   delete userResponse.password;
+  delete userResponse.sessionToken;
   return userResponse;
 };
 
@@ -118,6 +127,8 @@ export const signup = async (data, file) => {
     role,
     profilePicture,
     verified: false, // Explicitly set to false for all new signups
+    sessionToken: null, // Initialize with no session
+    isLoggedIn: false
   });
 
   await newUser.save();
@@ -126,25 +137,98 @@ export const signup = async (data, file) => {
   // Return user without password
   const userResponse = newUser.toObject();
   delete userResponse.password;
+  delete userResponse.sessionToken;
   return userResponse;
 };
 
-// Login
-export const login = async ({ email, password }) => {
+// ✅ UPDATED: Login with session token for single device
+export const login = async ({ email, password }, io = null) => {
   const user = await User.findOne({ email: email.toLowerCase() });
   if (!user) throw new Error("Invalid credentials.");
 
   const validPass = await bcrypt.compare(password, user.password);
   if (!validPass) throw new Error("Invalid credentials.");
 
-    if (user.suspended) {
+  if (user.suspended) {
     throw new Error("This account is suspended. Please contact the administrator.");
   }
 
+  if (user.archived) {
+    throw new Error("This account is archived. Please contact the administrator.");
+  }
+
+  // Store previous session token before generating new one
+  const previousSessionToken = user.sessionToken;
+
+  // Generate new session token
+  const sessionToken = generateSessionToken();
+  
+  // Update user with new session token
+  user.sessionToken = sessionToken;
+  user.lastLogin = new Date();
+  user.isLoggedIn = true;
+  await user.save();
+
+  // Log the action
   await logAction(user._id, user.id_number, user.name, "User Login", "Logged in");
 
+  // If there was a previous session, notify it to logout via WebSocket
+  if (io && previousSessionToken) {
+    try {
+      io.to(previousSessionToken).emit('force-logout', {
+        message: 'You have been logged out because another device logged in.',
+        timestamp: new Date().toISOString()
+      });
+      console.log(`✅ Force logout notification sent for previous session of user: ${user._id}`);
+    } catch (socketError) {
+      console.error("Socket notification error:", socketError);
+    }
+  }
+
   const { _id, name, id_number, department, course, year_level, floor, role, verified, profilePicture } = user;
-  return { _id, name, email: user.email, id_number, department, course, year_level, floor, role, verified, profilePicture };
+  return { 
+    _id, 
+    name, 
+    email: user.email, 
+    id_number, 
+    department, 
+    course, 
+    year_level, 
+    floor, 
+    role, 
+    verified, 
+    profilePicture,
+    sessionToken // Include session token in response
+  };
+};
+
+// ✅ NEW: Logout - clear session token
+export const logout = async (userId, sessionToken) => {
+  const user = await User.findById(userId);
+  if (user && user.sessionToken === sessionToken) {
+    user.sessionToken = null;
+    user.isLoggedIn = false;
+    await user.save();
+    
+    await logAction(user._id, user.id_number, user.name, "User Logout", "Logged out");
+    return true;
+  }
+  return false;
+};
+
+// ✅ NEW: Validate session
+export const validateSession = async (userId, sessionToken) => {
+  const user = await User.findById(userId);
+  if (!user) return { valid: false, message: "User not found" };
+  
+  if (user.archived) return { valid: false, message: "Account has been archived" };
+  if (user.suspended) return { valid: false, message: "Account has been suspended" };
+  
+  if (user.sessionToken !== sessionToken) {
+    return { valid: false, message: "Session expired. You have been logged in from another device." };
+  }
+  
+  return { valid: true, user };
 };
 
 // Update Profile
@@ -170,6 +254,7 @@ export const updateProfile = async (id, data, file) => {
   // Return user without password
   const userResponse = user.toObject();
   delete userResponse.password;
+  delete userResponse.sessionToken;
   return userResponse;
 };
 
@@ -223,6 +308,7 @@ export const adminEditUser = async (id, data, file) => {
   // Return user without password
   const userResponse = user.toObject();
   delete userResponse.password;
+  delete userResponse.sessionToken;
   return userResponse;
 };
 
@@ -251,6 +337,11 @@ export const changePassword = async (id, oldPassword, newPassword) => {
 
   // Set the plain new password and let the model's pre-save hook hash it
   user.password = newPassword;
+  
+  // Optional: Invalidate all sessions after password change for security
+  user.sessionToken = null;
+  user.isLoggedIn = false;
+  
   await user.save();
 
   console.log("✅ Password updated successfully in database");
@@ -265,15 +356,15 @@ export const changePassword = async (id, oldPassword, newPassword) => {
 };
 
 // ✅ Get all non-archived users
-export const getAllUsers = async () => User.find({ archived: { $ne: true } }).select("-password").sort({ created_at: -1 });
+export const getAllUsers = async () => User.find({ archived: { $ne: true } }).select("-password -sessionToken").sort({ created_at: -1 });
 
 // ✅ Get archived users with archivedAt timestamp
 export const getArchivedUsers = async () => User.find({ archived: true })
-  .select("-password")
+  .select("-password -sessionToken")
   .sort({ archivedAt: -1 });
 
 // ✅ Get user by ID
-export const getUserById = async (id) => User.findById(id).select("-password");
+export const getUserById = async (id) => User.findById(id).select("-password -sessionToken");
 
 // ✅ Verify or Unverify user
 export const verifyUser = async (id, verified, io) => {
@@ -281,7 +372,7 @@ export const verifyUser = async (id, verified, io) => {
     id,
     { verified },
     { new: true }
-  ).select("-password");
+  ).select("-password -sessionToken");
 
   if (user) {
     // Log the action
@@ -310,13 +401,17 @@ export const verifyUser = async (id, verified, io) => {
   return user;
 };
 
-// Suspend user (set suspended: true)
+// Suspend user (set suspended: true) - CLEAR SESSION
 export const suspendUser = async (id, io) => {
   const user = await User.findByIdAndUpdate(
     id,
-    { suspended: true },
+    { 
+      suspended: true,
+      sessionToken: null, // Clear session token
+      isLoggedIn: false
+    },
     { new: true }
-  ).select("-password");
+  ).select("-password -sessionToken");
 
   if (user) {
     await logAction(user._id, user.id_number, user.name, "User Suspended", "User account suspended");
@@ -329,6 +424,14 @@ export const suspendUser = async (id, io) => {
       },
       io
     );
+    
+    // Force logout via socket
+    if (io) {
+      io.to(user._id.toString()).emit('force-logout', {
+        message: 'Your account has been suspended.',
+        reason: 'suspended'
+      });
+    }
   }
 
   return user;
@@ -340,7 +443,7 @@ export const unsuspendUser = async (id, io) => {
     id,
     { suspended: false },
     { new: true }
-  ).select("-password");
+  ).select("-password -sessionToken");
 
   if (user) {
     await logAction(user._id, user.id_number, user.name, "User Unsuspended", "User account unsuspended");
@@ -358,13 +461,21 @@ export const unsuspendUser = async (id, io) => {
   return user;
 };
 
-// Toggle suspend state (accepts boolean suspend)
+// Toggle suspend state (accepts boolean suspend) - CLEAR SESSION IF SUSPENDING
 export const toggleSuspend = async (id, suspend, io) => {
+  const updateData = { suspended: !!suspend };
+  
+  // Clear session token if suspending
+  if (suspend) {
+    updateData.sessionToken = null;
+    updateData.isLoggedIn = false;
+  }
+  
   const user = await User.findByIdAndUpdate(
     id,
-    { suspended: !!suspend },
+    updateData,
     { new: true }
-  ).select("-password");
+  ).select("-password -sessionToken");
 
   if (user) {
     await logAction(
@@ -386,18 +497,31 @@ export const toggleSuspend = async (id, suspend, io) => {
       },
       io
     );
+    
+    // Force logout if suspended
+    if (suspend && io) {
+      io.to(user._id.toString()).emit('force-logout', {
+        message: 'Your account has been suspended.',
+        reason: 'suspended'
+      });
+    }
   }
 
   return user;
 };
 
-// ✅ Archive user with timestamp
+// ✅ Archive user with timestamp - CLEAR SESSION
 export const archiveUser = async (id) => {
   const user = await User.findByIdAndUpdate(
     id,
-    { archived: true, archivedAt: new Date() },
+    { 
+      archived: true, 
+      archivedAt: new Date(),
+      sessionToken: null, // Clear session token
+      isLoggedIn: false
+    },
     { new: true }
-  ).select("-password");
+  ).select("-password -sessionToken");
   
   if (user) await logAction(user._id, user.id_number, user.name, "User Archived", "User account archived");
   return user;
@@ -409,7 +533,7 @@ export const restoreUser = async (id) => {
     id,
     { archived: false, archivedAt: null },
     { new: true }
-  ).select("-password");
+  ).select("-password -sessionToken");
   
   if (user) await logAction(user._id, user.id_number, user.name, "User Restored", "User account restored from archive");
   return user;
@@ -420,4 +544,28 @@ export const deleteArchivedUser = async (id) => {
   const user = await User.findByIdAndDelete(id);
   if (user) await logAction(user._id, user.id_number, user.name, "User Deleted", "Archived user permanently deleted");
   return user;
+};
+
+// Helper function to create notification (same as before)
+const createNotification = async (data, io) => {
+  try {
+    const notification = new Notification({
+      userId: data.userId,
+      type: data.type || "system",
+      title: data.title || "System Notification",
+      message: data.message,
+      status: data.status || "New",
+      isRead: false
+    });
+    await notification.save();
+
+    if (io) {
+      io.to(data.userId.toString()).emit('newNotification', notification);
+    }
+
+    return notification;
+  } catch (error) {
+    console.error("Error creating notification:", error);
+    return null;
+  }
 };
