@@ -7,27 +7,25 @@ const router = express.Router();
 // ================== PUBLIC ROUTES ==================
 router.post("/signup", upload.single("profile"), userController.signup);
 router.post("/login", userController.login);
-router.post("/logout/:userId", userController.logout); // NEW: Logout route
-router.post("/validate-session", userController.validateSession); // NEW: Session validation
+router.post("/logout/:userId", userController.logout);
+router.post("/validate-session", userController.validateSession);
 
 // ================== SEARCH ROUTES (MUST COME BEFORE /:id) ==================
 router.get("/search", userController.searchUsers);
 router.get("/check-participant", userController.checkParticipant);
 
-// ================== STATIC ROUTES ==================
+// ================== STATIC ROUTES (MUST COME BEFORE /:id) ==================
 router.get("/archived/all", userController.getArchivedUsers);
 router.get("/all/users", userController.getAllUsers);
 router.get("/role/users", userController.getUsersByRole);
 router.get("/test/cloudinary", userController.testCloudinary);
 router.get("/verification-stats", userController.getVerificationStats);
+router.get("/messaging", userController.getAllUsersForMessaging); // MOVED UP
 
-// ================== UNREAD COUNTS ROUTES ==================
-router.get("/:userId/unread-counts", userController.getUserUnreadCounts);
+// ================== UNREAD COUNTS ROUTES (MUST COME BEFORE /:id) ==================
+router.get("/:userId/unread-counts", userController.getUserUnreadCounts); // MOVED UP
 
-// ================== GET ALL USERS (for admin messaging) ==================
-router.get("/messaging", userController.getAllUsersForMessaging);
-
-// ================== USER BY ID ROUTE (COMES AFTER SPECIFIC ROUTES) ==================
+// ================== USER BY ID ROUTE (COMES LAST) ==================
 router.get("/:id", userController.getUserById);
 
 // ================== PROFILE ROUTES ==================
@@ -47,8 +45,6 @@ router.put("/restore/:id", userController.restoreUser);
 router.put("/admin-edit/:id", upload.single("profile"), userController.adminEditUser);
 router.post("/add-user", upload.single("profile"), userController.addUser);
 router.delete("/archived/:id", userController.deleteArchivedUser);
-
-// NEW: Force logout a specific user (admin only)
 router.post("/force-logout/:userId", userController.forceLogoutUser);
 
 // ================== BULK OPERATIONS ROUTES ==================

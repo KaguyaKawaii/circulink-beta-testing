@@ -60,31 +60,73 @@ export const signup = async (req, res) => {
   }
 };
 
-// 📌 Login - UPDATED with session token
+// 📌 Login - UPDATED with better error handling
 export const login = async (req, res) => {
   try {
+    console.log("=== LOGIN ATTEMPT ===");
+    console.log("Request body:", req.body);
+    
     const { id_number, password } = req.body;
     
+    // Validate input
+    if (!id_number || !password) {
+      console.log("❌ Missing credentials:", { id_number: !!id_number, password: !!password });
+      return res.status(400).json({ 
+        success: false, 
+        message: "ID number and password are required" 
+      });
+    }
+
     // Find user by id_number
     const user = await User.findOne({ id_number });
+    console.log("User found:", user ? "Yes" : "No");
+    
     if (!user) {
-      return res.status(401).json({ success: false, message: "Invalid credentials." });
+      console.log("❌ User not found with ID:", id_number);
+      return res.status(401).json({ 
+        success: false, 
+        message: "Invalid credentials." 
+      });
     }
+
+    // Log user details (without password)
+    console.log("User details:", {
+      id: user._id,
+      name: user.name,
+      role: user.role,
+      archived: user.archived,
+      suspended: user.suspended,
+      hasPassword: !!user.password
+    });
 
     // Check if user is archived
     if (user.archived) {
-      return res.status(403).json({ success: false, message: "Account is archived. Please contact administrator." });
+      console.log("❌ User is archived");
+      return res.status(403).json({ 
+        success: false, 
+        message: "Account is archived. Please contact administrator." 
+      });
     }
 
     // Check if user is suspended
     if (user.suspended) {
-      return res.status(403).json({ success: false, message: "Account is suspended. Please contact administrator." });
+      console.log("❌ User is suspended");
+      return res.status(403).json({ 
+        success: false, 
+        message: "Account is suspended. Please contact administrator." 
+      });
     }
 
     // Verify password
+    console.log("Verifying password...");
     const isPasswordValid = await user.comparePassword(password);
+    console.log("Password valid:", isPasswordValid);
+    
     if (!isPasswordValid) {
-      return res.status(401).json({ success: false, message: "Invalid credentials." });
+      return res.status(401).json({ 
+        success: false, 
+        message: "Invalid credentials." 
+      });
     }
 
     // Store the previous session token before generating new one
@@ -98,6 +140,9 @@ export const login = async (req, res) => {
     user.lastLogin = new Date();
     user.isLoggedIn = true;
     await user.save();
+    
+    console.log("✅ Login successful for:", user.name);
+    console.log("Session token generated:", sessionToken.substring(0, 10) + "...");
 
     // Remove sensitive data
     const userData = user.toObject();
@@ -107,24 +152,31 @@ export const login = async (req, res) => {
     // If there's an existing session, notify it to logout (via WebSocket)
     const io = req.io || null;
     if (io && previousSessionToken) {
-      // Find all sockets with this session token and force logout
-      io.to(previousSessionToken).emit('force-logout', {
-        message: 'You have been logged out because another device logged in.',
-        timestamp: new Date().toISOString()
-      });
-      
-      console.log(`✅ Force logout notification sent for previous session of user: ${user._id}`);
+      try {
+        io.to(previousSessionToken).emit('force-logout', {
+          message: 'You have been logged out because another device logged in.',
+          timestamp: new Date().toISOString()
+        });
+        console.log(`✅ Force logout notification sent for previous session`);
+      } catch (socketError) {
+        console.error("Socket notification error:", socketError);
+      }
     }
 
     res.json({ 
       success: true, 
       message: "Login successful.", 
       user: userData,
-      sessionToken: sessionToken // Send session token to client
+      sessionToken: sessionToken
     });
+    
   } catch (err) {
-    console.error("Login Error:", err);
-    res.status(401).json({ success: false, message: err.message || "Invalid credentials." });
+    console.error("❌ Login Error:", err);
+    console.error("Error stack:", err.stack);
+    res.status(500).json({ 
+      success: false, 
+      message: "Server error during login. Please try again." 
+    });
   }
 };
 
