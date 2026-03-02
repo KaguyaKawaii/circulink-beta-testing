@@ -141,10 +141,6 @@ function App() {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  
-  // ✅ NEW: State for force logout modal
-  const [showForceLogoutModal, setShowForceLogoutModal] = useState(false);
-  const [forceLogoutMessage, setForceLogoutMessage] = useState("");
 
   // Maintenance state
   const [maintenanceData, setMaintenanceData] = useState({
@@ -179,86 +175,6 @@ function App() {
       window.removeEventListener('showLogoutModal', handleShowLogoutModal);
     };
   }, []);
-
-  /* ---------- ✅ FORCE LOGOUT HANDLER (from another device) ---------- */
-  const handleForceLogout = (message) => {
-    console.log("🔴 Force logout triggered:", message);
-    
-    // Clear user data
-    AuthService.clearUser();
-    setUser(null);
-    setViewHistory(["home"]);
-    
-    // Show force logout modal
-    setForceLogoutMessage(message || "You have been logged out because another device logged in.");
-    setShowForceLogoutModal(true);
-    
-    // After 5 seconds, redirect to appropriate login page
-    setTimeout(() => {
-      setShowForceLogoutModal(false);
-      if (isAdminDomain) {
-        setView("adminLogin");
-        navigate("/admin/login", { replace: true });
-      } else {
-        setView("login");
-        navigate("/login", { replace: true });
-      }
-    }, 5000);
-  };
-
-  /* ---------- ✅ SETUP SOCKET LISTENER FOR FORCE LOGOUT ---------- */
-  useEffect(() => {
-    if (!socket) return;
-
-    // Listen for force logout events from server
-    socket.on('force-logout', (data) => {
-      console.log("🔴 Received force-logout event:", data);
-      handleForceLogout(data.message);
-    });
-
-    // Cleanup listener on unmount
-    return () => {
-      socket.off('force-logout');
-    };
-  }, []);
-
-  /* ---------- ✅ PERIODIC SESSION VALIDATION ---------- */
-  useEffect(() => {
-    if (!user?._id) return;
-
-    // Get session token from AuthService
-    const sessionToken = AuthService.getSessionToken();
-    if (!sessionToken) return;
-
-    // Validate session every 2 minutes
-    const validateSession = async () => {
-      try {
-        console.log("🔍 Validating session...");
-        const response = await api.post("/users/validate-session", {
-          userId: user._id,
-          sessionToken: sessionToken
-        });
-
-        if (!response.data.valid) {
-          console.log("❌ Session invalid:", response.data.message);
-          handleForceLogout(response.data.message);
-        } else {
-          console.log("✅ Session valid");
-        }
-      } catch (error) {
-        console.error("Session validation error:", error);
-        // Don't force logout on network errors, just log
-      }
-    };
-
-    // Validate immediately on mount
-    validateSession();
-
-    // Set up interval for periodic validation
-    const interval = setInterval(validateSession, 2 * 60 * 1000); // Every 2 minutes
-
-    return () => clearInterval(interval);
-  }, [user]);
 
   /* ---------- DOMAIN-BASED ACCESS CONTROL ---------- */
   useEffect(() => {
@@ -446,8 +362,8 @@ function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, [viewHistory, user, isAdminDomain]);
 
-  /* ---------- FORCE LOGOUT FUNCTION (for maintenance) ---------- */
-  const handleMaintenanceForceLogout = () => {
+  /* ---------- FORCE LOGOUT FUNCTION ---------- */
+  const handleForceLogout = () => {
     const userRole = user?.role;
     const userEmail = user?.email;
     
@@ -479,7 +395,7 @@ function App() {
     
     if (maintenanceSettings.maintenanceMode && user && !canAccess) {
       console.log("Maintenance mode: Force logging out user", user.role, user.email);
-      handleMaintenanceForceLogout();
+      handleForceLogout();
       return;
     }
     
@@ -509,7 +425,7 @@ function App() {
         
         if (user && !canStayLoggedIn) {
           console.log("Maintenance mode activated - force logging out user", user.role);
-          handleMaintenanceForceLogout();
+          handleForceLogout();
         } else {
           handleMaintenanceRedirect(data);
         }
@@ -550,7 +466,7 @@ function App() {
       if (user) {
         if (!canStayLoggedIn) {
           console.log("Force logging out non-admin user during maintenance:", user.role);
-          handleMaintenanceForceLogout();
+          handleForceLogout();
         }
       } else {
         // For non-logged in users, only allow appropriate views
@@ -631,13 +547,6 @@ function App() {
   };
 
   const handleLogout = () => {
-    // Call logout API to clear session token on server
-    const sessionToken = AuthService.getSessionToken();
-    if (user?._id && sessionToken) {
-      api.post(`/users/logout/${user._id}`, { sessionToken })
-        .catch(err => console.error("Logout API error:", err));
-    }
-    
     AuthService.clearUser();
     setUser(null);
     setShowLogoutModal(false);
@@ -773,31 +682,6 @@ function App() {
         {view === "analyticsReservations" && renderAdminNavigation(<AnalyticsReservations setView={setView} admin={user} />)}
         {view === "analyticsRooms" && renderAdminNavigation(<AnalyticsRooms setView={setView} admin={user} />)}
         {view === "analyticsEngagement" && renderAdminNavigation(<AnalyticsEngagement setView={setView} admin={user} />)}
-
-        {/* ✅ Force Logout Modal (shows when logged out from another device) */}
-        {showForceLogoutModal && (
-          <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-            <div className="w-[400px] rounded-xl bg-white shadow-2xl px-6 py-8 relative">
-              <div className="flex flex-col items-center text-center mb-6">
-                <div className="mb-3 flex items-center justify-center w-16 h-16 rounded-full bg-yellow-100">
-                  <LogOut size={32} className="text-yellow-600" />
-                </div>
-                <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                  Session Ended
-                </h2>
-                <p className="text-sm text-gray-600">
-                  {forceLogoutMessage}
-                </p>
-                <p className="text-xs text-gray-500 mt-3">
-                  Redirecting to login in 5 seconds...
-                </p>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-1.5">
-                <div className="h-full bg-yellow-500 rounded-full animate-[shrink_5s_linear]"></div>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Logout Modal */}
         {showLogoutModal && (
@@ -943,31 +827,6 @@ function App() {
       {view === "staffNotification" && renderStaffNavigation(<StaffNotification setView={setView} staff={user} />)}
       {view === "staffProfile" && renderStaffNavigation(<StaffProfile setView={setView} staff={user} />)}
       {view === "staffReports" && renderStaffNavigation(<StaffReports setView={setView} staff={user} />)}
-
-      {/* ✅ Force Logout Modal (shows when logged out from another device) */}
-      {showForceLogoutModal && (
-        <div className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="w-[400px] rounded-xl bg-white shadow-2xl px-6 py-8 relative">
-            <div className="flex flex-col items-center text-center mb-6">
-              <div className="mb-3 flex items-center justify-center w-16 h-16 rounded-full bg-yellow-100">
-                <LogOut size={32} className="text-yellow-600" />
-              </div>
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                Session Ended
-              </h2>
-              <p className="text-sm text-gray-600">
-                {forceLogoutMessage}
-              </p>
-              <p className="text-xs text-gray-500 mt-3">
-                Redirecting to login in 5 seconds...
-              </p>
-            </div>
-            <div className="w-full bg-gray-200 rounded-full h-1.5">
-              <div className="h-full bg-yellow-500 rounded-full animate-[shrink_5s_linear]"></div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Logout Modal */}
       {showLogoutModal && (

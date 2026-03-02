@@ -3,7 +3,6 @@ import socket from "../utils/socket";
 import api from "../utils/api";
 import Logo from "../assets/logo3.png";
 import AnnouncementModal from "./Modals/AnnouncementModal";
-import AuthService from "../services/authService"; // ✅ ADD THIS IMPORT
 import {
   LayoutDashboard,
   History,
@@ -75,44 +74,6 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
       setShowSuspensionModal(true);
     }
   }, [initialUser]);
-
-  // ✅ FORCE LOGOUT HANDLER
-  const handleForceLogout = (message) => {
-    console.log("🔴 Force logout triggered in Navigation:", message);
-    
-    // Clear user data
-    AuthService.clearUser();
-    
-    // Show alert or custom modal
-    alert(message || "You have been logged out from another device.");
-    
-    // Force redirect to login
-    window.location.href = "/login";
-  };
-
-  // ✅ SETUP FORCE LOGOUT LISTENER
-  useEffect(() => {
-    if (!socket) return;
-
-    // Listen for force logout events from server
-    socket.on('force-logout', (data) => {
-      console.log("🔴 Received force-logout event in Navigation:", data);
-      handleForceLogout(data.message);
-    });
-
-    // Listen for custom event from App.jsx
-    const handleForceLogoutEvent = (event) => {
-      console.log("🔴 Force logout event received in Navigation:", event.detail);
-      handleForceLogout(event.detail.message);
-    };
-
-    window.addEventListener('force-logout', handleForceLogoutEvent);
-
-    return () => {
-      socket.off('force-logout');
-      window.removeEventListener('force-logout', handleForceLogoutEvent);
-    };
-  }, []);
 
   // Play sound function with better error handling
   const playNotificationSound = () => {
@@ -517,7 +478,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     } 
     
     setShowHelp(false);
-    setIsMobileMenuOpen(false);
+    setIsMobileMenu(false);
   };
 
   const isActive = (btnId) => {
@@ -590,7 +551,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
       <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#171717] z-50 flex items-center justify-between px-4 border-b border-gray-700">
         <div className="flex items-center space-x-3">
           <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            onClick={() => setIsMobileMenu(!isMobileMenuOpen)}
             className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
             aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
             disabled={user?.suspended}
@@ -634,7 +595,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         {isMobileMenuOpen && (
           <div 
             className="lg:hidden fixed inset-0 bg-black/50 z-40"
-            onClick={() => setIsMobileMenuOpen(false)}
+            onClick={() => setIsMobileMenu(false)}
           />
         )}
 
@@ -659,7 +620,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               </div>
             </div>
             <button
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => setIsMobileMenu(false)}
               className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
               aria-label="Close menu"
             >
@@ -802,7 +763,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                               onClick={() => {
                                 setView("help");
                                 setShowHelp(false);
-                                setIsMobileMenuOpen(false);
+                                setIsMobileMenu(false);
                               }}
                               className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
                               aria-label="Go to help center"
@@ -819,7 +780,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                               onClick={() => {
                                 setView("guidelines");
                                 setShowHelp(false);
-                                setIsMobileMenuOpen(false);
+                                setIsMobileMenu(false);
                               }}
                               className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
                               aria-label="View guidelines"

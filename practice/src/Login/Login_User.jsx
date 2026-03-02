@@ -5,7 +5,6 @@ import Logo2 from "../assets/logo2.png";
 import Logo3 from "../assets/logo3.png";
 import "../index.css";
 import api from "../utils/api";
-import AuthService from "../services/authService"; // ✅ ADD THIS IMPORT
 
 // Constants
 const VALIDATION = {
@@ -75,6 +74,16 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
     };
   }, [error]);
 
+  // Better session storage
+  const storeUserSession = (userData) => {
+    const sessionData = {
+      user: userData,
+      timestamp: Date.now(),
+      expiresIn: 24 * 60 * 60 * 1000 // 24 hours
+    };
+    localStorage.setItem("userSession", JSON.stringify(sessionData));
+  };
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setError("");
@@ -106,13 +115,6 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
       
       if (response.data.success) {
         const userData = response.data.user;
-        const sessionToken = response.data.sessionToken; // ✅ Get session token from response
-        
-        // ✅ Add session token to user data
-        const userWithToken = {
-          ...userData,
-          sessionToken: sessionToken
-        };
         
         if (userData?.role?.toLowerCase() === ROLES.ADMIN) {
           throw new Error("Admin accounts must log in through the admin portal.");
@@ -128,11 +130,11 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
         
         setTimeout(() => {
           setLoading(false);
-          setAuthedUser(userWithToken); // ✅ Store user with token
-          setSuccessModal(true);
-          setLoginAttempts(0);
+          setAuthedUser(userData);
+          setSuccessModal(true); // This should show the modal
+          setLoginAttempts(0); // Reset attempts on successful login
           
-          console.log("✅ Login successful, modal should be visible");
+          console.log("✅ Login successful, modal should be visible"); // Debug log
         }, delay);
       } else {
         throw new Error(response.data.message || "Login failed");
@@ -148,12 +150,10 @@ function Login_User({ onSwitchToSignUp, onLoginSuccess, setView }) {
   };
 
   const closeSuccess = () => {
-    console.log("🔗 Closing modal and redirecting to dashboard");
+    console.log("🔗 Closing modal and redirecting to dashboard"); // Debug log
     setSuccessModal(false);
     if (authedUser) {
-      // ✅ Use AuthService to store user with session token
-      AuthService.handleUserLogin(authedUser);
-      
+      storeUserSession(authedUser);
       // Call the success callback to handle redirection
       if (onLoginSuccess) {
         onLoginSuccess(authedUser);
