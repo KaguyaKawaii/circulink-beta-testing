@@ -19,12 +19,14 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [error, setError] = useState(null);
   const [userNames, setUserNames] = useState({}); // Cache for user names
+  const [isTyping, setIsTyping] = useState(false); // For future typing indicator
 
   const listRef = useRef(null);
   const messagesEndRef = useRef(null);
   const searchRef = useRef(null);
   const chatContainerRef = useRef(null);
   const inputRef = useRef(null); // For focusing input
+  const messageInputRef = useRef(null);
 
   // Smooth scroll to bottom function
   const scrollToBottom = () => {
@@ -99,6 +101,9 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
           console.log("✅ Adding new message to admin conversation:", msg);
           return [...prev, msg];
         });
+        
+        // Mark as read when receiving message in current conversation
+        markAsRead(selectedId);
       }
 
       // Always update recipients when a new message arrives that involves admin
@@ -149,6 +154,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     if (selectedId) {
       socket.emit("join", { userId: selectedId });
       fetchMessagesWithoutLoading();
+      markAsRead(selectedId);
     }
   }, [selectedId]);
 
@@ -159,10 +165,28 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
 
   // Focus input when recipient changes
   useEffect(() => {
-    if (selectedId && inputRef.current) {
-      inputRef.current.focus();
+    if (selectedId && messageInputRef.current) {
+      messageInputRef.current.focus();
     }
   }, [selectedId]);
+
+  // Mark messages as read
+  const markAsRead = async (userId) => {
+    if (!userId) return;
+    try {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/mark-read`, {
+        userId: "admin",
+        otherUserId: userId
+      });
+      // Update local unread counts
+      setRecipients(prev => prev.map(r => 
+        r._id === userId ? { ...r, unreadCount: 0 } : r
+      ));
+      refreshDashboardUnreadCounts();
+    } catch (error) {
+      console.error("Failed to mark messages as read:", error);
+    }
+  };
 
   // Enhanced recipient filtering to ensure privacy
   const isAdminConversation = (recipient) => {
@@ -364,7 +388,8 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
         department: user.department,
         latestMessage: "New conversation",
         timestamp: new Date().toISOString(),
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        unreadCount: 0
       };
       
       const updatedRecipients = [newRecipient, ...recipients];
@@ -389,7 +414,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     const updatedRecipients = recipients.map(r => {
       if (!r) return r;
       return r._id === recipient._id 
-        ? { ...r, timestamp: new Date().toISOString() }
+        ? { ...r, timestamp: new Date().toISOString(), unreadCount: 0 }
         : r;
     }).filter(r => r !== undefined);
     
@@ -409,6 +434,9 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     setSelectedType(getRecipientType(recipient));
     setShowSearchDropdown(false);
     setError(null);
+    
+    // Mark messages as read when opening conversation
+    markAsRead(recipient._id);
   };
 
   const handleKeyPress = (e) => {
@@ -457,7 +485,8 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
               ...recipient, 
               timestamp: new Date().toISOString(),
               latestMessage: newMessage,
-              latestMessageTimestamp: new Date().toISOString()
+              latestMessageTimestamp: new Date().toISOString(),
+              unreadCount: 0
             }
           : recipient;
       }).filter(r => r !== undefined);
@@ -469,7 +498,8 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
           type: selectedType,
           latestMessage: newMessage,
           timestamp: new Date().toISOString(),
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          unreadCount: 0
         };
         updatedRecipients.unshift(newRecipient);
       }
@@ -509,17 +539,35 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     if (!iso) return "";
     try {
       const d = new Date(iso);
-      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const now = new Date();
+      const isToday = d.toDateString() === now.toDateString();
+      
+      if (isToday) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } else {
+        return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      }
     } catch (error) {
       return "";
     }
   };
 
-  // Format date
-  const formatDate = (iso) => {
+  // Format date for message groups
+  const formatMessageDate = (iso) => {
     if (!iso) return "";
     try {
-      return new Date(iso).toLocaleDateString();
+      const d = new Date(iso);
+      const now = new Date();
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      if (d.toDateString() === now.toDateString()) {
+        return "Today";
+      } else if (d.toDateString() === yesterday.toDateString()) {
+        return "Yesterday";
+      } else {
+        return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+      }
     } catch (error) {
       return "";
     }
@@ -533,7 +581,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
         return;
       }
       
-      const date = formatDate(msg.createdAt);
+      const date = formatMessageDate(msg.createdAt);
       if (!groups[date]) groups[date] = [];
       
       const messageExists = groups[date].some(m => m._id === msg._id);
@@ -546,9 +594,10 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
 
   const messageGroups = groupMessagesByDate();
 
-  const getAvatar = (name, type = "user") => {
+  const getAvatar = (name, type = "user", size = "md") => {
+    const sizeClasses = size === "sm" ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm";
     return (
-      <div className="w-10 h-10 bg-gradient-to-r from-[#CC0000] to-red-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0">
+      <div className={`${sizeClasses} bg-gradient-to-r from-[#CC0000] to-red-600 rounded-full flex items-center justify-center text-white font-bold shadow-md flex-shrink-0`}>
         {name ? name.charAt(0).toUpperCase() : "U"}
       </div>
     );
@@ -571,11 +620,11 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     <>
       <AdminNavigation setView={setView} currentView="adminMessage" onLogout={onLogout} />
       
-      <div className="ml-[250px] h-screen flex flex-col bg-gray-50">
-        {/* HEADER - kept exactly as original */}
-        <header className="bg-white px-6 py-4 border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-[#CC0000]">Admin Message Center</h1>
-          <p className="text-gray-600">Communicate with users and staff</p>
+      <div className="ml-[250px] h-screen flex flex-col bg-gray-100">
+        {/* HEADER - kept exactly as original size and color */}
+        <header className="bg-white px-6 py-4 border-b border-gray-200 shadow-sm">
+          <h1 className="text-2xl font-bold text-[#CC0000]">Messages</h1>
+          <p className="text-gray-600 text-sm">Chat with users and staff</p>
           {error && (
             <div className="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
               {error}
@@ -584,19 +633,15 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Conversations Sidebar - improved visual spacing */}
-          <div className="w-80 bg-white border-r border-gray-200 shadow-sm flex flex-col">
-            <div className="p-4 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-700">Conversations</h2>
-              </div>
-              
-              {/* Search Bar - refined */}
-              <div className="relative mb-2" ref={searchRef}>
+          {/* Conversations Sidebar - Messenger style */}
+          <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+            {/* Search - Messenger style */}
+            <div className="p-3 border-b border-gray-200" ref={searchRef}>
+              <div className="relative">
                 <input
                   type="text"
-                  placeholder="Search users or staff..."
-                  className="w-full bg-gray-100 border border-gray-200 rounded-lg pl-9 pr-3 py-2.5 text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:border-transparent text-sm transition-shadow"
+                  placeholder="Search Messenger"
+                  className="w-full bg-gray-100 rounded-full pl-10 pr-4 py-2 text-sm text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:bg-white transition-all"
                   value={searchTerm}
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
@@ -610,34 +655,32 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                   </svg>
                 </div>
 
-                {/* Search Dropdown - smoother */}
+                {/* Search Dropdown */}
                 {showSearchDropdown && searchTerm && (
                   <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-xl z-10 mt-1 max-h-60 overflow-y-auto animate-fadeIn">
                     {searchLoading ? (
                       <div className="p-4 text-center text-gray-500">
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#CC0000] mx-auto"></div>
-                        <span className="text-sm block mt-2">Searching...</span>
                       </div>
                     ) : filteredSearchResults.length > 0 ? (
                       filteredSearchResults.map((user) => (
                         <button
                           key={user._id}
                           onClick={() => handleSearchSelect(user)}
-                          className="w-full flex items-center p-3 hover:bg-gray-50 transition-colors border-b border-gray-100 last:border-b-0"
+                          className="w-full flex items-center p-3 hover:bg-gray-50 transition-colors"
                         >
-                          {getAvatar(user.name, user.role === "staff" ? "staff" : "user")}
+                          {getAvatar(user.name, user.role === "staff" ? "staff" : "user", "sm")}
                           <div className="ml-3 text-left">
                             <div className="font-medium text-gray-900 text-sm">{user.name}</div>
                             <div className="text-xs text-gray-500">
                               {user.role === "staff" ? "Staff" : "User"}
-                              {user.department && ` • ${user.department}`}
                             </div>
                           </div>
                         </button>
                       ))
                     ) : (
                       <div className="p-4 text-center text-gray-500 text-sm">
-                        No users found for "{searchTerm}"
+                        No users found
                       </div>
                     )}
                   </div>
@@ -645,24 +688,25 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+            {/* Conversations List - Messenger style */}
+            <div className="flex-1 overflow-y-auto">
               {recipients.filter(r => r !== undefined).length === 0 ? (
                 <div className="text-center p-8 text-gray-500">
                   <svg className="w-16 h-16 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                   <p className="font-medium">No conversations yet</p>
-                  <p className="text-xs mt-2">{searchTerm ? "Try different search terms" : "Search for a user above"}</p>
+                  <p className="text-xs mt-2">Search for someone to start chatting</p>
                 </div>
               ) : (
                 recipients.filter(r => r !== undefined).map((recipient) => (
                   <button
                     key={recipient._id}
                     onClick={() => handleSelectRecipient(recipient)}
-                    className={`w-full text-left p-3 rounded-lg transition-all duration-200 cursor-pointer ${
+                    className={`w-full text-left p-3 transition-all duration-200 cursor-pointer hover:bg-gray-50 ${
                       selectedId === recipient._id 
-                        ? 'bg-gradient-to-r from-red-50 to-yellow-50 border-2 border-red-200 shadow-md' 
-                        : 'bg-white hover:bg-gray-50 border border-gray-200 hover:border-gray-300 hover:shadow'
+                        ? 'bg-[#CC0000]/5 border-l-4 border-[#CC0000]' 
+                        : 'border-l-4 border-transparent'
                     }`}
                   >
                     <div className="flex items-center space-x-3">
@@ -672,17 +716,19 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                           <span className="font-semibold text-gray-800 text-sm truncate">
                             {recipient.name}
                           </span>
+                          <span className="text-xs text-gray-400 ml-2">
+                            {recipient.timestamp ? formatTime(recipient.timestamp) : ''}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between mt-0.5">
+                          <div className="text-xs text-gray-600 truncate max-w-[180px]">
+                            {recipient.latestMessage || "No messages yet"}
+                          </div>
                           {recipient.unreadCount > 0 && (
-                            <span className="bg-[#CC0000] text-white text-xs px-2 py-0.5 rounded-full ml-2 animate-pulse">
+                            <span className="bg-[#CC0000] text-white text-xs px-2 py-0.5 rounded-full ml-2">
                               {recipient.unreadCount}
                             </span>
                           )}
-                        </div>
-                        <div className="text-xs text-gray-600 truncate mt-0.5">
-                          {recipient.latestMessage || "No messages yet"}
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          {recipient.timestamp ? formatTime(recipient.timestamp) : ''}
                         </div>
                       </div>
                     </div>
@@ -692,78 +738,86 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
             </div>
           </div>
 
-          {/* Chat Area - refined spacing and shadows */}
-          <div className="flex-1 flex flex-col bg-gray-50">
+          {/* Chat Area - Messenger style */}
+          <div className="flex-1 flex flex-col bg-gray-100">
             {selectedId ? (
               <>
-                <div className="bg-white px-6 py-4 border-b border-gray-200 shadow-sm">
-                  <div className="flex items-center space-x-4">
+                {/* Chat Header - Messenger style */}
+                <div className="bg-white px-4 py-3 border-b border-gray-200 shadow-sm flex items-center">
+                  <div className="flex items-center space-x-3">
                     {getAvatar(selectedName, selectedType)}
                     <div>
-                      <h3 className="font-bold text-lg text-gray-800">{selectedName}</h3>
-                      <p className="text-sm text-gray-500">
-                        {selectedType === "staff" ? "Staff Member" : "User"}
+                      <h3 className="font-semibold text-gray-800">{selectedName}</h3>
+                      <p className="text-xs text-gray-500">
+                        {selectedType === "staff" ? "Staff" : "User"} • Active now
                       </p>
                     </div>
                   </div>
                 </div>
                 
+                {/* Messages Container - Messenger style */}
                 <div 
                   ref={chatContainerRef}
-                  className="flex-1 overflow-y-auto bg-gradient-to-b from-red-50/30 to-yellow-50/20 px-4 py-6"
+                  className="flex-1 overflow-y-auto px-4 py-6"
                 >
                   {messages.length === 0 ? (
                     <div className="flex justify-center items-center h-full">
-                      <div className="text-center text-gray-500 max-w-sm">
-                        <svg className="w-20 h-20 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                        </svg>
-                        <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
-                        <p className="text-gray-600 text-sm">Send a message to {selectedName}</p>
+                      <div className="text-center text-gray-500">
+                        <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                        </div>
+                        <p className="text-sm">No messages yet</p>
+                        <p className="text-xs text-gray-400 mt-1">Say hello to {selectedName}</p>
                       </div>
                     </div>
                   ) : (
-                    <div className="max-w-4xl mx-auto space-y-6">
+                    <div className="space-y-4">
                       {Object.entries(messageGroups).map(([date, dateMessages]) => (
                         <div key={date}>
                           <div className="flex justify-center mb-4">
-                            <div className="bg-gray-200/80 text-gray-600 px-4 py-1 rounded-full text-xs font-medium shadow-sm">
+                            <span className="text-xs bg-gray-200/80 text-gray-600 px-3 py-1 rounded-full">
                               {date}
-                            </div>
+                            </span>
                           </div>
-                          <div className="space-y-3">
-                            {dateMessages.map(msg => (
-                              <div key={msg._id || msg.localId} className={`flex ${msg.sender === "admin" ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[70%] rounded-2xl p-3 shadow-sm transition-all ${
-                                  msg.sender === "admin" 
-                                    ? 'bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-br-none' 
-                                    : 'bg-white border border-gray-200 rounded-bl-none'
-                                }`}>
-                                  <div className="flex items-center justify-between mb-1 px-1">
-                                    <span className="text-xs font-semibold opacity-90">
-                                      {msg.sender === "admin" ? "Admin" : msg.senderName?.split(' ')[0]}
-                                    </span>
-                                    {msg.status === "sending" && (
-                                      <span className="text-xs opacity-80 flex items-center ml-2">
-                                        <span className="w-1.5 h-1.5 bg-white rounded-full mr-1 animate-pulse"></span>
-                                        Sending
-                                      </span>
-                                    )}
-                                    {msg.status === "failed" && (
-                                      <span className="text-xs text-red-200 ml-2">Failed</span>
-                                    )}
-                                  </div>
-                                  <div className="text-sm leading-relaxed whitespace-pre-wrap break-words px-1">
-                                    {msg.content}
-                                  </div>
-                                  <div className={`text-xs mt-1 text-right px-1 ${
-                                    msg.sender === "admin" ? 'text-red-100' : 'text-gray-400'
-                                  }`}>
-                                    {formatTime(msg.createdAt)}
+                          <div className="space-y-2">
+                            {dateMessages.map((msg, idx) => {
+                              const isAdmin = msg.sender === "admin";
+                              const showAvatar = !isAdmin && (
+                                idx === 0 || 
+                                dateMessages[idx - 1]?.sender !== msg.sender
+                              );
+                              
+                              return (
+                                <div key={msg._id || msg.localId} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
+                                  <div className={`flex items-end space-x-2 max-w-[65%] ${isAdmin ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                                    {!isAdmin && showAvatar ? (
+                                      getAvatar(selectedName, selectedType, "sm")
+                                    ) : !isAdmin ? (
+                                      <div className="w-8"></div>
+                                    ) : null}
+                                    
+                                    <div className="flex flex-col">
+                                      <div className={`px-3 py-2 rounded-2xl ${
+                                        isAdmin 
+                                          ? 'bg-[#CC0000] text-white rounded-br-none' 
+                                          : 'bg-white border border-gray-200 rounded-bl-none shadow-sm'
+                                      }`}>
+                                        <div className="text-sm whitespace-pre-wrap break-words">
+                                          {msg.content}
+                                        </div>
+                                      </div>
+                                      <div className={`text-[10px] text-gray-400 mt-1 ${isAdmin ? 'text-right' : 'text-left'}`}>
+                                        {formatTime(msg.createdAt)}
+                                        {msg.status === "sending" && " • Sending"}
+                                        {msg.status === "failed" && " • Failed"}
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       ))}
@@ -772,51 +826,46 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                   )}
                 </div>
 
-                <div className="bg-white px-4 py-4 border-t border-gray-200 shadow-inner">
-                  <div className="max-w-4xl mx-auto">
-                    <div className="flex items-end space-x-2">
-                      <div className="flex-1 relative">
-                        <textarea
-                          ref={inputRef}
-                          placeholder={`Message ${selectedName}...`}
-                          className="w-full bg-gray-50 border border-gray-300 rounded-2xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:border-transparent text-sm shadow-sm resize-none transition-all"
-                          value={newMessage}
-                          onChange={(e) => setNewMessage(e.target.value)}
-                          onKeyDown={handleKeyPress}
-                          rows={1}
-                          style={{ minHeight: '48px', maxHeight: '120px' }}
-                        />
-                        <div className="absolute right-3 bottom-3 text-gray-400 text-xs">
-                          {newMessage.length > 0 && '↵ Enter'}
-                        </div>
-                      </div>
-                      <button
-                        onClick={handleSendMessage}
-                        disabled={!newMessage.trim()}
-                        className="bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-full w-12 h-12 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#CC0000] cursor-pointer flex-shrink-0"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                        </svg>
-                      </button>
+                {/* Message Input - Messenger style */}
+                <div className="bg-white px-4 py-3 border-t border-gray-200">
+                  <div className="flex items-end space-x-2">
+                    <div className="flex-1 bg-gray-100 rounded-3xl px-4 py-2">
+                      <textarea
+                        ref={messageInputRef}
+                        placeholder={`Message ${selectedName}`}
+                        className="w-full bg-transparent border-0 focus:ring-0 text-sm resize-none outline-none max-h-32"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyDown={handleKeyPress}
+                        rows={1}
+                        style={{ minHeight: '20px' }}
+                      />
                     </div>
-                    <div className="text-xs text-gray-400 mt-2 text-center">
-                      Sending as <span className="font-semibold text-[#CC0000]">Administration</span>
-                    </div>
+                    <button
+                      onClick={handleSendMessage}
+                      disabled={!newMessage.trim()}
+                      className="bg-[#CC0000] text-white rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-[#CC0000]/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#CC0000] cursor-pointer flex-shrink-0"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-red-50/50 to-yellow-50/50">
-                <div className="text-center text-gray-500 max-w-md px-6">
-                  <svg className="w-28 h-28 mx-auto text-gray-300 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                  <h3 className="text-2xl font-semibold mb-3 text-gray-700">Select a Conversation</h3>
-                  <p className="text-gray-600">
-                    Choose a user or staff member from the list to start messaging.
+              /* Empty State - Messenger style */
+              <div className="flex-1 flex items-center justify-center bg-gray-100">
+                <div className="text-center text-gray-500">
+                  <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2 text-gray-700">Your Messages</h3>
+                  <p className="text-gray-500 max-w-sm">
+                    Select a conversation from the sidebar or search for someone to start chatting
                   </p>
-                  <p className="text-sm text-gray-400 mt-4">(Only admin-related conversations are shown)</p>
                 </div>
               </div>
             )}
@@ -824,7 +873,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
         </div>
       </div>
 
-      {/* Add a subtle fade-in animation for dropdown */}
+      {/* Animation styles */}
       <style jsx>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(-5px); }
