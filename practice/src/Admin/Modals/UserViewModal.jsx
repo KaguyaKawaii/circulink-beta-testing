@@ -3,7 +3,7 @@ import axios from "axios";
 import { io } from "socket.io-client";
 import { 
   X, User, Mail, IdCard, Shield, Building, GraduationCap, 
-  Layers, Calendar, Clock 
+  Layers, Calendar, Clock, Users
 } from "lucide-react";
 
 export default function UserViewModal({ user, onClose, onToggleVerified, onUserUpdated }) {
@@ -83,11 +83,54 @@ export default function UserViewModal({ user, onClose, onToggleVerified, onUserU
     }
   };
 
+  // Helper function to render additional participants
+  const renderAdditionalParticipants = () => {
+    if (!user.additionalParticipants || user.additionalParticipants.length === 0) {
+      return (
+        <div className="col-span-2 bg-gray-50 rounded-lg p-4 text-center">
+          <p className="text-gray-500 text-sm">No additional participants</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="col-span-2 bg-gray-50 rounded-lg p-4">
+        <div className="space-y-3">
+          {user.additionalParticipants.map((participant, index) => (
+            <div 
+              key={index} 
+              className="grid grid-cols-3 gap-4 pb-3 border-b border-gray-200 last:border-0 last:pb-0"
+            >
+              <DetailItem 
+                icon={<User size={16} />} 
+                label="Name" 
+                value={participant.name || "—"} 
+                className="col-span-1"
+              />
+              <DetailItem 
+                icon={<IdCard size={16} />} 
+                label="ID Number" 
+                value={participant.id_number || "—"} 
+                className="col-span-1"
+              />
+              <DetailItem 
+                icon={<Mail size={16} />} 
+                label="Email" 
+                value={participant.email || "—"} 
+                className="col-span-1"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white w-full max-w-4xl rounded-xl shadow-lg overflow-hidden">
+      <div className="bg-white w-full max-w-4xl rounded-xl shadow-lg overflow-hidden max-h-[90vh] overflow-y-auto">
         {/* Modal Header */}
-        <header className="flex justify-between items-center bg-gray-50 border-b border-gray-200 px-6 py-4">
+        <header className="flex justify-between items-center bg-gray-50 border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
           <h2 className="text-xl font-semibold text-gray-800">User Profile</h2>
           <button 
             onClick={onClose}
@@ -221,13 +264,23 @@ export default function UserViewModal({ user, onClose, onToggleVerified, onUserU
                     <DetailItem icon={<Clock size={16} />} label="Last Updated" value={formatDate(user.updatedAt || user.updated_at)} />
                   </div>
                 </div>
+
+                {/* Additional Participants Section */}
+                {user.additionalParticipants && user.additionalParticipants.length > 0 && (
+                  <div className="md:col-span-2 space-y-4 pt-2">
+                    <h3 className="text-base font-medium text-gray-700 flex items-center gap-2">
+                      <Users size={18} className="text-gray-500" /> Additional Participants ({user.additionalParticipants.length})
+                    </h3>
+                    {renderAdditionalParticipants()}
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
 
         {/* Modal Footer */}
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end sticky bottom-0">
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
@@ -241,15 +294,15 @@ export default function UserViewModal({ user, onClose, onToggleVerified, onUserU
 }
 
 // Reusable detail component
-function DetailItem({ icon, label, value }) {
+function DetailItem({ icon, label, value, className = "" }) {
   return (
-    <div className="flex items-start gap-3">
-      <div className="p-1.5 bg-gray-100 rounded-full text-gray-600">
+    <div className={`flex items-start gap-3 ${className}`}>
+      <div className="p-1.5 bg-gray-100 rounded-full text-gray-600 flex-shrink-0">
         {icon}
       </div>
-      <div>
+      <div className="min-w-0 flex-1">
         <p className="text-xs font-normal text-gray-500">{label}</p>
-        <p className="text-gray-700 font-medium text-sm">{value || "—"}</p>
+        <p className="text-gray-700 font-medium text-sm truncate" title={value}>{value || "—"}</p>
       </div>
     </div>
   );
