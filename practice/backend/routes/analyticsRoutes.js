@@ -1,30 +1,40 @@
+// analyticsRoutes.js
 import express from "express";
-import * as analyticsController from "../controllers/analyticsController.js";
+import {
+  getUserAnalytics,
+  getAnalyticsOverview,
+  getReservationAnalytics,
+  getDetailedReservationAnalytics,
+  getRoomAnalytics,
+  getDetailedRoomAnalytics,
+  getEngagementMetrics,
+  exportAnalytics
+} from "../controllers/analyticsController.js";
 
 const router = express.Router();
 
 // User analytics
-router.get("/users", analyticsController.getUserAnalytics);
+router.get("/users", getUserAnalytics);
 
 // Overview analytics
-router.get("/overview", analyticsController.getAnalyticsOverview);
+router.get("/overview", getAnalyticsOverview);
 
 // Reservation analytics - SIMPLE version
-router.get("/reservations", analyticsController.getReservationAnalytics);
+router.get("/reservations", getReservationAnalytics);
 
 // Detailed reservation analytics with trends and growth data
-router.get("/reservations/detailed", analyticsController.getDetailedReservationAnalytics);
+router.get("/reservations/detailed", getDetailedReservationAnalytics);
 
 // Room analytics - SIMPLE version
-router.get("/rooms", analyticsController.getRoomAnalytics);
+router.get("/rooms", getRoomAnalytics);
 
 // Detailed room analytics with trends and growth data
-router.get("/rooms/detailed", analyticsController.getDetailedRoomAnalytics);
+router.get("/rooms/detailed", getDetailedRoomAnalytics);
 
 // Engagement metrics
-router.get("/engagement", analyticsController.getEngagementMetrics);
+router.get("/engagement", getEngagementMetrics);
 
 // Export analytics
-router.get("/export", analyticsController.exportAnalytics);
+router.get("/export", exportAnalytics);
 
 export default router;
