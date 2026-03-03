@@ -199,8 +199,11 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentAdmin }) => {
       
       const res = await axios.get(url);
       
-      setSearchResults(res.data || []);
-      console.log("Search results:", res.data);
+      // Handle both array response and object response with users property
+      const results = Array.isArray(res.data) ? res.data : (res.data.users || []);
+      
+      setSearchResults(results);
+      console.log("Search results:", results);
     } catch (err) {
       console.error("User search error:", err);
       setSearchResults([]);
@@ -213,6 +216,13 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentAdmin }) => {
   const validateParticipant = async (idx, idNumber) => {
     const updated = [...formData.participants];
     const v = [...validation];
+
+    // Check if ID number is valid (at least some length)
+    if (!idNumber || idNumber.trim().length < 3) {
+      v[idx] = { status: "warning", message: "ID number too short", loading: false };
+      setValidation(v);
+      return false;
+    }
 
     // Check for duplicate ID numbers
     const isDuplicate = formData.participants.some(
@@ -230,15 +240,19 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentAdmin }) => {
 
     try {
       const baseURL = import.meta.env.VITE_API_URL;
+      console.log(`Checking participant with ID: ${idNumber}`);
+      
       const res = await axios.get(
         `${baseURL}/api/users/check-participant?id_number=${idNumber}`
       );
+
+      console.log("Participant check response:", res.data);
 
       if (res.data.exists) {
         // Admin can add even unverified users, but we'll show a warning
         if (res.data.verified) {
           updated[idx] = {
-            name: res.data.name,
+            name: res.data.name || "",
             course: res.data.course || "",
             year_level: res.data.year_level || "",
             department: res.data.department || "",
@@ -248,7 +262,7 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentAdmin }) => {
           v[idx] = { status: "valid", message: "Verified ✓", loading: false };
         } else {
           updated[idx] = {
-            name: res.data.name,
+            name: res.data.name || "",
             course: res.data.course || "",
             year_level: res.data.year_level || "",
             department: res.data.department || "",
@@ -271,7 +285,14 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentAdmin }) => {
       }
     } catch (err) {
       console.error("Validation error", err);
-      v[idx] = { status: "warning", message: "Error validating (Admin can add manually)", loading: false };
+      
+      // Handle 404 errors specifically
+      if (err.response?.status === 404) {
+        v[idx] = { status: "warning", message: "User not found (Admin can add manually)", loading: false };
+      } else {
+        v[idx] = { status: "warning", message: "Error validating (Admin can add manually)", loading: false };
+      }
+      
       setValidation(v);
       return false;
     }
@@ -427,73 +448,71 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentAdmin }) => {
     return true;
   };
 
-// In AdminCreateReservationModal.jsx, update the handleSubmit function:
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
 
-const handleSubmit = async () => {
-  if (!validateForm()) return;
+    setLoading(true);
+    setError("");
 
-  setLoading(true);
-  setError("");
+    try {
+      const manilaTime = moment.tz(
+        `${formData.date}T${formData.time}`,
+        "YYYY-MM-DDTHH:mm",
+        "Asia/Manila"
+      );
 
-  try {
-    const manilaTime = moment.tz(
-      `${formData.date}T${formData.time}`,
-      "YYYY-MM-DDTHH:mm",
-      "Asia/Manila"
-    );
+      const endManilaTime = manilaTime.clone().add(2, 'hours');
 
-    const endManilaTime = manilaTime.clone().add(2, 'hours');
+      // Filter out empty participants
+      const validParticipants = formData.participants.filter(
+        p => p.id_number && p.id_number.trim()
+      );
 
-    // Filter out empty participants
-    const validParticipants = formData.participants.filter(
-      p => p.id_number && p.id_number.trim()
-    );
+      const reservationData = {
+        // Admin info
+        createdByAdmin: true,
+        createdByAdminId: currentAdmin?._id,
+        createdByAdminName: currentAdmin?.name,
+        
+        // Reservation details - MAKE SURE TO INCLUDE 'time'
+        room_Id: formData.room_Id,
+        roomName: formData.roomName,
+        location: formData.location,
+        datetime: manilaTime.format(),
+        date: formData.date,
+        time: formData.time, // THIS IS IMPORTANT - include the time field
+        endDatetime: endManilaTime.format(),
+        numUsers: validParticipants.length,
+        purpose: formData.purpose,
+        participants: validParticipants,
+        status: "Approved",
+      };
 
-    const reservationData = {
-      // Admin info
-      createdByAdmin: true,
-      createdByAdminId: currentAdmin?._id,
-      createdByAdminName: currentAdmin?.name,
+      console.log("📦 Reservation data being sent:", JSON.stringify(reservationData, null, 2));
+      console.log("API URL:", `${import.meta.env.VITE_API_URL}/api/reservations/admin-create`);
+
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/reservations/admin-create`,
+        reservationData
+      );
       
-      // Reservation details - MAKE SURE TO INCLUDE 'time'
-      room_Id: formData.room_Id,
-      roomName: formData.roomName,
-      location: formData.location,
-      datetime: manilaTime.format(),
-      date: formData.date,
-      time: formData.time, // THIS IS IMPORTANT - include the time field
-      endDatetime: endManilaTime.format(),
-      numUsers: validParticipants.length,
-      purpose: formData.purpose,
-      participants: validParticipants,
-      status: "Approved",
-    };
-
-    console.log("📦 Reservation data being sent:", JSON.stringify(reservationData, null, 2));
-    console.log("API URL:", `${import.meta.env.VITE_API_URL}/api/reservations/admin-create`);
-
-    const response = await axios.post(
-      `${import.meta.env.VITE_API_URL}/api/reservations/admin-create`,
-      reservationData
-    );
-    
-    console.log("✅ Reservation created successfully:", response.data);
-    
-    onSuccess?.();
-    onClose();
-  } catch (err) {
-    console.error("❌ Reservation creation failed:", err);
-    console.error("Error response:", err.response?.data);
-    console.error("Error status:", err.response?.status);
-    
-    const errorMessage = err.response?.data?.message || 
-                        err.response?.data?.error || 
-                        "Failed to create reservation";
-    setError(errorMessage);
-  } finally {
-    setLoading(false);
-  }
-};
+      console.log("✅ Reservation created successfully:", response.data);
+      
+      onSuccess?.();
+      onClose();
+    } catch (err) {
+      console.error("❌ Reservation creation failed:", err);
+      console.error("Error response:", err.response?.data);
+      console.error("Error status:", err.response?.status);
+      
+      const errorMessage = err.response?.data?.message || 
+                          err.response?.data?.error || 
+                          "Failed to create reservation";
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const getRoomImage = (room) => {
     if (room.image && room.image.url) {

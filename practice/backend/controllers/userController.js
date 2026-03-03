@@ -977,18 +977,27 @@ export const checkParticipant = async (req, res) => {
       return res.status(400).json({ message: "id_number is required" });
     }
 
+    console.log("Checking participant with ID:", id_number);
+
     const user = await User.findOne({ id_number });
     if (!user) {
-      return res.json({ exists: false, verified: false });
+      console.log("User not found with ID:", id_number);
+      // Return 200 with exists: false instead of 404
+      return res.status(200).json({ 
+        exists: false, 
+        verified: false 
+      });
     }
 
-    res.json({
+    console.log("User found:", user.name, "Verified:", user.verified);
+
+    res.status(200).json({
       exists: true,
-      verified: user.verified,
+      verified: user.verified || false,
       id_number: user.id_number,
       name: user.name,
       course: user.course || "N/A",
-      year_level: user.yearLevel || "N/A",
+      year_level: user.year_level || "N/A",
       department: user.department || "N/A",
       role: user.role || "Student",
     });
