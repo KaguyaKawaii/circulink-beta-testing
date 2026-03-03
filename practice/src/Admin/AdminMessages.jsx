@@ -18,50 +18,40 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [error, setError] = useState(null);
-  const [userNames, setUserNames] = useState({}); // Cache for user names
-  const [isTyping, setIsTyping] = useState(false); // For future typing indicator
+  const [userNames, setUserNames] = useState({});
 
   const listRef = useRef(null);
   const messagesEndRef = useRef(null);
   const searchRef = useRef(null);
   const chatContainerRef = useRef(null);
-  const inputRef = useRef(null); // For focusing input
   const messageInputRef = useRef(null);
 
-  // Smooth scroll to bottom function
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   };
 
-  // Refresh unread counts on dashboard
   const refreshDashboardUnreadCounts = async () => {
     try {
       if (typeof refreshUnreadCounts === 'function') {
         await refreshUnreadCounts();
-        console.log('✅ AdminMessages: Triggered unread count refresh');
       } else {
-        console.log('🔄 AdminMessages: Manual unread count refresh');
         const adminRecipients = await axios.get(`${import.meta.env.VITE_API_URL}/api/messages/recipients/admin`);
         socket.emit('adminUnreadUpdate', { recipients: adminRecipients.data });
       }
     } catch (error) {
-      console.error('❌ AdminMessages: Failed to refresh unread counts:', error);
+      console.error('Failed to refresh unread counts:', error);
     }
   };
 
-  // Move conversation to top helper function
   const moveConversationToTop = (conversationId) => {
     setRecipients(prevRecipients => {
-      // Find the conversation to move
       const conversationToMove = prevRecipients.find(r => r && r._id === conversationId);
       if (!conversationToMove) return prevRecipients;
 
-      // Filter out the conversation
       const filteredRecipients = prevRecipients.filter(r => r && r._id !== conversationId);
       
-      // Add updated conversation at the beginning with fresh timestamp
       const updatedConversation = {
         ...conversationToMove,
         timestamp: new Date().toISOString()
@@ -71,13 +61,11 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     });
   };
 
-  // Load initial data and setup socket
   useEffect(() => {
     fetchRecipients();
     fetchAllUsers();
     socket.emit("join", { userId: "admin" });
 
-    // Restore last opened recipient
     const savedRecipient = localStorage.getItem("adminSelectedRecipient");
     if (savedRecipient) {
       try {
@@ -92,14 +80,8 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     }
 
     const handleNewMessage = (msg) => {
-      console.log("📨 New message received in Admin Messages:", msg);
-      
-      // Only handle messages that involve admin
       const involvesAdmin = msg.sender === "admin" || msg.receiver === "admin";
-      
-      if (!involvesAdmin) {
-        return; // Ignore user-staff conversations
-      }
+      if (!involvesAdmin) return;
 
       const isCurrentConversation = msg.sender === selectedId || msg.receiver === selectedId;
 
@@ -108,44 +90,31 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
           const existing = prev.find(m => m._id === msg._id);
           if (existing) return prev;
           
-          // Replace temporary message with real one
-          const idx = prev.findIndex(
-            (m) => m.localId && m.content === msg.content
-          );
+          const idx = prev.findIndex((m) => m.localId && m.content === msg.content);
           if (idx !== -1) {
             const copy = [...prev];
             copy[idx] = msg;
-            console.log("✅ Replaced temporary message with real one:", msg);
             return copy;
           }
-          console.log("✅ Adding new message to admin conversation:", msg);
           return [...prev, msg];
         });
         
-        // Mark as read when receiving message in current conversation
         markAsRead(selectedId);
       }
 
-      // Move conversation to top when new message arrives
       const otherPartyId = msg.sender === "admin" ? msg.receiver : msg.sender;
       moveConversationToTop(otherPartyId);
-      
-      // Always update recipients when a new message arrives that involves admin
       fetchRecipients();
-      
       refreshDashboardUnreadCounts();
     };
 
-    // Handle message sent confirmation
     const handleMessageSent = (msg) => {
-      console.log("✅ Admin message sent confirmation:", msg);
       setMessages(prev => prev.map(m => 
         m.localId && m.status === "sending" && m.content === msg.content 
           ? { ...msg, status: "sent" }
           : m
       ));
       
-      // Move conversation to top after sending message
       if (selectedId) {
         moveConversationToTop(selectedId);
       }
@@ -153,9 +122,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
       refreshDashboardUnreadCounts();
     };
 
-    // Listen for admin unread updates
-    const handleAdminUnreadUpdate = (data) => {
-      console.log('📥 AdminMessages: Received admin unread update', data);
+    const handleAdminUnreadUpdate = () => {
       fetchRecipients();
     };
 
@@ -178,31 +145,25 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     };
   }, [selectedId]);
 
-  // Fetch messages when recipient changes
   useEffect(() => {
     if (selectedId) {
       socket.emit("join", { userId: selectedId });
       fetchMessagesWithoutLoading();
       markAsRead(selectedId);
-      
-      // Move selected conversation to top when opened
       moveConversationToTop(selectedId);
     }
   }, [selectedId]);
 
-  // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  // Focus input when recipient changes
   useEffect(() => {
     if (selectedId && messageInputRef.current) {
       messageInputRef.current.focus();
     }
   }, [selectedId]);
 
-  // Mark messages as read
   const markAsRead = async (userId) => {
     if (!userId) return;
     try {
@@ -210,7 +171,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
         userId: "admin",
         otherUserId: userId
       });
-      // Update local unread counts
       setRecipients(prev => prev.map(r => 
         r._id === userId ? { ...r, unreadCount: 0 } : r
       ));
@@ -220,11 +180,9 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     }
   };
 
-  // Enhanced recipient filtering to ensure privacy
   const isAdminConversation = (recipient) => {
     if (!recipient || !recipient._id) return false;
     
-    // Filter out floors
     const floorIds = [
       "Ground Floor",
       "Second Floor",
@@ -240,7 +198,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     return true;
   };
 
-  // Fetch user name by ID
   const fetchUserName = async (userId) => {
     if (!userId || userId === "admin") return "Administration";
     
@@ -269,17 +226,11 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     return "Unknown User";
   };
 
-  // Enhanced function to fetch messages with proper name handling
   const fetchMessagesWithNames = async (messagesArray) => {
     const messagesWithNames = await Promise.all(
       messagesArray.map(async (msg) => {
-        if (msg.senderName) {
-          return msg;
-        }
-        
-        if (msg.sender === "admin") {
-          return { ...msg, senderName: "Administration" };
-        }
+        if (msg.senderName) return msg;
+        if (msg.sender === "admin") return { ...msg, senderName: "Administration" };
         
         const senderName = await fetchUserName(msg.sender);
         return { ...msg, senderName };
@@ -289,7 +240,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     return messagesWithNames;
   };
 
-  // Fetch recipients with enhanced privacy filtering
   const fetchRecipients = async () => {
     try {
       setError(null);
@@ -298,18 +248,8 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
       );
 
       const backendRecipients = res.data.filter(recipient => 
-        recipient &&
-        recipient._id &&
-        recipient.name &&
-        isAdminConversation(recipient)
+        recipient && recipient._id && recipient.name && isAdminConversation(recipient)
       );
-
-      const existingRecipientsMap = new Map();
-      recipients.forEach(recipient => {
-        if (recipient && recipient._id && isAdminConversation(recipient)) {
-          existingRecipientsMap.set(recipient._id, recipient);
-        }
-      });
 
       const mergedRecipients = [...backendRecipients];
       
@@ -342,7 +282,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     }
   };
 
-  // Fetch messages with privacy check and name handling
   const fetchMessagesWithoutLoading = async () => {
     if (!selectedId) return;
     
@@ -366,7 +305,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     }
   };
 
-  // Fetch all users with privacy consideration
   const fetchAllUsers = async () => {
     try {
       setError(null);
@@ -402,7 +340,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     setSearchLoading(false);
   };
 
-  // Handle selecting a user from search results
   const handleSearchSelect = (user) => {
     if (!user || !user._id) return;
     
@@ -437,7 +374,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     handleSelectRecipient(recipientToSelect);
   };
 
-  // Handle selecting a recipient from the list
   const handleSelectRecipient = (recipient) => {
     if (!recipient || !recipient._id) return;
 
@@ -467,7 +403,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     setShowSearchDropdown(false);
     setError(null);
     
-    // Mark messages as read when opening conversation
     markAsRead(recipient._id);
   };
 
@@ -478,7 +413,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     }
   };
 
-  // Send a new message with privacy enforcement AND UNREAD COUNT REFRESH
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !selectedId) return;
 
@@ -510,7 +444,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
           : msg
       ));
 
-      // Update recipient with latest message and move to top
       const updatedRecipients = recipients.map(recipient => {
         if (!recipient) return recipient;
         return recipient._id === selectedId
@@ -524,7 +457,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
           : recipient;
       }).filter(r => r !== undefined);
 
-      // If recipient doesn't exist, create it
       if (!updatedRecipients.find(r => r._id === selectedId)) {
         const newRecipient = {
           _id: selectedId,
@@ -538,11 +470,8 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
         updatedRecipients.unshift(newRecipient);
       }
 
-      // Sort with current recipient at top (most recent)
       const sortedRecipients = updatedRecipients.sort((a, b) => {
         if (!a || !b) return 0;
-        
-        // Selected recipient always goes to top if it's the one we just messaged
         if (a._id === selectedId) return -1;
         if (b._id === selectedId) return 1;
         
@@ -571,7 +500,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     }
   };
 
-  // Format time
   const formatTime = (iso) => {
     if (!iso) return "";
     try {
@@ -589,7 +517,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     }
   };
 
-  // Format date for message groups
   const formatMessageDate = (iso) => {
     if (!iso) return "";
     try {
@@ -610,13 +537,10 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     }
   };
 
-  // Group messages by date
   const groupMessagesByDate = () => {
     const groups = {};
     messages.forEach(msg => {
-      if (!msg || !(msg.sender === "admin" || msg.receiver === "admin")) {
-        return;
-      }
+      if (!msg || !(msg.sender === "admin" || msg.receiver === "admin")) return;
       
       const date = formatMessageDate(msg.createdAt);
       if (!groups[date]) groups[date] = [];
@@ -658,10 +582,10 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
       <AdminNavigation setView={setView} currentView="adminMessage" onLogout={onLogout} />
       
       <div className="ml-[250px] h-screen flex flex-col bg-gray-100">
-        {/* HEADER - kept exactly as original size and color */}
-        <header className="bg-white px-6 py-4 border-b border-gray-200 shadow-sm">
+        {/* EXACT HEADER STYLE - Copied pixel for pixel from News Management */}
+        <header className="bg-white px-6 py-4 border-b border-gray-200">
           <h1 className="text-2xl font-bold text-[#CC0000]">Messages</h1>
-          <p className="text-gray-600 text-sm">Chat with users and staff</p>
+          <p className="text-gray-600">Chat with users and staff</p>
           {error && (
             <div className="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
               {error}
@@ -670,9 +594,9 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Conversations Sidebar - Messenger style */}
+          {/* Conversations Sidebar */}
           <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
-            {/* Search - Messenger style */}
+            {/* Search */}
             <div className="p-3 border-b border-gray-200" ref={searchRef}>
               <div className="relative">
                 <input
@@ -725,7 +649,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
               </div>
             </div>
             
-            {/* Conversations List - Messenger style with automatic reordering */}
+            {/* Conversations List */}
             <div className="flex-1 overflow-y-auto" ref={listRef}>
               {recipients.filter(r => r !== undefined).length === 0 ? (
                 <div className="text-center p-8 text-gray-500">
@@ -775,11 +699,11 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
             </div>
           </div>
 
-          {/* Chat Area - Messenger style */}
+          {/* Chat Area */}
           <div className="flex-1 flex flex-col bg-gray-100">
             {selectedId ? (
               <>
-                {/* Chat Header - Messenger style */}
+                {/* Chat Header */}
                 <div className="bg-white px-4 py-3 border-b border-gray-200 shadow-sm flex items-center">
                   <div className="flex items-center space-x-3">
                     {getAvatar(selectedName, selectedType)}
@@ -792,7 +716,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                   </div>
                 </div>
                 
-                {/* Messages Container - Messenger style */}
+                {/* Messages Container */}
                 <div 
                   ref={chatContainerRef}
                   className="flex-1 overflow-y-auto px-4 py-6"
@@ -863,7 +787,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                   )}
                 </div>
 
-                {/* Message Input - Messenger style */}
+                {/* Message Input */}
                 <div className="bg-white px-4 py-3 border-t border-gray-200">
                   <div className="flex items-end space-x-2">
                     <div className="flex-1 bg-gray-100 rounded-3xl px-4 py-2">
@@ -891,7 +815,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                 </div>
               </>
             ) : (
-              /* Empty State - Messenger style */
+              /* Empty State */
               <div className="flex-1 flex items-center justify-center bg-gray-100">
                 <div className="text-center text-gray-500">
                   <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -910,7 +834,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
         </div>
       </div>
 
-      {/* Animation styles */}
       <style jsx>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(-5px); }
