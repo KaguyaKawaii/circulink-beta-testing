@@ -51,6 +51,26 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     }
   };
 
+  // Move conversation to top helper function
+  const moveConversationToTop = (conversationId) => {
+    setRecipients(prevRecipients => {
+      // Find the conversation to move
+      const conversationToMove = prevRecipients.find(r => r && r._id === conversationId);
+      if (!conversationToMove) return prevRecipients;
+
+      // Filter out the conversation
+      const filteredRecipients = prevRecipients.filter(r => r && r._id !== conversationId);
+      
+      // Add updated conversation at the beginning with fresh timestamp
+      const updatedConversation = {
+        ...conversationToMove,
+        timestamp: new Date().toISOString()
+      };
+
+      return [updatedConversation, ...filteredRecipients];
+    });
+  };
+
   // Load initial data and setup socket
   useEffect(() => {
     fetchRecipients();
@@ -106,6 +126,10 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
         markAsRead(selectedId);
       }
 
+      // Move conversation to top when new message arrives
+      const otherPartyId = msg.sender === "admin" ? msg.receiver : msg.sender;
+      moveConversationToTop(otherPartyId);
+      
       // Always update recipients when a new message arrives that involves admin
       fetchRecipients();
       
@@ -120,6 +144,11 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
           ? { ...msg, status: "sent" }
           : m
       ));
+      
+      // Move conversation to top after sending message
+      if (selectedId) {
+        moveConversationToTop(selectedId);
+      }
       
       refreshDashboardUnreadCounts();
     };
@@ -155,6 +184,9 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
       socket.emit("join", { userId: selectedId });
       fetchMessagesWithoutLoading();
       markAsRead(selectedId);
+      
+      // Move selected conversation to top when opened
+      moveConversationToTop(selectedId);
     }
   }, [selectedId]);
 
@@ -478,6 +510,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
           : msg
       ));
 
+      // Update recipient with latest message and move to top
       const updatedRecipients = recipients.map(recipient => {
         if (!recipient) return recipient;
         return recipient._id === selectedId
@@ -491,6 +524,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
           : recipient;
       }).filter(r => r !== undefined);
 
+      // If recipient doesn't exist, create it
       if (!updatedRecipients.find(r => r._id === selectedId)) {
         const newRecipient = {
           _id: selectedId,
@@ -504,8 +538,11 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
         updatedRecipients.unshift(newRecipient);
       }
 
+      // Sort with current recipient at top (most recent)
       const sortedRecipients = updatedRecipients.sort((a, b) => {
         if (!a || !b) return 0;
+        
+        // Selected recipient always goes to top if it's the one we just messaged
         if (a._id === selectedId) return -1;
         if (b._id === selectedId) return 1;
         
@@ -688,8 +725,8 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
               </div>
             </div>
             
-            {/* Conversations List - Messenger style */}
-            <div className="flex-1 overflow-y-auto">
+            {/* Conversations List - Messenger style with automatic reordering */}
+            <div className="flex-1 overflow-y-auto" ref={listRef}>
               {recipients.filter(r => r !== undefined).length === 0 ? (
                 <div className="text-center p-8 text-gray-500">
                   <svg className="w-16 h-16 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
