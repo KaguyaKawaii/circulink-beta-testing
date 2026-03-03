@@ -727,232 +727,232 @@ function AdminDashboard({ setView }) {
 
       {/* Main Content */}
       <div className="p-6 space-y-6">
-        {/* Stats Overview - Expanded with more metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Reservation Card */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 rounded-xl bg-blue-50 text-blue-600">
-                <CalendarIcon size={24} />
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-gray-900">{summaryData.reservations}</p>
-                <p className="text-gray-500 text-sm font-medium">Total Reservations</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-2 pt-4 border-t border-gray-100">
-              <div>
-                <span className="text-xs text-gray-500">Pending</span>
-                <p className="text-sm font-semibold text-amber-600">{pendingCount}</p>
-              </div>
-              <div>
-                <span className="text-xs text-gray-500">Approved</span>
-                <p className="text-sm font-semibold text-green-600">{approvedCount}</p>
-              </div>
-              <div>
-                <span className="text-xs text-gray-500">Completed</span>
-                <p className="text-sm font-semibold text-blue-600">{completedCount}</p>
-              </div>
-              <div>
-                <span className="text-xs text-gray-500">Cancelled</span>
-                <p className="text-sm font-semibold text-red-600">{cancelledCount}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Users Card */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 rounded-xl bg-green-50 text-green-600">
-                <Users size={24} />
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-gray-900">{summaryData.users}</p>
-                <p className="text-gray-500 text-sm font-medium">Total Users</p>
-              </div>
-            </div>
-            <div className="pt-4 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">New this week</span>
-                <span className="text-sm font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
-                  {getNewUsersThisWeek()}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Active users</span>
-                <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                  {Math.round(summaryData.users * 0.7)} (est.)
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Rooms Card */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 rounded-xl bg-purple-50 text-purple-600">
-                <Home size={24} />
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-gray-900">{summaryData.activeRooms}</p>
-                <p className="text-gray-500 text-sm font-medium">Active Rooms</p>
-              </div>
-            </div>
-            <div className="pt-4 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Total rooms</span>
-                <span className="text-sm font-semibold text-gray-700">{summaryData.totalRooms}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Occupancy rate</span>
-                <span className="text-sm font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded">
-                  {summaryData.occupancyRate}%
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Reports Card */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 rounded-xl bg-red-50 text-red-600">
-                <AlertCircle size={24} />
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-gray-900">{summaryData.reports}</p>
-                <p className="text-gray-500 text-sm font-medium">Total Reports</p>
-              </div>
-            </div>
-            <div className="pt-4 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Pending review</span>
-                <span className="text-sm font-semibold text-red-600 bg-red-50 px-2 py-1 rounded">
-                  {summaryData.pendingReports}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Resolved</span>
-                <span className="text-sm font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
-                  {summaryData.reports - summaryData.pendingReports}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Second Row - Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Messages Card */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 rounded-xl bg-amber-50 text-amber-600">
-                <MessageSquare size={24} />
-              </div>
-              <div className="text-right">
-                <span className={`text-2xl font-bold px-2 py-1 rounded ${
-                  summaryData.unreadMessages > 0 
-                    ? 'text-gray-900' 
-                    : 'text-gray-600 bg-gray-50'
-                }`}>
-                  {summaryData.unreadMessages}
-                </span>
-                <p className="text-gray-500 text-sm font-medium">Unread Messages</p>
-              </div>
-            </div>
-            <div className="pt-4 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">From users</span>
-                <span className="text-sm font-semibold text-blue-600">{summaryData.unreadUserMessages}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">From staff</span>
-                <span className="text-sm font-semibold text-purple-600">{summaryData.unreadStaffMessages}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Peak Hours Card */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 rounded-xl bg-indigo-50 text-indigo-600">
-                <Clock size={24} />
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-gray-900">{peakHours.length}</p>
-                <p className="text-gray-500 text-sm font-medium">Peak Hours</p>
-              </div>
-            </div>
-            <div className="pt-4 border-t border-gray-100">
-              {peakHours.length > 0 ? (
-                peakHours.map((hour, idx) => (
-                  <div key={idx} className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">{hour.time}</span>
-                    <span className="text-sm font-semibold text-indigo-600">{hour.count} bookings</span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500 text-center py-2">No peak hours data</p>
-              )}
-            </div>
-          </div>
-
-          {/* Popular Rooms Card */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 rounded-xl bg-cyan-50 text-cyan-600">
-                <Star size={24} />
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-gray-900">{popularRooms.length}</p>
-                <p className="text-gray-500 text-sm font-medium">Popular Rooms</p>
-              </div>
-            </div>
-            <div className="pt-4 border-t border-gray-100">
-              {popularRooms.length > 0 ? (
-                popularRooms.map((room, idx) => (
-                  <div key={idx} className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600 truncate max-w-[120px]">{room.name}</span>
-                    <span className="text-sm font-semibold text-cyan-600">{room.count} bookings</span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-sm text-gray-500 text-center py-2">No popular rooms data</p>
-              )}
-            </div>
-          </div>
-
-          {/* Success Rate Card */}
-          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 rounded-xl bg-green-50 text-green-600">
-                <Percent size={24} />
-              </div>
-              <div className="text-right">
-                <p className="text-2xl font-bold text-gray-900">
-                  {summaryData.reservations > 0 
-                    ? Math.round((summaryData.completedReservations / summaryData.reservations) * 100) 
-                    : 0}%
-                </p>
-                <p className="text-gray-500 text-sm font-medium">Success Rate</p>
-              </div>
-            </div>
-            <div className="pt-4 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Completed</span>
-                <span className="text-sm font-semibold text-green-600">{summaryData.completedReservations}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Cancelled</span>
-                <span className="text-sm font-semibold text-red-600">{summaryData.cancelledReservations}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content Grid - 3 columns */}
+        {/* Modified Grid Layout - Stats on Left, Calendar/Activity on Right */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Left Column - Unread Messages & News */}
+          {/* Left Column - All Stats (2/3 width) */}
           <div className="xl:col-span-2 space-y-6">
+            {/* Stats Overview - Expanded with more metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Reservation Card */}
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 rounded-xl bg-blue-50 text-blue-600">
+                    <CalendarIcon size={24} />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-gray-900">{summaryData.reservations}</p>
+                    <p className="text-gray-500 text-sm font-medium">Total Reservations</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-4 border-t border-gray-100">
+                  <div>
+                    <span className="text-xs text-gray-500">Pending</span>
+                    <p className="text-sm font-semibold text-amber-600">{pendingCount}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500">Approved</span>
+                    <p className="text-sm font-semibold text-green-600">{approvedCount}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500">Completed</span>
+                    <p className="text-sm font-semibold text-blue-600">{completedCount}</p>
+                  </div>
+                  <div>
+                    <span className="text-xs text-gray-500">Cancelled</span>
+                    <p className="text-sm font-semibold text-red-600">{cancelledCount}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Users Card */}
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 rounded-xl bg-green-50 text-green-600">
+                    <Users size={24} />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-gray-900">{summaryData.users}</p>
+                    <p className="text-gray-500 text-sm font-medium">Total Users</p>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">New this week</span>
+                    <span className="text-sm font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
+                      {getNewUsersThisWeek()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Active users</span>
+                    <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                      {Math.round(summaryData.users * 0.7)} (est.)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rooms Card */}
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 rounded-xl bg-purple-50 text-purple-600">
+                    <Home size={24} />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-gray-900">{summaryData.activeRooms}</p>
+                    <p className="text-gray-500 text-sm font-medium">Active Rooms</p>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">Total rooms</span>
+                    <span className="text-sm font-semibold text-gray-700">{summaryData.totalRooms}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Occupancy rate</span>
+                    <span className="text-sm font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded">
+                      {summaryData.occupancyRate}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Reports Card */}
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 rounded-xl bg-red-50 text-red-600">
+                    <AlertCircle size={24} />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-gray-900">{summaryData.reports}</p>
+                    <p className="text-gray-500 text-sm font-medium">Total Reports</p>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">Pending review</span>
+                    <span className="text-sm font-semibold text-red-600 bg-red-50 px-2 py-1 rounded">
+                      {summaryData.pendingReports}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Resolved</span>
+                    <span className="text-sm font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
+                      {summaryData.reports - summaryData.pendingReports}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Second Row - Key Metrics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Messages Card */}
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 rounded-xl bg-amber-50 text-amber-600">
+                    <MessageSquare size={24} />
+                  </div>
+                  <div className="text-right">
+                    <span className={`text-2xl font-bold px-2 py-1 rounded ${
+                      summaryData.unreadMessages > 0 
+                        ? 'text-gray-900' 
+                        : 'text-gray-600 bg-gray-50'
+                    }`}>
+                      {summaryData.unreadMessages}
+                    </span>
+                    <p className="text-gray-500 text-sm font-medium">Unread Messages</p>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">From users</span>
+                    <span className="text-sm font-semibold text-blue-600">{summaryData.unreadUserMessages}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">From staff</span>
+                    <span className="text-sm font-semibold text-purple-600">{summaryData.unreadStaffMessages}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Peak Hours Card */}
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 rounded-xl bg-indigo-50 text-indigo-600">
+                    <Clock size={24} />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-gray-900">{peakHours.length}</p>
+                    <p className="text-gray-500 text-sm font-medium">Peak Hours</p>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-100">
+                  {peakHours.length > 0 ? (
+                    peakHours.map((hour, idx) => (
+                      <div key={idx} className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-600">{hour.time}</span>
+                        <span className="text-sm font-semibold text-indigo-600">{hour.count} bookings</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-2">No peak hours data</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Popular Rooms Card */}
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 rounded-xl bg-cyan-50 text-cyan-600">
+                    <Star size={24} />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-gray-900">{popularRooms.length}</p>
+                    <p className="text-gray-500 text-sm font-medium">Popular Rooms</p>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-100">
+                  {popularRooms.length > 0 ? (
+                    popularRooms.map((room, idx) => (
+                      <div key={idx} className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-600 truncate max-w-[120px]">{room.name}</span>
+                        <span className="text-sm font-semibold text-cyan-600">{room.count} bookings</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-2">No popular rooms data</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Success Rate Card */}
+              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 rounded-xl bg-green-50 text-green-600">
+                    <Percent size={24} />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-gray-900">
+                      {summaryData.reservations > 0 
+                        ? Math.round((summaryData.completedReservations / summaryData.reservations) * 100) 
+                        : 0}%
+                    </p>
+                    <p className="text-gray-500 text-sm font-medium">Success Rate</p>
+                  </div>
+                </div>
+                <div className="pt-4 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">Completed</span>
+                    <span className="text-sm font-semibold text-green-600">{summaryData.completedReservations}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-600">Cancelled</span>
+                    <span className="text-sm font-semibold text-red-600">{summaryData.cancelledReservations}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* Unread Messages Overview */}
             {summaryData.unreadMessages > 0 && (
               <div className="bg-white p-6 rounded-xl border border-amber-200 shadow-sm">
@@ -1093,8 +1093,8 @@ function AdminDashboard({ setView }) {
             </div>
           </div>
 
-          {/* Right Column - Calendar & Activity */}
-          <div className="space-y-6">
+          {/* Right Column - Calendar & Activity (1/3 width) */}
+          <div className="xl:col-span-1 space-y-6">
             {/* Calendar */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Calendar</h2>
@@ -1200,7 +1200,7 @@ function AdminDashboard({ setView }) {
                     <p className="text-gray-500 text-sm">No rooms available for selected date</p>
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
                     {allFloors.map((floorName) => {
                       const rooms = groupedByFloor[floorName] || [];
                       const floorStats = rooms.reduce((acc, room) => {
