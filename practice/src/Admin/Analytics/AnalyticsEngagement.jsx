@@ -983,7 +983,7 @@ function AnalyticsEngagement({ setView, admin }) {
             </div>
           )}
 
-          {/* Activity Levels - Moved to first column */}
+          {/* Activity Levels - With fixed colors */}
           {(engagementData.userActivity?.high > 0 || 
             engagementData.userActivity?.medium > 0 || 
             engagementData.userActivity?.low > 0 || 
@@ -1007,7 +1007,7 @@ function AnalyticsEngagement({ setView, admin }) {
                     <ProgressBar 
                       label="High Activity (10+ actions/day)"
                       value={engagementData.userActivity.high}
-                      max={2000}
+                      max={totalUsers}
                       color="green"
                     />
                   )}
@@ -1015,7 +1015,7 @@ function AnalyticsEngagement({ setView, admin }) {
                     <ProgressBar 
                       label="Medium Activity (5-9 actions/day)"
                       value={engagementData.userActivity.medium}
-                      max={2000}
+                      max={totalUsers}
                       color="yellow"
                     />
                   )}
@@ -1023,7 +1023,7 @@ function AnalyticsEngagement({ setView, admin }) {
                     <ProgressBar 
                       label="Low Activity (1-4 actions/day)"
                       value={engagementData.userActivity.low}
-                      max={2000}
+                      max={totalUsers}
                       color="orange"
                     />
                   )}
@@ -1031,7 +1031,7 @@ function AnalyticsEngagement({ setView, admin }) {
                     <ProgressBar 
                       label="Inactive (0 actions/day)"
                       value={engagementData.userActivity.inactive}
-                      max={2000}
+                      max={totalUsers}
                       color="red"
                     />
                   )}
