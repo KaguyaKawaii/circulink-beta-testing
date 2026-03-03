@@ -38,16 +38,22 @@ import {
   Percent
 } from "lucide-react";
 
-// API service module for better organization
+// API service module with correct endpoints
 const apiService = {
   baseURL: import.meta.env.VITE_API_URL,
   
   async get(url) {
     try {
+      console.log(`🌐 Fetching: ${this.baseURL}${url}`);
       const response = await axios.get(`${this.baseURL}${url}`);
       return response.data;
     } catch (error) {
       console.error(`API Error (GET ${url}):`, error);
+      // Return empty array or object instead of throwing to prevent cascading failures
+      if (error.response?.status === 404) {
+        console.log(`⚠️ Endpoint ${url} not found, returning empty data`);
+        return [];
+      }
       throw error;
     }
   },
@@ -102,6 +108,12 @@ function AdminDashboard({ setView }) {
   const [roomStatuses, setRoomStatuses] = useState([]);
   const [availLoading, setAvailLoading] = useState(false);
   const [availError, setAvailError] = useState(null);
+
+  // Admin user ID from localStorage
+  const getAdminId = () => {
+    const admin = JSON.parse(localStorage.getItem("admin") || "{}");
+    return admin._id || admin.id || "admin";
+  };
 
   // 🆕 ADD WEBSOCKET LISTENER FOR REAL-TIME UPDATES
   useEffect(() => {
@@ -185,6 +197,7 @@ function AdminDashboard({ setView }) {
   const refreshUnreadCounts = async () => {
     try {
       console.log('🔄 Manually refreshing unread counts...');
+      // Use the correct endpoint from messageRoutes.js
       const adminRecipients = await apiService.get('/api/messages/recipients/admin');
       
       const totalUnread = Array.isArray(adminRecipients) 
@@ -222,6 +235,13 @@ function AdminDashboard({ setView }) {
       console.log('✅ Unread counts refreshed:', { totalUnread, unreadUserMessages, unreadStaffMessages });
     } catch (error) {
       console.error('❌ Failed to refresh unread counts:', error);
+      // Set fallback data
+      setSummaryData(prev => ({
+        ...prev,
+        unreadMessages: 0,
+        unreadUserMessages: 0,
+        unreadStaffMessages: 0
+      }));
     }
   };
 
@@ -230,30 +250,34 @@ function AdminDashboard({ setView }) {
       setRefreshing(true);
       setError(null);
       
-      // Define all API endpoints to fetch
+      // Define all API endpoints to fetch - using correct endpoints from your routes
       const endpoints = [
-        { key: 'summary', url: '/api/admin/summary' },
-        { key: 'news', url: '/api/news/active' },
-        { key: 'logs', url: '/api/logs' },
-        { key: 'messages', url: '/api/messages' },
-        { key: 'users', url: '/api/users' },
         { key: 'reservations', url: '/api/reservations' },
+        { key: 'users', url: '/api/users/all/users' }, // Corrected endpoint
         { key: 'reports', url: '/api/reports' },
         { key: 'rooms', url: '/api/rooms' },
-        { key: 'adminRecipients', url: '/api/messages/recipients/admin' }
+        { key: 'news', url: '/api/news/active' },
+        { key: 'logs', url: '/api/logs' },
+        { key: 'adminRecipients', url: '/api/messages/recipients/admin' } // This one works
       ];
 
-      // Fetch all data in parallel
-      const fetchPromises = endpoints.map(endpoint => 
-        apiService.get(endpoint.url).catch(error => ({ error: true, message: error.message }))
-      );
+      // Fetch all data in parallel with error handling for each
+      const fetchPromises = endpoints.map(async (endpoint) => {
+        try {
+          const data = await apiService.get(endpoint.url);
+          return { key: endpoint.key, data };
+        } catch (error) {
+          console.log(`⚠️ Failed to fetch ${endpoint.key}, using empty data`);
+          return { key: endpoint.key, data: [] };
+        }
+      });
 
       const results = await Promise.all(fetchPromises);
       
       // Process results
       const data = {};
-      endpoints.forEach((endpoint, index) => {
-        data[endpoint.key] = results[index];
+      results.forEach(result => {
+        data[result.key] = result.data;
       });
 
       // Process and validate data
@@ -261,7 +285,7 @@ function AdminDashboard({ setView }) {
 
     } catch (error) {
       console.error("Error fetching dashboard data:", error);
-      setError("Failed to load dashboard data. Please try refreshing.");
+      setError("Some dashboard data failed to load. Showing available information.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -276,65 +300,41 @@ function AdminDashboard({ setView }) {
     const filterByStatus = (array, status) => 
       Array.isArray(array) ? array.filter(item => item.status === status).length : 0;
 
-    // Process summary data
-    const summary = data.summary?.error ? {} : data.summary;
-    const usersData = data.users?.error ? [] : data.users;
-    const reservationsData = data.reservations?.error ? [] : data.reservations;
-    const messagesData = data.messages?.error ? [] : data.messages;
-    const reportsData = data.reports?.error ? [] : data.reports;
-    const roomsData = data.rooms?.error ? [] : data.rooms;
-    const adminRecipients = data.adminRecipients;
+    // Process data with safe fallbacks
+    const usersData = Array.isArray(data.users) ? data.users : [];
+    const reservationsData = Array.isArray(data.reservations) ? data.reservations : [];
+    const reportsData = Array.isArray(data.reports) ? data.reports : [];
+    const roomsData = Array.isArray(data.rooms) ? data.rooms : [];
+    const adminRecipients = Array.isArray(data.adminRecipients) ? data.adminRecipients : [];
 
     // Calculate additional metrics
-    const activeRooms = Array.isArray(roomsData) 
-      ? roomsData.filter(room => room.isActive !== false).length 
-      : 0;
+    const activeRooms = roomsData.filter(room => room.isActive !== false).length;
     
-    const completedReservations = Array.isArray(reservationsData)
-      ? reservationsData.filter(res => res.status === 'Completed' || res.status === 'Approved').length
-      : 0;
+    const completedReservations = reservationsData.filter(res => 
+      res.status === 'Completed' || res.status === 'Approved'
+    ).length;
     
-    const cancelledReservations = Array.isArray(reservationsData)
-      ? reservationsData.filter(res => res.status === 'Cancelled' || res.status === 'Rejected').length
-      : 0;
+    const cancelledReservations = reservationsData.filter(res => 
+      res.status === 'Cancelled' || res.status === 'Rejected'
+    ).length;
     
     const occupancyRate = activeRooms > 0 
       ? Math.round((completedReservations / activeRooms) * 100) 
       : 0;
 
     // Calculate unread messages
-    let totalUnread = 0;
-    let unreadUserMessages = 0;
-    let unreadStaffMessages = 0;
-    let unreadConversations = [];
+    const totalUnread = adminRecipients.reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0);
 
-    if (adminRecipients && !adminRecipients.error) {
-      totalUnread = Array.isArray(adminRecipients) 
-        ? adminRecipients.reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0)
-        : 0;
+    const unreadUserMessages = adminRecipients
+      .filter(recipient => recipient.type === 'user')
+      .reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0);
 
-      unreadUserMessages = Array.isArray(adminRecipients)
-        ? adminRecipients
-            .filter(recipient => recipient.type === 'user')
-            .reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0)
-        : 0;
-
-      unreadStaffMessages = Array.isArray(adminRecipients)
-        ? adminRecipients
-            .filter(recipient => recipient.type === 'staff')
-            .reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0)
-        : 0;
-
-      unreadConversations = Array.isArray(adminRecipients)
-        ? adminRecipients
-            .filter(recipient => recipient.unreadCount > 0)
-            .sort((a, b) => b.unreadCount - a.unreadCount)
-            .slice(0, 5)
-        : [];
-    }
+    const unreadStaffMessages = adminRecipients
+      .filter(recipient => recipient.type === 'staff')
+      .reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0);
 
     // Calculate popular rooms
-    if (Array.isArray(reservationsData) && Array.isArray(roomsData)) {
+    if (reservationsData.length > 0) {
       const roomCounts = {};
       reservationsData.forEach(res => {
         const roomName = res.roomName || res.room;
@@ -352,7 +352,7 @@ function AdminDashboard({ setView }) {
     }
 
     // Calculate peak hours
-    if (Array.isArray(reservationsData)) {
+    if (reservationsData.length > 0) {
       const hourCounts = {};
       reservationsData.forEach(res => {
         if (res.datetime) {
@@ -371,10 +371,10 @@ function AdminDashboard({ setView }) {
     }
 
     setSummaryData({
-      reservations: summary.reservations || safeLength(reservationsData),
-      users: summary.users || safeLength(usersData),
-      messages: summary.messages || safeLength(messagesData),
-      pendingReservations: summary.pendingReservations || filterByStatus(reservationsData, 'pending'),
+      reservations: safeLength(reservationsData),
+      users: safeLength(usersData),
+      messages: safeLength(adminRecipients),
+      pendingReservations: filterByStatus(reservationsData, 'pending'),
       reports: safeLength(reportsData),
       pendingReports: filterByStatus(reportsData, 'Pending'),
       unreadMessages: totalUnread,
@@ -388,16 +388,21 @@ function AdminDashboard({ setView }) {
     });
 
     // Set other data states
-    setNewsList(data.news?.error ? [] : data.news);
+    setNewsList(Array.isArray(data.news) ? data.news : []);
     setReservations(reservationsData);
     setReports(reportsData);
-    setRooms(Array.isArray(roomsData) ? roomsData.filter(room => room.isActive !== false) : []);
+    setRooms(roomsData.filter(room => room.isActive !== false));
     
-    const logsData = data.logs?.error ? [] : data.logs;
+    const logsData = Array.isArray(data.logs) ? data.logs : [];
     setLogs(logsData);
 
     // Set unread breakdown
-    setUnreadBreakdown(unreadConversations);
+    setUnreadBreakdown(
+      adminRecipients
+        .filter(recipient => recipient.unreadCount > 0)
+        .sort((a, b) => b.unreadCount - a.unreadCount)
+        .slice(0, 5)
+    );
 
     // Update recent activity
     updateRecentActivity(logsData);
@@ -500,65 +505,78 @@ function AdminDashboard({ setView }) {
     console.log('📅 Date clicked:', date);
     setSelectedDate(date);
     setModalDate(date);
-    console.log('🔄 Fetching room availability for date:', date);
     fetchRoomAvailabilityForDate(date);
   };
 
-const fetchRoomAvailabilityForDate = async (date) => {
-  try {
-    console.log('🚀 Starting to fetch room availability...');
-    setAvailLoading(true);
-    setAvailError(null);
-    setShowAvailModal(true);
-    
-    // Format date for API
-    const formattedDate = date.toISOString().split('T')[0];
-    console.log('📋 Formatted date for API:', formattedDate);
-    
+  const fetchRoomAvailabilityForDate = async (date) => {
     try {
-      // Try to fetch room availability for the selected date
-      // NOTE: The API requires both date and userId parameters
-      const availabilityData = await apiService.get(`/api/rooms/availability?date=${formattedDate}&userId=admin`);
-      console.log('✅ Room availability data received:', availabilityData);
+      console.log('🚀 Starting to fetch room availability...');
+      setAvailLoading(true);
+      setAvailError(null);
+      setShowAvailModal(true);
       
-      if (Array.isArray(availabilityData)) {
-        // Process the data to ensure consistent structure
-        const processedData = availabilityData.map(room => ({
-          _id: room._id || room.room,
-          room: room.room || "Unnamed Room",
-          floor: room.floor || "Unknown Floor",
-          isActive: room.isActive !== false,
-          occupied: Array.isArray(room.occupied) ? room.occupied : [],
-          pending: Array.isArray(room.pending) ? room.pending : []
-        }));
+      // Format date for API
+      const formattedDate = date.toISOString().split('T')[0];
+      const adminId = getAdminId();
+      
+      console.log('📋 Formatted date for API:', formattedDate);
+      console.log('👤 Admin ID:', adminId);
+      
+      try {
+        // Use the availability endpoint with proper userId
+        const availabilityData = await apiService.get(`/api/rooms/availability?date=${formattedDate}&userId=${adminId}`);
+        console.log('✅ Room availability data received:', availabilityData);
         
-        setRoomStatuses(processedData);
-        console.log('📊 Room statuses updated:', processedData.length, 'rooms');
-      } else {
-        console.log('❌ Invalid room availability data format');
-        setAvailError("No room data available for selected date");
-        setRoomStatuses([]);
+        if (Array.isArray(availabilityData)) {
+          // Process the data to ensure consistent structure
+          const processedData = availabilityData.map(room => ({
+            _id: room._id || room.room,
+            room: room.room || "Unnamed Room",
+            floor: room.floor || "Unknown Floor",
+            isActive: room.isActive !== false,
+            occupied: Array.isArray(room.occupied) ? room.occupied : [],
+            pending: Array.isArray(room.pending) ? room.pending : []
+          }));
+          
+          setRoomStatuses(processedData);
+          console.log('📊 Room statuses updated:', processedData.length, 'rooms');
+        } else {
+          console.log('❌ Invalid room availability data format');
+          setAvailError("No room data available for selected date");
+          setRoomStatuses([]);
+        }
+      } catch (apiError) {
+        console.log('⚠️ API endpoint error:', apiError);
+        // If the API fails, use rooms data as fallback
+        if (rooms.length > 0) {
+          console.log('📋 Using rooms data as fallback');
+          const fallbackData = rooms.map(room => ({
+            _id: room._id,
+            room: room.room,
+            floor: room.floor,
+            isActive: room.isActive,
+            occupied: [],
+            pending: []
+          }));
+          setRoomStatuses(fallbackData);
+          setAvailError("Using cached room data - availability may not be real-time");
+        } else {
+          setAvailError("Unable to load room availability at the moment");
+          setRoomStatuses([]);
+        }
       }
-    } catch (apiError) {
-      console.log('⚠️ API endpoint error:', apiError);
-      // If the API fails, we'll show an empty state instead of fallback data
-      setAvailError("Unable to load room availability at the moment");
-      setRoomStatuses([]);
+    } catch (error) {
+      console.error("❌ Error in room availability process:", error);
+      setAvailError("Failed to load room availability");
+    } finally {
+      setAvailLoading(false);
     }
-  } catch (error) {
-    console.error("❌ Error in room availability process:", error);
-    setAvailError("Failed to load room availability");
-  } finally {
-    setAvailLoading(false);
-  }
-};
-  
+  };
 
   const renderCalendarTile = ({ date, view }) => {
     if (view !== 'month') return null;
     
     const dateStr = date.toISOString().split('T')[0];
-    const today = new Date().toISOString().split('T')[0];
     
     // Count reservations for this date
     const dayReservations = reservations.filter(reservation => {
@@ -674,20 +692,20 @@ const fetchRoomAvailabilityForDate = async (date) => {
         </div>
       </header>
 
-      {/* Error Banner */}
+      {/* Error Banner - Show only if there's a critical error */}
       {error && (
-        <div className="mx-8 mt-6 p-4 bg-red-50 border border-red-200 rounded-lg shadow-sm">
+        <div className="mx-8 mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg shadow-sm">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <AlertCircle size={20} className="text-red-500" />
+              <AlertCircle size={20} className="text-amber-500" />
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-red-800">{error}</p>
+              <p className="text-sm font-medium text-amber-800">{error}</p>
             </div>
             <div className="ml-auto pl-3">
               <button
                 onClick={() => setError(null)}
-                className="text-red-800 hover:text-red-900 text-lg font-bold"
+                className="text-amber-800 hover:text-amber-900 text-lg font-bold"
               >
                 ×
               </button>
@@ -990,7 +1008,6 @@ const fetchRoomAvailabilityForDate = async (date) => {
                             <button
                               onClick={() => {
                                 setView("adminMessage");
-                                // 🆕 Refresh counts after navigating to messages
                                 setTimeout(refreshUnreadCounts, 1000);
                               }}
                               className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
@@ -1005,16 +1022,14 @@ const fetchRoomAvailabilityForDate = async (date) => {
                 ) : (
                   <div className="text-center py-8">
                     <MessageSquare className="mx-auto mb-3 text-gray-400" size={32} />
-                    <p className="text-gray-500 text-sm mb-4">No conversation details available</p>
+                    <p className="text-gray-500 text-sm mb-4">No unread messages</p>
                     <button
                       onClick={() => {
                         setView("adminMessage");
-                        // 🆕 Refresh counts after navigating to messages
-                        setTimeout(refreshUnreadCounts, 1000);
                       }}
                       className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
                     >
-                      Check Messages
+                      Go to Messages
                     </button>
                   </div>
                 )}
@@ -1050,7 +1065,7 @@ const fetchRoomAvailabilityForDate = async (date) => {
                         </span>
                       </div>
                       <p className="text-gray-600 text-sm leading-relaxed line-clamp-2">
-                        {news.content.replace(/<[^>]*>/g, '')}
+                        {news.content?.replace(/<[^>]*>/g, '') || news.content}
                       </p>
                     </div>
                   ))}
