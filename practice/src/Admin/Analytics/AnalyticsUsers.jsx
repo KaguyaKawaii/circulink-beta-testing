@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Users,
@@ -398,7 +399,8 @@ function AnalyticsUsers({ setView, admin }) {
   );
 
   const ProgressBar = ({ label, value, total, color = "blue", showValue = true, isLoading = false }) => {
-    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+    const rawPercentage = total > 0 ? (value / total) * 100 : 0;
+    const percentage = Math.min(Math.round(rawPercentage), 100);
     
     const getBgColorClass = (colorName) => {
       const colorMap = {
@@ -418,20 +420,38 @@ function AnalyticsUsers({ setView, admin }) {
     }
 
     return (
-      <div>
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-gray-600 capitalize">{label}</span>
-          {showValue && <span className="text-gray-800 font-medium">{value.toLocaleString()}</span>}
+      <div className="mb-4">
+        <div className="flex justify-between items-center mb-1">
+          <span className="text-sm font-medium text-gray-700 truncate max-w-[60%]" title={label}>
+            {label}
+          </span>
+          <div className="flex items-center gap-2">
+            {showValue && <span className="text-sm font-semibold text-gray-900">{value.toLocaleString()}</span>}
+            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">
+              {percentage}%
+            </span>
+          </div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
           <div 
-            className={`${getBgColorClass(color)} rounded-full h-2 transition-all duration-300`}
+            className={`${getBgColorClass(color)} rounded-full h-2.5 transition-all duration-300`}
             style={{ width: `${percentage}%` }}
           />
         </div>
       </div>
     );
   };
+
+  const GrowthChartSkeleton = () => (
+    <div className="h-64 flex items-end justify-between gap-2 animate-pulse">
+      {Array(7).fill(0).map((_, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center gap-2">
+          <div className="w-full bg-gray-200 rounded-t h-40"></div>
+          <div className="h-3 bg-gray-200 rounded w-8"></div>
+        </div>
+      ))}
+    </div>
+  );
 
   const userStats = {
     total: userData.total || 0,
@@ -444,6 +464,10 @@ function AnalyticsUsers({ setView, admin }) {
     suspended: userData.byStatus?.suspended || 0,
     active: userData.byStatus?.active || 0,
   };
+
+  // Find the maximum value for the growth chart to scale properly
+  const maxGrowthValue = Math.max(...(userData.growth?.values || []), 1);
+  const chartHeight = 200; // Fixed height for the chart in pixels
 
   return (
     <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
@@ -715,25 +739,25 @@ function AnalyticsUsers({ setView, admin }) {
                 </>
               ) : (
                 <>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
                     <span className="text-gray-600">Active (7d)</span>
-                    <span className="text-green-600 font-semibold">{(userData.byStatus?.active || 0).toLocaleString()}</span>
+                    <span className="text-green-600 font-bold">{(userData.byStatus?.active || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
                     <span className="text-gray-600">Inactive</span>
-                    <span className="text-yellow-600 font-semibold">{(userData.byStatus?.inactive || 0).toLocaleString()}</span>
+                    <span className="text-yellow-600 font-bold">{(userData.byStatus?.inactive || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
                     <span className="text-gray-600">Suspended</span>
-                    <span className="text-red-600 font-semibold">{(userData.byStatus?.suspended || 0).toLocaleString()}</span>
+                    <span className="text-red-600 font-bold">{(userData.byStatus?.suspended || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
                     <span className="text-gray-600">Verified</span>
-                    <span className="text-blue-600 font-semibold">{(userData.byStatus?.verified || 0).toLocaleString()}</span>
+                    <span className="text-blue-600 font-bold">{(userData.byStatus?.verified || 0).toLocaleString()}</span>
                   </div>
-                  <div className="flex justify-between items-center">
+                  <div className="flex justify-between items-center py-2">
                     <span className="text-gray-600">Unverified</span>
-                    <span className="text-orange-600 font-semibold">{(userData.byStatus?.unverified || 0).toLocaleString()}</span>
+                    <span className="text-orange-600 font-bold">{(userData.byStatus?.unverified || 0).toLocaleString()}</span>
                   </div>
                 </>
               )}
@@ -771,43 +795,53 @@ function AnalyticsUsers({ setView, admin }) {
           </div>
         </div>
 
-        {/* Growth Chart */}
+        {/* Growth Chart - FIXED: Bars from bottom to top like AnalyticsReservations */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
             User Growth - {dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : dateRange === 'year' ? 'Monthly' : 'Custom Period'}
           </h2>
           {loading ? (
-            <div className="h-64 flex items-end justify-between gap-2 animate-pulse">
-              {Array(7).fill(0).map((_, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                  <div className="w-full bg-gray-200 rounded-t h-32"></div>
-                  <div className="h-3 bg-gray-200 rounded w-8"></div>
-                </div>
-              ))}
-            </div>
+            <GrowthChartSkeleton />
           ) : (
-            <div className="h-64 flex items-end justify-between gap-2">
-              {userData.growth?.values && userData.growth.values.length > 0 ? (
-                userData.growth.values.map((value, index) => {
-                  const max = Math.max(...userData.growth.values, 1);
-                  const height = max > 0 ? (value / max) * 100 : 0;
-                  return (
-                    <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                      <div 
-                        className="w-full bg-[#CC0000]/20 rounded-t relative group"
-                        style={{ height: `${height}%`, minHeight: '4px' }}
-                      >
-                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                          {value} new users
+            <div>
+              <div className="h-64 flex items-end justify-between gap-2">
+                {userData.growth?.values && userData.growth.values.length > 0 ? (
+                  userData.growth.values.map((value, index) => {
+                    const max = Math.max(...userData.growth.values, 1);
+                    const height = max > 0 ? (value / max) * 200 : 0; // 200px max height
+                    
+                    return (
+                      <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                        <div className="relative w-full flex justify-center group">
+                          <div 
+                            className="w-3/4 bg-gradient-to-t from-[#CC0000] to-[#FF4444] rounded-t transition-all duration-300 hover:from-[#990000] hover:to-[#CC0000] cursor-pointer"
+                            style={{ height: `${height}px` }}
+                          >
+                            {/* Tooltip */}
+                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                              {value} new users
+                            </div>
+                          </div>
                         </div>
+                        <span className="text-xs text-gray-600 font-medium">{userData.growth.labels?.[index] || ''}</span>
+                        <span className="text-xs text-gray-800">{value}</span>
                       </div>
-                      <span className="text-xs text-gray-600">{userData.growth.labels?.[index] || ''}</span>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="w-full text-center text-gray-500 py-12">
-                  No growth data available for this period
+                    );
+                  })
+                ) : (
+                  <div className="w-full text-center text-gray-500 py-12">
+                    No growth data available for this period
+                  </div>
+                )}
+              </div>
+              
+              {userData.growth?.values && userData.growth.values.length > 0 && (
+                <div className="flex justify-between items-center mt-4 text-xs text-gray-500">
+                  <div>Total new users: {userData.growth.values.reduce((a, b) => a + b, 0)}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-gradient-to-t from-[#CC0000] to-[#FF4444] rounded"></div>
+                    <span>Bar height relative to peak period</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -886,7 +920,7 @@ function AnalyticsUsers({ setView, admin }) {
                   userData.topUsers && userData.topUsers.length > 0 ? (
                     userData.topUsers.map((user, index) => (
                       <tr key={user.id || index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-800">{user.name || 'Unknown'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.name || 'Unknown'}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.email || ''}</td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
