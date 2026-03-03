@@ -221,7 +221,7 @@ function AnalyticsReservations({ setView, admin }) {
     <div className="flex justify-between gap-4 animate-pulse">
       {Array(7).fill(0).map((_, i) => (
         <div key={i} className="flex-1 flex flex-col items-center">
-          <div className="w-full bg-gray-200 rounded-t mb-2" style={{ height: `${Math.random() * 100 + 50}px` }}></div>
+          <div className="w-full bg-gray-200 rounded-t h-32 mb-2"></div>
           <div className="h-3 bg-gray-200 rounded w-16 mb-1"></div>
           <div className="h-3 bg-gray-200 rounded w-8"></div>
         </div>
@@ -233,7 +233,7 @@ function AnalyticsReservations({ setView, admin }) {
     <div className="h-64 flex items-end justify-between gap-2 animate-pulse">
       {Array(7).fill(0).map((_, i) => (
         <div key={i} className="flex-1 flex flex-col items-center gap-2">
-          <div className="w-full bg-gray-200 rounded-t" style={{ height: `${Math.random() * 150 + 50}px` }}></div>
+          <div className="w-full bg-gray-200 rounded-t h-40"></div>
           <div className="h-3 bg-gray-200 rounded w-8"></div>
         </div>
       ))}
@@ -274,7 +274,7 @@ function AnalyticsReservations({ setView, admin }) {
     </div>
   );
 
-  // ==================== CSV EXPORT FUNCTION (without Unicode blocks) ====================
+  // ==================== CSV EXPORT FUNCTION ====================
 
   const exportToCSV = () => {
     try {
@@ -967,12 +967,13 @@ function AnalyticsReservations({ setView, admin }) {
           <span className="text-gray-600 capitalize">{label}</span>
           {showValue && <span className="text-gray-800 font-medium">{value.toLocaleString()}</span>}
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
           <div 
-            className={`${getBgColorClass(color)} rounded-full h-2 transition-all duration-300`}
+            className={`${getBgColorClass(color)} rounded-full h-2.5 transition-all duration-300`}
             style={{ width: `${percentage}%` }}
           />
         </div>
+        <div className="text-xs text-gray-500 mt-1">{percentage}% of total</div>
       </div>
     );
   };
@@ -1076,6 +1077,10 @@ function AnalyticsReservations({ setView, admin }) {
 
   const totalReservations = reservationData.total || 0;
   const totalDays = Object.values(reservationData.byDayOfWeek || {}).reduce((a, b) => a + b, 0) || 1;
+  
+  // Find the maximum value for the day chart to scale properly
+  const maxDayValue = Math.max(...Object.values(reservationData.byDayOfWeek || {}), 1);
+  const chartHeight = 200; // Fixed height for the chart in pixels
 
   return (
     <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
@@ -1306,40 +1311,40 @@ function AnalyticsReservations({ setView, admin }) {
                 <ProgressBarSkeleton />
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Pending</span>
-                  <span className="text-yellow-600 font-semibold">{(reservationData.pending || 0).toLocaleString()}</span>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-gray-600 font-medium">Pending</span>
+                  <span className="text-yellow-600 font-bold">{(reservationData.pending || 0).toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Approved</span>
-                  <span className="text-green-600 font-semibold">{(reservationData.approved || 0).toLocaleString()}</span>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-gray-600 font-medium">Approved</span>
+                  <span className="text-green-600 font-bold">{(reservationData.approved || 0).toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Rejected</span>
-                  <span className="text-red-600 font-semibold">{(reservationData.rejected || 0).toLocaleString()}</span>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-gray-600 font-medium">Rejected</span>
+                  <span className="text-red-600 font-bold">{(reservationData.rejected || 0).toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Completed</span>
-                  <span className="text-blue-600 font-semibold">{(reservationData.completed || 0).toLocaleString()}</span>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-gray-600 font-medium">Completed</span>
+                  <span className="text-blue-600 font-bold">{(reservationData.completed || 0).toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Cancelled</span>
-                  <span className="text-gray-600 font-semibold">{(reservationData.cancelled || 0).toLocaleString()}</span>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-gray-600 font-medium">Cancelled</span>
+                  <span className="text-gray-600 font-bold">{(reservationData.cancelled || 0).toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Expired</span>
-                  <span className="text-orange-600 font-semibold">{(reservationData.expired || 0).toLocaleString()}</span>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                  <span className="text-gray-600 font-medium">Expired</span>
+                  <span className="text-orange-600 font-bold">{(reservationData.expired || 0).toLocaleString()}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Ongoing</span>
-                  <span className="text-purple-600 font-semibold">{(reservationData.ongoing || 0).toLocaleString()}</span>
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-gray-600 font-medium">Ongoing</span>
+                  <span className="text-purple-600 font-bold">{(reservationData.ongoing || 0).toLocaleString()}</span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Department Reservation Statistics */}
+          {/* Department Reservation Statistics - IMPROVED */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Reservations by Department</h2>
             {loading ? (
@@ -1361,6 +1366,11 @@ function AnalyticsReservations({ setView, admin }) {
                       color={idx === 0 ? "blue" : idx === 1 ? "green" : idx === 2 ? "purple" : "orange"}
                     />
                   ))}
+                  {reservationData.userDepartmentStats.length > 5 && (
+                    <div className="text-center text-xs text-gray-500 mt-2">
+                      +{reservationData.userDepartmentStats.length - 5} more departments
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-gray-500 text-center py-4">No department data available</p>
@@ -1368,7 +1378,7 @@ function AnalyticsReservations({ setView, admin }) {
             )}
           </div>
 
-          {/* Floor Distribution */}
+          {/* Floor Distribution - IMPROVED */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Floor Distribution</h2>
             {loading ? (
@@ -1384,12 +1394,17 @@ function AnalyticsReservations({ setView, admin }) {
                   {reservationData.floorDistribution.slice(0, 5).map((floor, idx) => (
                     <ProgressBar 
                       key={idx}
-                      label={floor.name || 'Unknown'} 
+                      label={floor.name || `Floor ${idx + 1}`} 
                       value={floor.value || 0} 
                       total={reservationData.total || 1} 
                       color={idx === 0 ? "blue" : idx === 1 ? "green" : idx === 2 ? "purple" : "orange"}
                     />
                   ))}
+                  {reservationData.floorDistribution.length > 5 && (
+                    <div className="text-center text-xs text-gray-500 mt-2">
+                      +{reservationData.floorDistribution.length - 5} more floors
+                    </div>
+                  )}
                 </div>
               ) : (
                 <p className="text-gray-500 text-center py-4">No floor distribution data available</p>
@@ -1398,47 +1413,75 @@ function AnalyticsReservations({ setView, admin }) {
           </div>
         </div>
 
-        {/* Day of Week Distribution - FIXED: Horizontal layout with full day names */}
+        {/* Day of Week Distribution - FIXED: Bars from bottom to top */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Reservations by Day of Week</h2>
           {loading ? (
             <DayChartSkeleton />
           ) : (
-            <div className="flex justify-between gap-4">
-              {Object.entries(reservationData.byDayOfWeek || {}).map(([day, count], index) => {
-                const dayNames = {
-                  mon: 'Monday',
-                  tue: 'Tuesday',
-                  wed: 'Wednesday',
-                  thu: 'Thursday',
-                  fri: 'Friday',
-                  sat: 'Saturday',
-                  sun: 'Sunday'
-                };
-                const percentage = (count / totalDays) * 100;
-                const height = Math.max(percentage, 4);
-                
-                return (
-                  <div key={day} className="flex-1 flex flex-col items-center">
-                    <div className="w-full bg-gray-100 rounded-t relative group mb-2" style={{ height: `${height * 2}px` }}>
-                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                        {count} reservations
+            <div>
+              {/* Chart container with fixed height and flex-end alignment */}
+              <div className="flex justify-between gap-4 items-end" style={{ height: `${chartHeight}px` }}>
+                {Object.entries(reservationData.byDayOfWeek || {}).map(([day, count]) => {
+                  const dayNames = {
+                    mon: 'Monday',
+                    tue: 'Tuesday',
+                    wed: 'Wednesday',
+                    thu: 'Thursday',
+                    fri: 'Friday',
+                    sat: 'Saturday',
+                    sun: 'Sunday'
+                  };
+                  
+                  // Calculate bar height based on maximum value
+                  const barHeight = maxDayValue > 0 ? (count / maxDayValue) * (chartHeight - 40) : 0;
+                  
+                  return (
+                    <div key={day} className="flex-1 flex flex-col items-center">
+                      {/* Bar container with tooltip */}
+                      <div className="relative w-full group mb-2">
+                        <div className="flex justify-center">
+                          <div 
+                            className="w-3/4 bg-[#CC0000] rounded-t transition-all duration-300 hover:bg-[#990000] cursor-pointer"
+                            style={{ height: `${barHeight}px` }}
+                          >
+                            {/* Tooltip */}
+                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                              {count} reservations ({maxDayValue > 0 ? Math.round((count / maxDayValue) * 100) : 0}% of peak)
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <div 
-                        className="bg-[#CC0000] rounded-t w-full absolute bottom-0"
-                        style={{ height: `${percentage}%` }}
-                      />
+                      
+                      {/* Day name and count */}
+                      <span className="text-xs text-gray-600 font-medium text-center">{dayNames[day] || day}</span>
+                      <span className="text-sm text-gray-800 font-bold">{count}</span>
+                      
+                      {/* Mini percentage bar */}
+                      <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
+                        <div 
+                          className="bg-[#CC0000] rounded-full h-1"
+                          style={{ width: `${(count / totalDays) * 100}%` }}
+                        />
+                      </div>
                     </div>
-                    <span className="text-xs text-gray-600 font-medium">{dayNames[day] || day}</span>
-                    <span className="text-sm text-gray-800 font-bold">{count}</span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+              
+              {/* Chart legend */}
+              <div className="flex justify-between items-center mt-4 text-xs text-gray-500">
+                <div>Total: {totalDays} reservations</div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 bg-[#CC0000] rounded"></div>
+                  <span>Bar height relative to peak day ({maxDayValue} reservations)</span>
+                </div>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Growth Chart */}
+        {/* Growth Chart - IMPROVED */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
             Reservation Growth - {dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : dateRange === 'year' ? 'Monthly' : 'Custom Period'}
@@ -1446,28 +1489,45 @@ function AnalyticsReservations({ setView, admin }) {
           {loading ? (
             <GrowthChartSkeleton />
           ) : (
-            <div className="h-64 flex items-end justify-between gap-2">
-              {reservationData.growth?.values && reservationData.growth.values.length > 0 ? (
-                reservationData.growth.values.map((value, index) => {
-                  const max = Math.max(...reservationData.growth.values, 1);
-                  const height = max > 0 ? (value / max) * 100 : 0;
-                  return (
-                    <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                      <div 
-                        className="w-full bg-[#CC0000]/20 rounded-t relative group"
-                        style={{ height: `${height}%`, minHeight: '4px' }}
-                      >
-                        <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                          {value} reservations
+            <div>
+              <div className="h-64 flex items-end justify-between gap-2">
+                {reservationData.growth?.values && reservationData.growth.values.length > 0 ? (
+                  reservationData.growth.values.map((value, index) => {
+                    const max = Math.max(...reservationData.growth.values, 1);
+                    const height = max > 0 ? (value / max) * 200 : 0; // 200px max height
+                    
+                    return (
+                      <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                        <div className="relative w-full flex justify-center group">
+                          <div 
+                            className="w-3/4 bg-gradient-to-t from-[#CC0000] to-[#FF4444] rounded-t transition-all duration-300 hover:from-[#990000] hover:to-[#CC0000] cursor-pointer"
+                            style={{ height: `${height}px` }}
+                          >
+                            {/* Tooltip */}
+                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                              {value} reservations
+                            </div>
+                          </div>
                         </div>
+                        <span className="text-xs text-gray-600 font-medium">{reservationData.growth.labels?.[index] || ''}</span>
+                        <span className="text-xs text-gray-800">{value}</span>
                       </div>
-                      <span className="text-xs text-gray-600">{reservationData.growth.labels?.[index] || ''}</span>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="w-full text-center text-gray-500 py-12">
-                  No growth data available for this period
+                    );
+                  })
+                ) : (
+                  <div className="w-full text-center text-gray-500 py-12">
+                    No growth data available for this period
+                  </div>
+                )}
+              </div>
+              
+              {reservationData.growth?.values && reservationData.growth.values.length > 0 && (
+                <div className="flex justify-between items-center mt-4 text-xs text-gray-500">
+                  <div>Total growth: {reservationData.growth.values.reduce((a, b) => a + b, 0)} reservations</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-gradient-to-t from-[#CC0000] to-[#FF4444] rounded"></div>
+                    <span>Bar height relative to peak period</span>
+                  </div>
                 </div>
               )}
             </div>
@@ -1513,6 +1573,7 @@ function AnalyticsReservations({ setView, admin }) {
                                 style={{ width: `${room.utilization}%` }}
                               ></div>
                             </div>
+                            <span className="text-xs text-gray-600">{room.utilization}%</span>
                           </div>
                         </td>
                       </tr>
