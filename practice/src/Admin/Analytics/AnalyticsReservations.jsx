@@ -274,7 +274,7 @@ function AnalyticsReservations({ setView, admin }) {
     </div>
   );
 
-  // ==================== CSV EXPORT FUNCTION ====================
+  // ==================== CSV EXPORT FUNCTION (FIXED) ====================
 
   const exportToCSV = () => {
     try {
@@ -311,20 +311,20 @@ function AnalyticsReservations({ setView, admin }) {
         csvContent += '\n';
       };
 
-      // Helper to add a section header with Excel formatting
+      // Helper to add a section header with Excel formatting (FIXED: removed = and - symbols)
       const addSectionHeader = (title, subtitle = '') => {
-        addRow(['========================================']);
+        addRow(['']);
         addRow([title.toUpperCase()]);
-        addRow(['========================================']);
+        addRow(['']);
         if (subtitle) {
           addRow([subtitle]);
         }
         addBlankRow();
       };
 
-      // Helper to add a subheader
+      // Helper to add a subheader (FIXED: removed --- symbols)
       const addSubHeader = (title) => {
-        addRow(['--- ' + title + ' ---']);
+        addRow([title]);
       };
 
       // Get date range description
@@ -337,7 +337,7 @@ function AnalyticsReservations({ setView, admin }) {
       // ==================== REPORT HEADER ====================
       addBlankRow();
       addRow(['RESERVATION ANALYTICS REPORT']);
-      addRow(['========================================']);
+      addRow(['']);
       addBlankRow();
       addRow(['Generated:', new Date().toLocaleString()]);
       addRow(['Date Range:', rangeDescription]);
@@ -364,7 +364,7 @@ function AnalyticsReservations({ setView, admin }) {
           });
         }
         
-        const total = reservationData.total || 1; // FIXED: Define total here
+        const total = reservationData.total || 1;
         
         sortedDepts.forEach((dept, idx) => {
           const percentage = Math.min(Math.round((dept.count / total) * 100), 100);
@@ -450,7 +450,7 @@ function AnalyticsReservations({ setView, admin }) {
       // ==================== SECTION 3: RESERVATION STATUS BREAKDOWN ====================
       addSectionHeader('SECTION 3: RESERVATION STATUS BREAKDOWN');
       
-      const total = reservationData.total || 1; // FIXED: Define total here
+      const total = reservationData.total || 1;
       
       // Status breakdown table with percentages
       addRow(['Status', 'Count', 'Percentage of Total', 'Status Description']);
@@ -506,7 +506,7 @@ function AnalyticsReservations({ setView, admin }) {
       
       Object.entries(reservationData.byDayOfWeek || {}).forEach(([day, count]) => {
         const percentage = Math.min(Math.round((count / totalDays) * 100), 100);
-        const isPeakDay = day === peakDay[0] ? '★ Peak Day' : '';
+        const isPeakDay = day === peakDay[0] ? 'Peak Day' : '';
         
         addRow([
           dayNames[day] || day,
@@ -518,7 +518,7 @@ function AnalyticsReservations({ setView, admin }) {
 
       if (peakDay[0]) {
         addBlankRow();
-        addRow(['Peak Day:', dayNames[peakDay[0]] || peakDay[0], 'with', peakDay[1].toLocaleString(), 'reservations - Busiest day of the week']);
+        addRow(['Peak Day:', dayNames[peakDay[0]] || peakDay[0], 'with', peakDay[1].toLocaleString(), 'reservations Busiest day of the week']);
       }
       addBlankRow();
       addBlankRow();
@@ -657,10 +657,10 @@ function AnalyticsReservations({ setView, admin }) {
           
           // Determine room performance note
           let note = 'Normal operation';
-          if (successRate > 80) note = 'High performing room - excellent completion rate';
-          else if (successRate < 40) note = 'Low completion rate - review required';
-          else if (pending > approved && pending > 10) note = 'High pending count - attention needed for approvals';
-          else if (room.cancelled > completed) note = 'High cancellation rate - investigate reasons';
+          if (successRate > 80) note = 'High performing room excellent completion rate';
+          else if (successRate < 40) note = 'Low completion rate review required';
+          else if (pending > approved && pending > 10) note = 'High pending count attention needed for approvals';
+          else if (room.cancelled > completed) note = 'High cancellation rate investigate reasons';
           
           addRow([
             room.name || 'Unknown',
@@ -702,8 +702,8 @@ function AnalyticsReservations({ setView, admin }) {
           
           // Trend direction
           let trendDirection = 'Stable';
-          if (change > 0) trendDirection = 'Growing ↑';
-          else if (change < 0) trendDirection = 'Declining ↓';
+          if (change > 0) trendDirection = 'Growing';
+          else if (change < 0) trendDirection = 'Declining';
           
           const changeDisplay = change > 0 ? '+' + change.toLocaleString() : change.toLocaleString();
           const changePercentDisplay = changePercent > 0 ? '+' + changePercent + '%' : changePercent + '%';
@@ -730,7 +730,7 @@ function AnalyticsReservations({ setView, admin }) {
           addRow(['Period End:', labels[labels.length - 1], lastValue.toLocaleString(), 'reservations']);
           addRow(['Total Change:', totalGrowth > 0 ? '+' + totalGrowth.toLocaleString() : totalGrowth.toLocaleString(), 'reservations']);
           addRow(['Growth Rate:', (growthPercent > 0 ? '+' : '') + growthPercent + '%']);
-          addRow(['Overall Trend:', totalGrowth > 0 ? '📈 Positive Growth Trend' : '📉 Negative Decline Trend']);
+          addRow(['Overall Trend:', totalGrowth > 0 ? 'Positive Growth Trend' : 'Negative Decline Trend']);
         }
       } else {
         addRow(['No growth data available for this period']);
@@ -784,7 +784,7 @@ function AnalyticsReservations({ setView, admin }) {
       // Peak day insight
       if (peakDay[0]) {
         addRow([
-          '• Peak Day Analysis:',
+          'Peak Day Analysis:',
           `${dayNames[peakDay[0]] || peakDay[0]} is the busiest day with ${peakDay[1]} reservations`,
           'Recommendation: Consider allocating additional resources on this day'
         ]);
@@ -795,7 +795,7 @@ function AnalyticsReservations({ setView, admin }) {
         (b[1] < a[1] ? b : a), ['', Infinity]);
       if (slowDay[0] && slowDay[1] < totalDays / 7) {
         addRow([
-          '• Low Activity Day:',
+          'Low Activity Day:',
           `${dayNames[slowDay[0]] || slowDay[0]} has only ${slowDay[1]} reservations`,
           'Recommendation: Consider promotions or maintenance on this day'
         ]);
@@ -807,7 +807,7 @@ function AnalyticsReservations({ setView, admin }) {
         const topDept = sortedDepts[0];
         const deptPercentage = Math.min(Math.round((topDept.count / total) * 100), 100);
         addRow([
-          '• Top Department:',
+          'Top Department:',
           `${topDept.name} leads with ${topDept.count} reservations (${deptPercentage}% of total)`,
           'Recommendation: Engage with department for best practices'
         ]);
@@ -816,7 +816,7 @@ function AnalyticsReservations({ setView, admin }) {
         const lowDepts = sortedDepts.filter(d => (d.count / total) * 100 < 5);
         if (lowDepts.length > 0) {
           addRow([
-            '• Low Activity Departments:',
+            'Low Activity Departments:',
             `${lowDepts.length} departments have <5% of total reservations`,
             'Recommendation: Reach out to understand barriers'
           ]);
@@ -828,16 +828,16 @@ function AnalyticsReservations({ setView, admin }) {
         const sortedRooms = [...reservationData.popularRooms].sort((a, b) => b.bookings - a.bookings);
         const topRoom = sortedRooms[0];
         addRow([
-          '• Most Popular Room:',
+          'Most Popular Room:',
           `${topRoom.name} with ${topRoom.bookings} bookings and ${Math.min(topRoom.utilization, 100)}% utilization`,
-          'Recommendation: Ensure this room is well-maintained'
+          'Recommendation: Ensure this room is well maintained'
         ]);
         
         // Low utilization rooms
         const lowUtilRooms = sortedRooms.filter(r => r.utilization < 30);
         if (lowUtilRooms.length > 0) {
           addRow([
-            '• Underutilized Rooms:',
+            'Underutilized Rooms:',
             `${lowUtilRooms.length} rooms with <30% utilization`,
             'Recommendation: Consider marketing or repurposing these rooms'
           ]);
@@ -850,7 +850,7 @@ function AnalyticsReservations({ setView, admin }) {
         const topReserver = sortedTop[0];
         if (topReserver) {
           addRow([
-            '• Top Reserver:',
+            'Top Reserver:',
             `${topReserver.name} from ${topReserver.department || 'N/A'} with ${topReserver.count} reservations`,
             'Recommendation: Recognize top users'
           ]);
@@ -862,7 +862,7 @@ function AnalyticsReservations({ setView, admin }) {
         const trend = reservationData.trends.total;
         const growthStatus = trend.direction === 'up' ? 'positive' : 'negative';
         addRow([
-          '• Overall Trend:',
+          'Overall Trend:',
           `${trend.direction === 'up' ? 'Growth' : 'Decline'} of ${trend.percentage}% compared to previous period`,
           `Recommendation: ${trend.direction === 'up' ? 'Continue current strategies' : 'Investigate causes of decline'}`
         ]);
@@ -872,7 +872,7 @@ function AnalyticsReservations({ setView, admin }) {
       addBlankRow();
 
       // ==================== FOOTER ====================
-      addRow(['========================================']);
+      addRow(['']);
       addRow(['END OF REPORT']);
       addRow(['Generated by Analytics System']);
       addRow([new Date().toLocaleString()]);
