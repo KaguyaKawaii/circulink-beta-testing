@@ -183,34 +183,67 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentAdmin }) => {
     setShowUsersModal(false);
   };
 
-  // Search for users
-  const searchUsers = async (term) => {
-    if (!term.trim()) {
-      setSearchResults([]);
-      return;
-    }
+// Search for users
+const searchUsers = async (term) => {
+  if (!term.trim()) {
+    setSearchResults([]);
+    return;
+  }
 
-    setSearchLoading(true);
-    try {
-      const baseURL = import.meta.env.VITE_API_URL;
-      const url = `${baseURL}/api/users/search/users?q=${encodeURIComponent(term)}&verified=true`;
-      
-      console.log("Searching users at:", url);
-      
-      const res = await axios.get(url);
-      
-      // Handle both array response and object response with users property
-      const results = Array.isArray(res.data) ? res.data : (res.data.users || []);
+  setSearchLoading(true);
+  try {
+    const baseURL = import.meta.env.VITE_API_URL;
+    
+    // Try multiple possible endpoints
+    const endpoints = [
+      `${baseURL}/api/users/search?q=${encodeURIComponent(term)}&verified=true`,  // Main endpoint
+      `${baseURL}/api/users/search/users?q=${encodeURIComponent(term)}&verified=true`, // Alias
+      `${baseURL}/api/users/all/users?search=${encodeURIComponent(term)}`, // Fallback
+    ];
+    
+    let response = null;
+    let lastError = null;
+    
+    // Try each endpoint until one works
+    for (const url of endpoints) {
+      try {
+        console.log("Trying search URL:", url);
+        const res = await axios.get(url, { timeout: 5000 });
+        if (res.status === 200) {
+          response = res;
+          console.log("✅ Success with URL:", url);
+          break;
+        }
+      } catch (err) {
+        lastError = err;
+        console.log("❌ Failed with URL:", url);
+      }
+    }
+    
+    if (response) {
+      // Handle different response formats
+      let results = [];
+      if (Array.isArray(response.data)) {
+        results = response.data;
+      } else if (response.data.users && Array.isArray(response.data.users)) {
+        results = response.data.users;
+      } else if (response.data.results && Array.isArray(response.data.results)) {
+        results = response.data.results;
+      }
       
       setSearchResults(results);
       console.log("Search results:", results);
-    } catch (err) {
-      console.error("User search error:", err);
+    } else {
+      console.error("All search endpoints failed:", lastError);
       setSearchResults([]);
-    } finally {
-      setSearchLoading(false);
     }
-  };
+  } catch (err) {
+    console.error("User search error:", err);
+    setSearchResults([]);
+  } finally {
+    setSearchLoading(false);
+  }
+};
 
   // Validate participant (but admin can add unverified users if needed)
   const validateParticipant = async (idx, idNumber) => {

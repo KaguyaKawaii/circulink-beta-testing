@@ -12,6 +12,8 @@ router.post("/validate-session", userController.validateSession);
 
 // ================== SEARCH ROUTES (MUST COME BEFORE /:id) ==================
 router.get("/search", userController.searchUsers);
+// Add alias for /search/users to maintain compatibility
+router.get("/search/users", userController.searchUsers); // ADD THIS LINE
 router.get("/check-participant", userController.checkParticipant);
 
 // ================== STATIC ROUTES (MUST COME BEFORE /:id) ==================

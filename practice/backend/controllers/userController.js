@@ -913,12 +913,9 @@ export const searchUsers = async (req, res) => {
     
     console.log("🔍 User search request:", { q, verified });
 
-    // Validate input
+    // Validate input - return empty array instead of 400 for empty query
     if (!q || q.trim() === "") {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Search query is required" 
-      });
+      return res.status(200).json([]); // Return empty array instead of error
     }
 
     const searchRegex = new RegExp(q, 'i');
@@ -942,13 +939,13 @@ export const searchUsers = async (req, res) => {
     query.archived = { $ne: true };
 
     const users = await User.find(query)
-      .select('name id_number email course year_level department role verified')
+      .select('name id_number email course year_level department role verified profilePicture')
       .limit(20);
 
     console.log(`✅ Found ${users.length} users matching "${q}"`);
     
     // Return as array (not wrapped in success object to match frontend expectation)
-    res.json(users);
+    res.status(200).json(users);
   } catch (err) {
     console.error("❌ User search error:", err);
     res.status(500).json({ 
