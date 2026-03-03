@@ -180,43 +180,49 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
     },
   ];
 
+  // Handle navigation item click without closing dropdowns
+  const handleNavClick = (viewId) => {
+    setView(viewId);
+    // Don't close any dropdowns
+  };
+
   return (
     <>
       <aside>
         <div className="fixed top-0 left-0 h-screen w-[250px] bg-[#030303] p-0 flex flex-col border-r border-gray-800 z-[99999]">
-          {/* Logo + Title */}
-          <div className="flex items-center gap-3 p-4 border-b border-gray-800 bg-[#0a0a0a] z-[9999]">
-            <img src={Logo} alt="Logo" className="h-[40px] w-[40px]" />
-            <h1 className="text-[15px] font-medium text-gray-200 leading-tight">
+          {/* Logo + Title - Fixed width container */}
+          <div className="flex items-center gap-3 p-4 border-b border-gray-800 bg-[#0a0a0a] z-[9999] w-full">
+            <img src={Logo} alt="Logo" className="h-[40px] w-[40px] flex-shrink-0" />
+            <h1 className="text-[15px] font-medium text-gray-200 leading-tight truncate">
               University of San Agustin | CircuLink
             </h1>
           </div>
 
-          {/* Navigation Buttons */}
-          <div className="flex flex-col h-full overflow-y-auto bg-[#030303] pointer-events-auto">
-            <div className="flex flex-col flex-grow pointer-events-auto">
+          {/* Navigation Buttons - Fixed width scrolling container */}
+          <div className="flex flex-col h-full overflow-y-auto bg-[#030303] pointer-events-auto w-full scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+            <div className="flex flex-col flex-grow pointer-events-auto w-full">
               {navButtons.map(({ id, label, icon: Icon, svg }) => (
                 <button
                   key={id}
                   ref={(el) => (navRefs.current[id] = el)}
-                  onClick={() => setView(id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
+                  onClick={() => handleNavClick(id)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer flex-shrink-0 ${
                     currentView === id
                       ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500 shadow-lg"
                       : "text-gray-400 border-transparent hover:bg-gray-800 hover:text-gray-200 hover:border-gray-600"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="text-gray-300">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="text-gray-300 flex-shrink-0">
                       {svg}
                     </div>
-                    <span className="text-sm">{label}</span>
+                    <span className="text-sm truncate">{label}</span>
                   </div>
                 </button>
               ))}
 
               {/* Analytics Dropdown */}
-              <div>
+              <div className="w-full flex-shrink-0">
                 <button
                   onClick={() => setAnalyticsOpen((prev) => !prev)}
                   className={`w-full flex items-center justify-between px-4 py-3 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
@@ -225,37 +231,37 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                       : "text-gray-400 border-transparent hover:bg-gray-800 hover:text-gray-200 hover:border-gray-600"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="text-gray-300">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="text-gray-300 flex-shrink-0">
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
                     </div>
-                    <span className="text-sm">Analytics</span>
+                    <span className="text-sm truncate">Analytics</span>
                   </div>
                   <ChevronDown
                     size={16}
-                    className={`transition-transform duration-200 ${
+                    className={`transition-transform duration-200 flex-shrink-0 ${
                       analyticsOpen ? "rotate-180 text-gray-300" : "text-gray-500"
                     }`}
                   />
                 </button>
 
                 {analyticsOpen && (
-                  <div className="flex flex-col bg-[#0a0a0a] pointer-events-auto">
+                  <div className="flex flex-col bg-[#0a0a0a] pointer-events-auto w-full">
                     {analyticsOptions.map(({ id, label, svg }) => (
                       <button
                         key={id}
                         ref={(el) => (navRefs.current[id] = el)}
-                        onClick={() => setView(id)}
+                        onClick={() => handleNavClick(id)}
                         className={`w-full flex items-center gap-2 px-4 py-2 text-sm transition-all duration-200 cursor-pointer ${
                           currentView === id
                             ? "text-white font-medium bg-gray-800 shadow-md"
                             : "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
                         }`}
                       >
-                        <div className="text-gray-300">
+                        <div className="text-gray-300 flex-shrink-0">
                           {svg}
                         </div>
-                        {label}
+                        <span className="truncate">{label}</span>
                       </button>
                     ))}
                   </div>
@@ -263,7 +269,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
               </div>
 
               {/* Archive Dropdown */}
-              <div>
+              <div className="w-full flex-shrink-0">
                 <button
                   onClick={() => setArchiveOpen((prev) => !prev)}
                   className={`w-full flex items-center justify-between px-4 py-3 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
@@ -272,37 +278,37 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                       : "text-gray-400 border-transparent hover:bg-gray-800 hover:text-gray-200 hover:border-gray-600"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="text-gray-300">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="text-gray-300 flex-shrink-0">
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>
                     </div>
-                    <span className="text-sm">Archived</span>
+                    <span className="text-sm truncate">Archived</span>
                   </div>
                   <ChevronDown
                     size={16}
-                    className={`transition-transform duration-200 ${
+                    className={`transition-transform duration-200 flex-shrink-0 ${
                       archiveOpen ? "rotate-180 text-gray-300" : "text-gray-500"
                     }`}
                   />
                 </button>
 
                 {archiveOpen && (
-                  <div className="flex flex-col bg-[#0a0a0a] pointer-events-auto">
+                  <div className="flex flex-col bg-[#0a0a0a] pointer-events-auto w-full">
                     {archiveOptions.map(({ id, label, svg }) => (
                       <button
                         key={id}
                         ref={(el) => (navRefs.current[id] = el)}
-                        onClick={() => setView(id)}
+                        onClick={() => handleNavClick(id)}
                         className={`w-full flex items-center gap-2 px-4 py-2 text-sm transition-all duration-200 cursor-pointer ${
                           currentView === id
                             ? "text-white font-medium bg-gray-800 shadow-md"
                             : "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
                         }`}
                       >
-                        <div className="text-gray-300">
+                        <div className="text-gray-300 flex-shrink-0">
                           {svg}
                         </div>
-                        {label}
+                        <span className="truncate">{label}</span>
                       </button>
                     ))}
                   </div>
@@ -310,7 +316,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
               </div>
 
               {/* Settings Dropdown */}
-              <div>
+              <div className="w-full flex-shrink-0">
                 <button
                   onClick={() => setSettingsOpen((prev) => !prev)}
                   className={`w-full flex items-center justify-between px-4 py-3 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
@@ -321,37 +327,37 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                       : "text-gray-400 border-transparent hover:bg-gray-800 hover:text-gray-200 hover:border-gray-600"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <div className="text-gray-300">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="text-gray-300 flex-shrink-0">
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                     </div>
-                    <span className="text-sm">Settings</span>
+                    <span className="text-sm truncate">Settings</span>
                   </div>
                   <ChevronDown
                     size={16}
-                    className={`transition-transform duration-200 ${
+                    className={`transition-transform duration-200 flex-shrink-0 ${
                       settingsOpen ? "rotate-180 text-gray-300" : "text-gray-500"
                     }`}
                   />
                 </button>
 
                 {settingsOpen && (
-                  <div className="flex flex-col bg-[#0a0a0a] pointer-events-auto">
+                  <div className="flex flex-col bg-[#0a0a0a] pointer-events-auto w-full">
                     {settingsOptions.map(({ id, label, icon: Icon, svg }) => (
                       <button
                         key={id}
                         ref={(el) => (navRefs.current[id] = el)}
-                        onClick={() => setView(id)}
+                        onClick={() => handleNavClick(id)}
                         className={`w-full flex items-center gap-2 px-4 py-2 text-sm transition-all duration-200 cursor-pointer ${
                           currentView === id
                             ? "text-white font-medium bg-gray-800 shadow-md"
                             : "text-gray-400 hover:text-gray-200 hover:bg-gray-700"
                         }`}
                       >
-                        <div className="text-gray-300">
+                        <div className="text-gray-300 flex-shrink-0">
                           {svg}
                         </div>
-                        {label}
+                        <span className="truncate">{label}</span>
                       </button>
                     ))}
                   </div>
@@ -360,7 +366,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
             </div>
 
             {/* Logout - Fixed with proper click handling */}
-            <div className="mt-auto border-t border-gray-800 bg-[#0a0a0a] relative z-[99999] pointer-events-auto">
+            <div className="mt-auto border-t border-gray-800 bg-[#0a0a0a] relative z-[99999] pointer-events-auto w-full flex-shrink-0">
               <button
                 onClick={() => {
                   // Show logout modal instead of direct logout
@@ -370,7 +376,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                 }}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm text-gray-400 hover:bg-red-900/20 hover:text-red-300 transition-all duration-200 hover:border-l-4 hover:border-red-500 cursor-pointer relative z-[99999]"
               >
-                <div className="text-gray-400">
+                <div className="text-gray-400 flex-shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16,17 21,12 16,7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                 </div>
                 <span>Logout</span>
