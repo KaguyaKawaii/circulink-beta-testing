@@ -941,7 +941,7 @@ function AnalyticsReservations({ setView, admin }) {
     );
   };
 
-  // FIXED: ProgressBar component with proper spacing and no overlap
+  // ProgressBar component with proper spacing and no overlap
   const ProgressBar = ({ label, value, total, color = "blue", showValue = true, isLoading = false }) => {
     const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
     
@@ -1351,7 +1351,7 @@ function AnalyticsReservations({ setView, admin }) {
             )}
           </div>
 
-          {/* Department Reservation Statistics - FIXED: No overlap */}
+          {/* Department Reservation Statistics */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Reservations by Department</h2>
             {loading ? (
@@ -1385,7 +1385,7 @@ function AnalyticsReservations({ setView, admin }) {
             )}
           </div>
 
-          {/* Floor Distribution - FIXED: No overlap */}
+          {/* Floor Distribution */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Floor Distribution</h2>
             {loading ? (
@@ -1488,7 +1488,7 @@ function AnalyticsReservations({ setView, admin }) {
           )}
         </div>
 
-        {/* Growth Chart - IMPROVED */}
+        {/* Growth Chart */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">
             Reservation Growth - {dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : dateRange === 'year' ? 'Monthly' : 'Custom Period'}
@@ -1598,13 +1598,14 @@ function AnalyticsReservations({ setView, admin }) {
           </div>
         </div>
 
-        {/* Top Reservers by Department */}
+        {/* Top Reservers by Department - FIXED: Improved styling */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Top Reservers by Department</h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
                 <tr>
+                  <th className="px-6 py-3 text-left font-medium">Rank</th>
                   <th className="px-6 py-3 text-left font-medium">Name</th>
                   <th className="px-6 py-3 text-left font-medium">Department</th>
                   <th className="px-6 py-3 text-left font-medium">Reservations</th>
@@ -1614,36 +1615,67 @@ function AnalyticsReservations({ setView, admin }) {
               <tbody className="divide-y divide-gray-200">
                 {loading ? (
                   <>
-                    <TableRowSkeleton cols={4} />
-                    <TableRowSkeleton cols={4} />
-                    <TableRowSkeleton cols={4} />
-                    <TableRowSkeleton cols={4} />
-                    <TableRowSkeleton cols={4} />
+                    <TableRowSkeleton cols={5} />
+                    <TableRowSkeleton cols={5} />
+                    <TableRowSkeleton cols={5} />
+                    <TableRowSkeleton cols={5} />
+                    <TableRowSkeleton cols={5} />
                   </>
                 ) : (
                   reservationData.topReservers && reservationData.topReservers.length > 0 ? (
-                    reservationData.topReservers.map((user, index) => (
-                      <tr key={index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.department || 'N/A'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.count}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div className="w-24 bg-gray-200 rounded-full h-2">
-                              <div 
-                                className="bg-blue-500 rounded-full h-2" 
-                                style={{ width: `${Math.round((user.count / totalReservations) * 100)}%` }}
-                              ></div>
+                    reservationData.topReservers.map((user, index) => {
+                      const percentage = totalReservations > 0 ? Math.round((user.count / totalReservations) * 100) : 0;
+                      
+                      // Determine rank badge color
+                      const rankColors = [
+                        "bg-yellow-100 text-yellow-800", // Gold for 1st
+                        "bg-gray-100 text-gray-800",     // Silver for 2nd
+                        "bg-orange-100 text-orange-800"  // Bronze for 3rd
+                      ];
+                      
+                      const rankColor = index < 3 ? rankColors[index] : "bg-blue-50 text-blue-800";
+                      
+                      return (
+                        <tr key={index} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-medium ${rankColor}`}>
+                              #{index + 1}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="font-medium text-gray-900">{user.name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-full text-xs">
+                              {user.department || 'N/A'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="font-semibold text-gray-900">{user.count.toLocaleString()}</span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center gap-3">
+                              <div className="w-24 bg-gray-200 rounded-full h-2 overflow-hidden">
+                                <div 
+                                  className="bg-blue-500 rounded-full h-2 transition-all duration-300"
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                              <span className="text-sm font-medium text-gray-700 min-w-[45px]">
+                                {percentage}%
+                              </span>
                             </div>
-                            <span className="text-gray-600 text-sm">{Math.round((user.count / totalReservations) * 100)}%</span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
-                      <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
-                        No top reserver data available
+                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                        <div className="flex flex-col items-center gap-2">
+                          <Users size={24} className="text-gray-400" />
+                          <p>No top reserver data available for this period</p>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -1651,6 +1683,21 @@ function AnalyticsReservations({ setView, admin }) {
               </tbody>
             </table>
           </div>
+          
+          {/* Summary footer */}
+          {reservationData.topReservers && reservationData.topReservers.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500 flex justify-between items-center">
+              <div>Showing top {Math.min(reservationData.topReservers.length, 10)} reservers</div>
+              <div className="flex items-center gap-3">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-yellow-400 rounded-full"></span> Top 3
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span> Progress bar
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Detailed Room Table */}
