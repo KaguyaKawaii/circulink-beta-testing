@@ -365,7 +365,7 @@ function AnalyticsReservations({ setView, admin }) {
         }
         
         sortedDepts.forEach((dept, idx) => {
-          const percentage = Math.round((dept.count / total) * 100);
+          const percentage = Math.min(Math.round((dept.count / total) * 100), 100);
           
           // Determine activity level
           let activityLevel = 'Low';
@@ -418,7 +418,7 @@ function AnalyticsReservations({ setView, admin }) {
         (reservationData.completed || 0).toLocaleString(),
         `${reservationData.trends?.completed?.percentage || 0}%`,
         reservationData.trends?.completed?.direction === 'up' ? 'Increasing' : 'Decreasing',
-        'Success Rate: ' + Math.round((reservationData.completed / (reservationData.total || 1)) * 100) + '%'
+        'Success Rate: ' + Math.min(Math.round((reservationData.completed / (reservationData.total || 1)) * 100), 100) + '%'
       ]);
       addRow([
         'PENDING', 
@@ -432,7 +432,7 @@ function AnalyticsReservations({ setView, admin }) {
         (reservationData.cancelled || 0).toLocaleString(),
         `${reservationData.trends?.cancelled?.percentage || 0}%`,
         reservationData.trends?.cancelled?.direction === 'up' ? 'Increasing' : 'Decreasing',
-        'Cancellation Rate: ' + Math.round((reservationData.cancelled / (reservationData.total || 1)) * 100) + '%'
+        'Cancellation Rate: ' + Math.min(Math.round((reservationData.cancelled / (reservationData.total || 1)) * 100), 100) + '%'
       ]);
       addBlankRow();
 
@@ -464,7 +464,7 @@ function AnalyticsReservations({ setView, admin }) {
       ];
 
       statuses.forEach(status => {
-        const percentage = Math.round((status.value / total) * 100);
+        const percentage = Math.min(Math.round((status.value / total) * 100), 100);
         
         addRow([
           status.label,
@@ -482,8 +482,8 @@ function AnalyticsReservations({ setView, admin }) {
       const activeTotal = reservationData.pending + reservationData.approved + reservationData.ongoing;
       const inactiveTotal = reservationData.completed + reservationData.cancelled + reservationData.rejected + reservationData.expired;
       
-      addRow(['Active (Pending + Approved + Ongoing)', activeTotal.toLocaleString(), Math.round((activeTotal / total) * 100) + '%']);
-      addRow(['Inactive (Completed + Cancelled + Rejected + Expired)', inactiveTotal.toLocaleString(), Math.round((inactiveTotal / total) * 100) + '%']);
+      addRow(['Active (Pending + Approved + Ongoing)', activeTotal.toLocaleString(), Math.min(Math.round((activeTotal / total) * 100), 100) + '%']);
+      addRow(['Inactive (Completed + Cancelled + Rejected + Expired)', inactiveTotal.toLocaleString(), Math.min(Math.round((inactiveTotal / total) * 100), 100) + '%']);
       addBlankRow();
       addBlankRow();
 
@@ -503,7 +503,7 @@ function AnalyticsReservations({ setView, admin }) {
         (b[1] > a[1] ? b : a), ['', 0]);
       
       Object.entries(reservationData.byDayOfWeek || {}).forEach(([day, count]) => {
-        const percentage = Math.round((count / totalDays) * 100);
+        const percentage = Math.min(Math.round((count / totalDays) * 100), 100);
         const isPeakDay = day === peakDay[0] ? '★ Peak Day' : '';
         
         addRow([
@@ -531,7 +531,7 @@ function AnalyticsReservations({ setView, admin }) {
         const sortedFloors = [...reservationData.floorDistribution].sort((a, b) => b.value - a.value);
         
         sortedFloors.forEach((floor, idx) => {
-          const percentage = Math.round((floor.value / total) * 100);
+          const percentage = Math.min(Math.round((floor.value / total) * 100), 100);
           const ranking = idx === 0 ? 'Most Active' : idx === sortedFloors.length - 1 ? 'Least Active' : `#${idx + 1} in activity`;
           
           addRow([
@@ -557,7 +557,7 @@ function AnalyticsReservations({ setView, admin }) {
         const sortedTopReservers = [...reservationData.topReservers].sort((a, b) => b.count - a.count);
         
         sortedTopReservers.slice(0, 15).forEach((user, index) => {
-          const percentage = Math.round((user.count / total) * 100);
+          const percentage = Math.min(Math.round((user.count / total) * 100), 100);
           
           // Contribution level
           let contribution = 'Contributor';
@@ -581,7 +581,7 @@ function AnalyticsReservations({ setView, admin }) {
         // Summary statistics
         if (sortedTopReservers.length > 0) {
           const top3Total = sortedTopReservers.slice(0, 3).reduce((sum, u) => sum + u.count, 0);
-          addRow(['Top 3 Reservers Combined:', top3Total.toLocaleString(), 'reservations', `(${Math.round((top3Total / total) * 100)}% of total)`]);
+          addRow(['Top 3 Reservers Combined:', top3Total.toLocaleString(), 'reservations', `(${Math.min(Math.round((top3Total / total) * 100), 100)}% of total)`]);
         }
       } else {
         addRow(['No top reserver data available for this period']);
@@ -612,7 +612,7 @@ function AnalyticsReservations({ setView, admin }) {
             (room.bookings || 0).toLocaleString(),
             (room.approved || 0).toLocaleString(),
             (room.completed || 0).toLocaleString(),
-            (room.utilization || 0) + '%',
+            Math.min(room.utilization || 0, 100) + '%',
             performance
           ]);
         });
@@ -649,7 +649,7 @@ function AnalyticsReservations({ setView, admin }) {
         sortedRoomDetails.slice(0, 20).forEach((room) => {
           const total = room.count || 0;
           const completed = room.completed || 0;
-          const successRate = total > 0 ? Math.round((completed / total) * 100) : 0;
+          const successRate = total > 0 ? Math.min(Math.round((completed / total) * 100), 100) : 0;
           const pending = room.pending || 0;
           const approved = room.approved || 0;
           
@@ -696,7 +696,7 @@ function AnalyticsReservations({ setView, admin }) {
           const value = values[index] || 0;
           const prevValue = index > 0 ? values[index - 1] : value;
           const change = value - prevValue;
-          const changePercent = prevValue > 0 ? Math.round((change / prevValue) * 100) : 0;
+          const changePercent = prevValue > 0 ? Math.min(Math.round((change / prevValue) * 100), 100) : 0;
           
           // Trend direction
           let trendDirection = 'Stable';
@@ -720,7 +720,7 @@ function AnalyticsReservations({ setView, admin }) {
           const firstValue = values[0];
           const lastValue = values[values.length - 1];
           const totalGrowth = lastValue - firstValue;
-          const growthPercent = firstValue > 0 ? Math.round((totalGrowth / firstValue) * 100) : 0;
+          const growthPercent = firstValue > 0 ? Math.min(Math.round((totalGrowth / firstValue) * 100), 100) : 0;
           
           addBlankRow();
           addRow(['OVERALL GROWTH SUMMARY:']);
@@ -740,10 +740,10 @@ function AnalyticsReservations({ setView, admin }) {
       addSectionHeader('SECTION 10: EXECUTIVE SUMMARY & KEY INSIGHTS');
       
       // Calculate key metrics for insights
-      const completionRate = total > 0 ? Math.round((reservationData.completed / total) * 100) : 0;
-      const approvalRate = total > 0 ? Math.round(((reservationData.approved + reservationData.completed) / total) * 100) : 0;
-      const cancellationRate = total > 0 ? Math.round((reservationData.cancelled / total) * 100) : 0;
-      const pendingRate = total > 0 ? Math.round((reservationData.pending / total) * 100) : 0;
+      const completionRate = total > 0 ? Math.min(Math.round((reservationData.completed / total) * 100), 100) : 0;
+      const approvalRate = total > 0 ? Math.min(Math.round(((reservationData.approved + reservationData.completed) / total) * 100), 100) : 0;
+      const cancellationRate = total > 0 ? Math.min(Math.round((reservationData.cancelled / total) * 100), 100) : 0;
+      const pendingRate = total > 0 ? Math.min(Math.round((reservationData.pending / total) * 100), 100) : 0;
       
       addRow(['Performance Metric', 'Current Value', 'Industry Benchmark', 'Status', 'Action Required']);
       addRow([
@@ -803,7 +803,7 @@ function AnalyticsReservations({ setView, admin }) {
       if (reservationData.userDepartmentStats && reservationData.userDepartmentStats.length > 0) {
         const sortedDepts = [...reservationData.userDepartmentStats].sort((a, b) => b.count - a.count);
         const topDept = sortedDepts[0];
-        const deptPercentage = Math.round((topDept.count / total) * 100);
+        const deptPercentage = Math.min(Math.round((topDept.count / total) * 100), 100);
         addRow([
           '• Top Department:',
           `${topDept.name} leads with ${topDept.count} reservations (${deptPercentage}% of total)`,
@@ -827,7 +827,7 @@ function AnalyticsReservations({ setView, admin }) {
         const topRoom = sortedRooms[0];
         addRow([
           '• Most Popular Room:',
-          `${topRoom.name} with ${topRoom.bookings} bookings and ${topRoom.utilization}% utilization`,
+          `${topRoom.name} with ${topRoom.bookings} bookings and ${Math.min(topRoom.utilization, 100)}% utilization`,
           'Recommendation: Ensure this room is well-maintained'
         ]);
         
@@ -941,9 +941,11 @@ function AnalyticsReservations({ setView, admin }) {
     );
   };
 
-  // ProgressBar component with proper spacing and no overlap
+  // FIXED: ProgressBar component with percentage capped at 100%
   const ProgressBar = ({ label, value, total, color = "blue", showValue = true, isLoading = false }) => {
-    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+    // Calculate percentage and cap at 100% to prevent 250%, 300% display
+    const rawPercentage = total > 0 ? (value / total) * 100 : 0;
+    const percentage = Math.min(Math.round(rawPercentage), 100);
     
     const getBgColorClass = (colorName) => {
       const colorMap = {
@@ -1454,7 +1456,7 @@ function AnalyticsReservations({ setView, admin }) {
                           >
                             {/* Tooltip */}
                             <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                              {count} reservations ({maxDayValue > 0 ? Math.round((count / maxDayValue) * 100) : 0}% of peak)
+                              {count} reservations ({maxDayValue > 0 ? Math.min(Math.round((count / maxDayValue) * 100), 100) : 0}% of peak)
                             </div>
                           </div>
                         </div>
@@ -1468,7 +1470,7 @@ function AnalyticsReservations({ setView, admin }) {
                       <div className="w-full bg-gray-200 rounded-full h-1 mt-1">
                         <div 
                           className="bg-[#CC0000] rounded-full h-1"
-                          style={{ width: `${(count / totalDays) * 100}%` }}
+                          style={{ width: `${Math.min((count / totalDays) * 100, 100)}%` }}
                         />
                       </div>
                     </div>
@@ -1577,10 +1579,10 @@ function AnalyticsReservations({ setView, admin }) {
                             <div className="w-24 bg-gray-200 rounded-full h-2">
                               <div 
                                 className="bg-green-500 rounded-full h-2" 
-                                style={{ width: `${room.utilization}%` }}
+                                style={{ width: `${Math.min(room.utilization, 100)}%` }}
                               ></div>
                             </div>
-                            <span className="text-xs text-gray-600">{room.utilization}%</span>
+                            <span className="text-xs text-gray-600">{Math.min(room.utilization, 100)}%</span>
                           </div>
                         </td>
                       </tr>
@@ -1598,7 +1600,7 @@ function AnalyticsReservations({ setView, admin }) {
           </div>
         </div>
 
-        {/* Top Reservers by Department - FIXED: Improved styling */}
+        {/* Top Reservers by Department - FIXED: Percentage capped at 100% */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Top Reservers by Department</h2>
           <div className="overflow-x-auto">
@@ -1624,7 +1626,9 @@ function AnalyticsReservations({ setView, admin }) {
                 ) : (
                   reservationData.topReservers && reservationData.topReservers.length > 0 ? (
                     reservationData.topReservers.map((user, index) => {
-                      const percentage = totalReservations > 0 ? Math.round((user.count / totalReservations) * 100) : 0;
+                      // FIX: Cap percentage at 100% to prevent 250%, 300% display
+                      const rawPercentage = totalReservations > 0 ? (user.count / totalReservations) * 100 : 0;
+                      const percentage = Math.min(Math.round(rawPercentage), 100);
                       
                       // Determine rank badge color
                       const rankColors = [
