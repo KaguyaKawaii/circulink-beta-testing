@@ -44,6 +44,7 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [currentParticipantIndex, setCurrentParticipantIndex] = useState(null);
   const [calendarDays, setCalendarDays] = useState([]);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
@@ -309,19 +310,64 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
     setValidation(updatedValidation);
   };
 
+  // FIXED: Search users function with multiple endpoint attempts
   const searchUsers = async (term) => {
     if (!term.trim()) {
       setSearchResults([]);
       return;
     }
 
+    setSearchLoading(true);
     try {
-      const res = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/users/search/users?q=${encodeURIComponent(term)}&verified=true`
-      );
-      setSearchResults(res.data);
+      const baseURL = import.meta.env.VITE_API_URL;
+      
+      // Try multiple possible endpoints
+      const endpoints = [
+        `${baseURL}/api/users/search?q=${encodeURIComponent(term)}&verified=true`,
+        `${baseURL}/api/users/search/users?q=${encodeURIComponent(term)}&verified=true`,
+        `${baseURL}/api/users/all/users?search=${encodeURIComponent(term)}`,
+      ];
+      
+      let response = null;
+      let lastError = null;
+      
+      for (const url of endpoints) {
+        try {
+          console.log("Trying search URL:", url);
+          const res = await axios.get(url, { timeout: 5000 });
+          if (res.status === 200) {
+            response = res;
+            console.log("✅ Success with URL:", url);
+            break;
+          }
+        } catch (err) {
+          lastError = err;
+          console.log("❌ Failed with URL:", url);
+        }
+      }
+      
+      if (response) {
+        // Handle different response formats
+        let results = [];
+        if (Array.isArray(response.data)) {
+          results = response.data;
+        } else if (response.data.users && Array.isArray(response.data.users)) {
+          results = response.data.users;
+        } else if (response.data.results && Array.isArray(response.data.results)) {
+          results = response.data.results;
+        }
+        
+        setSearchResults(results);
+        console.log("Search results:", results);
+      } else {
+        console.error("All search endpoints failed:", lastError);
+        setSearchResults([]);
+      }
     } catch (err) {
       console.error("User search error:", err);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
     }
   };
 
@@ -1003,6 +1049,11 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-amber-500"
                 autoFocus
               />
+              {searchLoading && (
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-amber-600 border-t-transparent"></div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -1027,7 +1078,7 @@ const AdminEditReservationModal = ({ reservation, onClose, onSuccess }) => {
                 </button>
               ))}
 
-              {searchTerm && searchResults.length === 0 && (
+              {searchTerm && searchResults.length === 0 && !searchLoading && (
                 <p className="text-center text-gray-500 py-4">No users found</p>
               )}
             </div>
