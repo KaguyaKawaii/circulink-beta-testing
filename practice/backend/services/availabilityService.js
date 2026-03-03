@@ -26,7 +26,7 @@ export const generateAvailability = async (date, userId) => {
       status: { $in: ["Pending", "Approved", "Ongoing"] },
     })
     .populate('userId', 'name email')
-    .populate('roomId', 'room floor')
+    .populate('room_Id', 'room floor') // FIXED: Changed from 'roomId' to 'room_Id'
     .lean();
 
     console.log(`📅 Found ${reservations.length} reservations for date: ${date}`);
@@ -48,9 +48,9 @@ export const generateAvailability = async (date, userId) => {
       // ✅ Filter reservations for this specific room
       const roomReservations = reservations.filter((reservation) => {
         // Check multiple possible room identification methods
-        const reservationRoomId = reservation.roomId?._id?.toString();
-        const reservationRoomName = reservation.roomId?.room || reservation.roomName;
-        const reservationFloor = reservation.roomId?.floor || reservation.location;
+        const reservationRoomId = reservation.room_Id?._id?.toString(); // FIXED: Changed from 'roomId' to 'room_Id'
+        const reservationRoomName = reservation.room_Id?.room || reservation.roomName; // FIXED: Changed from 'roomId' to 'room_Id'
+        const reservationFloor = reservation.room_Id?.floor || reservation.location; // FIXED: Changed from 'roomId' to 'room_Id'
         
         return (
           reservationRoomId === room._id.toString() ||
