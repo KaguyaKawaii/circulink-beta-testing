@@ -13,6 +13,7 @@ function AdminNotification({ setView, onLogout }) {
   const [showReportModal, setShowReportModal] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [showReservationModal, setShowReservationModal] = useState(false);
+  const [hoveredNotification, setHoveredNotification] = useState(null);
 
   const API_URL = `${import.meta.env.VITE_API_URL}/api/notifications`;
 
@@ -147,6 +148,20 @@ function AdminNotification({ setView, onLogout }) {
     }
   };
 
+  // Mark all as read
+  const markAllAsRead = async () => {
+    const unreadIds = notifications.filter(n => !n.isRead).map(n => n._id);
+    
+    try {
+      await Promise.all(unreadIds.map(id => 
+        axios.put(`${API_URL}/${id}/read`)
+      ));
+      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+    } catch (err) {
+      console.error("Failed to mark all as read", err);
+    }
+  };
+
   // Handle notification click
   const handleNotificationClick = (notification) => {
     // Mark as read first
@@ -269,39 +284,66 @@ function AdminNotification({ setView, onLogout }) {
 
   const getTypeColor = (type) => {
     const colors = {
-      reservation: "bg-blue-100 text-blue-800",
-      report: "bg-orange-100 text-orange-800",
-      system: "bg-gray-100 text-gray-800",
-      alert: "bg-red-100 text-red-800",
-      expired: "bg-yellow-100 text-yellow-800",
-      dismissed: "bg-purple-100 text-purple-800"
+      reservation: "bg-blue-100 text-blue-800 border-blue-200",
+      report: "bg-orange-100 text-orange-800 border-orange-200",
+      system: "bg-gray-100 text-gray-800 border-gray-200",
+      alert: "bg-red-100 text-red-800 border-red-200",
+      expired: "bg-yellow-100 text-yellow-800 border-yellow-200",
+      dismissed: "bg-purple-100 text-purple-800 border-purple-200"
     };
-    return colors[type] || "bg-gray-100 text-gray-800";
+    return colors[type] || "bg-gray-100 text-gray-800 border-gray-200";
   };
+
+  const getTypeHoverColor = (type) => {
+    const colors = {
+      reservation: "hover:bg-blue-50",
+      report: "hover:bg-orange-50",
+      system: "hover:bg-gray-50",
+      alert: "hover:bg-red-50",
+      expired: "hover:bg-yellow-50",
+      dismissed: "hover:bg-purple-50"
+    };
+    return colors[type] || "hover:bg-gray-50";
+  };
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   return (
     <>
       <AdminNavigation setView={setView} currentView="adminNotifications" onLogout={onLogout}/>
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
         {/* Header - Unchanged */}
-        <header className="bg-white px-6 py-4 border-b border-gray-200">
-          <div>
-            <h1 className="text-2xl font-bold text-[#CC0000]">Admin Notifications</h1>
-            <p className="text-gray-600">System overview and administrative alerts</p>
+        <header className="bg-white px-6 py-4 border-b border-gray-200 sticky top-0 z-10">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-[#CC0000]">Admin Notifications</h1>
+              <p className="text-gray-600">System overview and administrative alerts</p>
+            </div>
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllAsRead}
+                className="px-4 py-2 text-sm font-medium text-[#CC0000] hover:text-[#990000] hover:bg-red-50 rounded-lg transition-all duration-200 flex items-center gap-2 group"
+              >
+                <svg className="w-4 h-4 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Mark all as read
+              </button>
+            )}
           </div>
         </header>
 
         {/* Main Content */}
         <div className="p-6">
-          {/* Stats Overview - Compact */}
+          {/* Stats Overview - Enhanced with hover effects */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white rounded-lg shadow-xs border border-gray-100 p-4">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all duration-200 hover:border-gray-200 group">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium text-gray-500">Total</p>
-                  <p className="text-lg font-bold text-gray-900">{notifications.length}</p>
+                  <p className="text-lg font-bold text-gray-900 group-hover:text-[#CC0000] transition-colors">{notifications.length}</p>
                 </div>
-                <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center group-hover:bg-blue-100 transition-colors">
                   <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
                   </svg>
@@ -309,15 +351,15 @@ function AdminNotification({ setView, onLogout }) {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-xs border border-gray-100 p-4">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all duration-200 hover:border-gray-200 group">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium text-gray-500">Unread</p>
-                  <p className="text-lg font-bold text-gray-900">
-                    {notifications.filter(n => !n.isRead).length}
+                  <p className="text-lg font-bold text-gray-900 group-hover:text-[#CC0000] transition-colors">
+                    {unreadCount}
                   </p>
                 </div>
-                <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center group-hover:bg-red-100 transition-colors">
                   <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                   </svg>
@@ -325,15 +367,15 @@ function AdminNotification({ setView, onLogout }) {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-xs border border-gray-100 p-4">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all duration-200 hover:border-gray-200 group">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium text-gray-500">Reports</p>
-                  <p className="text-lg font-bold text-gray-900">
+                  <p className="text-lg font-bold text-gray-900 group-hover:text-[#CC0000] transition-colors">
                     {notifications.filter(n => n.type === "report").length}
                   </p>
                 </div>
-                <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center group-hover:bg-orange-100 transition-colors">
                   <svg className="w-4 h-4 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                   </svg>
@@ -341,15 +383,15 @@ function AdminNotification({ setView, onLogout }) {
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-xs border border-gray-100 p-4">
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all duration-200 hover:border-gray-200 group">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium text-gray-500">Reservations</p>
-                  <p className="text-lg font-bold text-gray-900">
+                  <p className="text-lg font-bold text-gray-900 group-hover:text-[#CC0000] transition-colors">
                     {notifications.filter(n => n.type === "reservation").length}
                   </p>
                 </div>
-                <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
+                <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center group-hover:bg-green-100 transition-colors">
                   <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                   </svg>
@@ -358,45 +400,55 @@ function AdminNotification({ setView, onLogout }) {
             </div>
           </div>
 
-          {/* Notifications Panel - Compact */}
+          {/* Notifications Panel - Enhanced */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            {/* Filters - Compact */}
+            {/* Filters - Enhanced with better visual feedback */}
             <div className="border-b border-gray-200 p-4 bg-gray-50">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <h2 className="text-base font-semibold text-gray-900">Notifications</h2>
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {["all", "unread", "reservation", "report"].map((filter) => (
                     <button
                       key={filter}
                       onClick={() => setActiveFilter(filter)}
-                      className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-colors cursor-pointer ${
+                      className={`px-3 py-1.5 rounded-md text-xs font-medium capitalize transition-all duration-200 cursor-pointer ${
                         activeFilter === filter 
-                          ? "bg-[#CC0000] text-white" 
-                          : "text-gray-700 hover:bg-gray-200 bg-white border border-gray-300"
+                          ? "bg-[#CC0000] text-white shadow-sm hover:bg-[#b30000] transform scale-105" 
+                          : "text-gray-700 hover:bg-gray-200 bg-white border border-gray-300 hover:border-gray-400 hover:shadow-sm"
                       }`}
                     >
                       {filter}
+                      {filter === "unread" && unreadCount > 0 && (
+                        <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                          activeFilter === filter 
+                            ? "bg-white text-[#CC0000]" 
+                            : "bg-[#CC0000] text-white"
+                        }`}>
+                          {unreadCount}
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
               </div>
             </div>
 
-            {/* Notifications List - Compact */}
+            {/* Notifications List - Enhanced with animations */}
             {loading ? (
-              <div className="p-8 text-center">
-                <div className="inline-flex items-center justify-center">
-                  <span className="ml-2 text-sm text-gray-500 font-bold">Loading notifications...</span>
+              <div className="p-12 text-center">
+                <div className="inline-flex flex-col items-center justify-center gap-3">
+                  <div className="w-8 h-8 border-3 border-[#CC0000] border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-sm text-gray-500 font-medium">Loading notifications...</span>
                 </div>
               </div>
             ) : filteredNotifications.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className="w-16 h-16 mx-auto mb-3 bg-gray-100 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+              <div className="p-12 text-center">
+                <div className="w-20 h-20 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                     <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
                   </svg>
                 </div>
-                <h3 className="text-sm font-medium text-gray-900 mb-1">No notifications found</h3>
+                <h3 className="text-sm font-medium text-gray-900 mb-2">No notifications found</h3>
                 <p className="text-xs text-gray-500 max-w-xs mx-auto">
                   {activeFilter !== "all" 
                     ? `No ${activeFilter} notifications available.` 
@@ -407,39 +459,57 @@ function AdminNotification({ setView, onLogout }) {
               <div className="divide-y divide-gray-100">
                 {filteredNotifications.map((n) => {
                   const formattedMessage = formatAdminMessage(n);
+                  const typeColor = getTypeColor(n.type);
+                  const typeHoverColor = getTypeHoverColor(n.type);
+                  
                   return (
                     <div 
                       key={n._id} 
-                      className={`p-4 hover:bg-gray-50 transition-colors cursor-pointer group ${
-                        !n.isRead ? "bg-blue-50 border-l-2 border-blue-500" : "border-l-2 border-transparent"
+                      className={`relative p-4 transition-all duration-200 cursor-pointer group ${
+                        !n.isRead 
+                          ? "bg-gradient-to-r from-blue-50/50 to-transparent border-l-4 border-[#CC0000]" 
+                          : `border-l-4 border-transparent ${typeHoverColor}`
                       }`}
                       onClick={() => handleNotificationClick(n)}
+                      onMouseEnter={() => setHoveredNotification(n._id)}
+                      onMouseLeave={() => setHoveredNotification(null)}
                     >
-                      <div className="flex items-start gap-3">
-                        {/* Icon - Smaller */}
-                        <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                      <div className="flex items-start gap-4">
+                        {/* Icon - Enhanced with pulse effect for unread */}
+                        <div className={`relative flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-200 ${
                           !n.isRead 
-                            ? "bg-blue-100 text-blue-600" 
+                            ? "bg-gradient-to-br from-[#CC0000] to-[#990000] text-white shadow-md" 
                             : "bg-gray-100 text-gray-600 group-hover:bg-gray-200"
                         }`}>
                           {getNotificationIcon(n.type)}
+                          {!n.isRead && (
+                            <span className="absolute -top-1 -right-1 w-3 h-3">
+                              <span className="absolute inset-0 w-3 h-3 bg-[#CC0000] rounded-full opacity-75 animate-ping"></span>
+                              <span className="relative block w-3 h-3 bg-[#CC0000] rounded-full border-2 border-white"></span>
+                            </span>
+                          )}
                         </div>
                         
-                        {/* Content - Compact */}
+                        {/* Content - Enhanced */}
                         <div className="flex-1 min-w-0">
-                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className={`text-xs font-medium px-2 py-1 rounded-md ${getTypeColor(n.type)} capitalize`}>
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${typeColor} border capitalize shadow-sm`}>
                                 {n.type}
                               </span>
-                              {!n.isRead && (
-                                <span className="flex items-center gap-1 text-xs font-medium text-[#CC0000]">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-[#CC0000] flex-shrink-0"></span>
-                                  Unread
+                              {n.userId && (
+                                <span className="text-xs text-gray-500 flex items-center gap-1">
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                  </svg>
+                                  {n.userId.name || "Unknown"}
                                 </span>
                               )}
                             </div>
-                            <span className="text-xs text-gray-500">
+                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                              </svg>
                               {n.createdAt ? new Date(n.createdAt).toLocaleString() : "Unknown date"}
                             </span>
                           </div>
@@ -448,48 +518,54 @@ function AdminNotification({ setView, onLogout }) {
                             {formattedMessage}
                           </p>
 
-                          {/* Additional context - Smaller */}
-                          {(n.reservationId || n.userId) && (
-                            <div className="mt-2 flex flex-wrap gap-1">
+                          {/* Additional context - Enhanced */}
+                          {(n.reservationId || n.reportId) && (
+                            <div className="mt-3 flex flex-wrap gap-2">
                               {n.reservationId && (
-                                <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                                  Reservation: {n.reservationId._id?.substring(0, 8) || "N/A"}
+                                <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-md border border-gray-200">
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+                                  </svg>
+                                  Reservation #{n.reservationId._id?.substring(0, 8) || "N/A"}
                                 </span>
                               )}
-                              {n.userId && (
-                                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-                                  User: {n.userId.name || "Unknown"}
+                              {n.reportId && (
+                                <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-md border border-gray-200">
+                                  <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                  </svg>
+                                  Report #{n.reportId._id?.substring(0, 8) || "N/A"}
                                 </span>
                               )}
                             </div>
                           )}
 
-                          {/* Action buttons - Smaller */}
-                          <div className="mt-2 flex gap-2">
+                          {/* Action buttons - Enhanced */}
+                          <div className="mt-3 flex gap-3">
                             {n.type === "report" && (
                               <button 
-                                className="text-xs text-[#CC0000] hover:text-[#990000] font-medium inline-flex items-center gap-1 transition-colors"
+                                className="text-xs text-[#CC0000] hover:text-[#990000] font-medium inline-flex items-center gap-1.5 transition-all duration-200 group/btn hover:translate-x-1"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   openReportModal(n);
                                 }}
                               >
-                                View Report Details
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <span>View Report Details</span>
+                                <svg className="w-3.5 h-3.5 transition-transform group-hover/btn:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
                               </button>
                             )}
                             {n.type === "reservation" && (
                               <button 
-                                className="text-xs text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-1 transition-colors"
+                                className="text-xs text-blue-600 hover:text-blue-800 font-medium inline-flex items-center gap-1.5 transition-all duration-200 group/btn hover:translate-x-1"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   openReservationModal(n);
                                 }}
                               >
-                                View Reservation Details
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <span>View Reservation Details</span>
+                                <svg className="w-3.5 h-3.5 transition-transform group-hover/btn:translate-x-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                 </svg>
                               </button>
@@ -497,6 +573,25 @@ function AdminNotification({ setView, onLogout }) {
                           </div>
                         </div>
                       </div>
+
+                      {/* Quick actions on hover */}
+                      {hoveredNotification === n._id && (
+                        <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2 bg-white rounded-lg shadow-md border border-gray-200 p-1 animate-fade-in">
+                          <button
+                            className="p-1.5 hover:bg-gray-100 rounded-md transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleNotificationClick(n);
+                            }}
+                            title="View details"
+                          >
+                            <svg className="w-3.5 h-3.5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -530,6 +625,23 @@ function AdminNotification({ setView, onLogout }) {
           />
         )}
       </main>
+
+      <style jsx>{`
+        @keyframes fade-in {
+          from {
+            opacity: 0;
+            transform: translateY(-10px) translateX(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(-50%) translateX(0);
+          }
+        }
+        
+        .animate-fade-in {
+          animation: fade-in 0.2s ease-out forwards;
+        }
+      `}</style>
     </>
   );
 }
