@@ -1,5 +1,4 @@
 // AnalyticsRooms.jsx
-
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   DoorOpen,
@@ -146,6 +145,24 @@ function AnalyticsRooms({ setView, admin }) {
     if (range === 'year') utilizationBase = 65;
     if (range === 'custom' && customStart && customEnd) utilizationBase = 70;
 
+    // Generate growth data based on range
+    let growthLabels = [];
+    let growthValues = [];
+    
+    if (range === 'week') {
+      growthLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      growthValues = [45, 52, 68, 72, 85, 38, 22];
+    } else if (range === 'month') {
+      growthLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+      growthValues = [280, 310, 295, 340];
+    } else if (range === 'year') {
+      growthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      growthValues = [850, 920, 880, 950, 1020, 980, 890, 910, 950, 980, 1010, 1050];
+    } else if (range === 'custom') {
+      growthLabels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+      growthValues = [280, 310, 295, 340];
+    }
+
     return {
       total: totalRooms,
       available: Math.floor(totalRooms * 0.4),
@@ -263,16 +280,8 @@ function AnalyticsRooms({ setView, admin }) {
         occupied: { value: 9, percentage: 3.5, direction: 'down' }
       },
       growth: {
-        labels: range === 'week' 
-          ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-          : range === 'month'
-          ? ['Week 1', 'Week 2', 'Week 3', 'Week 4']
-          : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
-        values: range === 'week'
-          ? [45, 52, 68, 72, 85, 38, 22]
-          : range === 'month'
-          ? [280, 310, 295, 340]
-          : [850, 920, 880, 950, 1020, 980, 890, 910, 950, 980, 1010, 1050]
+        labels: growthLabels,
+        values: growthValues
       },
       roomTypeDistribution: [
         { name: 'Lecture Halls', value: 12, color: 'blue' },
@@ -822,6 +831,17 @@ function AnalyticsRooms({ setView, admin }) {
     </div>
   );
 
+  const GrowthChartSkeleton = () => (
+    <div className="h-64 flex items-end justify-between gap-2 animate-pulse">
+      {Array(7).fill(0).map((_, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center gap-2">
+          <div className="w-full bg-gray-200 rounded-t h-40"></div>
+          <div className="h-3 bg-gray-200 rounded w-8"></div>
+        </div>
+      ))}
+    </div>
+  );
+
   const TableSkeleton = ({ rows = 5, cols = 5 }) => (
     <div className="overflow-x-auto animate-pulse">
       <table className="w-full text-sm">
@@ -872,6 +892,19 @@ function AnalyticsRooms({ setView, admin }) {
       return colorMap[colorName] || "text-blue-500";
     };
 
+    const getBgColorClass = (colorName) => {
+      const colorMap = {
+        blue: "bg-blue-100",
+        green: "bg-green-100",
+        purple: "bg-purple-100",
+        yellow: "bg-yellow-100",
+        orange: "bg-orange-100",
+        red: "bg-red-100",
+        indigo: "bg-indigo-100"
+      };
+      return colorMap[colorName] || "bg-blue-100";
+    };
+
     if (isLoading) {
       return <StatCardSkeleton />;
     }
@@ -899,7 +932,7 @@ function AnalyticsRooms({ setView, admin }) {
               </div>
             )}
           </div>
-          <div className="p-2">
+          <div className={`p-2 ${getBgColorClass(color)} rounded-lg`}>
             <Icon className={getColorClass(color)} size={20} />
           </div>
         </div>
@@ -908,7 +941,8 @@ function AnalyticsRooms({ setView, admin }) {
   };
 
   const ProgressBar = ({ label, value, total, color = "blue", showValue = true, isLoading = false }) => {
-    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+    const rawPercentage = total > 0 ? (value / total) * 100 : 0;
+    const percentage = Math.min(Math.round(rawPercentage), 100);
     
     const getBgColorClass = (colorName) => {
       const colorMap = {
@@ -928,14 +962,21 @@ function AnalyticsRooms({ setView, admin }) {
     }
 
     return (
-      <div>
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-gray-600">{label}</span>
-          {showValue && <span className="text-gray-800 font-medium">{value.toLocaleString()}</span>}
+      <div className="mb-4">
+        <div className="flex justify-between items-center mb-1">
+          <span className="text-sm font-medium text-gray-700 truncate max-w-[60%]" title={label}>
+            {label}
+          </span>
+          <div className="flex items-center gap-2">
+            {showValue && <span className="text-sm font-semibold text-gray-900">{value.toLocaleString()}</span>}
+            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">
+              {percentage}%
+            </span>
+          </div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
           <div 
-            className={`${getBgColorClass(color)} rounded-full h-2 transition-all duration-300`}
+            className={`${getBgColorClass(color)} rounded-full h-2.5 transition-all duration-300`}
             style={{ width: `${percentage}%` }}
           />
         </div>
@@ -954,6 +995,11 @@ function AnalyticsRooms({ setView, admin }) {
       <span className="capitalize">{feature}</span>
     </span>
   );
+
+  // Find max value for hourly chart scaling
+  const maxHourlyUtilization = Math.max(...(roomData.hourlyUtilization || []).map(h => h.utilization), 1);
+  const maxGrowthValue = Math.max(...(roomData.growth?.values || []), 1);
+  const chartHeight = 200;
 
   // ==================== RENDER ====================
 
@@ -990,10 +1036,11 @@ function AnalyticsRooms({ setView, admin }) {
               <StatCardSkeleton />
               <StatCardSkeleton />
               <StatCardSkeleton />
+              <StatCardSkeleton />
             </div>
           </div>
 
-          {/* Floor Distribution Skeleton - Single column now */}
+          {/* Floor Distribution Skeleton */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
             <SectionHeaderSkeleton />
             <div className="space-y-4">
@@ -1003,16 +1050,37 @@ function AnalyticsRooms({ setView, admin }) {
             </div>
           </div>
 
-          {/* Chart Skeleton */}
+          {/* Features Grid Skeleton */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-8">
+            {Array(4).fill(0).map((_, i) => (
+              <div key={i} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 animate-pulse">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-gray-200 rounded-lg w-10 h-10"></div>
+                  <div>
+                    <div className="h-3 bg-gray-200 rounded w-20 mb-2"></div>
+                    <div className="h-5 bg-gray-300 rounded w-12"></div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Hourly Utilization Skeleton */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
             <SectionHeaderSkeleton />
             <ChartSkeleton />
           </div>
 
-          {/* Tables Skeleton */}
+          {/* Top Rooms Table Skeleton */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
             <SectionHeaderSkeleton />
-            <TableSkeleton rows={5} cols={5} />
+            <TableSkeleton rows={5} cols={7} />
+          </div>
+
+          {/* Room Details Table Skeleton */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <SectionHeaderSkeleton />
+            <TableSkeleton rows={5} cols={8} />
           </div>
         </div>
       </main>
@@ -1151,52 +1219,58 @@ function AnalyticsRooms({ setView, admin }) {
       {/* Main Content */}
       <div className="p-6">
         {/* Key Metrics Cards */}
-        <div className="flex flex-wrap gap-4 mb-6">
-          <StatCard 
-            title="Total Rooms" 
-            value={roomData.total} 
-            icon={DoorOpen} 
-            trend={roomData.trends?.total}
-            color="blue" 
-            isLoading={loading}
-          />
-          <StatCard 
-            title="Available" 
-            value={roomData.available} 
-            icon={CheckCircle} 
-            trend={roomData.trends?.available}
-            color="green" 
-            subtext="Ready for booking"
-            isLoading={loading}
-          />
-          <StatCard 
-            title="Occupied" 
-            value={roomData.occupied} 
-            icon={Activity} 
-            trend={roomData.trends?.occupied}
-            color="orange" 
-            subtext="Currently in use"
-            isLoading={loading}
-          />
-          <StatCard 
-            title="Maintenance" 
-            value={roomData.maintenance} 
-            icon={AlertCircle} 
-            color="red" 
-            subtext="Under maintenance"
-            isLoading={loading}
-          />
-          <StatCard 
-            title="Utilization Rate" 
-            value={roomData.utilization + '%'} 
-            icon={TrendingUp} 
-            trend={roomData.trends?.utilization}
-            color="purple" 
-            isLoading={loading}
-          />
+        <div className="flex flex-col gap-4 mb-6 w-full">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-800 mb-4">Room Status Overview</h2>
+            <div className="flex flex-wrap gap-4">
+              <StatCard 
+                title="Total Rooms" 
+                value={roomData.total} 
+                icon={DoorOpen} 
+                trend={roomData.trends?.total}
+                color="blue" 
+                isLoading={loading}
+              />
+              <StatCard 
+                title="Available" 
+                value={roomData.available} 
+                icon={CheckCircle} 
+                trend={roomData.trends?.available}
+                color="green" 
+                subtext="Ready for booking"
+                isLoading={loading}
+              />
+              <StatCard 
+                title="Occupied" 
+                value={roomData.occupied} 
+                icon={Activity} 
+                trend={roomData.trends?.occupied}
+                color="orange" 
+                subtext="Currently in use"
+                isLoading={loading}
+              />
+              <StatCard 
+                title="Maintenance" 
+                value={roomData.maintenance} 
+                icon={AlertCircle} 
+                color="red" 
+                subtext="Under maintenance"
+                isLoading={loading}
+              />
+              <StatCard 
+                title="Utilization Rate" 
+                value={roomData.utilization} 
+                icon={TrendingUp} 
+                trend={roomData.trends?.utilization}
+                color="purple" 
+                subtext="Overall usage"
+                isLoading={loading}
+              />
+            </div>
+          </div>
         </div>
 
-        {/* Floor Distribution - Single column now */}
+        {/* Floor Distribution - Progress Bars */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Rooms by Floor</h2>
           {loading ? (
@@ -1206,16 +1280,20 @@ function AnalyticsRooms({ setView, admin }) {
               <ProgressBarSkeleton />
             </div>
           ) : (
-            <div className="space-y-4">
-              {Object.entries(roomData.byFloor || {}).map(([floor, count], index) => (
-                <ProgressBar 
-                  key={floor}
-                  label={floor} 
-                  value={count} 
-                  total={roomData.total || 1} 
-                  color={index === 0 ? "blue" : index === 1 ? "green" : "purple"}
-                />
-              ))}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {Object.entries(roomData.byFloor || {}).map(([floor, count], index) => {
+                const colors = ["blue", "green", "purple"];
+                return (
+                  <ProgressBar 
+                    key={floor}
+                    label={floor} 
+                    value={count} 
+                    total={roomData.total || 1} 
+                    color={colors[index % 3]}
+                    isLoading={loading}
+                  />
+                );
+              })}
             </div>
           )}
         </div>
@@ -1280,37 +1358,105 @@ function AnalyticsRooms({ setView, admin }) {
           </div>
         </div>
 
-        {/* Hourly Utilization */}
+        {/* Hourly Utilization - Fixed Chart */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-4">Hourly Utilization</h2>
           {loading ? (
             <ChartSkeleton />
           ) : (
-            <div className="h-64 flex items-end justify-between gap-2">
-              {(roomData.hourlyUtilization || []).map((hour, index) => {
-                const max = Math.max(...(roomData.hourlyUtilization || []).map(h => h.utilization), 1);
-                const height = max > 0 ? (hour.utilization / max) * 100 : 0;
-                const isPeak = hour.utilization > 80;
-                
-                return (
-                  <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                    <div 
-                      className={`w-full ${isPeak ? 'bg-green-500/20' : 'bg-[#CC0000]/20'} rounded-t relative group`}
-                      style={{ height: `${height}%`, minHeight: '4px' }}
-                    >
-                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                        {hour.utilization}% • {hour.bookings || 0} bookings
+            <div>
+              <div className="h-64 flex items-end justify-between gap-2">
+                {(roomData.hourlyUtilization || []).map((hour, index) => {
+                  const height = maxHourlyUtilization > 0 ? (hour.utilization / maxHourlyUtilization) * 200 : 0;
+                  const isPeak = hour.utilization > 80;
+                  
+                  return (
+                    <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                      <div className="relative w-full flex justify-center group">
+                        <div 
+                          className={`w-3/4 ${isPeak ? 'bg-gradient-to-t from-green-500 to-green-400' : 'bg-gradient-to-t from-[#CC0000] to-[#FF4444]'} rounded-t transition-all duration-300 hover:from-[#990000] hover:to-[#CC0000] cursor-pointer`}
+                          style={{ height: `${height}px` }}
+                        >
+                          {/* Tooltip */}
+                          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                            {hour.utilization}% • {hour.bookings || 0} bookings
+                          </div>
+                        </div>
                       </div>
-                      <div 
-                        className={`${isPeak ? 'bg-green-500' : 'bg-[#CC0000]'} rounded-t w-full absolute bottom-0 transition-all duration-300`}
-                        style={{ height: `${hour.utilization}%` }}
-                      />
+                      <span className="text-xs text-gray-600 font-medium">{hour.hour}</span>
+                      <span className="text-sm text-gray-800">{hour.utilization}%</span>
                     </div>
-                    <span className="text-xs text-gray-600">{hour.hour}</span>
-                    <span className="text-sm text-gray-800 font-medium">{hour.utilization}%</span>
+                  );
+                })}
+              </div>
+              
+              {/* Legend */}
+              <div className="flex justify-between items-center mt-4 text-xs text-gray-500">
+                <div>Peak hours: &gt;80% utilization</div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-gradient-to-t from-[#CC0000] to-[#FF4444] rounded"></div>
+                    <span>Normal usage</span>
                   </div>
-                );
-              })}
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-gradient-to-t from-green-500 to-green-400 rounded"></div>
+                    <span>Peak hours</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Growth Chart - Fixed like AnalyticsReservations */}
+        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
+          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+            Room Booking Growth - {dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : dateRange === 'year' ? 'Monthly' : 'Custom Period'}
+          </h2>
+          {loading ? (
+            <GrowthChartSkeleton />
+          ) : (
+            <div>
+              <div className="h-64 flex items-end justify-between gap-2">
+                {roomData.growth?.values && roomData.growth.values.length > 0 ? (
+                  roomData.growth.values.map((value, index) => {
+                    const max = Math.max(...roomData.growth.values, 1);
+                    const height = max > 0 ? (value / max) * 200 : 0;
+                    
+                    return (
+                      <div key={index} className="flex-1 flex flex-col items-center gap-2">
+                        <div className="relative w-full flex justify-center group">
+                          <div 
+                            className="w-3/4 bg-gradient-to-t from-[#CC0000] to-[#FF4444] rounded-t transition-all duration-300 hover:from-[#990000] hover:to-[#CC0000] cursor-pointer"
+                            style={{ height: `${height}px` }}
+                          >
+                            {/* Tooltip */}
+                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                              {value} bookings
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-xs text-gray-600 font-medium">{roomData.growth.labels?.[index] || ''}</span>
+                        <span className="text-xs text-gray-800">{value}</span>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="w-full text-center text-gray-500 py-12">
+                    No growth data available for this period
+                  </div>
+                )}
+              </div>
+              
+              {roomData.growth?.values && roomData.growth.values.length > 0 && (
+                <div className="flex justify-between items-center mt-4 text-xs text-gray-500">
+                  <div>Total bookings: {roomData.growth.values.reduce((a, b) => a + b, 0)}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-gradient-to-t from-[#CC0000] to-[#FF4444] rounded"></div>
+                    <span>Bar height relative to peak period</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1350,17 +1496,17 @@ function AnalyticsRooms({ setView, admin }) {
                       <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{room.bookings}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <div className="w-16 bg-gray-200 rounded-full h-2">
+                          <div className="w-16 bg-gray-200 rounded-full h-2 overflow-hidden">
                             <div 
                               className={`rounded-full h-2 ${
                                 room.utilization > 80 ? 'bg-green-500' :
                                 room.utilization > 60 ? 'bg-blue-500' :
                                 room.utilization > 40 ? 'bg-yellow-500' : 'bg-red-500'
                               }`}
-                              style={{ width: `${room.utilization}%` }}
+                              style={{ width: `${Math.min(room.utilization, 100)}%` }}
                             ></div>
                           </div>
-                          <span className="text-gray-600 text-sm">{room.utilization}%</span>
+                          <span className="text-gray-600 text-sm">{Math.min(room.utilization, 100)}%</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -1404,7 +1550,7 @@ function AnalyticsRooms({ setView, admin }) {
                     <TableRowSkeleton cols={8} />
                   </>
                 ) : (
-                  (roomData.roomDetails || []).map((room, index) => (
+                  (roomData.roomDetails || []).slice(0, 15).map((room, index) => (
                     <tr key={index} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{room.name}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-600">{room.type}</td>
@@ -1413,30 +1559,32 @@ function AnalyticsRooms({ setView, admin }) {
                       <td className="px-6 py-4 whitespace-nowrap text-gray-800">{room.bookings}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <div className="w-16 bg-gray-200 rounded-full h-2">
+                          <div className="w-16 bg-gray-200 rounded-full h-2 overflow-hidden">
                             <div 
                               className={`rounded-full h-2 ${
                                 room.utilization > 80 ? 'bg-green-500' :
                                 room.utilization > 60 ? 'bg-blue-500' :
                                 room.utilization > 40 ? 'bg-yellow-500' : 'bg-red-500'
                               }`}
-                              style={{ width: `${room.utilization}%` }}
+                              style={{ width: `${Math.min(room.utilization, 100)}%` }}
                             ></div>
                           </div>
-                          <span className="text-gray-600 text-sm">{room.utilization}%</span>
+                          <span className="text-gray-600 text-sm">{Math.min(room.utilization, 100)}%</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs ${
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                           room.status === 'available' ? 'bg-green-100 text-green-700' :
                           room.status === 'occupied' ? 'bg-yellow-100 text-yellow-700' :
                           room.status === 'maintenance' ? 'bg-red-100 text-red-700' :
                           'bg-gray-100 text-gray-700'
                         }`}>
-                          {room.status}
+                          {room.status === 'available' ? 'Available' : 
+                           room.status === 'occupied' ? 'Occupied' : 
+                           room.status === 'maintenance' ? 'Maintenance' : room.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-600 text-xs">
                         {formatDateTime(room.lastMaintenance)}
                       </td>
                     </tr>
@@ -1445,6 +1593,13 @@ function AnalyticsRooms({ setView, admin }) {
               </tbody>
             </table>
           </div>
+          
+          {/* Footer note */}
+          {roomData.roomDetails && roomData.roomDetails.length > 15 && (
+            <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500 text-center">
+              Showing 15 of {roomData.roomDetails.length} rooms
+            </div>
+          )}
         </div>
       </div>
     </main>
