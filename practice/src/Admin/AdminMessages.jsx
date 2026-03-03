@@ -5,7 +5,7 @@ import AdminNavigation from "./AdminNavigation";
 
 const socket = io(import.meta.env.VITE_API_URL);
 
-function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD refreshUnreadCounts prop
+function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
   const [messages, setMessages] = useState([]);
   const [recipients, setRecipients] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
@@ -24,6 +24,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
   const messagesEndRef = useRef(null);
   const searchRef = useRef(null);
   const chatContainerRef = useRef(null);
+  const inputRef = useRef(null); // For focusing input
 
   // Smooth scroll to bottom function
   const scrollToBottom = () => {
@@ -32,7 +33,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
     }
   };
 
-  // 🆕 ADD FUNCTION TO REFRESH UNREAD COUNTS
+  // Refresh unread counts on dashboard
   const refreshDashboardUnreadCounts = async () => {
     try {
       if (typeof refreshUnreadCounts === 'function') {
@@ -40,7 +41,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
         console.log('✅ AdminMessages: Triggered unread count refresh');
       } else {
         console.log('🔄 AdminMessages: Manual unread count refresh');
-        // Fallback: manually refresh if prop not provided
         const adminRecipients = await axios.get(`${import.meta.env.VITE_API_URL}/api/messages/recipients/admin`);
         socket.emit('adminUnreadUpdate', { recipients: adminRecipients.data });
       }
@@ -104,11 +104,10 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
       // Always update recipients when a new message arrives that involves admin
       fetchRecipients();
       
-      // 🆕 REFRESH UNREAD COUNTS WHEN NEW MESSAGE ARRIVES
       refreshDashboardUnreadCounts();
     };
 
-    // NEW: Handle message sent confirmation
+    // Handle message sent confirmation
     const handleMessageSent = (msg) => {
       console.log("✅ Admin message sent confirmation:", msg);
       setMessages(prev => prev.map(m => 
@@ -117,20 +116,18 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
           : m
       ));
       
-      // 🆕 REFRESH UNREAD COUNTS AFTER SENDING MESSAGE
       refreshDashboardUnreadCounts();
     };
 
-    // 🆕 LISTEN FOR ADMIN UNREAD UPDATES
+    // Listen for admin unread updates
     const handleAdminUnreadUpdate = (data) => {
       console.log('📥 AdminMessages: Received admin unread update', data);
-      // Update local recipients list with new unread counts
       fetchRecipients();
     };
 
     socket.on("newMessage", handleNewMessage);
     socket.on("messageSent", handleMessageSent);
-    socket.on("adminUnreadUpdate", handleAdminUnreadUpdate); // 🆕 ADD THIS LISTENER
+    socket.on("adminUnreadUpdate", handleAdminUnreadUpdate);
     
     const handleClickOutside = (event) => {
       if (searchRef.current && !searchRef.current.contains(event.target)) {
@@ -142,7 +139,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
     return () => {
       socket.off("newMessage", handleNewMessage);
       socket.off("messageSent", handleMessageSent);
-      socket.off("adminUnreadUpdate", handleAdminUnreadUpdate); // 🆕 CLEAN UP
+      socket.off("adminUnreadUpdate", handleAdminUnreadUpdate);
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [selectedId]);
@@ -159,6 +156,13 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // Focus input when recipient changes
+  useEffect(() => {
+    if (selectedId && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [selectedId]);
 
   // Enhanced recipient filtering to ensure privacy
   const isAdminConversation = (recipient) => {
@@ -177,8 +181,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
       return false;
     }
 
-    // Only show conversations where admin is involved
-    // This ensures user-staff conversations are not visible to admin
     return true;
   };
 
@@ -186,7 +188,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
   const fetchUserName = async (userId) => {
     if (!userId || userId === "admin") return "Administration";
     
-    // Check if we already have the name cached
     if (userNames[userId]) {
       return userNames[userId];
     }
@@ -195,7 +196,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/users/${userId}`);
       if (res.data && res.data.user) {
         const userName = res.data.user.name || "Unknown User";
-        // Cache the name
         setUserNames(prev => ({ ...prev, [userId]: userName }));
         return userName;
       }
@@ -203,7 +203,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
       console.error("Failed to fetch user name:", err);
     }
 
-    // Fallback: check in allUsers array
     const user = allUsers.find(u => u._id === userId);
     if (user && user.name) {
       const userName = user.name;
@@ -219,14 +218,13 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
     const messagesWithNames = await Promise.all(
       messagesArray.map(async (msg) => {
         if (msg.senderName) {
-          return msg; // Already has a name
+          return msg;
         }
         
         if (msg.sender === "admin") {
           return { ...msg, senderName: "Administration" };
         }
         
-        // Fetch sender name for non-admin messages
         const senderName = await fetchUserName(msg.sender);
         return { ...msg, senderName };
       })
@@ -243,7 +241,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
         `${import.meta.env.VITE_API_URL}/api/messages/recipients/admin`
       );
 
-      // Enhanced filtering for privacy - only show admin-related conversations
       const backendRecipients = res.data.filter(recipient => 
         recipient &&
         recipient._id &&
@@ -251,7 +248,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
         isAdminConversation(recipient)
       );
 
-      // Merge with existing recipients, preserving search-added ones
       const existingRecipientsMap = new Map();
       recipients.forEach(recipient => {
         if (recipient && recipient._id && isAdminConversation(recipient)) {
@@ -259,10 +255,8 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
         }
       });
 
-      // Start with backend recipients
       const mergedRecipients = [...backendRecipients];
       
-      // Add existing recipients that aren't in backend (like searched users)
       recipients.forEach(recipient => {
         if (recipient && recipient._id && isAdminConversation(recipient)) {
           const existsInBackend = backendRecipients.find(r => r._id === recipient._id);
@@ -273,15 +267,12 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
         }
       });
 
-      // Sort recipients: selected first, then by timestamp (newest first)
       const sortedRecipients = mergedRecipients.sort((a, b) => {
         if (!a || !b) return 0;
         
-        // Selected recipient always goes to top
         if (a._id === selectedId) return -1;
         if (b._id === selectedId) return 1;
         
-        // Then sort by timestamp (newest first)
         const timeA = new Date(a.timestamp || a.latestMessageTimestamp || a.createdAt || 0);
         const timeB = new Date(b.timestamp || b.latestMessageTimestamp || b.createdAt || 0);
         return timeB - timeA;
@@ -305,12 +296,10 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
         `${import.meta.env.VITE_API_URL}/api/messages/admin-conversation/${selectedId}`
       );
       
-      // Filter messages to ensure only admin-related conversations
       const filteredMessages = (res.data || []).filter(msg => 
         msg && (msg.sender === "admin" || msg.receiver === "admin")
       );
 
-      // Fetch names for all messages
       const messagesWithNames = await fetchMessagesWithNames(filteredMessages);
       
       setMessages(messagesWithNames);
@@ -352,7 +341,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
       setShowSearchDropdown(false);
       return;
     }
-
     setSearchLoading(true);
     setShowSearchDropdown(true);
     setSearchLoading(false);
@@ -365,11 +353,9 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
     setSearchTerm("");
     setShowSearchDropdown(false);
     
-    // Check if user already exists in recipients
     const existingRecipient = recipients.find(r => r && r._id === user._id);
     
     if (!existingRecipient) {
-      // Create new recipient object with proper structure
       const newRecipient = {
         _id: user._id,
         name: user.name,
@@ -381,12 +367,10 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
         createdAt: new Date().toISOString()
       };
       
-      // Add to recipients and reorder
       const updatedRecipients = [newRecipient, ...recipients];
       setRecipients(updatedRecipients);
     }
     
-    // Select the user and save to localStorage
     const recipientToSelect = existingRecipient || {
       _id: user._id,
       name: user.name,
@@ -400,10 +384,8 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
   const handleSelectRecipient = (recipient) => {
     if (!recipient || !recipient._id) return;
 
-    // Save selected recipient to localStorage
     localStorage.setItem("adminSelectedRecipient", JSON.stringify(recipient));
     
-    // Update timestamp to move this conversation to top
     const updatedRecipients = recipients.map(r => {
       if (!r) return r;
       return r._id === recipient._id 
@@ -411,7 +393,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
         : r;
     }).filter(r => r !== undefined);
     
-    // Sort with selected recipient at top
     const sortedRecipients = updatedRecipients.sort((a, b) => {
       if (!a || !b) return 0;
       if (a._id === recipient._id) return -1;
@@ -444,7 +425,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
     const tempMsg = {
       _id: "temp-" + Date.now(),
       localId: Date.now(),
-      sender: "admin", // Always from admin
+      sender: "admin",
       senderName: "Administration",
       receiver: selectedId,
       content: newMessage,
@@ -458,19 +439,17 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
     try {
       setError(null);
       const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/send`, {
-        sender: "admin", // Ensure sender is always admin
+        sender: "admin",
         receiver: selectedId,
         content: newMessage
       });
       
-      // Replace temporary message with real one
       setMessages(prev => prev.map(msg => 
         msg.localId === tempMsg.localId 
           ? { ...response.data, status: "sent" }
           : msg
       ));
 
-      // Update or create recipient in the list
       const updatedRecipients = recipients.map(recipient => {
         if (!recipient) return recipient;
         return recipient._id === selectedId
@@ -483,7 +462,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
           : recipient;
       }).filter(r => r !== undefined);
 
-      // If recipient doesn't exist in the list, create it
       if (!updatedRecipients.find(r => r._id === selectedId)) {
         const newRecipient = {
           _id: selectedId,
@@ -496,7 +474,6 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
         updatedRecipients.unshift(newRecipient);
       }
 
-      // Sort with current recipient at top
       const sortedRecipients = updatedRecipients.sort((a, b) => {
         if (!a || !b) return 0;
         if (a._id === selectedId) return -1;
@@ -509,13 +486,11 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
 
       setRecipients(sortedRecipients);
       
-      // Update localStorage with current recipient
       const currentRecipient = sortedRecipients.find(r => r._id === selectedId);
       if (currentRecipient) {
         localStorage.setItem("adminSelectedRecipient", JSON.stringify(currentRecipient));
       }
 
-      // 🆕 CRITICAL: REFRESH UNREAD COUNTS AFTER SENDING MESSAGE
       await refreshDashboardUnreadCounts();
 
     } catch (err) {
@@ -529,7 +504,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
     }
   };
 
-  // Format time to match StaffMessages
+  // Format time
   const formatTime = (iso) => {
     if (!iso) return "";
     try {
@@ -540,7 +515,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
     }
   };
 
-  // Format date to match StaffMessages
+  // Format date
   const formatDate = (iso) => {
     if (!iso) return "";
     try {
@@ -550,13 +525,12 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
     }
   };
 
-  // Group messages by date like StaffMessages
+  // Group messages by date
   const groupMessagesByDate = () => {
     const groups = {};
     messages.forEach(msg => {
-      // Additional privacy check for displayed messages
       if (!msg || !(msg.sender === "admin" || msg.receiver === "admin")) {
-        return; // Skip non-admin messages
+        return;
       }
       
       const date = formatDate(msg.createdAt);
@@ -574,7 +548,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
 
   const getAvatar = (name, type = "user") => {
     return (
-      <div className="w-10 h-10 bg-gradient-to-r from-[#CC0000] to-red-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow">
+      <div className="w-10 h-10 bg-gradient-to-r from-[#CC0000] to-red-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0">
         {name ? name.charAt(0).toUpperCase() : "U"}
       </div>
     );
@@ -597,7 +571,8 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
     <>
       <AdminNavigation setView={setView} currentView="adminMessage" onLogout={onLogout} />
       
-      <div className="ml-[250px] h-screen flex flex-col bg-gray-50">        {/* HEADER */}
+      <div className="ml-[250px] h-screen flex flex-col bg-gray-50">
+        {/* HEADER - kept exactly as original */}
         <header className="bg-white px-6 py-4 border-b border-gray-200">
           <h1 className="text-2xl font-bold text-[#CC0000]">Admin Message Center</h1>
           <p className="text-gray-600">Communicate with users and staff</p>
@@ -609,19 +584,19 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
         </header>
 
         <div className="flex flex-1 overflow-hidden">
-          {/* Conversations Sidebar - ALWAYS VISIBLE */}
+          {/* Conversations Sidebar - improved visual spacing */}
           <div className="w-80 bg-white border-r border-gray-200 shadow-sm flex flex-col">
             <div className="p-4 border-b border-gray-200">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-600">Admin Conversations</h2>
+                <h2 className="text-lg font-bold text-gray-700">Conversations</h2>
               </div>
               
-              {/* Search Bar */}
-              <div className="relative mb-3" ref={searchRef}>
+              {/* Search Bar - refined */}
+              <div className="relative mb-2" ref={searchRef}>
                 <input
                   type="text"
                   placeholder="Search users or staff..."
-                  className="w-full bg-gray-100 border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:border-transparent text-sm"
+                  className="w-full bg-gray-100 border border-gray-200 rounded-lg pl-9 pr-3 py-2.5 text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:border-transparent text-sm transition-shadow"
                   value={searchTerm}
                   onChange={(e) => {
                     setSearchTerm(e.target.value);
@@ -635,13 +610,13 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
                   </svg>
                 </div>
 
-                {/* Search Dropdown */}
+                {/* Search Dropdown - smoother */}
                 {showSearchDropdown && searchTerm && (
-                  <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg z-10 mt-1 max-h-60 overflow-y-auto">
+                  <div className="absolute top-full left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-xl z-10 mt-1 max-h-60 overflow-y-auto animate-fadeIn">
                     {searchLoading ? (
-                      <div className="p-3 text-center text-gray-500">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#CC0000] mx-auto"></div>
-                        <span className="text-sm ml-2">Searching...</span>
+                      <div className="p-4 text-center text-gray-500">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-[#CC0000] mx-auto"></div>
+                        <span className="text-sm block mt-2">Searching...</span>
                       </div>
                     ) : filteredSearchResults.length > 0 ? (
                       filteredSearchResults.map((user) => (
@@ -661,8 +636,8 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
                         </button>
                       ))
                     ) : (
-                      <div className="p-3 text-center text-gray-500 text-sm">
-                        No users found matching "{searchTerm}"
+                      <div className="p-4 text-center text-gray-500 text-sm">
+                        No users found for "{searchTerm}"
                       </div>
                     )}
                   </div>
@@ -670,47 +645,44 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-2">
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
               {recipients.filter(r => r !== undefined).length === 0 ? (
-                <div className="text-center p-6 text-gray-500">
-                  <svg className="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="text-center p-8 text-gray-500">
+                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
-                  <p className="font-medium text-sm">No admin conversations found</p>
-                  <p className="text-xs mt-1">{searchTerm ? "Try different search terms" : "Start a conversation with a user or staff"}</p>
+                  <p className="font-medium">No conversations yet</p>
+                  <p className="text-xs mt-2">{searchTerm ? "Try different search terms" : "Search for a user above"}</p>
                 </div>
               ) : (
                 recipients.filter(r => r !== undefined).map((recipient) => (
                   <button
                     key={recipient._id}
                     onClick={() => handleSelectRecipient(recipient)}
-                    className={`w-full text-left p-3 rounded-lg mb-1 transition-all duration-200 cursor-pointer ${
+                    className={`w-full text-left p-3 rounded-lg transition-all duration-200 cursor-pointer ${
                       selectedId === recipient._id 
-                        ? 'bg-gradient-to-r from-red-50 to-yellow-50 border-2 border-red-200 shadow' 
-                        : 'bg-white hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
+                        ? 'bg-gradient-to-r from-red-50 to-yellow-50 border-2 border-red-200 shadow-md' 
+                        : 'bg-white hover:bg-gray-50 border border-gray-200 hover:border-gray-300 hover:shadow'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3 flex-1 min-w-0">
-                        {getAvatar(recipient.name, getRecipientType(recipient))}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-gray-800 text-sm truncate">
-                              {recipient.name}
+                    <div className="flex items-center space-x-3">
+                      {getAvatar(recipient.name, getRecipientType(recipient))}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-gray-800 text-sm truncate">
+                            {recipient.name}
+                          </span>
+                          {recipient.unreadCount > 0 && (
+                            <span className="bg-[#CC0000] text-white text-xs px-2 py-0.5 rounded-full ml-2 animate-pulse">
+                              {recipient.unreadCount}
                             </span>
-                            {/* 🆕 SHOW UNREAD COUNT BADGE */}
-                            {recipient.unreadCount > 0 && (
-                              <span className="bg-[#CC0000] text-white text-xs px-2 py-1 rounded-full min-w-5 h-5 flex items-center justify-center">
-                                {recipient.unreadCount}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-xs text-gray-600 truncate mt-1">
-                            {recipient.latestMessage || "Start a conversation..."}
-                          </div>
-                          <div className="text-xs text-gray-500 mt-1">
-                            {recipient.timestamp ? formatTime(recipient.timestamp) : 'No messages'}
-                          </div>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-600 truncate mt-0.5">
+                          {recipient.latestMessage || "No messages yet"}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {recipient.timestamp ? formatTime(recipient.timestamp) : ''}
                         </div>
                       </div>
                     </div>
@@ -720,138 +692,148 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) { // 🆕 ADD
             </div>
           </div>
 
-          {/* Chat Area */}
-          <div className="flex-1 flex flex-col">
+          {/* Chat Area - refined spacing and shadows */}
+          <div className="flex-1 flex flex-col bg-gray-50">
             {selectedId ? (
               <>
-                <div className="bg-white p-4 border-b border-gray-200 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      {getAvatar(selectedName, selectedType)}
-                      <div>
-                        <h3 className="font-bold text-lg text-gray-800">{selectedName}</h3>
-                        <p className="text-sm text-gray-600">
-                          {selectedType === "staff" ? "Staff Member" : "User"}
-                        </p>
-                      </div>
+                <div className="bg-white px-6 py-4 border-b border-gray-200 shadow-sm">
+                  <div className="flex items-center space-x-4">
+                    {getAvatar(selectedName, selectedType)}
+                    <div>
+                      <h3 className="font-bold text-lg text-gray-800">{selectedName}</h3>
+                      <p className="text-sm text-gray-500">
+                        {selectedType === "staff" ? "Staff Member" : "User"}
+                      </p>
                     </div>
                   </div>
                 </div>
                 
                 <div 
                   ref={chatContainerRef}
-                  className="flex-1 overflow-y-auto bg-gradient-to-b from-red-50/30 to-yellow-50/20"
+                  className="flex-1 overflow-y-auto bg-gradient-to-b from-red-50/30 to-yellow-50/20 px-4 py-6"
                 >
-                  <div className="p-4">
-                    {messages.length === 0 ? (
-                      <div className="flex justify-center items-center h-full">
-                        <div className="text-center text-gray-500">
-                          <svg className="w-16 h-16 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                          <h3 className="text-lg font-semibold mb-1">No messages yet</h3>
-                          <p className="text-gray-600 text-sm">Start the conversation with {selectedName}</p>
-                        </div>
+                  {messages.length === 0 ? (
+                    <div className="flex justify-center items-center h-full">
+                      <div className="text-center text-gray-500 max-w-sm">
+                        <svg className="w-20 h-20 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        <h3 className="text-lg font-semibold mb-2">Start a conversation</h3>
+                        <p className="text-gray-600 text-sm">Send a message to {selectedName}</p>
                       </div>
-                    ) : (
-                      <div className="max-w-full mx-auto space-y-4">
-                        {Object.entries(messageGroups).map(([date, dateMessages]) => (
-                          <div key={date}>
-                            <div className="flex justify-center mb-3">
-                              <div className="bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-xs font-medium">
-                                {date}
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              {dateMessages.map(msg => (
-                                <div key={msg._id || msg.localId} className={`flex ${msg.sender === "admin" ? 'justify-end' : 'justify-start'}`}>
-                                  <div className={`max-w-[75%] rounded-lg p-3 shadow transition-all duration-200 ${
-                                    msg.sender === "admin" 
-                                      ? 'bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-br-md' 
-                                      : 'bg-white border border-gray-200 rounded-bl-md'
-                                  }`}>
-                                    <div className="flex items-center justify-between mb-1">
-                                      <div className="text-xs font-semibold">
-                                        {msg.sender === "admin" ? "Administration" : `${msg.senderName}`}
-                                      </div>
-                                      {msg.status === "sending" && (
-                                        <div className="text-xs opacity-80 animate-pulse flex items-center">
-                                          <div className="w-1.5 h-1.5 bg-white rounded-full mr-1 animate-pulse"></div>
-                                          Sending...
-                                        </div>
-                                      )}
-                                      {msg.status === "failed" && (
-                                        <div className="text-xs opacity-80 text-red-200 flex items-center">
-                                          Failed
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</div>
-                                    <div className={`text-xs mt-1 text-right ${
-                                      msg.sender === "admin" ? 'text-red-100' : 'text-gray-500'
-                                    }`}>
-                                      {formatTime(msg.createdAt)}
-                                    </div>
-                                  </div>
-                                </div>
-                              ))}
+                    </div>
+                  ) : (
+                    <div className="max-w-4xl mx-auto space-y-6">
+                      {Object.entries(messageGroups).map(([date, dateMessages]) => (
+                        <div key={date}>
+                          <div className="flex justify-center mb-4">
+                            <div className="bg-gray-200/80 text-gray-600 px-4 py-1 rounded-full text-xs font-medium shadow-sm">
+                              {date}
                             </div>
                           </div>
-                        ))}
-                        <div ref={messagesEndRef} />
-                      </div>
-                    )}
-                  </div>
+                          <div className="space-y-3">
+                            {dateMessages.map(msg => (
+                              <div key={msg._id || msg.localId} className={`flex ${msg.sender === "admin" ? 'justify-end' : 'justify-start'}`}>
+                                <div className={`max-w-[70%] rounded-2xl p-3 shadow-sm transition-all ${
+                                  msg.sender === "admin" 
+                                    ? 'bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-br-none' 
+                                    : 'bg-white border border-gray-200 rounded-bl-none'
+                                }`}>
+                                  <div className="flex items-center justify-between mb-1 px-1">
+                                    <span className="text-xs font-semibold opacity-90">
+                                      {msg.sender === "admin" ? "Admin" : msg.senderName?.split(' ')[0]}
+                                    </span>
+                                    {msg.status === "sending" && (
+                                      <span className="text-xs opacity-80 flex items-center ml-2">
+                                        <span className="w-1.5 h-1.5 bg-white rounded-full mr-1 animate-pulse"></span>
+                                        Sending
+                                      </span>
+                                    )}
+                                    {msg.status === "failed" && (
+                                      <span className="text-xs text-red-200 ml-2">Failed</span>
+                                    )}
+                                  </div>
+                                  <div className="text-sm leading-relaxed whitespace-pre-wrap break-words px-1">
+                                    {msg.content}
+                                  </div>
+                                  <div className={`text-xs mt-1 text-right px-1 ${
+                                    msg.sender === "admin" ? 'text-red-100' : 'text-gray-400'
+                                  }`}>
+                                    {formatTime(msg.createdAt)}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
                 </div>
 
-                <div className="bg-white p-4 border-t border-gray-200 shadow-lg">
-                  <div className="max-w-full mx-auto">
-                    <div className="flex space-x-2">
-                      <textarea
-                        placeholder={`Send a Message`}
-                        className="flex-1 bg-white border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:border-transparent text-sm shadow-sm resize-none"
-                        value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        onKeyDown={handleKeyPress}
-                        rows={1}
-                        style={{ minHeight: '50px', maxHeight: '120px' }}
-                      />
+                <div className="bg-white px-4 py-4 border-t border-gray-200 shadow-inner">
+                  <div className="max-w-4xl mx-auto">
+                    <div className="flex items-end space-x-2">
+                      <div className="flex-1 relative">
+                        <textarea
+                          ref={inputRef}
+                          placeholder={`Message ${selectedName}...`}
+                          className="w-full bg-gray-50 border border-gray-300 rounded-2xl px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:border-transparent text-sm shadow-sm resize-none transition-all"
+                          value={newMessage}
+                          onChange={(e) => setNewMessage(e.target.value)}
+                          onKeyDown={handleKeyPress}
+                          rows={1}
+                          style={{ minHeight: '48px', maxHeight: '120px' }}
+                        />
+                        <div className="absolute right-3 bottom-3 text-gray-400 text-xs">
+                          {newMessage.length > 0 && '↵ Enter'}
+                        </div>
+                      </div>
                       <button
                         onClick={handleSendMessage}
                         disabled={!newMessage.trim()}
-                        className="bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-lg px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-lg font-semibold shadow flex items-center space-x-1 text-sm cursor-pointer"
+                        className="bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-full w-12 h-12 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#CC0000] cursor-pointer flex-shrink-0"
                       >
-                        <span>Send</span>
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                         </svg>
                       </button>
                     </div>
-                    <div className="text-xs text-gray-500 mt-2 text-center">
-                      Sending as <strong className="text-[#CC0000]">Administration</strong>
-                      
+                    <div className="text-xs text-gray-400 mt-2 text-center">
+                      Sending as <span className="font-semibold text-[#CC0000]">Administration</span>
                     </div>
                   </div>
                 </div>
               </>
             ) : (
               <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-red-50/50 to-yellow-50/50">
-                <div className="text-center text-gray-500">
-                  <svg className="w-24 h-24 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="text-center text-gray-500 max-w-md px-6">
+                  <svg className="w-28 h-28 mx-auto text-gray-300 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
-                  <h3 className="text-xl font-semibold mb-2">Select a Conversation</h3>
-                  <p className="text-gray-600 max-w-md mx-auto">
+                  <h3 className="text-2xl font-semibold mb-3 text-gray-700">Select a Conversation</h3>
+                  <p className="text-gray-600">
                     Choose a user or staff member from the list to start messaging.
-                    <br />
-                    <span className="text-sm text-gray-500">(Only admin-related conversations are shown)</span>
                   </p>
+                  <p className="text-sm text-gray-400 mt-4">(Only admin-related conversations are shown)</p>
                 </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Add a subtle fade-in animation for dropdown */}
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-5px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.15s ease-out;
+        }
+      `}</style>
     </>
   );
 }
