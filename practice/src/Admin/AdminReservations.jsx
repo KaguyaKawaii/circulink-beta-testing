@@ -18,7 +18,10 @@ import {
   FileText,
   BarChart3,
   Plus,
-  Edit
+  Edit,
+  CheckSquare,
+  Square,
+  AlertTriangle
 } from "lucide-react";
 import AdminReservationModal from "./Modals/AdminReservationModal";
 import AdminCreateReservationModal from "./Modals/AdminCreateReservationModal";
@@ -37,6 +40,12 @@ function AdminReservations({ setView, onLogout }) {
   const [reservationToArchive, setReservationToArchive] = useState(null);
   const [archiveResult, setArchiveResult] = useState({ show: false, message: "", isSuccess: false });
   const [isArchiving, setIsArchiving] = useState(false);
+  
+  // Selection State
+  const [selectedReservations, setSelectedReservations] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [showBulkArchiveConfirm, setShowBulkArchiveConfirm] = useState(false);
+  const [isBulkArchiving, setIsBulkArchiving] = useState(false);
   
   // Daily Logs State
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -97,6 +106,9 @@ function AdminReservations({ setView, onLogout }) {
           return bTime - aTime;
         });
         setReservations(sorted);
+        // Clear selections when fetching new data
+        setSelectedReservations([]);
+        setSelectAll(false);
       })
       .catch((err) => console.error("Fetch reservations error:", err))
       .finally(() => setIsLoading(false));
@@ -167,6 +179,97 @@ function AdminReservations({ setView, onLogout }) {
     }
   };
 
+  // Selection Handlers
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedReservations([]);
+    } else {
+      const filteredIds = filteredReservations.map(res => res._id);
+      setSelectedReservations(filteredIds);
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleSelectReservation = (reservationId) => {
+    setSelectedReservations(prev => {
+      if (prev.includes(reservationId)) {
+        const newSelected = prev.filter(id => id !== reservationId);
+        setSelectAll(false);
+        return newSelected;
+      } else {
+        const newSelected = [...prev, reservationId];
+        // Check if all filtered reservations are selected
+        if (newSelected.length === filteredReservations.length) {
+          setSelectAll(true);
+        }
+        return newSelected;
+      }
+    });
+  };
+
+  // Bulk Archive Handler
+  const handleBulkArchiveClick = () => {
+    if (selectedReservations.length === 0) {
+      setArchiveResult({
+        show: true,
+        message: "Please select at least one reservation to archive.",
+        isSuccess: false
+      });
+      return;
+    }
+    setShowBulkArchiveConfirm(true);
+  };
+
+  const handleBulkArchiveConfirm = async () => {
+    if (selectedReservations.length === 0) return;
+    
+    setIsBulkArchiving(true);
+    
+    try {
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/reservations/bulk-archive`,
+        { reservationIds: selectedReservations }
+      );
+
+      if (response.data.success) {
+        setArchiveResult({
+          show: true,
+          message: `Successfully archived ${response.data.count} reservations.`,
+          isSuccess: true
+        });
+        
+        // Update local state
+        setReservations(prev => 
+          prev.filter(res => !selectedReservations.includes(res._id))
+        );
+        
+        // Clear selections
+        setSelectedReservations([]);
+        setSelectAll(false);
+        
+        // Refresh data to ensure consistency
+        fetchReservations();
+      } else {
+        throw new Error(response.data.message || "Failed to archive reservations");
+      }
+    } catch (err) {
+      console.error("Bulk archive error:", err);
+      setArchiveResult({
+        show: true,
+        message: err.response?.data?.message || "Failed to archive reservations. Please try again.",
+        isSuccess: false
+      });
+    } finally {
+      setIsBulkArchiving(false);
+      setShowBulkArchiveConfirm(false);
+    }
+  };
+
+  const handleBulkArchiveCancel = () => {
+    setShowBulkArchiveConfirm(false);
+  };
+
+  // Single Archive Handler
   const handleArchiveClick = (id) => {
     setReservationToArchive(id);
     setShowArchiveConfirm(true);
@@ -437,6 +540,34 @@ function AdminReservations({ setView, onLogout }) {
               </div>
             </div>
 
+            {/* Bulk Actions Row - Only show in list view */}
+            {viewMode === "list" && (
+              <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSelectAll}
+                    className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-sm"
+                  >
+                    {selectAll ? <Square size={16} /> : <CheckSquare size={16} />}
+                    <span>{selectAll ? "Deselect All" : "Select All"}</span>
+                  </button>
+                  <span className="text-sm text-gray-600">
+                    {selectedReservations.length} reservation{selectedReservations.length !== 1 ? 's' : ''} selected
+                  </span>
+                </div>
+
+                {selectedReservations.length > 0 && (
+                  <button
+                    onClick={handleBulkArchiveClick}
+                    className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer text-sm"
+                  >
+                    <Trash2 size={16} />
+                    <span>Archive Selected</span>
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Date Picker for Daily View */}
             {viewMode === "daily" && (
               <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
@@ -596,6 +727,14 @@ function AdminReservations({ setView, onLogout }) {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
                     <tr>
+                      <th className="px-6 py-3 text-left font-medium w-10">
+                        <button
+                          onClick={handleSelectAll}
+                          className="text-gray-600 hover:text-gray-800"
+                        >
+                          {selectAll ? <CheckSquare size={18} /> : <Square size={18} />}
+                        </button>
+                      </th>
                       <th className="px-6 py-3 text-left font-medium">#</th>
                       <th className="px-6 py-3 text-left font-medium">Date</th>
                       <th className="px-6 py-3 text-left font-medium">Time</th>
@@ -609,13 +748,13 @@ function AdminReservations({ setView, onLogout }) {
                   <tbody className="divide-y divide-gray-200">
                     {isLoading ? (
                       <tr>
-                        <td colSpan={8} className="px-6 py-4 text-center text-gray-500 font-bold">
+                        <td colSpan={9} className="px-6 py-4 text-center text-gray-500 font-bold">
                           Loading reservations...
                         </td>
                       </tr>
                     ) : filteredReservations.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-6 py-4 text-center text-gray-500">
+                        <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
                           No reservations found
                         </td>
                       </tr>
@@ -648,6 +787,18 @@ function AdminReservations({ setView, onLogout }) {
 
                         return (
                           <tr key={r._id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <button
+                                onClick={() => handleSelectReservation(r._id)}
+                                className="text-gray-600 hover:text-gray-800"
+                              >
+                                {selectedReservations.includes(r._id) ? (
+                                  <CheckSquare size={18} className="text-[#CC0000]" />
+                                ) : (
+                                  <Square size={18} />
+                                )}
+                              </button>
+                            </td>
                             <td className="px-6 py-4 whitespace-nowrap">{i + 1}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{dateOnly}</td>
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -724,7 +875,7 @@ function AdminReservations({ setView, onLogout }) {
         </div>
       </main>
 
-      {/* Reservation Modal */}
+      {/* Single Reservation Modal */}
       {showModal && selectedReservation && (
         <AdminReservationModal
           reservation={selectedReservation}
@@ -752,7 +903,7 @@ function AdminReservations({ setView, onLogout }) {
         />
       )}
 
-      {/* Archive Confirmation Modal */}
+      {/* Single Archive Confirmation Modal */}
       {showArchiveConfirm && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
           <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 transform transition-all duration-300 scale-100">
@@ -787,6 +938,48 @@ function AdminReservations({ setView, onLogout }) {
                   </>
                 ) : (
                   'Archive'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Archive Confirmation Modal */}
+      {showBulkArchiveConfirm && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 transform transition-all duration-300 scale-100">
+            <div className="flex items-center mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                <AlertTriangle className="text-red-600" size={20} />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Archive Multiple Reservations
+              </h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to archive {selectedReservations.length} selected reservation{selectedReservations.length !== 1 ? 's' : ''}? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleBulkArchiveCancel}
+                disabled={isBulkArchiving}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkArchiveConfirm}
+                disabled={isBulkArchiving}
+                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+              >
+                {isBulkArchiving ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Archiving...
+                  </>
+                ) : (
+                  'Archive All'
                 )}
               </button>
             </div>
@@ -834,16 +1027,18 @@ function AdminReservations({ setView, onLogout }) {
       )}
 
       {/* Loading Overlay for Archive Operation */}
-      {isArchiving && (
+      {(isArchiving || isBulkArchiving) && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
             <div className="flex flex-col items-center justify-center">
               <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin mb-4"></div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                Archiving Reservation
+                {isBulkArchiving ? 'Archiving Reservations' : 'Archiving Reservation'}
               </h3>
               <p className="text-gray-600 text-center">
-                Please wait while we archive the reservation...
+                {isBulkArchiving 
+                  ? `Please wait while we archive ${selectedReservations.length} reservations...`
+                  : 'Please wait while we archive the reservation...'}
               </p>
             </div>
           </div>
