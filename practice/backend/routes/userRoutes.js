@@ -53,5 +53,7 @@ router.post("/force-logout/:userId", userController.forceLogoutUser);
 router.post("/revoke-all-verification", userController.revokeAllVerification);
 router.post("/bulk-verify", userController.bulkVerifyUsers);
 router.post("/bulk-archive", userController.bulkArchiveUsers);
+router.post("/bulk-restore-archived", userController.bulkRestoreArchivedUsers); // ADD THIS LINE
+router.post("/bulk-delete-archived", userController.bulkDeleteArchivedUsers); // ADD THIS LINE
 
 export default router;

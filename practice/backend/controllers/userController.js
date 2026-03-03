@@ -1448,45 +1448,6 @@ export const bulkArchiveUsers = async (req, res) => {
   }
 };
 
-// ✅ NEW: Force logout all sessions for a user
-export const forceLogoutUser = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-    
-    // Clear session token
-    user.sessionToken = null;
-    user.isLoggedIn = false;
-    await user.save();
-    
-    // Notify user to logout via WebSocket
-    const io = req.io || null;
-    if (io) {
-      io.to(userId).emit('force-logout', {
-        message: 'You have been logged out by an administrator.',
-        reason: 'admin_force_logout'
-      });
-      
-      console.log(`✅ Force logout notification sent to user: ${userId}`);
-    }
-    
-    res.json({ 
-      success: true, 
-      message: "User logged out successfully" 
-    });
-  } catch (error) {
-    console.error("Force Logout Error:", error);
-    res.status(500).json({ 
-      success: false, 
-      message: error.message || "Failed to force logout user" 
-    });
-  }
-};
-
 // ✅ NEW: Bulk restore archived users
 export const bulkRestoreArchivedUsers = async (req, res) => {
   try {
@@ -1649,6 +1610,45 @@ export const bulkDeleteArchivedUsers = async (req, res) => {
     res.status(500).json({ 
       success: false, 
       message: error.message || "Failed to bulk delete archived users" 
+    });
+  }
+};
+
+// ✅ NEW: Force logout all sessions for a user
+export const forceLogoutUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+    
+    // Clear session token
+    user.sessionToken = null;
+    user.isLoggedIn = false;
+    await user.save();
+    
+    // Notify user to logout via WebSocket
+    const io = req.io || null;
+    if (io) {
+      io.to(userId).emit('force-logout', {
+        message: 'You have been logged out by an administrator.',
+        reason: 'admin_force_logout'
+      });
+      
+      console.log(`✅ Force logout notification sent to user: ${userId}`);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: "User logged out successfully" 
+    });
+  } catch (error) {
+    console.error("Force Logout Error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || "Failed to force logout user" 
     });
   }
 };

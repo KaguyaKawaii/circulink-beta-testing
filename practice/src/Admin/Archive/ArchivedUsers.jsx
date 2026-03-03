@@ -115,32 +115,34 @@ function AdminArchivedUsers({ setView, onLogout }) {
     setShowBulkRestoreConfirm(true);
   };
 
+  // Bulk Restore Handler - UPDATED to use the new endpoint
   const handleBulkRestoreConfirm = async () => {
     if (selectedUsers.length === 0) return;
     
     setIsBulkActionLoading(true);
     
     try {
-      // Since there's no bulk restore endpoint for users, we'll restore them one by one
-      const restorePromises = selectedUsers.map(userId => 
-        axios.put(`${import.meta.env.VITE_API_URL}/api/users/restore/${userId}`)
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/users/bulk-restore-archived`,
+        { userIds: selectedUsers }
       );
-      
-      await Promise.all(restorePromises);
-      
-      showAlert(
-        "Success", 
-        `Successfully restored ${selectedUsers.length} user${selectedUsers.length !== 1 ? 's' : ''}.`, 
-        "success"
-      );
-      
-      // Refresh archived list
-      fetchArchivedUsers();
-      
-      // Clear selections
-      setSelectedUsers([]);
-      setSelectAll(false);
-      
+
+      if (response.data.success) {
+        showAlert(
+          "Success", 
+          `Successfully restored ${response.data.count} user${response.data.count !== 1 ? 's' : ''}.`, 
+          "success"
+        );
+        
+        // Refresh archived list
+        fetchArchivedUsers();
+        
+        // Clear selections
+        setSelectedUsers([]);
+        setSelectAll(false);
+      } else {
+        throw new Error(response.data.message || "Failed to restore users");
+      }
     } catch (err) {
       console.error("Bulk restore error:", err);
       showAlert(
@@ -167,32 +169,34 @@ function AdminArchivedUsers({ setView, onLogout }) {
     setShowBulkDeleteConfirm(true);
   };
 
+  // Bulk Delete Handler - UPDATED to use the new endpoint
   const handleBulkDeleteConfirm = async () => {
     if (selectedUsers.length === 0) return;
     
     setIsBulkActionLoading(true);
     
     try {
-      // Delete users one by one
-      const deletePromises = selectedUsers.map(userId => 
-        axios.delete(`${import.meta.env.VITE_API_URL}/api/users/archived/${userId}`)
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/users/bulk-delete-archived`,
+        { userIds: selectedUsers }
       );
-      
-      await Promise.all(deletePromises);
-      
-      showAlert(
-        "Success", 
-        `Successfully deleted ${selectedUsers.length} archived user${selectedUsers.length !== 1 ? 's' : ''}.`, 
-        "success"
-      );
-      
-      // Refresh archived list
-      fetchArchivedUsers();
-      
-      // Clear selections
-      setSelectedUsers([]);
-      setSelectAll(false);
-      
+
+      if (response.data.success) {
+        showAlert(
+          "Success", 
+          `Successfully deleted ${response.data.count} archived user${response.data.count !== 1 ? 's' : ''}.`, 
+          "success"
+        );
+        
+        // Refresh archived list
+        fetchArchivedUsers();
+        
+        // Clear selections
+        setSelectedUsers([]);
+        setSelectAll(false);
+      } else {
+        throw new Error(response.data.message || "Failed to delete users");
+      }
     } catch (err) {
       console.error("Bulk delete error:", err);
       showAlert(
