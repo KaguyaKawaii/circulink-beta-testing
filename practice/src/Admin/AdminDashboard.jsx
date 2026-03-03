@@ -23,7 +23,19 @@ import {
   RefreshCw,
   Mail,
   TrendingUp,
-  Eye
+  Eye,
+  UserPlus,
+  CheckCircle,
+  XCircle,
+  Clock3,
+  BarChart3,
+  PieChart,
+  Activity,
+  Star,
+  Award,
+  Target,
+  Zap,
+  Percent
 } from "lucide-react";
 
 // API service module for better organization
@@ -61,7 +73,12 @@ function AdminDashboard({ setView }) {
     pendingReports: 0,
     unreadMessages: 0,
     unreadUserMessages: 0,
-    unreadStaffMessages: 0
+    unreadStaffMessages: 0,
+    totalRooms: 0,
+    activeRooms: 0,
+    occupancyRate: 0,
+    completedReservations: 0,
+    cancelledReservations: 0
   });
   const [newsList, setNewsList] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -76,6 +93,8 @@ function AdminDashboard({ setView }) {
   const [error, setError] = useState(null);
   const [roomAvailability, setRoomAvailability] = useState({});
   const [unreadBreakdown, setUnreadBreakdown] = useState([]);
+  const [popularRooms, setPopularRooms] = useState([]);
+  const [peakHours, setPeakHours] = useState([]);
   
   // Room Availability Modal State
   const [showAvailModal, setShowAvailModal] = useState(false);
@@ -266,14 +285,30 @@ function AdminDashboard({ setView }) {
     const roomsData = data.rooms?.error ? [] : data.rooms;
     const adminRecipients = data.adminRecipients;
 
-    // Calculate unread messages - with fallback if endpoint fails
+    // Calculate additional metrics
+    const activeRooms = Array.isArray(roomsData) 
+      ? roomsData.filter(room => room.isActive !== false).length 
+      : 0;
+    
+    const completedReservations = Array.isArray(reservationsData)
+      ? reservationsData.filter(res => res.status === 'Completed' || res.status === 'Approved').length
+      : 0;
+    
+    const cancelledReservations = Array.isArray(reservationsData)
+      ? reservationsData.filter(res => res.status === 'Cancelled' || res.status === 'Rejected').length
+      : 0;
+    
+    const occupancyRate = activeRooms > 0 
+      ? Math.round((completedReservations / activeRooms) * 100) 
+      : 0;
+
+    // Calculate unread messages
     let totalUnread = 0;
     let unreadUserMessages = 0;
     let unreadStaffMessages = 0;
     let unreadConversations = [];
 
     if (adminRecipients && !adminRecipients.error) {
-      // Normal case: endpoint works
       totalUnread = Array.isArray(adminRecipients) 
         ? adminRecipients.reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0)
         : 0;
@@ -296,17 +331,43 @@ function AdminDashboard({ setView }) {
             .sort((a, b) => b.unreadCount - a.unreadCount)
             .slice(0, 5)
         : [];
-    } else if (adminRecipients?.fallback) {
-      // Fallback case: estimate from messages data
-      console.log('Using fallback for unread messages count');
-      const allMessages = Array.isArray(messagesData) ? messagesData : [];
-      totalUnread = allMessages.filter(msg => 
-        msg.receiver === 'admin' && msg.read === false
-      ).length;
+    }
+
+    // Calculate popular rooms
+    if (Array.isArray(reservationsData) && Array.isArray(roomsData)) {
+      const roomCounts = {};
+      reservationsData.forEach(res => {
+        const roomName = res.roomName || res.room;
+        if (roomName) {
+          roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
+        }
+      });
       
-      // For fallback, we can't distinguish between user and staff without the recipients endpoint
-      unreadUserMessages = Math.floor(totalUnread * 0.7); // Estimate 70% from users
-      unreadStaffMessages = Math.floor(totalUnread * 0.3); // Estimate 30% from staff
+      const popular = Object.entries(roomCounts)
+        .map(([name, count]) => ({ name, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+      
+      setPopularRooms(popular);
+    }
+
+    // Calculate peak hours
+    if (Array.isArray(reservationsData)) {
+      const hourCounts = {};
+      reservationsData.forEach(res => {
+        if (res.datetime) {
+          const hour = new Date(res.datetime).getHours();
+          const timeSlot = `${hour}:00 - ${hour + 1}:00`;
+          hourCounts[timeSlot] = (hourCounts[timeSlot] || 0) + 1;
+        }
+      });
+      
+      const peak = Object.entries(hourCounts)
+        .map(([time, count]) => ({ time, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 3);
+      
+      setPeakHours(peak);
     }
 
     setSummaryData({
@@ -318,7 +379,12 @@ function AdminDashboard({ setView }) {
       pendingReports: filterByStatus(reportsData, 'Pending'),
       unreadMessages: totalUnread,
       unreadUserMessages,
-      unreadStaffMessages
+      unreadStaffMessages,
+      totalRooms: safeLength(roomsData),
+      activeRooms,
+      occupancyRate,
+      completedReservations,
+      cancelledReservations
     });
 
     // Set other data states
@@ -404,24 +470,8 @@ function AdminDashboard({ setView }) {
     return { status: 'available', message: 'Available' };
   };
 
-  const getRoomBookings = (room) => {
-    const roomName = room.room;
-    
-    // Try exact match first
-    if (roomAvailability[roomName]) {
-      return roomAvailability[roomName];
-    }
-    
-    // Try case-insensitive match
-    const roomKey = Object.keys(roomAvailability).find(
-      key => key.toLowerCase() === roomName.toLowerCase()
-    );
-    
-    return roomKey ? roomAvailability[roomKey] : [];
-  };
-
   const updateRecentActivity = (logsData) => {
-    const recentLogs = Array.isArray(logsData) ? logsData.slice(0, 5) : [];
+    const recentLogs = Array.isArray(logsData) ? logsData.slice(0, 8) : [];
     setRecentActivity(recentLogs.map(log => ({
       id: log._id,
       action: log.action,
@@ -518,9 +568,14 @@ const fetchRoomAvailabilityForDate = async (date) => {
     
     if (dayReservations.length === 0) return null;
     
+    // Determine dot color based on reservation count
+    let dotColor = 'bg-blue-500';
+    if (dayReservations.length >= 5) dotColor = 'bg-red-500';
+    else if (dayReservations.length >= 3) dotColor = 'bg-amber-500';
+    
     return (
       <div className="absolute bottom-1 left-0 right-0 flex justify-center">
-        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+        <div className={`w-2 h-2 ${dotColor} rounded-full`}></div>
       </div>
     );
   };
@@ -532,17 +587,6 @@ const fetchRoomAvailabilityForDate = async (date) => {
     const interval = setInterval(fetchAllData, 30000);
     return () => clearInterval(interval);
   }, [fetchAllData]);
-
-  const quickActions = [
-    { id: "adminReservation", icon: <CalendarIcon size={20} />, label: "Reservations", color: "blue" },
-    { id: "adminUsers", icon: <Users size={20} />, label: "Users", color: "green" },
-    { id: "adminRoom", icon: <Home size={20} />, label: "Rooms", color: "purple" },
-    { id: "adminMessage", icon: <MessageSquare size={20} />, label: "Messages", color: "amber" },
-    { id: "adminNews", icon: <FileText size={20} />, label: "News", color: "indigo" },
-    { id: "adminReports", icon: <AlertCircle size={20} />, label: "Reports", color: "red" },
-    { id: "adminNotifications", icon: <Bell size={20} />, label: "Notifications", color: "cyan" },
-    { id: "adminSettings", icon: <Settings size={20} />, label: "Settings", color: "gray" }
-  ];
 
   const getNewUsersThisWeek = () => {
     const oneWeekAgo = new Date();
@@ -588,20 +632,6 @@ const fetchRoomAvailabilityForDate = async (date) => {
     );
   }
 
-  const getColorClasses = (color) => {
-    const colors = {
-      blue: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300',
-      green: 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-300',
-      purple: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300',
-      amber: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300',
-      indigo: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300',
-      red: 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100 hover:border-red-300',
-      cyan: 'bg-cyan-50 text-cyan-700 border-cyan-200 hover:bg-cyan-100 hover:border-cyan-300',
-      gray: 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
-    };
-    return colors[color] || colors.gray;
-  };
-
   const getStatusColor = (status) => {
     switch (status) {
       case 'available': return 'text-green-600 bg-green-50 border-green-200';
@@ -611,10 +641,16 @@ const fetchRoomAvailabilityForDate = async (date) => {
     }
   };
 
+  // Calculate reservation status breakdown
+  const pendingCount = summaryData.pendingReservations;
+  const approvedCount = reservations.filter(r => r.status === 'Approved' || r.status === 'Ongoing').length;
+  const completedCount = reservations.filter(r => r.status === 'Completed').length;
+  const cancelledCount = reservations.filter(r => r.status === 'Cancelled' || r.status === 'Rejected').length;
+
   return (
     <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white px-8 py-6 border-b border-gray-200 shadow-sm">
+      <header className="bg-white px-8 py-6 border-b border-gray-200 shadow-sm sticky top-0 z-10">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
@@ -662,7 +698,7 @@ const fetchRoomAvailabilityForDate = async (date) => {
 
       {/* Main Content */}
       <div className="p-6 space-y-6">
-        {/* Stats Overview */}
+        {/* Stats Overview - Expanded with more metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Reservation Card */}
           <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
@@ -672,15 +708,25 @@ const fetchRoomAvailabilityForDate = async (date) => {
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold text-gray-900">{summaryData.reservations}</p>
-                <p className="text-gray-500 text-sm font-medium">Reservations</p>
+                <p className="text-gray-500 text-sm font-medium">Total Reservations</p>
               </div>
             </div>
-            <div className="pt-4 border-t border-gray-100">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Pending approval</span>
-                <span className="text-sm font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                  {summaryData.pendingReservations}
-                </span>
+            <div className="grid grid-cols-2 gap-2 pt-4 border-t border-gray-100">
+              <div>
+                <span className="text-xs text-gray-500">Pending</span>
+                <p className="text-sm font-semibold text-amber-600">{pendingCount}</p>
+              </div>
+              <div>
+                <span className="text-xs text-gray-500">Approved</span>
+                <p className="text-sm font-semibold text-green-600">{approvedCount}</p>
+              </div>
+              <div>
+                <span className="text-xs text-gray-500">Completed</span>
+                <p className="text-sm font-semibold text-blue-600">{completedCount}</p>
+              </div>
+              <div>
+                <span className="text-xs text-gray-500">Cancelled</span>
+                <p className="text-sm font-semibold text-red-600">{cancelledCount}</p>
               </div>
             </div>
           </div>
@@ -693,19 +739,80 @@ const fetchRoomAvailabilityForDate = async (date) => {
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold text-gray-900">{summaryData.users}</p>
-                <p className="text-gray-500 text-sm font-medium">Users</p>
+                <p className="text-gray-500 text-sm font-medium">Total Users</p>
               </div>
             </div>
             <div className="pt-4 border-t border-gray-100">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gray-600">New this week</span>
                 <span className="text-sm font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
                   {getNewUsersThisWeek()}
                 </span>
               </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Active users</span>
+                <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                  {Math.round(summaryData.users * 0.7)} (est.)
+                </span>
+              </div>
             </div>
           </div>
 
+          {/* Rooms Card */}
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 rounded-xl bg-purple-50 text-purple-600">
+                <Home size={24} />
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-gray-900">{summaryData.activeRooms}</p>
+                <p className="text-gray-500 text-sm font-medium">Active Rooms</p>
+              </div>
+            </div>
+            <div className="pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-600">Total rooms</span>
+                <span className="text-sm font-semibold text-gray-700">{summaryData.totalRooms}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Occupancy rate</span>
+                <span className="text-sm font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded">
+                  {summaryData.occupancyRate}%
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Reports Card */}
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 rounded-xl bg-red-50 text-red-600">
+                <AlertCircle size={24} />
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-gray-900">{summaryData.reports}</p>
+                <p className="text-gray-500 text-sm font-medium">Total Reports</p>
+              </div>
+            </div>
+            <div className="pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-600">Pending review</span>
+                <span className="text-sm font-semibold text-red-600 bg-red-50 px-2 py-1 rounded">
+                  {summaryData.pendingReports}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-gray-600">Resolved</span>
+                <span className="text-sm font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
+                  {summaryData.reports - summaryData.pendingReports}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Second Row - Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* Messages Card */}
           <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
             <div className="flex items-center justify-between mb-4">
@@ -724,64 +831,99 @@ const fetchRoomAvailabilityForDate = async (date) => {
               </div>
             </div>
             <div className="pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-600">From users</span>
+                <span className="text-sm font-semibold text-blue-600">{summaryData.unreadUserMessages}</span>
+              </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Unread messages</span>
-                <span className={`text-sm font-semibold px-2 py-1 rounded ${
-                  summaryData.unreadMessages > 0 
-                    ? 'text-red-600 bg-red-50' 
-                    : 'text-gray-600 bg-gray-50'
-                }`}>
-                  {summaryData.unreadMessages}
-                </span>
+                <span className="text-sm text-gray-600">From staff</span>
+                <span className="text-sm font-semibold text-purple-600">{summaryData.unreadStaffMessages}</span>
               </div>
             </div>
           </div>
 
-          {/* Reports Card */}
+          {/* Peak Hours Card */}
           <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
             <div className="flex items-center justify-between mb-4">
-              <div className="p-3 rounded-xl bg-red-50 text-red-600">
-                <AlertCircle size={24} />
+              <div className="p-3 rounded-xl bg-indigo-50 text-indigo-600">
+                <Clock size={24} />
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold text-gray-900">{summaryData.reports}</p>
-                <p className="text-gray-500 text-sm font-medium">Reports</p>
+                <p className="text-2xl font-bold text-gray-900">{peakHours.length}</p>
+                <p className="text-gray-500 text-sm font-medium">Peak Hours</p>
               </div>
             </div>
             <div className="pt-4 border-t border-gray-100">
+              {peakHours.length > 0 ? (
+                peakHours.map((hour, idx) => (
+                  <div key={idx} className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600">{hour.time}</span>
+                    <span className="text-sm font-semibold text-indigo-600">{hour.count} bookings</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-2">No peak hours data</p>
+              )}
+            </div>
+          </div>
+
+          {/* Popular Rooms Card */}
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 rounded-xl bg-cyan-50 text-cyan-600">
+                <Star size={24} />
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-gray-900">{popularRooms.length}</p>
+                <p className="text-gray-500 text-sm font-medium">Popular Rooms</p>
+              </div>
+            </div>
+            <div className="pt-4 border-t border-gray-100">
+              {popularRooms.length > 0 ? (
+                popularRooms.map((room, idx) => (
+                  <div key={idx} className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-gray-600 truncate max-w-[120px]">{room.name}</span>
+                    <span className="text-sm font-semibold text-cyan-600">{room.count} bookings</span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-gray-500 text-center py-2">No popular rooms data</p>
+              )}
+            </div>
+          </div>
+
+          {/* Success Rate Card */}
+          <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+            <div className="flex items-center justify-between mb-4">
+              <div className="p-3 rounded-xl bg-green-50 text-green-600">
+                <Percent size={24} />
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-bold text-gray-900">
+                  {summaryData.reservations > 0 
+                    ? Math.round((summaryData.completedReservations / summaryData.reservations) * 100) 
+                    : 0}%
+                </p>
+                <p className="text-gray-500 text-sm font-medium">Success Rate</p>
+              </div>
+            </div>
+            <div className="pt-4 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-600">Completed</span>
+                <span className="text-sm font-semibold text-green-600">{summaryData.completedReservations}</span>
+              </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Pending review</span>
-                <span className="text-sm font-semibold text-red-600 bg-red-50 px-2 py-1 rounded">
-                  {summaryData.pendingReports}
-                </span>
+                <span className="text-sm text-gray-600">Cancelled</span>
+                <span className="text-sm font-semibold text-red-600">{summaryData.cancelledReservations}</span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Main Content Grid */}
+        {/* Main Content Grid - 3 columns */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Left Column - Quick Actions & Unread Messages */}
+          {/* Left Column - Unread Messages & News */}
           <div className="xl:col-span-2 space-y-6">
-            {/* Quick Actions */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Quick Actions</h2>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {quickActions.map((action) => (
-                  <button
-                    key={action.id}
-                    onClick={() => setView(action.id)}
-                    className={`flex flex-col items-center p-4 rounded-xl border-2 transition-all duration-200 hover:shadow-md ${getColorClasses(action.color)}`}
-                  >
-                    <div className="p-3 rounded-xl bg-white border mb-3 shadow-sm">
-                      {action.icon}
-                    </div>
-                    <span className="text-sm font-semibold text-center">{action.label}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Unread Messages Overview */}
             {summaryData.unreadMessages > 0 && (
               <div className="bg-white p-6 rounded-xl border border-amber-200 shadow-sm">
@@ -829,7 +971,7 @@ const fetchRoomAvailabilityForDate = async (date) => {
                     <h3 className="text-lg font-semibold text-gray-800 mb-4">Conversations Requiring Attention</h3>
                     <div className="space-y-3">
                       {unreadBreakdown.map((conversation, index) => (
-                        <div key={conversation._id || index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <div key={conversation._id || index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
                           <div className="flex items-center space-x-4">
                             <div className="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
                               {index + 1}
@@ -949,6 +1091,12 @@ const fetchRoomAvailabilityForDate = async (date) => {
                 <p className="text-sm text-blue-800 font-medium">
                   Selected: {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  {reservations.filter(r => {
+                    const rDate = new Date(r.datetime).toDateString();
+                    return rDate === selectedDate.toDateString();
+                  }).length} reservations on this day
+                </p>
               </div>
             </div>
 
@@ -971,13 +1119,13 @@ const fetchRoomAvailabilityForDate = async (date) => {
                   <p className="text-gray-500 text-sm">No recent activity</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
                   {recentActivity.map((activity) => (
                     <div key={activity.id} className="flex items-start space-x-4 p-3 rounded-lg border border-gray-200 hover:shadow-sm transition-shadow duration-200">
                       <div className="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{activity.action}</p>
-                        <p className="text-xs text-gray-500 mt-1">{activity.details}</p>
+                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{activity.details}</p>
                         <div className="flex items-center justify-between mt-2">
                           <span className="text-xs text-gray-400">{activity.user}</span>
                           <span className="text-xs text-gray-400">{activity.time}</span>
