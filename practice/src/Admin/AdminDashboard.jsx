@@ -1,3 +1,4 @@
+// AdminDashboard.jsx
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
@@ -5,7 +6,7 @@ import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import AdminNews from "./AdminNews";
 import AdminLogs from "./AdminLogs";
-import RoomAvailabilityModal from "./AdminRoomAvailabilityModal";
+import moment from "moment-timezone";
 
 import {
   Home,
@@ -35,7 +36,10 @@ import {
   Award,
   Target,
   Zap,
-  Percent
+  Percent,
+  ChevronDown,
+  ChevronUp,
+  Building2
 } from "lucide-react";
 
 // API service module with correct endpoints
@@ -97,17 +101,15 @@ function AdminDashboard({ setView }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [roomAvailability, setRoomAvailability] = useState({});
   const [unreadBreakdown, setUnreadBreakdown] = useState([]);
   const [popularRooms, setPopularRooms] = useState([]);
   const [peakHours, setPeakHours] = useState([]);
   
-  // Room Availability Modal State
-  const [showAvailModal, setShowAvailModal] = useState(false);
-  const [modalDate, setModalDate] = useState(new Date());
+  // Room Availability State
   const [roomStatuses, setRoomStatuses] = useState([]);
   const [availLoading, setAvailLoading] = useState(false);
   const [availError, setAvailError] = useState(null);
+  const [expandedFloors, setExpandedFloors] = useState({});
 
   // Admin user ID from localStorage - using id_number
   const getAdminId = () => {
@@ -408,72 +410,91 @@ function AdminDashboard({ setView }) {
     updateRecentActivity(logsData);
   };
 
-  // Room availability calculation
-  useEffect(() => {
-    if (!reservations.length || !rooms.length) return;
-
-    const availability = {};
-    
-    // Initialize all rooms as available
-    rooms.forEach(room => {
-      availability[room.room] = [];
-    });
-
-    // Process reservations for the selected date
-    reservations.forEach(reservation => {
-      const roomName = reservation.roomName || reservation.room;
-      const reservationDate = new Date(reservation.datetime);
-      const selectedDateStart = new Date(selectedDate);
-      selectedDateStart.setHours(0, 0, 0, 0);
-      const selectedDateEnd = new Date(selectedDate);
-      selectedDateEnd.setHours(23, 59, 59, 999);
+  // Fetch room availability for selected date
+  const fetchRoomAvailabilityForDate = useCallback(async (date) => {
+    try {
+      console.log('🚀 Fetching room availability...');
+      setAvailLoading(true);
+      setAvailError(null);
       
-      // Check if reservation is on the selected date
-      if (reservationDate >= selectedDateStart && reservationDate <= selectedDateEnd) {
-        if (!availability[roomName]) {
-          availability[roomName] = [];
+      // Format date for API
+      const formattedDate = date.toISOString().split('T')[0];
+      const adminId = getAdminId();
+      
+      console.log('📋 Formatted date for API:', formattedDate);
+      
+      try {
+        // Use the availability endpoint with proper userId
+        const availabilityData = await apiService.get(`/api/rooms/availability?date=${formattedDate}&userId=${adminId}`);
+        console.log('✅ Room availability data received:', availabilityData);
+        
+        if (Array.isArray(availabilityData)) {
+          // Process the data to ensure consistent structure
+          const processedData = availabilityData.map(room => ({
+            _id: room._id || room.room,
+            room: room.room || "Unnamed Room",
+            floor: room.floor || "Unknown Floor",
+            isActive: room.isActive !== false,
+            occupied: Array.isArray(room.occupied) ? room.occupied : [],
+            pending: Array.isArray(room.pending) ? room.pending : []
+          }));
+          
+          setRoomStatuses(processedData);
+          
+          // Initialize expanded floors - expand all by default
+          const floors = {};
+          processedData.forEach(room => {
+            const floor = room.floor || "Unknown Floor";
+            if (!floors[floor]) {
+              floors[floor] = true; // true = expanded
+            }
+          });
+          setExpandedFloors(floors);
+          
+          console.log('📊 Room statuses updated:', processedData.length, 'rooms');
+        } else {
+          console.log('❌ Invalid room availability data format');
+          setAvailError("No room data available for selected date");
+          setRoomStatuses([]);
         }
-        availability[roomName].push({
-          time: reservationDate.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          }),
-          status: reservation.status,
-          user: reservation.userId?.name || reservation.userName || 'Unknown User'
-        });
+      } catch (apiError) {
+        console.log('⚠️ API endpoint error:', apiError);
+        // If the API fails, use rooms data as fallback
+        if (rooms.length > 0) {
+          console.log('📋 Using rooms data as fallback');
+          const fallbackData = rooms.map(room => ({
+            _id: room._id,
+            room: room.room,
+            floor: room.floor,
+            isActive: room.isActive,
+            occupied: [],
+            pending: []
+          }));
+          setRoomStatuses(fallbackData);
+          
+          // Initialize expanded floors
+          const floors = {};
+          fallbackData.forEach(room => {
+            const floor = room.floor || "Unknown Floor";
+            if (!floors[floor]) {
+              floors[floor] = true;
+            }
+          });
+          setExpandedFloors(floors);
+          
+          setAvailError("Using cached room data - availability may not be real-time");
+        } else {
+          setAvailError("Unable to load room availability at the moment");
+          setRoomStatuses([]);
+        }
       }
-    });
-
-    setRoomAvailability(availability);
-  }, [selectedDate, reservations, rooms]);
-
-  const getAvailabilityStatus = (room) => {
-    const roomName = room.room;
-    const bookings = roomAvailability[roomName] || [];
-    
-    if (bookings.length === 0) {
-      return { status: 'available', message: 'Available all day' };
+    } catch (error) {
+      console.error("❌ Error in room availability process:", error);
+      setAvailError("Failed to load room availability");
+    } finally {
+      setAvailLoading(false);
     }
-    
-    const pending = bookings.filter(b => b.status === 'Pending').length;
-    const approved = bookings.filter(b => b.status === 'Approved' || b.status === 'Ongoing').length;
-    
-    if (approved > 0) {
-      return { 
-        status: 'booked', 
-        message: `Booked (${approved} reservation${approved > 1 ? 's' : ''})` 
-      };
-    }
-    
-    if (pending > 0) {
-      return { 
-        status: 'pending', 
-        message: `Pending approval (${pending})` 
-      };
-    }
-    
-    return { status: 'available', message: 'Available' };
-  };
+  }, [rooms]);
 
   const updateRecentActivity = (logsData) => {
     const recentLogs = Array.isArray(logsData) ? logsData.slice(0, 8) : [];
@@ -496,81 +517,22 @@ function AdminDashboard({ setView }) {
     return `${Math.floor(diffInSeconds / 86400)} days ago`;
   };
 
+  const formatTime = (iso) => {
+    return moment(iso).tz("Asia/Manila").format("hh:mm A");
+  };
+
   const refreshData = () => {
     fetchAllData();
+    if (selectedDate) {
+      fetchRoomAvailabilityForDate(selectedDate);
+    }
   };
 
   // Calendar Functions
   const handleDateClick = (date) => {
     console.log('📅 Date clicked:', date);
     setSelectedDate(date);
-    setModalDate(date);
     fetchRoomAvailabilityForDate(date);
-  };
-
-  const fetchRoomAvailabilityForDate = async (date) => {
-    try {
-      console.log('🚀 Starting to fetch room availability...');
-      setAvailLoading(true);
-      setAvailError(null);
-      setShowAvailModal(true);
-      
-      // Format date for API
-      const formattedDate = date.toISOString().split('T')[0];
-      const adminId = getAdminId();
-      
-      console.log('📋 Formatted date for API:', formattedDate);
-      console.log('👤 Admin ID:', adminId);
-      
-      try {
-        // Use the availability endpoint with proper userId
-        const availabilityData = await apiService.get(`/api/rooms/availability?date=${formattedDate}&userId=${adminId}`);
-        console.log('✅ Room availability data received:', availabilityData);
-        
-        if (Array.isArray(availabilityData)) {
-          // Process the data to ensure consistent structure
-          const processedData = availabilityData.map(room => ({
-            _id: room._id || room.room,
-            room: room.room || "Unnamed Room",
-            floor: room.floor || "Unknown Floor",
-            isActive: room.isActive !== false,
-            occupied: Array.isArray(room.occupied) ? room.occupied : [],
-            pending: Array.isArray(room.pending) ? room.pending : []
-          }));
-          
-          setRoomStatuses(processedData);
-          console.log('📊 Room statuses updated:', processedData.length, 'rooms');
-        } else {
-          console.log('❌ Invalid room availability data format');
-          setAvailError("No room data available for selected date");
-          setRoomStatuses([]);
-        }
-      } catch (apiError) {
-        console.log('⚠️ API endpoint error:', apiError);
-        // If the API fails, use rooms data as fallback
-        if (rooms.length > 0) {
-          console.log('📋 Using rooms data as fallback');
-          const fallbackData = rooms.map(room => ({
-            _id: room._id,
-            room: room.room,
-            floor: room.floor,
-            isActive: room.isActive,
-            occupied: [],
-            pending: []
-          }));
-          setRoomStatuses(fallbackData);
-          setAvailError("Using cached room data - availability may not be real-time");
-        } else {
-          setAvailError("Unable to load room availability at the moment");
-          setRoomStatuses([]);
-        }
-      }
-    } catch (error) {
-      console.error("❌ Error in room availability process:", error);
-      setAvailError("Failed to load room availability");
-    } finally {
-      setAvailLoading(false);
-    }
   };
 
   const renderCalendarTile = ({ date, view }) => {
@@ -606,6 +568,12 @@ function AdminDashboard({ setView }) {
     return () => clearInterval(interval);
   }, [fetchAllData]);
 
+  useEffect(() => {
+    if (rooms.length > 0 && selectedDate) {
+      fetchRoomAvailabilityForDate(selectedDate);
+    }
+  }, [selectedDate, rooms, fetchRoomAvailabilityForDate]);
+
   const getNewUsersThisWeek = () => {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
@@ -614,6 +582,49 @@ function AdminDashboard({ setView }) {
       new Date(log.createdAt) > oneWeekAgo
     ).length;
   };
+
+  const toggleFloor = (floorName) => {
+    setExpandedFloors(prev => ({
+      ...prev,
+      [floorName]: !prev[floorName]
+    }));
+  };
+
+  // Enhanced room status detection for admin
+  const getRoomStatus = (room) => {
+    const isRoomActive = room.isActive !== false;
+    const hasOccupied = Array.isArray(room.occupied) && room.occupied.length > 0;
+    const hasPending = Array.isArray(room.pending) && room.pending.length > 0;
+
+    if (!isRoomActive) {
+      return { status: 'inactive', color: 'gray', label: 'Inactive' };
+    } else if (hasOccupied) {
+      return { status: 'occupied', color: 'red', label: 'Occupied' };
+    } else if (hasPending) {
+      return { status: 'pending', color: 'amber', label: 'Pending' };
+    } else {
+      return { status: 'available', color: 'green', label: 'Available' };
+    }
+  };
+
+  // Group rooms by floor
+  const groupedByFloor = roomStatuses.reduce((acc, room) => {
+    const floor = room.floor || "Unknown Floor";
+    if (!acc[floor]) acc[floor] = [];
+    acc[floor].push(room);
+    return acc;
+  }, {});
+
+  // Sort floors
+  const allFloors = Object.keys(groupedByFloor).sort((a, b) => {
+    const floorOrder = {
+      "Ground Floor": 0,
+      "2nd Floor": 1,
+      "4th Floor": 2,
+      "5th Floor": 3
+    };
+    return (floorOrder[a] || 999) - (floorOrder[b] || 999);
+  });
 
   // Render different views
   if (currentSubView === "news") {
@@ -1115,6 +1126,239 @@ function AdminDashboard({ setView }) {
               </div>
             </div>
 
+            {/* Room Availability Dashboard */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Building2 size={20} className="text-blue-600" />
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-semibold text-gray-900">Room Availability</h2>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {selectedDate.toLocaleDateString('en-US', { 
+                          weekday: 'long', 
+                          month: 'long', 
+                          day: 'numeric',
+                          year: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    {availLoading && (
+                      <div className="flex items-center">
+                        <RefreshCw size={16} className="animate-spin text-blue-600" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4">
+                {/* Legend */}
+                <div className="flex flex-wrap gap-4 mb-4 pb-3 border-b border-gray-100">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span className="text-xs text-gray-600">Available</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                    <span className="text-xs text-gray-600">Occupied</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
+                    <span className="text-xs text-gray-600">Pending</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                    <span className="text-xs text-gray-600">Inactive</span>
+                  </div>
+                </div>
+
+                {/* Room Status Content */}
+                {availLoading ? (
+                  <div className="flex flex-col items-center justify-center py-8">
+                    <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+                    <p className="text-gray-600 text-sm">Loading room availability...</p>
+                  </div>
+                ) : availError ? (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+                    <AlertCircle size={24} className="mx-auto mb-2 text-red-500" />
+                    <p className="text-red-700 text-sm">{availError}</p>
+                    <button
+                      onClick={() => fetchRoomAvailabilityForDate(selectedDate)}
+                      className="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : roomStatuses.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Building2 className="mx-auto mb-3 text-gray-400" size={40} />
+                    <p className="text-gray-500 text-sm">No rooms available for selected date</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                    {allFloors.map((floorName) => {
+                      const rooms = groupedByFloor[floorName] || [];
+                      const floorStats = rooms.reduce((acc, room) => {
+                        const { status } = getRoomStatus(room);
+                        if (status === 'available') acc.available++;
+                        else if (status === 'occupied') acc.occupied++;
+                        else if (status === 'pending') acc.pending++;
+                        else if (status === 'inactive') acc.inactive++;
+                        return acc;
+                      }, { available: 0, occupied: 0, pending: 0, inactive: 0 });
+
+                      return (
+                        <div key={floorName} className="border border-gray-200 rounded-lg overflow-hidden">
+                          {/* Floor Header - Clickable */}
+                          <div 
+                            className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => toggleFloor(floorName)}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <h3 className="font-semibold text-gray-800 text-sm">{floorName}</h3>
+                              <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded-full">
+                                {rooms.length} rooms
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-2 text-xs">
+                                {floorStats.available > 0 && (
+                                  <span className="text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                                    {floorStats.available} avail
+                                  </span>
+                                )}
+                                {floorStats.occupied > 0 && (
+                                  <span className="text-red-600 bg-red-50 px-2 py-1 rounded-full">
+                                    {floorStats.occupied} occ
+                                  </span>
+                                )}
+                                {floorStats.pending > 0 && (
+                                  <span className="text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                                    {floorStats.pending} pend
+                                  </span>
+                                )}
+                              </div>
+                              {expandedFloors[floorName] ? (
+                                <ChevronUp size={18} className="text-gray-500" />
+                              ) : (
+                                <ChevronDown size={18} className="text-gray-500" />
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Room List - Collapsible */}
+                          {expandedFloors[floorName] && (
+                            <div className="divide-y divide-gray-100">
+                              {rooms.map((room) => {
+                                const { status, color, label } = getRoomStatus(room);
+                                const isRoomActive = room.isActive !== false;
+
+                                return (
+                                  <div key={room._id} className="p-4 hover:bg-gray-50 transition-colors">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                      {/* Room Info */}
+                                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                                          status === 'inactive' ? "bg-gray-400" :
+                                          status === 'occupied' ? "bg-red-500" :
+                                          status === 'pending' ? "bg-amber-500" : "bg-green-500"
+                                        }`} />
+                                        <div>
+                                          <p className={`font-medium text-sm ${
+                                            !isRoomActive ? "text-gray-500" : "text-gray-900"
+                                          }`}>
+                                            {room.room}
+                                            {!isRoomActive && (
+                                              <span className="ml-2 text-xs text-gray-500 font-normal">(Inactive)</span>
+                                            )}
+                                          </p>
+                                          <p className="text-xs text-gray-500 mt-0.5">
+                                            Floor {room.floor}
+                                          </p>
+                                        </div>
+                                      </div>
+
+                                      {/* Status Badge */}
+                                      <div className={`text-xs font-medium px-3 py-1.5 rounded-full inline-flex items-center justify-center ${
+                                        status === 'inactive' ? "bg-gray-100 text-gray-600" :
+                                        status === 'occupied' ? "bg-red-100 text-red-700" :
+                                        status === 'pending' ? "bg-amber-100 text-amber-700" : 
+                                        "bg-green-100 text-green-700"
+                                      }`}>
+                                        {label}
+                                      </div>
+                                    </div>
+
+                                    {/* Booking Details */}
+                                    {(room.occupied?.length > 0 || room.pending?.length > 0) && (
+                                      <div className="mt-3 pt-3 border-t border-gray-100">
+                                        {room.occupied?.length > 0 && (
+                                          <div className="mb-2">
+                                            <p className="text-xs font-semibold text-red-600 mb-1 flex items-center">
+                                              <CheckCircle size={12} className="mr-1" />
+                                              Approved Bookings ({room.occupied.length})
+                                            </p>
+                                            <div className="space-y-1">
+                                              {room.occupied.slice(0, 2).map((booking, i) => (
+                                                <div key={i} className="flex items-center justify-between text-xs bg-red-50 p-2 rounded">
+                                                  <span className="text-gray-700">
+                                                    {formatTime(booking.start)} - {formatTime(booking.end)}
+                                                  </span>
+                                                  {booking.userName && (
+                                                    <span className="text-gray-500 ml-2">by {booking.userName}</span>
+                                                  )}
+                                                </div>
+                                              ))}
+                                              {room.occupied.length > 2 && (
+                                                <p className="text-xs text-gray-500 mt-1">+{room.occupied.length - 2} more bookings</p>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+                                        
+                                        {room.pending?.length > 0 && (
+                                          <div>
+                                            <p className="text-xs font-semibold text-amber-600 mb-1 flex items-center">
+                                              <Clock3 size={12} className="mr-1" />
+                                              Pending Approvals ({room.pending.length})
+                                            </p>
+                                            <div className="space-y-1">
+                                              {room.pending.slice(0, 2).map((booking, i) => (
+                                                <div key={i} className="flex items-center justify-between text-xs bg-amber-50 p-2 rounded">
+                                                  <span className="text-gray-700">
+                                                    {formatTime(booking.start)} - {formatTime(booking.end)}
+                                                  </span>
+                                                  {booking.userName && (
+                                                    <span className="text-gray-500 ml-2">by {booking.userName}</span>
+                                                  )}
+                                                </div>
+                                              ))}
+                                              {room.pending.length > 2 && (
+                                                <p className="text-xs text-gray-500 mt-1">+{room.pending.length - 2} more pending</p>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Recent Activity */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
               <div className="flex justify-between items-center mb-6">
@@ -1154,17 +1398,6 @@ function AdminDashboard({ setView }) {
           </div>
         </div>
       </div>
-
-      {/* Room Availability Modal */}
-      {showAvailModal && (
-        <RoomAvailabilityModal
-          selectedDate={modalDate}
-          roomStatuses={roomStatuses}
-          availLoading={availLoading}
-          availError={availError}
-          onClose={() => setShowAvailModal(false)}
-        />
-      )}
     </main>
   );
 }
