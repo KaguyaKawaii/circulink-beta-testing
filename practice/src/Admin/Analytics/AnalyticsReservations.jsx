@@ -941,6 +941,7 @@ function AnalyticsReservations({ setView, admin }) {
     );
   };
 
+  // FIXED: ProgressBar component with proper spacing and no overlap
   const ProgressBar = ({ label, value, total, color = "blue", showValue = true, isLoading = false }) => {
     const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
     
@@ -962,18 +963,24 @@ function AnalyticsReservations({ setView, admin }) {
     }
 
     return (
-      <div>
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-gray-600 capitalize">{label}</span>
-          {showValue && <span className="text-gray-800 font-medium">{value.toLocaleString()}</span>}
+      <div className="mb-4">
+        <div className="flex justify-between items-center mb-1">
+          <span className="text-sm font-medium text-gray-700 truncate max-w-[60%]" title={label}>
+            {label}
+          </span>
+          <div className="flex items-center gap-2">
+            {showValue && <span className="text-sm font-semibold text-gray-900">{value.toLocaleString()}</span>}
+            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">
+              {percentage}%
+            </span>
+          </div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2.5">
+        <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
           <div 
             className={`${getBgColorClass(color)} rounded-full h-2.5 transition-all duration-300`}
             style={{ width: `${percentage}%` }}
           />
         </div>
-        <div className="text-xs text-gray-500 mt-1">{percentage}% of total</div>
       </div>
     );
   };
@@ -1344,7 +1351,7 @@ function AnalyticsReservations({ setView, admin }) {
             )}
           </div>
 
-          {/* Department Reservation Statistics - IMPROVED */}
+          {/* Department Reservation Statistics - FIXED: No overlap */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Reservations by Department</h2>
             {loading ? (
@@ -1356,7 +1363,7 @@ function AnalyticsReservations({ setView, admin }) {
               </div>
             ) : (
               reservationData.userDepartmentStats && reservationData.userDepartmentStats.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {reservationData.userDepartmentStats.slice(0, 5).map((dept, idx) => (
                     <ProgressBar 
                       key={idx}
@@ -1367,7 +1374,7 @@ function AnalyticsReservations({ setView, admin }) {
                     />
                   ))}
                   {reservationData.userDepartmentStats.length > 5 && (
-                    <div className="text-center text-xs text-gray-500 mt-2">
+                    <div className="text-center text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100">
                       +{reservationData.userDepartmentStats.length - 5} more departments
                     </div>
                   )}
@@ -1378,7 +1385,7 @@ function AnalyticsReservations({ setView, admin }) {
             )}
           </div>
 
-          {/* Floor Distribution - IMPROVED */}
+          {/* Floor Distribution - FIXED: No overlap */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-4">Floor Distribution</h2>
             {loading ? (
@@ -1390,7 +1397,7 @@ function AnalyticsReservations({ setView, admin }) {
               </div>
             ) : (
               reservationData.floorDistribution && reservationData.floorDistribution.length > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {reservationData.floorDistribution.slice(0, 5).map((floor, idx) => (
                     <ProgressBar 
                       key={idx}
@@ -1401,7 +1408,7 @@ function AnalyticsReservations({ setView, admin }) {
                     />
                   ))}
                   {reservationData.floorDistribution.length > 5 && (
-                    <div className="text-center text-xs text-gray-500 mt-2">
+                    <div className="text-center text-xs text-gray-500 mt-2 pt-2 border-t border-gray-100">
                       +{reservationData.floorDistribution.length - 5} more floors
                     </div>
                   )}
