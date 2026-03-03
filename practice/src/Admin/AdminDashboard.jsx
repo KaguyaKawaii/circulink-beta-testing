@@ -109,10 +109,10 @@ function AdminDashboard({ setView }) {
   const [availLoading, setAvailLoading] = useState(false);
   const [availError, setAvailError] = useState(null);
 
-  // Admin user ID from localStorage
+  // Admin user ID from localStorage - using id_number
   const getAdminId = () => {
     const admin = JSON.parse(localStorage.getItem("admin") || "{}");
-    return admin._id || admin.id || "admin";
+    return admin.id_number || "admin";
   };
 
   // 🆕 ADD WEBSOCKET LISTENER FOR REAL-TIME UPDATES
