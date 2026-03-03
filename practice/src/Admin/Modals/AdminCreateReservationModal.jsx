@@ -65,6 +65,11 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentAdmin }) => {
   const [calendarDays, setCalendarDays] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [floorValidation, setFloorValidation] = useState(null);
+  
+  // Confirmation modal states
+  const [showRemoveParticipantConfirm, setShowRemoveParticipantConfirm] = useState(false);
+  const [participantToRemove, setParticipantToRemove] = useState(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
   const months = [
     "January", "February", "March", "April", "May", "June",
@@ -183,67 +188,67 @@ const AdminCreateReservationModal = ({ onClose, onSuccess, currentAdmin }) => {
     setShowUsersModal(false);
   };
 
-// Search for users
-const searchUsers = async (term) => {
-  if (!term.trim()) {
-    setSearchResults([]);
-    return;
-  }
-
-  setSearchLoading(true);
-  try {
-    const baseURL = import.meta.env.VITE_API_URL;
-    
-    // Try multiple possible endpoints
-    const endpoints = [
-      `${baseURL}/api/users/search?q=${encodeURIComponent(term)}&verified=true`,  // Main endpoint
-      `${baseURL}/api/users/search/users?q=${encodeURIComponent(term)}&verified=true`, // Alias
-      `${baseURL}/api/users/all/users?search=${encodeURIComponent(term)}`, // Fallback
-    ];
-    
-    let response = null;
-    let lastError = null;
-    
-    // Try each endpoint until one works
-    for (const url of endpoints) {
-      try {
-        console.log("Trying search URL:", url);
-        const res = await axios.get(url, { timeout: 5000 });
-        if (res.status === 200) {
-          response = res;
-          console.log("✅ Success with URL:", url);
-          break;
-        }
-      } catch (err) {
-        lastError = err;
-        console.log("❌ Failed with URL:", url);
-      }
+  // Search for users
+  const searchUsers = async (term) => {
+    if (!term.trim()) {
+      setSearchResults([]);
+      return;
     }
-    
-    if (response) {
-      // Handle different response formats
-      let results = [];
-      if (Array.isArray(response.data)) {
-        results = response.data;
-      } else if (response.data.users && Array.isArray(response.data.users)) {
-        results = response.data.users;
-      } else if (response.data.results && Array.isArray(response.data.results)) {
-        results = response.data.results;
+
+    setSearchLoading(true);
+    try {
+      const baseURL = import.meta.env.VITE_API_URL;
+      
+      // Try multiple possible endpoints
+      const endpoints = [
+        `${baseURL}/api/users/search?q=${encodeURIComponent(term)}&verified=true`,  // Main endpoint
+        `${baseURL}/api/users/search/users?q=${encodeURIComponent(term)}&verified=true`, // Alias
+        `${baseURL}/api/users/all/users?search=${encodeURIComponent(term)}`, // Fallback
+      ];
+      
+      let response = null;
+      let lastError = null;
+      
+      // Try each endpoint until one works
+      for (const url of endpoints) {
+        try {
+          console.log("Trying search URL:", url);
+          const res = await axios.get(url, { timeout: 5000 });
+          if (res.status === 200) {
+            response = res;
+            console.log("✅ Success with URL:", url);
+            break;
+          }
+        } catch (err) {
+          lastError = err;
+          console.log("❌ Failed with URL:", url);
+        }
       }
       
-      setSearchResults(results);
-      console.log("Search results:", results);
-    } else {
-      console.error("All search endpoints failed:", lastError);
+      if (response) {
+        // Handle different response formats
+        let results = [];
+        if (Array.isArray(response.data)) {
+          results = response.data;
+        } else if (response.data.users && Array.isArray(response.data.users)) {
+          results = response.data.users;
+        } else if (response.data.results && Array.isArray(response.data.results)) {
+          results = response.data.results;
+        }
+        
+        setSearchResults(results);
+        console.log("Search results:", results);
+      } else {
+        console.error("All search endpoints failed:", lastError);
+        setSearchResults([]);
+      }
+    } catch (err) {
+      console.error("User search error:", err);
       setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
     }
-  } catch (err) {
-    console.error("User search error:", err);
-    setSearchResults([]);
-  } finally {
-    setSearchLoading(false);
-  }
-};
+  };
 
   // Validate participant (but admin can add unverified users if needed)
   const validateParticipant = async (idx, idNumber) => {
@@ -344,6 +349,22 @@ const searchUsers = async (term) => {
       await validateParticipant(idx, val);
     } else {
       setFormData({ ...formData, participants: updated });
+    }
+  };
+
+  const handleRemoveParticipantClick = (index) => {
+    setParticipantToRemove(index);
+    setShowRemoveParticipantConfirm(true);
+  };
+
+  const confirmRemoveParticipant = () => {
+    if (participantToRemove !== null) {
+      const updated = formData.participants.filter((_, i) => i !== participantToRemove);
+      const v = validation.filter((_, i) => i !== participantToRemove);
+      setFormData({ ...formData, participants: updated, numUsers: updated.length.toString() });
+      setValidation(v);
+      setShowRemoveParticipantConfirm(false);
+      setParticipantToRemove(null);
     }
   };
 
@@ -547,6 +568,24 @@ const searchUsers = async (term) => {
     }
   };
 
+  const handleCancelClick = () => {
+    // Check if there are any unsaved changes
+    const hasUnsavedChanges = formData.date || formData.time || formData.location || 
+                             formData.roomName || formData.purpose || 
+                             formData.participants.some(p => p.id_number || p.name);
+    
+    if (hasUnsavedChanges) {
+      setShowCancelConfirm(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const confirmCancel = () => {
+    setShowCancelConfirm(false);
+    onClose();
+  };
+
   const getRoomImage = (room) => {
     if (room.image && room.image.url) {
       return room.image.url;
@@ -598,7 +637,7 @@ const searchUsers = async (term) => {
               </div>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleCancelClick}
               className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
               <X size={20} />
@@ -814,14 +853,7 @@ const searchUsers = async (term) => {
                       Participant {idx + 1}
                     </h4>
                     <button
-                      onClick={() => {
-                        if (formData.participants.length > 1) {
-                          const updated = formData.participants.filter((_, i) => i !== idx);
-                          const v = validation.filter((_, i) => i !== idx);
-                          setFormData({ ...formData, participants: updated, numUsers: updated.length.toString() });
-                          setValidation(v);
-                        }
-                      }}
+                      onClick={() => handleRemoveParticipantClick(idx)}
                       disabled={formData.participants.length === 1}
                       className={`p-1 text-red-600 hover:bg-red-50 rounded ${formData.participants.length === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
@@ -949,7 +981,7 @@ const searchUsers = async (term) => {
         <div className="border-t border-gray-200 bg-gray-50 p-6">
           <div className="flex justify-end gap-3">
             <button
-              onClick={onClose}
+              onClick={handleCancelClick}
               className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
             >
               Cancel
@@ -1195,6 +1227,67 @@ const searchUsers = async (term) => {
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Remove Participant Confirmation Modal */}
+      {showRemoveParticipantConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={32} className="text-red-600" />
+            </div>
+            <h3 className="text-xl font-bold text-center mb-2">Remove Participant</h3>
+            <p className="text-gray-600 text-center mb-6">
+              Are you sure you want to remove this participant from the reservation?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowRemoveParticipantConfirm(false);
+                  setParticipantToRemove(null);
+                }}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmRemoveParticipant}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Creation Confirmation Modal */}
+      {showCancelConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle size={32} className="text-yellow-600" />
+            </div>
+            <h3 className="text-xl font-bold text-center mb-2">Discard Changes?</h3>
+            <p className="text-gray-600 text-center mb-6">
+              You have unsaved changes. Are you sure you want to cancel creating this reservation?
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Continue Editing
+              </button>
+              <button
+                onClick={confirmCancel}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Discard
+              </button>
+            </div>
           </div>
         </div>
       )}
