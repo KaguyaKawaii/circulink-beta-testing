@@ -364,6 +364,8 @@ function AnalyticsReservations({ setView, admin }) {
           });
         }
         
+        const total = reservationData.total || 1; // FIXED: Define total here
+        
         sortedDepts.forEach((dept, idx) => {
           const percentage = Math.min(Math.round((dept.count / total) * 100), 100);
           
@@ -445,10 +447,10 @@ function AnalyticsReservations({ setView, admin }) {
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 3: STATUS BREAKDOWN ====================
+      // ==================== SECTION 3: RESERVATION STATUS BREAKDOWN ====================
       addSectionHeader('SECTION 3: RESERVATION STATUS BREAKDOWN');
       
-      const total = reservationData.total || 1;
+      const total = reservationData.total || 1; // FIXED: Define total here
       
       // Status breakdown table with percentages
       addRow(['Status', 'Count', 'Percentage of Total', 'Status Description']);
@@ -479,8 +481,8 @@ function AnalyticsReservations({ setView, admin }) {
       addSubHeader('Status Distribution Summary');
       addRow(['Category', 'Count', 'Percentage']);
       
-      const activeTotal = reservationData.pending + reservationData.approved + reservationData.ongoing;
-      const inactiveTotal = reservationData.completed + reservationData.cancelled + reservationData.rejected + reservationData.expired;
+      const activeTotal = (reservationData.pending || 0) + (reservationData.approved || 0) + (reservationData.ongoing || 0);
+      const inactiveTotal = (reservationData.completed || 0) + (reservationData.cancelled || 0) + (reservationData.rejected || 0) + (reservationData.expired || 0);
       
       addRow(['Active (Pending + Approved + Ongoing)', activeTotal.toLocaleString(), Math.min(Math.round((activeTotal / total) * 100), 100) + '%']);
       addRow(['Inactive (Completed + Cancelled + Rejected + Expired)', inactiveTotal.toLocaleString(), Math.min(Math.round((inactiveTotal / total) * 100), 100) + '%']);
