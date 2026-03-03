@@ -917,67 +917,6 @@ function AnalyticsEngagement({ setView, admin }) {
 
         {/* Main Analytics Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* User Retention Card - Only show if values exist */}
-          {(engagementData.retention > 0 || 
-            engagementData.engagementMetrics?.returningUsers > 0 || 
-            engagementData.bounceRate > 0 || 
-            engagementData.engagementMetrics?.totalSessions > 0) && (
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                <UserCheck size={20} className="text-green-500" />
-                User Retention
-              </h2>
-              
-              {loading ? (
-                <div className="space-y-4">
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                </div>
-              ) : (
-                <>
-                  {engagementData.retention > 0 && (
-                    <div className="text-center mb-6">
-                      <div className="text-5xl font-bold text-green-600 mb-2">
-                        {engagementData.retention}%
-                      </div>
-                      <p className="text-gray-600 text-sm">of users return within 30 days</p>
-                    </div>
-                  )}
-
-                  <div className="space-y-4">
-                    {engagementData.engagementMetrics?.returningUsers > 0 && (
-                      <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                        <span className="text-gray-600">Returning Users</span>
-                        <span className="text-green-600 font-semibold">
-                          {engagementData.engagementMetrics.returningUsers}%
-                        </span>
-                      </div>
-                    )}
-                    
-                    {engagementData.bounceRate > 0 && (
-                      <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                        <span className="text-gray-600">Bounce Rate</span>
-                        <span className="text-red-600 font-semibold">
-                          {engagementData.bounceRate}%
-                        </span>
-                      </div>
-                    )}
-
-                    {engagementData.engagementMetrics?.totalSessions > 0 && (
-                      <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                        <span className="text-gray-600">Total Sessions</span>
-                        <span className="text-blue-600 font-semibold">
-                          {engagementData.engagementMetrics.totalSessions.toLocaleString()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-
           {/* Daily Active Users Chart - Only show if data exists */}
           {filteredByDay.length > 0 && (
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 lg:col-span-2">
@@ -1043,14 +982,12 @@ function AnalyticsEngagement({ setView, admin }) {
               </div>
             </div>
           )}
-        </div>
 
-        {/* User Activity Levels - Only show if values exist */}
-        {(engagementData.userActivity?.high > 0 || 
-          engagementData.userActivity?.medium > 0 || 
-          engagementData.userActivity?.low > 0 || 
-          engagementData.userActivity?.inactive > 0) && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Activity Levels - Moved to first column */}
+          {(engagementData.userActivity?.high > 0 || 
+            engagementData.userActivity?.medium > 0 || 
+            engagementData.userActivity?.low > 0 || 
+            engagementData.userActivity?.inactive > 0) && (
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <Layers size={20} className="text-purple-500" />
@@ -1113,122 +1050,122 @@ function AnalyticsEngagement({ setView, admin }) {
                 </div>
               )}
             </div>
+          )}
+        </div>
 
-            {/* Activity Breakdown - Only show if data exists */}
-            {filteredActivityBreakdown.length > 0 && (
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <PieChart size={20} className="text-yellow-500" />
-                  Activity Breakdown
-                </h2>
-                
-                {loading ? (
-                  <div className="space-y-4">
-                    <ProgressBarSkeleton />
-                    <ProgressBarSkeleton />
-                    <ProgressBarSkeleton />
-                    <ProgressBarSkeleton />
-                    <ProgressBarSkeleton />
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {filteredActivityBreakdown.map((item, index) => {
-                      const getBgColorClass = (color) => {
-                        const colorMap = {
-                          blue: "bg-blue-500",
-                          green: "bg-green-500",
-                          purple: "bg-purple-500",
-                          yellow: "bg-yellow-500",
-                          orange: "bg-orange-500",
-                          red: "bg-red-500"
-                        };
-                        return colorMap[color] || "bg-gray-500";
+        {/* User Activity Breakdown Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Activity Breakdown - Only show if data exists */}
+          {filteredActivityBreakdown.length > 0 && (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <PieChart size={20} className="text-yellow-500" />
+                Activity Breakdown
+              </h2>
+              
+              {loading ? (
+                <div className="space-y-4">
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredActivityBreakdown.map((item, index) => {
+                    const getBgColorClass = (color) => {
+                      const colorMap = {
+                        blue: "bg-blue-500",
+                        green: "bg-green-500",
+                        purple: "bg-purple-500",
+                        yellow: "bg-yellow-500",
+                        orange: "bg-orange-500",
+                        red: "bg-red-500"
                       };
-                      
-                      return (
-                        <div key={index} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg transition-colors">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${getBgColorClass(item.color)}`}></div>
-                            <span className="text-gray-600">{item.name}</span>
-                          </div>
-                          <span className="text-gray-800 font-medium">{item.value.toLocaleString()}</span>
+                      return colorMap[color] || "bg-gray-500";
+                    };
+                    
+                    return (
+                      <div key={index} className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg transition-colors">
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${getBgColorClass(item.color)}`}></div>
+                          <span className="text-gray-600">{item.name}</span>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        <span className="text-gray-800 font-medium">{item.value.toLocaleString()}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
-                {engagementData.engagementMetrics?.avgActionsPerUser > 0 && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Avg Actions/User</span>
-                      <span className="text-blue-600 font-semibold">
-                        {engagementData.engagementMetrics.avgActionsPerUser}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Device Breakdown - Only show if data exists */}
-            {filteredDeviceBreakdown.length > 0 && (
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                  <Award size={20} className="text-indigo-500" />
-                  Device Distribution
-                </h2>
-                
-                {loading ? (
-                  <div className="space-y-4">
-                    <ProgressBarSkeleton />
-                    <ProgressBarSkeleton />
-                    <ProgressBarSkeleton />
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {filteredDeviceBreakdown.map((device, index) => {
-                      const getBgColorClass = (color) => {
-                        const colorMap = {
-                          blue: "bg-blue-500",
-                          green: "bg-green-500",
-                          purple: "bg-purple-500"
-                        };
-                        return colorMap[color] || "bg-gray-500";
-                      };
-                      
-                      return (
-                        <div key={index}>
-                          <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-600">{device.name}</span>
-                            <span className="text-gray-800 font-medium">{device.value}%</span>
-                          </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className={`${getBgColorClass(device.color)} rounded-full h-2`} 
-                              style={{ width: `${device.value}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
+              {engagementData.engagementMetrics?.avgActionsPerUser > 0 && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <AlertCircle size={14} />
-                    <span>Mobile usage up 8% this month</span>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Avg Actions/User</span>
+                    <span className="text-blue-600 font-semibold">
+                      {engagementData.engagementMetrics.avgActionsPerUser}
+                    </span>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
 
-        {/* Peak Hours and Top Features */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Peak Hours - Only show if data exists */}
+          {/* Device Breakdown - Only show if data exists */}
+          {filteredDeviceBreakdown.length > 0 && (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <Award size={20} className="text-indigo-500" />
+                Device Distribution
+              </h2>
+              
+              {loading ? (
+                <div className="space-y-4">
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {filteredDeviceBreakdown.map((device, index) => {
+                    const getBgColorClass = (color) => {
+                      const colorMap = {
+                        blue: "bg-blue-500",
+                        green: "bg-green-500",
+                        purple: "bg-purple-500"
+                      };
+                      return colorMap[color] || "bg-gray-500";
+                    };
+                    
+                    return (
+                      <div key={index}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-gray-600">{device.name}</span>
+                          <span className="text-gray-800 font-medium">{device.value}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`${getBgColorClass(device.color)} rounded-full h-2`} 
+                            style={{ width: `${device.value}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="flex items-center gap-2 text-sm text-gray-600">
+                  <AlertCircle size={14} />
+                  <span>Mobile usage up 8% this month</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Peak Hours - Moved to third column */}
           {filteredPeakHours.length > 0 && (
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
               <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
@@ -1276,7 +1213,10 @@ function AnalyticsEngagement({ setView, admin }) {
               </div>
             </div>
           )}
+        </div>
 
+        {/* Top Features and Overview Metrics */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Top Features - Only show if data exists */}
           {filteredTopFeatures.length > 0 && (
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
@@ -1329,122 +1269,99 @@ function AnalyticsEngagement({ setView, admin }) {
               )}
             </div>
           )}
+
+          {/* Engagement Overview Metrics - Only show if values exist */}
+          {(engagementData.engagementMetrics?.pageViews > 0 || 
+            engagementData.engagementMetrics?.actions > 0 || 
+            engagementData.engagementMetrics?.avgActionsPerUser > 0 || 
+            engagementData.engagementMetrics?.returningUsers > 0) && (
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <h2 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <Eye size={20} className="text-blue-500" />
+                Engagement Overview
+              </h2>
+              <div className="grid grid-cols-2 gap-4">
+                {engagementData.engagementMetrics?.pageViews > 0 && (
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <div className="flex justify-center mb-2">
+                      <Eye size={24} className="text-blue-500" />
+                    </div>
+                    <p className="text-xl font-bold text-gray-800">{engagementData.engagementMetrics.pageViews.toLocaleString()}</p>
+                    <p className="text-sm text-gray-600">Page Views</p>
+                  </div>
+                )}
+
+                {engagementData.engagementMetrics?.actions > 0 && (
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <div className="flex justify-center mb-2">
+                      <MousePointer size={24} className="text-green-500" />
+                    </div>
+                    <p className="text-xl font-bold text-gray-800">{engagementData.engagementMetrics.actions.toLocaleString()}</p>
+                    <p className="text-sm text-gray-600">Total Actions</p>
+                  </div>
+                )}
+
+                {engagementData.engagementMetrics?.avgActionsPerUser > 0 && (
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <div className="flex justify-center mb-2">
+                      <Users size={24} className="text-purple-500" />
+                    </div>
+                    <p className="text-xl font-bold text-gray-800">{engagementData.engagementMetrics.avgActionsPerUser}</p>
+                    <p className="text-sm text-gray-600">Avg Actions/User</p>
+                  </div>
+                )}
+
+                {engagementData.engagementMetrics?.returningUsers > 0 && (
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <div className="flex justify-center mb-2">
+                      <UserCheck size={24} className="text-orange-500" />
+                    </div>
+                    <p className="text-xl font-bold text-gray-800">{engagementData.engagementMetrics.returningUsers}%</p>
+                    <p className="text-sm text-gray-600">Returning Users</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Engagement Overview Metrics - Only show if values exist */}
-        {(engagementData.engagementMetrics?.pageViews > 0 || 
-          engagementData.engagementMetrics?.actions > 0 || 
-          engagementData.engagementMetrics?.avgActionsPerUser > 0 || 
-          engagementData.engagementMetrics?.returningUsers > 0) && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
-            {engagementData.engagementMetrics?.pageViews > 0 && (
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
-                <div className="flex justify-center mb-3">
-                  <Eye size={24} className="text-blue-500" />
-                </div>
-                <p className="text-2xl font-bold text-gray-800">{engagementData.engagementMetrics.pageViews.toLocaleString()}</p>
-                <p className="text-sm text-gray-600">Page Views</p>
-              </div>
-            )}
-
-            {engagementData.engagementMetrics?.actions > 0 && (
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
-                <div className="flex justify-center mb-3">
-                  <MousePointer size={24} className="text-green-500" />
-                </div>
-                <p className="text-2xl font-bold text-gray-800">{engagementData.engagementMetrics.actions.toLocaleString()}</p>
-                <p className="text-sm text-gray-600">Total Actions</p>
-              </div>
-            )}
-
-            {engagementData.engagementMetrics?.avgActionsPerUser > 0 && (
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
-                <div className="flex justify-center mb-3">
-                  <Users size={24} className="text-purple-500" />
-                </div>
-                <p className="text-2xl font-bold text-gray-800">{engagementData.engagementMetrics.avgActionsPerUser}</p>
-                <p className="text-sm text-gray-600">Avg Actions/User</p>
-              </div>
-            )}
-
-            {engagementData.engagementMetrics?.returningUsers > 0 && (
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
-                <div className="flex justify-center mb-3">
-                  <UserCheck size={24} className="text-orange-500" />
-                </div>
-                <p className="text-2xl font-bold text-gray-800">{engagementData.engagementMetrics.returningUsers}%</p>
-                <p className="text-sm text-gray-600">Returning Users</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Engagement Insights - Always show but with dynamic values */}
-        <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-xl p-6">
-          <h2 className="text-lg font-semibold text-white mb-2">Engagement Insights</h2>
-          <p className="text-red-100 mb-4">Based on your current metrics, here are some recommendations:</p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <Zap size={20} className="text-yellow-300 mb-2" />
-              <h3 className="text-white font-medium mb-1">Peak Hours Optimization</h3>
-              <p className="text-red-100 text-sm">
-                Highest engagement between 10AM - 2PM. Schedule important announcements and features during this time for maximum visibility.
-              </p>
-            </div>
+        {/* Quick Stats Footer */}
+        {(engagementData.userActivity?.low > 0 || 
+          engagementData.userActivity?.high > 0 || 
+          engagementData.averageSession > 0 || 
+          engagementData.bounceRate > 0) && (
+          <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-2">Quick Stats</h2>
+            <p className="text-red-100 mb-4">Current engagement metrics at a glance</p>
             
-            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <Target size={20} className="text-yellow-300 mb-2" />
-              <h3 className="text-white font-medium mb-1">Retention Opportunity</h3>
-              <p className="text-red-100 text-sm">
-                {engagementData.retention ? (100 - engagementData.retention) + '% of users don\'t return' : 'Monitor user retention rates'} 
-                {engagementData.retention ? '. Send personalized re-engagement emails to inactive users and highlight new features.' : ' to improve user engagement.'}
-              </p>
-            </div>
-            
-            <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm">
-              <TrendingUp size={20} className="text-yellow-300 mb-2" />
-              <h3 className="text-white font-medium mb-1">Mobile Experience</h3>
-              <p className="text-red-100 text-sm">
-                {engagementData.deviceBreakdown?.find(d => d.name === 'Mobile')?.value || 'A significant portion'}% of users access via mobile. 
-                Ensure mobile experience is fully optimized.
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Stats - Only show if values exist */}
-          {(engagementData.userActivity?.low > 0 || 
-            engagementData.userActivity?.high > 0 || 
-            engagementData.averageSession > 0 || 
-            engagementData.bounceRate > 0) && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-red-500/30">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {engagementData.userActivity?.low > 0 && (
                 <div>
                   <p className="text-red-200 text-xs">Low Activity Users</p>
-                  <p className="text-white font-semibold">{engagementData.userActivity.low}</p>
+                  <p className="text-white font-semibold text-lg">{engagementData.userActivity.low}</p>
                 </div>
               )}
               {engagementData.userActivity?.high > 0 && (
                 <div>
                   <p className="text-red-200 text-xs">High Activity Users</p>
-                  <p className="text-white font-semibold">{engagementData.userActivity.high}</p>
+                  <p className="text-white font-semibold text-lg">{engagementData.userActivity.high}</p>
                 </div>
               )}
               {engagementData.averageSession > 0 && (
                 <div>
                   <p className="text-red-200 text-xs">Avg Session</p>
-                  <p className="text-white font-semibold">{engagementData.averageSession}m</p>
+                  <p className="text-white font-semibold text-lg">{engagementData.averageSession}m</p>
                 </div>
               )}
               {engagementData.bounceRate > 0 && (
                 <div>
                   <p className="text-red-200 text-xs">Bounce Rate</p>
-                  <p className="text-white font-semibold">{engagementData.bounceRate}%</p>
+                  <p className="text-white font-semibold text-lg">{engagementData.bounceRate}%</p>
                 </div>
               )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </main>
   );
