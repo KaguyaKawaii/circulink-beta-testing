@@ -269,7 +269,7 @@ function AdminRooms({ setView, onLogout }) {
         </header>
 
         <div className="p-6">
-          {/* Enhanced Stats Cards with better spacing and animations */}
+          {/* Stats Cards - Removed hover scale effect */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <StatCard 
               title="Total Rooms" 
@@ -301,35 +301,14 @@ function AdminRooms({ setView, onLogout }) {
             />
           </div>
 
-          {/* Enhanced Filter Section with Search */}
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
-            <div className="lg:col-span-3">
-              <FloorFilter 
-                floors={floors}
-                selectedFloor={selectedFloor}
-                setSelectedFloor={setSelectedFloor}
-                roomsByFloor={roomsByFloor}
-              />
-            </div>
-            <div className="lg:col-span-1">
-              <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-200/60 p-4 h-full">
-                <div className="flex items-center gap-2 mb-3">
-                  <Calendar size={16} className="text-gray-400" />
-                  <span className="text-sm font-medium text-gray-700">Quick Filters</span>
-                </div>
-                <div className="space-y-2">
-                  <button className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
-                    Available Today
-                  </button>
-                  <button className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
-                    High Capacity (20+)
-                  </button>
-                  <button className="w-full text-left px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 rounded-lg transition-colors">
-                    With Projector
-                  </button>
-                </div>
-              </div>
-            </div>
+          {/* Filter Section - Removed Quick Filters, now full width */}
+          <div className="mb-6">
+            <FloorFilter 
+              floors={floors}
+              selectedFloor={selectedFloor}
+              setSelectedFloor={setSelectedFloor}
+              roomsByFloor={roomsByFloor}
+            />
           </div>
 
           {/* Main Content Section */}
@@ -472,7 +451,7 @@ function AdminRooms({ setView, onLogout }) {
   );
 }
 
-// Enhanced StatCard with animations
+// StatCard - Removed hover scale effect
 function StatCard({ title, value, icon, color, trend, percentage, subtitle }) {
   const colorClasses = {
     blue: "bg-blue-50 text-blue-600",
@@ -482,7 +461,7 @@ function StatCard({ title, value, icon, color, trend, percentage, subtitle }) {
   };
 
   return (
-    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-200/60 p-6 hover:shadow-lg transition-all duration-300 hover:scale-[1.02] group">
+    <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-200/60 p-6 hover:shadow-md transition-all duration-300">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
@@ -500,7 +479,7 @@ function StatCard({ title, value, icon, color, trend, percentage, subtitle }) {
           {trend && <p className="text-xs text-green-600 mt-1">{trend}</p>}
           {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
         </div>
-        <div className={`p-3 rounded-xl ${colorClasses[color]} transition-transform group-hover:scale-110 duration-300`}>
+        <div className={`p-3 rounded-xl ${colorClasses[color]}`}>
           {icon}
         </div>
       </div>
@@ -508,7 +487,7 @@ function StatCard({ title, value, icon, color, trend, percentage, subtitle }) {
   );
 }
 
-// Enhanced FloorFilter with better visual feedback
+// FloorFilter component
 function FloorFilter({ floors, selectedFloor, setSelectedFloor, roomsByFloor }) {
   return (
     <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-200/60 p-6">
@@ -524,7 +503,7 @@ function FloorFilter({ floors, selectedFloor, setSelectedFloor, roomsByFloor }) 
             onClick={() => setSelectedFloor(floor)}
             className={`px-4 py-2.5 rounded-xl border transition-all duration-300 font-medium text-sm ${
               selectedFloor === floor
-                ? "bg-gradient-to-r from-red-600 to-red-700 text-white shadow-md border-red-600 transform scale-105"
+                ? "bg-gradient-to-r from-red-600 to-red-700 text-white shadow-md border-red-600"
                 : "bg-white text-gray-700 border-gray-200 hover:border-red-300 hover:bg-red-50/50 hover:shadow-sm"
             }`}
           >
@@ -1162,7 +1141,7 @@ function ListRooms({ rooms, onEdit, onDelete, onToggleStatus }) {
   );
 }
 
-// Add the missing Menu icon
+// Menu icon component
 function Menu(props) {
   return (
     <svg
