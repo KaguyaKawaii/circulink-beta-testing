@@ -268,7 +268,7 @@ function calculateUserStats(users, archivedUsers, logs, reservations, range, sta
   };
 
   // Generate growth data - UPDATED for custom ranges
-  const growth = generateGrowthData(users, range, isCustomRange, startDate, customStart, customEnd);
+  const growth = generateUserGrowthData(users, range, isCustomRange, startDate, customStart, customEnd);
 
   // Get top users
   const topUsers = getTopUsers(users, logs, reservations);
@@ -410,8 +410,8 @@ function calculateRetentionRate(users, logs) {
   return Math.round((retained.length / cohort.length) * 100);
 }
 
-// Helper: Generate growth data - UPDATED for custom ranges
-function generateGrowthData(users, range, isCustomRange, startDate, customStart, customEnd) {
+// Helper: Generate user growth data
+function generateUserGrowthData(users, range, isCustomRange, startDate, customStart, customEnd) {
   const labels = [];
   const values = [];
   const now = new Date();
@@ -644,30 +644,37 @@ export const getAnalyticsOverview = async (req, res) => {
 };
 
 // ================= SIMPLE RESERVATION ANALYTICS =================
-// This version returns just the 4 metrics for the simple dashboard
 export const getReservationAnalytics = async (req, res) => {
   try {
     const { range = "month", startDate, endDate } = req.query;
     
     // Get date range for filtering
     let startDateObj;
+    let endDateObj;
+    
     if (startDate && endDate) {
       startDateObj = new Date(startDate);
       startDateObj.setHours(0, 0, 0, 0);
-      const endDateObj = new Date(endDate);
+      endDateObj = new Date(endDate);
       endDateObj.setHours(23, 59, 59, 999);
     } else {
       startDateObj = getStartDate(range);
+      endDateObj = new Date();
+      endDateObj.setHours(23, 59, 59, 999);
     }
 
     // Build query based on date range
     let query = {};
     if (startDate && endDate) {
-      const endDateObj = new Date(endDate);
-      endDateObj.setHours(23, 59, 59, 999);
-      query.createdAt = { $gte: new Date(startDate), $lte: endDateObj };
+      query.$or = [
+        { datetime: { $gte: startDateObj, $lte: endDateObj } },
+        { startTime: { $gte: startDateObj, $lte: endDateObj } }
+      ];
     } else {
-      query.createdAt = { $gte: startDateObj };
+      query.$or = [
+        { datetime: { $gte: startDateObj } },
+        { startTime: { $gte: startDateObj } }
+      ];
     }
 
     const totalReservations = await Reservation.countDocuments(query);
@@ -762,7 +769,6 @@ export const getReservationAnalytics = async (req, res) => {
 };
 
 // ================= COMPREHENSIVE RESERVATION ANALYTICS =================
-// This version returns detailed analytics with trends and growth data
 export const getDetailedReservationAnalytics = async (req, res) => {
   try {
     const { range = "month", startDate, endDate } = req.query;
@@ -819,7 +825,7 @@ export const getDetailedReservationAnalytics = async (req, res) => {
     // Fetch all reservations for additional stats (by room, by time, etc.)
     const allReservations = await Reservation.find({}).lean();
 
-    // Calculate statistics (now async)
+    // Calculate statistics
     const stats = await calculateReservationStats(
       reservations,
       previousReservations,
@@ -827,7 +833,9 @@ export const getDetailedReservationAnalytics = async (req, res) => {
       range,
       startDateObj,
       endDateObj,
-      isCustomRange
+      isCustomRange,
+      startDate,
+      endDate
     );
 
     res.json({
@@ -845,7 +853,7 @@ export const getDetailedReservationAnalytics = async (req, res) => {
   }
 };
 
-// Updated calculateReservationStats function (now async)
+// Updated calculateReservationStats function
 async function calculateReservationStats(
   reservations, 
   previousReservations, 
@@ -853,7 +861,9 @@ async function calculateReservationStats(
   range,
   startDate,
   endDate,
-  isCustomRange
+  isCustomRange,
+  customStart,
+  customEnd
 ) {
   // Basic counts
   const total = reservations.length;
@@ -986,7 +996,9 @@ async function calculateReservationStats(
     range, 
     isCustomRange, 
     startDate, 
-    endDate
+    endDate,
+    customStart,
+    customEnd
   );
 
   // Calculate by location/floor
@@ -1009,8 +1021,7 @@ async function calculateReservationStats(
     ? Math.round((totalParticipants / allReservations.length) * 10) / 10
     : 0;
 
-  // ===== NEW: Calculate user department statistics =====
-  // Get unique user IDs from reservations
+  // Calculate user department statistics
   const userIds = [...new Set(allReservations.map(r => r.userId?.toString()).filter(id => id))];
   
   // Fetch user data for these users
@@ -1037,7 +1048,7 @@ async function calculateReservationStats(
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  // ===== NEW: Calculate top reservers =====
+  // Calculate top reservers
   const userReservationCount = {};
   allReservations.forEach(res => {
     const userId = res.userId?.toString();
@@ -1095,23 +1106,24 @@ async function calculateReservationStats(
   };
 }
 
-// ================= FIXED: Reservation Growth Data Function =================
-// Helper function to generate reservation growth data
+// Reservation Growth Data Function
 function generateReservationGrowthData(
   currentPeriodReservations,
   allReservations,
   range,
   isCustomRange,
   startDate,
-  endDate
+  endDate,
+  customStart,
+  customEnd
 ) {
   const labels = [];
   const values = [];
   const now = new Date();
 
-  if (isCustomRange && startDate && endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+  if (isCustomRange && customStart && customEnd) {
+    const start = new Date(customStart);
+    const end = new Date(customEnd);
     end.setHours(23, 59, 59, 999);
     
     const rangeDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
@@ -1126,8 +1138,7 @@ function generateReservationGrowthData(
         const dayStart = new Date(date.setHours(0,0,0,0));
         const dayEnd = new Date(date.setHours(23,59,59,999));
         
-        // FIXED: Check both datetime and startTime fields
-        const count = currentPeriodReservations.filter(r => {
+        const count = allReservations.filter(r => {
           const dateField = r.datetime || r.startTime;
           return dateField && 
             new Date(dateField) >= dayStart && 
@@ -1146,8 +1157,7 @@ function generateReservationGrowthData(
         
         labels.push(`Week ${i+1}`);
         
-        // FIXED: Check both datetime and startTime fields
-        const count = currentPeriodReservations.filter(r => {
+        const count = allReservations.filter(r => {
           const dateField = r.datetime || r.startTime;
           return dateField && 
             new Date(dateField) >= weekStart && 
@@ -1167,8 +1177,7 @@ function generateReservationGrowthData(
         
         labels.push(monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
         
-        // FIXED: Check both datetime and startTime fields
-        const count = currentPeriodReservations.filter(r => {
+        const count = allReservations.filter(r => {
           const dateField = r.datetime || r.startTime;
           return dateField && 
             new Date(dateField) >= monthStart && 
@@ -1189,7 +1198,6 @@ function generateReservationGrowthData(
           const dayStart = new Date(date.setHours(0,0,0,0));
           const dayEnd = new Date(date.setHours(23,59,59,999));
           
-          // FIXED: Check both datetime and startTime fields
           const count = allReservations.filter(r => {
             const dateField = r.datetime || r.startTime;
             return dateField && 
@@ -1210,7 +1218,6 @@ function generateReservationGrowthData(
           
           labels.push(`Week ${4-i}`);
           
-          // FIXED: Check both datetime and startTime fields
           const count = allReservations.filter(r => {
             const dateField = r.datetime || r.startTime;
             return dateField && 
@@ -1230,7 +1237,6 @@ function generateReservationGrowthData(
           const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
           const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
           
-          // FIXED: Check both datetime and startTime fields
           const count = allReservations.filter(r => {
             const dateField = r.datetime || r.startTime;
             return dateField && 
@@ -1250,7 +1256,6 @@ function generateReservationGrowthData(
           
           labels.push(`Week ${4-i}`);
           
-          // FIXED: Check both datetime and startTime fields
           const count = allReservations.filter(r => {
             const dateField = r.datetime || r.startTime;
             return dateField && 
@@ -1272,23 +1277,25 @@ export const getRoomAnalytics = async (req, res) => {
     
     // Get date range for filtering
     let startDateObj;
+    let endDateObj;
+    
     if (startDate && endDate) {
       startDateObj = new Date(startDate);
       startDateObj.setHours(0, 0, 0, 0);
-      const endDateObj = new Date(endDate);
+      endDateObj = new Date(endDate);
       endDateObj.setHours(23, 59, 59, 999);
     } else {
       startDateObj = getStartDate(range);
+      endDateObj = new Date();
+      endDateObj.setHours(23, 59, 59, 999);
     }
 
     // Build query based on date range
     let query = {};
     if (startDate && endDate) {
-      const endDateObj = new Date(endDate);
-      endDateObj.setHours(23, 59, 59, 999);
       query.$or = [
-        { datetime: { $gte: new Date(startDate), $lte: endDateObj } },
-        { startTime: { $gte: new Date(startDate), $lte: endDateObj } }
+        { datetime: { $gte: startDateObj, $lte: endDateObj } },
+        { startTime: { $gte: startDateObj, $lte: endDateObj } }
       ];
     } else {
       query.$or = [
@@ -1471,7 +1478,9 @@ export const getDetailedRoomAnalytics = async (req, res) => {
       range,
       startDateObj,
       endDateObj,
-      isCustomRange
+      isCustomRange,
+      startDate,
+      endDate
     );
 
     res.json({
@@ -1496,7 +1505,9 @@ async function calculateDetailedRoomStats(
   range,
   startDate,
   endDate,
-  isCustomRange
+  isCustomRange,
+  customStart,
+  customEnd
 ) {
   // Basic counts
   const total = rooms.length;
@@ -1694,7 +1705,9 @@ async function calculateDetailedRoomStats(
     range,
     isCustomRange,
     startDate,
-    endDate
+    endDate,
+    customStart,
+    customEnd
   );
 
   // Generate booking trends (monthly)
@@ -1770,7 +1783,7 @@ async function calculateDetailedRoomStats(
       return { name: displayName, value };
     });
 
-  // Calculate trends (simplified for now)
+  // Calculate trends
   const trends = {
     total: { value: total, percentage: 0, direction: 'up' },
     utilization: { value: utilization, percentage: 0, direction: 'up' },
@@ -1810,15 +1823,17 @@ function generateRoomGrowthData(
   range,
   isCustomRange,
   startDate,
-  endDate
+  endDate,
+  customStart,
+  customEnd
 ) {
   const labels = [];
   const values = [];
   const now = new Date();
 
-  if (isCustomRange && startDate && endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+  if (isCustomRange && customStart && customEnd) {
+    const start = new Date(customStart);
+    const end = new Date(customEnd);
     end.setHours(23, 59, 59, 999);
     
     const rangeDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
@@ -2059,42 +2074,6 @@ function getTypeColor(type) {
   return colors[type.toLowerCase()] || 'blue';
 }
 
-// ================= ENGAGEMENT METRICS =================
-export const getEngagementMetricsSimple = async (req, res) => {
-  try {
-    const totalLogs = await Log.countDocuments();
-
-    res.json({
-      success: true,
-      data: {
-        totalLogs
-      }
-    });
-  } catch (error) {
-    console.error("Error in getEngagementMetrics:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to fetch engagement metrics"
-    });
-  }
-};
-
-// ================= EXPORT ANALYTICS =================
-export const exportAnalytics = async (req, res) => {
-  try {
-    res.json({
-      success: true,
-      message: "Export feature coming soon"
-    });
-  } catch (error) {
-    console.error("Error in exportAnalytics:", error);
-    res.status(500).json({
-      success: false,
-      message: "Failed to export analytics"
-    });
-  }
-};
-
 // ================= COMPREHENSIVE ENGAGEMENT METRICS =================
 export const getEngagementMetrics = async (req, res) => {
   try {
@@ -2175,7 +2154,9 @@ export const getEngagementMetrics = async (req, res) => {
       range,
       startDateObj,
       endDateObj,
-      isCustomRange
+      isCustomRange,
+      startDate,
+      endDate
     );
 
     res.json({
@@ -2204,7 +2185,9 @@ async function calculateEngagementMetrics(
   range,
   startDate,
   endDate,
-  isCustomRange
+  isCustomRange,
+  customStart,
+  customEnd
 ) {
   const now = new Date();
   const oneDayAgo = new Date(now);
@@ -2231,7 +2214,7 @@ async function calculateEngagementMetrics(
   const bounceRate = calculateBounceRate(logs);
 
   // Generate daily active users for chart
-  const byDay = generateDailyActiveUsers(allLogs, range, isCustomRange, startDate, endDate);
+  const byDay = generateDailyActiveUsers(allLogs, range, isCustomRange, startDate, endDate, customStart, customEnd);
 
   // Calculate user activity levels
   const userActivity = calculateUserActivityLevels(users, allLogs, allReservations);
@@ -2260,6 +2243,17 @@ async function calculateEngagementMetrics(
 
   // Generate top features
   const topFeatures = generateTopFeatures(logs);
+
+  // Generate growth data for charts
+  const growth = generateEngagementGrowthData(
+    allLogs,
+    range,
+    isCustomRange,
+    startDate,
+    endDate,
+    customStart,
+    customEnd
+  );
 
   // Calculate trends
   const trends = {
@@ -2292,8 +2286,165 @@ async function calculateEngagementMetrics(
     deviceBreakdown,
     userEngagementTrends,
     topFeatures,
+    growth,
     trends
   };
+}
+
+// Helper: Generate engagement growth data
+function generateEngagementGrowthData(
+  allLogs,
+  range,
+  isCustomRange,
+  startDate,
+  endDate,
+  customStart,
+  customEnd
+) {
+  const labels = [];
+  const values = [];
+  const now = new Date();
+
+  if (isCustomRange && customStart && customEnd) {
+    const start = new Date(customStart);
+    const end = new Date(customEnd);
+    end.setHours(23, 59, 59, 999);
+    
+    const rangeDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+    
+    if (rangeDays <= 14) {
+      // Less than 2 weeks: show daily
+      for (let i = 0; i <= rangeDays; i++) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + i);
+        labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        
+        const dayStart = new Date(date.setHours(0,0,0,0));
+        const dayEnd = new Date(date.setHours(23,59,59,999));
+        
+        const count = allLogs.filter(log => 
+          log.createdAt && 
+          new Date(log.createdAt) >= dayStart && 
+          new Date(log.createdAt) <= dayEnd
+        ).length;
+        values.push(count);
+      }
+    } else if (rangeDays <= 60) {
+      // 2 weeks to 2 months: show weekly
+      const weeks = Math.ceil(rangeDays / 7);
+      for (let i = 0; i < weeks; i++) {
+        const weekStart = new Date(start);
+        weekStart.setDate(start.getDate() + (i * 7));
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        
+        labels.push(`Week ${i+1}`);
+        
+        const count = allLogs.filter(log => 
+          log.createdAt && 
+          new Date(log.createdAt) >= weekStart && 
+          new Date(log.createdAt) <= weekEnd
+        ).length;
+        values.push(count);
+      }
+    } else {
+      // More than 2 months: show monthly
+      const months = Math.ceil(rangeDays / 30);
+      for (let i = 0; i < months; i++) {
+        const monthStart = new Date(start);
+        monthStart.setMonth(start.getMonth() + i);
+        const monthEnd = new Date(monthStart);
+        monthEnd.setMonth(monthStart.getMonth() + 1);
+        monthEnd.setDate(0);
+        
+        labels.push(monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+        
+        const count = allLogs.filter(log => 
+          log.createdAt && 
+          new Date(log.createdAt) >= monthStart && 
+          new Date(log.createdAt) <= monthEnd
+        ).length;
+        values.push(count);
+      }
+    }
+  } else {
+    // Predefined ranges
+    switch(range) {
+      case 'week':
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(now);
+          date.setDate(now.getDate() - i);
+          labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+          
+          const dayStart = new Date(date.setHours(0,0,0,0));
+          const dayEnd = new Date(date.setHours(23,59,59,999));
+          
+          const count = allLogs.filter(log => 
+            log.createdAt && 
+            new Date(log.createdAt) >= dayStart && 
+            new Date(log.createdAt) <= dayEnd
+          ).length;
+          values.push(count);
+        }
+        break;
+        
+      case 'month':
+        // Group by weeks
+        for (let i = 3; i >= 0; i--) {
+          const weekEnd = new Date(now);
+          weekEnd.setDate(now.getDate() - (i * 7));
+          const weekStart = new Date(weekEnd);
+          weekStart.setDate(weekEnd.getDate() - 6);
+          
+          labels.push(`Week ${4-i}`);
+          
+          const count = allLogs.filter(log => 
+            log.createdAt && 
+            new Date(log.createdAt) >= weekStart && 
+            new Date(log.createdAt) <= weekEnd
+          ).length;
+          values.push(count);
+        }
+        break;
+        
+      case 'year':
+        for (let i = 11; i >= 0; i--) {
+          const date = new Date(now);
+          date.setMonth(now.getMonth() - i);
+          labels.push(date.toLocaleDateString('en-US', { month: 'short' }));
+          
+          const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+          const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+          
+          const count = allLogs.filter(log => 
+            log.createdAt && 
+            new Date(log.createdAt) >= monthStart && 
+            new Date(log.createdAt) <= monthEnd
+          ).length;
+          values.push(count);
+        }
+        break;
+        
+      default:
+        for (let i = 3; i >= 0; i--) {
+          const weekEnd = new Date(now);
+          weekEnd.setDate(now.getDate() - (i * 7));
+          const weekStart = new Date(weekEnd);
+          weekStart.setDate(weekEnd.getDate() - 6);
+          
+          labels.push(`Week ${4-i}`);
+          
+          const count = allLogs.filter(log => 
+            log.createdAt && 
+            new Date(log.createdAt) >= weekStart && 
+            new Date(log.createdAt) <= weekEnd
+          ).length;
+          values.push(count);
+        }
+    }
+  }
+  
+  return { labels, values };
 }
 
 // Helper: Get unique users from logs within a time period
@@ -2428,13 +2579,13 @@ function calculateBounceRate(logs) {
 }
 
 // Helper: Generate daily active users for chart
-function generateDailyActiveUsers(logs, range, isCustomRange, startDate, endDate) {
+function generateDailyActiveUsers(logs, range, isCustomRange, startDate, endDate, customStart, customEnd) {
   const byDay = [];
   const now = new Date();
   
-  if (isCustomRange && startDate && endDate) {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
+  if (isCustomRange && customStart && customEnd) {
+    const start = new Date(customStart);
+    const end = new Date(customEnd);
     
     const days = Math.round((end - start) / (1000 * 60 * 60 * 24));
     
