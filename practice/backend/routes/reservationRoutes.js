@@ -41,6 +41,14 @@ router.get('/archived/all', reservationController.getArchivedReservations);
 router.post('/archived/:id/restore', reservationController.restoreReservation);
 router.delete('/archived/:id', reservationController.deleteArchivedReservation);
 
+// ✅ BULK OPERATIONS - Using the imported controller functions
+router.post('/bulk-archive', reservationController.bulkArchiveReservations);
+router.post('/bulk-delete-archived', reservationController.bulkDeleteArchivedReservations);
+router.post('/bulk-restore-archived', reservationController.bulkRestoreArchivedReservations);
+
+// ✅ Archived reservations with filters
+router.get('/archived/filtered', reservationController.getArchivedReservationsWithFilters);
+
 // Reservation actions
 router.post('/start/:id', reservationController.startReservation);
 router.post('/:id/end-early', reservationController.endReservationEarly);

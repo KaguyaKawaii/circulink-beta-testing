@@ -2881,3 +2881,461 @@ export const searchUsers = async (req, res) => {
     res.status(500).json({ message: "Failed to search users" });
   }
 };
+
+// Add this new function to your reservationController.js file
+
+/* ------------------------------------------------
+   ✅ BULK ARCHIVE RESERVATIONS
+------------------------------------------------ */
+export const bulkArchiveReservations = async (req, res) => {
+  try {
+    const { reservationIds } = req.body;
+
+    console.log("=".repeat(50));
+    console.log("📦 BULK ARCHIVE RESERVATIONS REQUEST");
+    console.log("=".repeat(50));
+    console.log("Reservation IDs to archive:", reservationIds);
+
+    // Validate input
+    if (!reservationIds || !Array.isArray(reservationIds) || reservationIds.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Reservation IDs array is required and must not be empty" 
+      });
+    }
+
+    // Validate each ID is a valid ObjectId
+    const validIds = reservationIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+    
+    if (validIds.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: "No valid reservation IDs provided" 
+      });
+    }
+
+    // Find all reservations to archive
+    const reservations = await Reservation.find({ 
+      _id: { $in: validIds } 
+    }).populate("userId");
+
+    if (reservations.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: "No reservations found with the provided IDs" 
+      });
+    }
+
+    console.log(`✅ Found ${reservations.length} reservations to archive`);
+
+    // Archive each reservation
+    const archivedCount = 0;
+    const failedIds = [];
+
+    for (const reservation of reservations) {
+      try {
+        // Create archived copy
+        await ArchivedReservation.create({ 
+          ...reservation.toObject(), 
+          archivedAt: new Date(),
+          originalId: reservation._id 
+        });
+        
+        // Delete from main collection
+        await Reservation.findByIdAndDelete(reservation._id);
+        
+        // Log the action
+        try {
+          await logAction(
+            reservation.userId?._id || null,
+            reservation.userId?.id_number || "N/A",
+            reservation.userId?.name || "System",
+            "Reservation Bulk Archived",
+            `Reservation for ${reservation.roomName} on ${reservation.date} archived via bulk operation`
+          );
+        } catch (logError) {
+          console.warn(`⚠️ Failed to log archive for reservation ${reservation._id}:`, logError.message);
+        }
+
+        console.log(`✅ Archived reservation: ${reservation._id} - ${reservation.roomName}`);
+      } catch (err) {
+        console.error(`❌ Failed to archive reservation ${reservation._id}:`, err);
+        failedIds.push(reservation._id);
+      }
+    }
+
+    // Prepare response message
+    const successCount = reservations.length - failedIds.length;
+    let message = `Successfully archived ${successCount} out of ${reservations.length} reservations.`;
+    
+    if (failedIds.length > 0) {
+      message += ` Failed to archive ${failedIds.length} reservations.`;
+    }
+
+    console.log("✅ Bulk archive completed:", {
+      total: reservations.length,
+      archived: successCount,
+      failed: failedIds.length
+    });
+
+    // Emit socket event for real-time updates
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("reservations-bulk-archived", {
+        reservationIds: validIds,
+        count: successCount
+      });
+    }
+
+    res.json({
+      success: true,
+      message,
+      count: successCount,
+      failedCount: failedIds.length,
+      failedIds: failedIds.length > 0 ? failedIds : undefined
+    });
+
+  } catch (err) {
+    console.error("❌ Bulk archive error:", err);
+    console.error("Error stack:", err.stack);
+    
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to bulk archive reservations",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+};
+
+/* ------------------------------------------------
+   ✅ BULK DELETE ARCHIVED RESERVATIONS (Permanent)
+------------------------------------------------ */
+export const bulkDeleteArchivedReservations = async (req, res) => {
+  try {
+    const { archivedIds } = req.body;
+
+    console.log("=".repeat(50));
+    console.log("📦 BULK DELETE ARCHIVED RESERVATIONS REQUEST");
+    console.log("=".repeat(50));
+    console.log("Archived IDs to delete:", archivedIds);
+
+    // Validate input
+    if (!archivedIds || !Array.isArray(archivedIds) || archivedIds.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Archived IDs array is required and must not be empty" 
+      });
+    }
+
+    // Validate each ID is a valid ObjectId
+    const validIds = archivedIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+    
+    if (validIds.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: "No valid archived reservation IDs provided" 
+      });
+    }
+
+    // Find all archived reservations to delete
+    const archivedReservations = await ArchivedReservation.find({ 
+      _id: { $in: validIds } 
+    }).populate("userId");
+
+    if (archivedReservations.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: "No archived reservations found with the provided IDs" 
+      });
+    }
+
+    console.log(`✅ Found ${archivedReservations.length} archived reservations to delete`);
+
+    // Delete each archived reservation
+    const deleteResult = await ArchivedReservation.deleteMany({ 
+      _id: { $in: validIds } 
+    });
+
+    console.log(`✅ Deleted ${deleteResult.deletedCount} archived reservations`);
+
+    // Log the action (optional - could be too many logs)
+    try {
+      await logAction(
+        null,
+        "SYSTEM",
+        "System",
+        "Bulk Archived Reservations Deleted",
+        `Permanently deleted ${deleteResult.deletedCount} archived reservations`
+      );
+    } catch (logError) {
+      console.warn("⚠️ Failed to log bulk delete action:", logError.message);
+    }
+
+    // Emit socket event for real-time updates
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("archived-reservations-bulk-deleted", {
+        archivedIds: validIds,
+        count: deleteResult.deletedCount
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deleteResult.deletedCount} archived reservations`,
+      count: deleteResult.deletedCount
+    });
+
+  } catch (err) {
+    console.error("❌ Bulk delete archived error:", err);
+    console.error("Error stack:", err.stack);
+    
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to bulk delete archived reservations",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+};
+
+/* ------------------------------------------------
+   ✅ GET ARCHIVED RESERVATIONS WITH FILTERS
+------------------------------------------------ */
+export const getArchivedReservationsWithFilters = async (req, res) => {
+  try {
+    const { 
+      page = 1, 
+      limit = 20, 
+      search = "", 
+      dateFrom, 
+      dateTo,
+      location,
+      roomName,
+      status
+    } = req.query;
+
+    const query = {};
+
+    // Build search query
+    if (search) {
+      query.$or = [
+        { "userId.name": { $regex: search, $options: 'i' } },
+        { roomName: { $regex: search, $options: 'i' } },
+        { location: { $regex: search, $options: 'i' } },
+        { purpose: { $regex: search, $options: 'i' } },
+        { "participants.name": { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Date range filters
+    if (dateFrom || dateTo) {
+      query.datetime = {};
+      if (dateFrom) {
+        query.datetime.$gte = new Date(dateFrom);
+      }
+      if (dateTo) {
+        const endDate = new Date(dateTo);
+        endDate.setHours(23, 59, 59, 999);
+        query.datetime.$lte = endDate;
+      }
+    }
+
+    // Location filter
+    if (location && location !== "All") {
+      query.location = { $regex: location, $options: 'i' };
+    }
+
+    // Room name filter
+    if (roomName && roomName !== "All") {
+      query.roomName = { $regex: roomName, $options: 'i' };
+    }
+
+    // Status filter
+    if (status && status !== "All") {
+      query.status = status;
+    }
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    // Get total count for pagination
+    const totalCount = await ArchivedReservation.countDocuments(query);
+    
+    // Get archived reservations with pagination
+    const archivedReservations = await ArchivedReservation.find(query)
+      .populate("userId", "name email id_number")
+      .sort({ archivedAt: -1, datetime: -1 })
+      .skip(skip)
+      .limit(parseInt(limit));
+
+    res.json({
+      success: true,
+      archivedReservations,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        totalCount,
+        totalPages: Math.ceil(totalCount / parseInt(limit))
+      }
+    });
+
+  } catch (err) {
+    console.error("Error fetching archived reservations with filters:", err);
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to fetch archived reservations",
+      error: err.message 
+    });
+  }
+};
+
+/* ------------------------------------------------
+   ✅ RESTORE MULTIPLE ARCHIVED RESERVATIONS
+------------------------------------------------ */
+export const bulkRestoreArchivedReservations = async (req, res) => {
+  try {
+    const { archivedIds } = req.body;
+
+    console.log("=".repeat(50));
+    console.log("📦 BULK RESTORE ARCHIVED RESERVATIONS REQUEST");
+    console.log("=".repeat(50));
+    console.log("Archived IDs to restore:", archivedIds);
+
+    // Validate input
+    if (!archivedIds || !Array.isArray(archivedIds) || archivedIds.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: "Archived IDs array is required and must not be empty" 
+      });
+    }
+
+    // Validate each ID is a valid ObjectId
+    const validIds = archivedIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+    
+    if (validIds.length === 0) {
+      return res.status(400).json({ 
+        success: false,
+        message: "No valid archived reservation IDs provided" 
+      });
+    }
+
+    // Find all archived reservations to restore
+    const archivedReservations = await ArchivedReservation.find({ 
+      _id: { $in: validIds } 
+    }).populate("userId");
+
+    if (archivedReservations.length === 0) {
+      return res.status(404).json({ 
+        success: false,
+        message: "No archived reservations found with the provided IDs" 
+      });
+    }
+
+    console.log(`✅ Found ${archivedReservations.length} archived reservations to restore`);
+
+    // Restore each archived reservation
+    const restoredCount = 0;
+    const failedIds = [];
+    const restoredReservations = [];
+
+    for (const archived of archivedReservations) {
+      try {
+        // Check for conflicts if restoring to active
+        const conflictExists = await Reservation.findOne({
+          roomName: archived.roomName,
+          location: archived.location,
+          status: { $in: ["Approved", "Ongoing"] },
+          datetime: { $lt: archived.endDatetime },
+          endDatetime: { $gt: archived.datetime }
+        });
+
+        if (conflictExists) {
+          console.warn(`⚠️ Conflict detected for reservation ${archived._id}, skipping restore`);
+          failedIds.push({
+            id: archived._id,
+            reason: "Time conflict with existing reservation"
+          });
+          continue;
+        }
+
+        // Prepare restored data
+        const restoredData = archived.toObject();
+        delete restoredData._id;
+        delete restoredData.archivedAt;
+
+        // Ensure date field is set
+        if (!restoredData.date && restoredData.datetime) {
+          restoredData.date = new Date(restoredData.datetime).toISOString().split("T")[0];
+        }
+
+        // Create new reservation
+        const restoredReservation = await Reservation.create(restoredData);
+        
+        // Delete from archive
+        await ArchivedReservation.findByIdAndDelete(archived._id);
+        
+        restoredReservations.push(restoredReservation);
+        restoredCount++;
+
+        // Log the action
+        try {
+          await logAction(
+            archived.userId?._id || null,
+            archived.userId?.id_number || "N/A",
+            archived.userId?.name || "System",
+            "Reservation Restored from Archive",
+            `Restored reservation for ${archived.roomName} from archive`
+          );
+        } catch (logError) {
+          console.warn(`⚠️ Failed to log restore for reservation ${archived._id}:`, logError.message);
+        }
+
+        console.log(`✅ Restored reservation: ${archived._id} - ${archived.roomName}`);
+      } catch (err) {
+        console.error(`❌ Failed to restore reservation ${archived._id}:`, err);
+        failedIds.push({
+          id: archived._id,
+          reason: err.message
+        });
+      }
+    }
+
+    // Prepare response message
+    const successCount = restoredCount;
+    const message = `Successfully restored ${successCount} out of ${archivedReservations.length} reservations.`;
+    
+    console.log("✅ Bulk restore completed:", {
+      total: archivedReservations.length,
+      restored: successCount,
+      failed: failedIds.length
+    });
+
+    // Emit socket event for real-time updates
+    const io = req.app.get("io");
+    if (io) {
+      io.emit("archived-reservations-bulk-restored", {
+        archivedIds: validIds,
+        count: successCount
+      });
+    }
+
+    res.json({
+      success: true,
+      message,
+      count: successCount,
+      failedCount: failedIds.length,
+      failedIds: failedIds.length > 0 ? failedIds : undefined,
+      restoredReservations
+    });
+
+  } catch (err) {
+    console.error("❌ Bulk restore error:", err);
+    console.error("Error stack:", err.stack);
+    
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to bulk restore archived reservations",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+};
