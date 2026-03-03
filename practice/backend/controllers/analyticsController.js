@@ -2936,3 +2936,33 @@ function calculateEngagementTrend(current, previous) {
     direction: percentage >= 0 ? 'up' : 'down'
   };
 }
+
+// ================= EXPORT ANALYTICS =================
+export const exportAnalytics = async (req, res) => {
+  try {
+    const { type = "users", range = "month", startDate, endDate, format = "csv" } = req.query;
+    
+    // This is a placeholder for the export functionality
+    // You can implement actual CSV/Excel generation here
+    
+    res.json({
+      success: true,
+      message: "Export functionality is being implemented",
+      data: {
+        type,
+        range,
+        startDate,
+        endDate,
+        format,
+        generatedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error("Error in exportAnalytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to export analytics",
+      error: error.message
+    });
+  }
+};
