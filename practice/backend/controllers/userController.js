@@ -1486,3 +1486,169 @@ export const forceLogoutUser = async (req, res) => {
     });
   }
 };
+
+// ✅ NEW: Bulk restore archived users
+export const bulkRestoreArchivedUsers = async (req, res) => {
+  try {
+    const { userIds } = req.body;
+    
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "User IDs array is required" 
+      });
+    }
+    
+    console.log("=== BULK RESTORE ARCHIVED USERS ===");
+    console.log("User IDs to restore:", userIds);
+    console.log("Count:", userIds.length);
+    
+    // Update all specified users to restore (archived: false)
+    const updateResult = await User.updateMany(
+      { 
+        _id: { $in: userIds },
+        archived: true // Only restore archived users
+      },
+      { 
+        archived: false
+        // Keep sessionToken null - they'll need to login again
+      }
+    );
+    
+    console.log(`Restored ${updateResult.modifiedCount} users`);
+    
+    // Create notifications for all restored users
+    const usersToNotify = await User.find({ _id: { $in: userIds } });
+    const notifications = [];
+    const io = req.io || null;
+    
+    for (const user of usersToNotify) {
+      try {
+        const notification = new Notification({
+          userId: user._id,
+          title: "Account Restored",
+          message: "Your account has been restored by an administrator. You can now log in again.",
+          type: "system",
+          status: "Active",
+          isRead: false,
+          targetRole: "user",
+          userName: user.name,
+          idNumber: user.id_number
+        });
+        await notification.save();
+        notifications.push(notification);
+        
+        // Emit real-time notification if io is available
+        if (io) {
+          io.to(user._id.toString()).emit('notification', {
+            _id: notification._id,
+            title: notification.title,
+            message: notification.message,
+            type: notification.type,
+            status: notification.status,
+            isRead: notification.isRead,
+            createdAt: notification.createdAt
+          });
+        }
+      } catch (notifError) {
+        console.error(`Failed to create notification for user ${user._id}:`, notifError);
+      }
+    }
+    
+    // Emit socket event for admin UI update
+    if (io) {
+      io.to('admin').emit('bulk-restore-completed', {
+        userIds: userIds,
+        count: updateResult.modifiedCount
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `Successfully restored ${updateResult.modifiedCount} users.`,
+      count: updateResult.modifiedCount,
+      notificationsCreated: notifications.length
+    });
+    
+  } catch (error) {
+    console.error("Bulk Restore Archived Users Error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || "Failed to bulk restore users" 
+    });
+  }
+};
+
+// ✅ NEW: Bulk delete archived users permanently
+export const bulkDeleteArchivedUsers = async (req, res) => {
+  try {
+    const { userIds } = req.body;
+    
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "User IDs array is required" 
+      });
+    }
+    
+    console.log("=== BULK DELETE ARCHIVED USERS ===");
+    console.log("User IDs to delete permanently:", userIds);
+    console.log("Count:", userIds.length);
+    
+    // First, get users to clean up their profile pictures from Cloudinary
+    const usersToDelete = await User.find({ 
+      _id: { $in: userIds },
+      archived: true // Only delete archived users
+    });
+    
+    // Delete profile pictures from Cloudinary
+    for (const user of usersToDelete) {
+      if (user.profilePicture && user.profilePicture.includes('cloudinary')) {
+        try {
+          // Extract public_id from Cloudinary URL
+          const urlParts = user.profilePicture.split('/');
+          const publicIdWithExtension = urlParts[urlParts.length - 1];
+          const publicId = publicIdWithExtension.split('.')[0];
+          
+          // Get the full public_id with folder
+          const fullPublicId = `profile-pictures/${publicId}`;
+          await cloudinary.uploader.destroy(fullPublicId);
+          console.log("Deleted from Cloudinary:", fullPublicId);
+        } catch (cloudinaryError) {
+          console.error(`Error deleting from Cloudinary for user ${user._id}:`, cloudinaryError);
+          // Continue anyway - we still want to delete the user
+        }
+      }
+    }
+    
+    // Delete the users permanently
+    const deleteResult = await User.deleteMany({ 
+      _id: { $in: userIds },
+      archived: true // Only delete archived users
+    });
+    
+    console.log(`Permanently deleted ${deleteResult.deletedCount} users`);
+    
+    // Emit socket event for admin UI update
+    const io = req.io || null;
+    if (io) {
+      io.to('admin').emit('bulk-delete-completed', {
+        userIds: userIds,
+        count: deleteResult.deletedCount
+      });
+    }
+    
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deleteResult.deletedCount} archived users permanently.`,
+      count: deleteResult.deletedCount
+    });
+    
+  } catch (error) {
+    console.error("Bulk Delete Archived Users Error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: error.message || "Failed to bulk delete archived users" 
+    });
+  }
+};

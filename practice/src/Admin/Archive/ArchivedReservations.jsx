@@ -113,7 +113,7 @@ function AdminArchived({ setView, onLogout }) {
       if (response.data.success) {
         showAlert(
           "Success", 
-          `Successfully restored ${response.data.count} reservations.`, 
+          `Successfully restored Reservations.`, 
           "success"
         );
         
