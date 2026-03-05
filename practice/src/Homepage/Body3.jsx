@@ -62,7 +62,7 @@ const floors = [
   },
   {
     name: "4th Floor",
-    description: "Collaboration Corner and Faculty Room",
+    description: "Collaboration Corners and Faculty Corners",
     color: "from-[#CC0000] to-[#990000]",
     accentColor: "[#CC0000]",
     background: Picture2,
@@ -74,7 +74,7 @@ const floors = [
   },
   {
     name: "5th Floor",
-    description: "Collaboration Corner and Faculty Room",
+    description: "Collaboration Corners and Faculty Corners",
     color: "from-[#CC0000] to-[#990000]",
     accentColor: "[#CC0000]",
     background: Picture2,
