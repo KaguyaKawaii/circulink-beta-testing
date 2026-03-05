@@ -29,8 +29,8 @@ import Picture2 from "../assets/picture2.jpg";
 
 const floors = [
   {
-    name: "1st Floor",
-    description: "Graduate Research Hubs and Discussion Rooms",
+    name: "Graduate Studies & Periodicals",
+    description: "",
     color: "from-[#CC0000] to-[#990000]",
     accentColor: "[#CC0000]",
     background: GroundFloor,
@@ -45,8 +45,8 @@ const floors = [
     ]
   },
   {
-    name: "2nd Floor",
-    description: "Discussion Rooms and Faculty Spaces",
+    name: "Atty. Henry T. Villegas",
+    description: "Law Library",
     color: "from-[#CC0000] to-[#990000]",
     accentColor: "[#CC0000]",
     background: SecondFloor1,
@@ -62,7 +62,7 @@ const floors = [
   },
   {
     name: "4th Floor",
-    description: "Collaboration Space and Faculty Room",
+    description: "Collaboration Corner and Faculty Room",
     color: "from-[#CC0000] to-[#990000]",
     accentColor: "[#CC0000]",
     background: Picture2,
@@ -74,7 +74,7 @@ const floors = [
   },
   {
     name: "5th Floor",
-    description: "Collaboration Space and Faculty Room",
+    description: "Collaboration Corner and Faculty Room",
     color: "from-[#CC0000] to-[#990000]",
     accentColor: "[#CC0000]",
     background: Picture2,
