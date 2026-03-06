@@ -91,8 +91,12 @@ export const addUser = async (data, file) => {
 };
 
 // userService.js - Fixed signup function
+
 export const signup = async (data, file) => {
   const { name, email, id_number, password, role, department, course, yearLevel } = data;
+
+  console.log("=== SIGNUP SERVICE ===");
+  console.log("Input data:", { name, email, id_number, role, department, course, yearLevel });
 
   if (!name || !email || !id_number || !password || !role) throw new Error("Missing required fields.");
   if (!email.endsWith("@usa.edu.ph")) throw new Error("Email must end with @usa.edu.ph");
@@ -115,8 +119,8 @@ export const signup = async (data, file) => {
     profilePicture = upload.secure_url;
   }
 
-  // IMPORTANT: Force verified to false for all new signups
-  // This ensures users start as unverified and need admin approval
+  // 🔴 CRITICAL: Force verified to false for all new signups
+  // Do NOT allow any value from the request body to set verified
   const newUser = new User({
     name,
     email: email.toLowerCase(),
@@ -132,7 +136,10 @@ export const signup = async (data, file) => {
     isLoggedIn: false
   });
 
+  console.log("Creating user with verified = false");
   await newUser.save();
+  
+  console.log("✅ User created with verified =", newUser.verified);
   
   // Log the signup activity
   await logAction(
@@ -168,7 +175,6 @@ export const signup = async (data, file) => {
   delete userResponse.sessionToken;
   return userResponse;
 };
-
 // ✅ UPDATED: Login with session token for single device
 export const login = async ({ email, password }, io = null) => {
   const user = await User.findOne({ email: email.toLowerCase() });

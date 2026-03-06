@@ -138,6 +138,8 @@ export const signup = async (req, res) => {
   }
 };
 
+// userController.js - FIXED login function
+
 // 📌 Login
 export const login = async (req, res) => {
   try {
@@ -180,9 +182,20 @@ export const login = async (req, res) => {
       hasPassword: !!user.password
     });
 
-    // Check if user is verified
+    // 🔴 FIX: CHECK VERIFICATION STATUS FIRST - THIS WAS THE ISSUE
+    // Users MUST be verified to log in
     if (!user.verified) {
-      console.log("❌ User is not verified");
+      console.log("❌ User is not verified - login denied");
+      
+      // Log failed login attempt due to verification
+      await createActivityLog(
+        user._id,
+        user.id_number,
+        user.name,
+        "login failed",
+        "Account not verified"
+      );
+      
       return res.status(403).json({ 
         success: false, 
         message: "Account is not verified. Please wait for admin verification." 

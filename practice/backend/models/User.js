@@ -22,7 +22,7 @@ const userSchema = new mongoose.Schema({
     enum: ["Student", "Faculty", "Staff", "Staff_Office"],
     default: "Student",
   },
-  verified:   { type: Boolean, default: false }, // All users start unverified
+  verified:   { type: Boolean, default: false }, // CRITICAL: All users start unverified
   suspended: { type: Boolean, default: false },
   isLoggedIn: { type: Boolean, default: false },
   currentSessionId: { type: String, default: null },
@@ -71,9 +71,16 @@ userSchema.pre("save", async function (next) {
       }
     }
 
-    // REMOVED AUTO-VERIFY - All users need admin verification
-    // No role gets auto-verified anymore
-    // All users start with verified: false from schema default
+    // 🔴 CRITICAL FIX: Remove any auto-verification
+    // Do NOT auto-verify any users - they must be verified by admin
+    // The schema default of false will be used for all new users
+    
+    // Ensure verified is explicitly false for new users
+    if (this.isNew) {
+      // Force verified to false for all new users regardless of what was set
+      this.verified = false;
+      console.log("✅ New user created with verified = false");
+    }
 
     // Set default values for non-student roles
     if (this.isNew) {
