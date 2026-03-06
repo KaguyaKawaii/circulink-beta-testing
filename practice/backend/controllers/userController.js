@@ -95,25 +95,16 @@ export const addUser = async (req, res) => {
   }
 };
 
-// userController.js - Fixed signup function
+// 📌 Signup - FIXED: Ensure users are created as unverified
 export const signup = async (req, res) => {
   try {
-    console.log("=== SIGNUP ATTEMPT ===");
-    console.log("Request body:", req.body);
-    
     // CRITICAL FIX: Remove verified from request body if it exists
     // This ensures users cannot set themselves as verified
-    if (req.body.verified !== undefined) {
-      console.log("⚠️ Removing verified field from request body");
+    if (req.body.verified) {
       delete req.body.verified;
     }
     
-    // Ensure verified is not in the request
-    req.body.verified = false;
-    
     const newUser = await userService.signup(req.body, req.file);
-    
-    console.log("✅ User created with verified =", newUser.verified);
     
     // Log activity
     await createActivityLog(
@@ -130,10 +121,10 @@ export const signup = async (req, res) => {
       user: newUser 
     });
   } catch (err) {
-    console.error("❌ Signup Error:", err);
     res.status(400).json({ success: false, message: err.message || "Failed to signup." });
   }
 };
+
 // 📌 Login
 export const login = async (req, res) => {
   try {
