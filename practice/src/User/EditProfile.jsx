@@ -3,7 +3,7 @@ import api from "../utils/api";
 import "react-image-crop/dist/ReactCrop.css";
 import "../index.css";
 import ReactCrop from "react-image-crop";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Eye, EyeOff } from "lucide-react";
 import ReportProblemModal from "./Modals/ReportProblemModal";
 
 
@@ -141,23 +141,46 @@ async function getCroppedBlob(image, crop, fileType = "image/jpeg", quality = 0.
   });
 }
 
-// Reusable Input Component
-const Input = ({ label, name, type = "text", value, onChange, required = false, disabled = false }) => (
-  <div>
-    <label className="block text-sm font-medium text-gray-600 mb-1">
-      {label} {required && <span className="text-red-500">*</span>}
-    </label>
-    <input
-      type={type}
-      name={name}
-      value={value}
-      onChange={onChange}
-      required={required}
-      disabled={disabled}
-      className="w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed text-sm sm:text-base"
-    />
-  </div>
-);
+// Reusable Input Component with password toggle
+const Input = ({ label, name, type = "text", value, onChange, required = false, disabled = false }) => {
+  const [showPassword, setShowPassword] = useState(false);
+  const isPassword = type === "password";
+  
+  return (
+    <div>
+      <label className="block text-sm font-medium text-gray-600 mb-1">
+        {label} {required && <span className="text-red-500">*</span>}
+      </label>
+      <div className="relative">
+        <input
+          type={isPassword ? (showPassword ? "text" : "password") : type}
+          name={name}
+          value={value}
+          onChange={onChange}
+          required={required}
+          disabled={disabled}
+          className={`w-full px-3 py-2 border border-gray-200 rounded-md bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed text-sm sm:text-base ${
+            isPassword ? "pr-10" : ""
+          }`}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer"
+            tabIndex="-1"
+          >
+            {showPassword ? (
+              <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
+            ) : (
+              <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 function EditProfile({ user, setView }) {
   const [form, setForm] = useState({
@@ -175,6 +198,11 @@ function EditProfile({ user, setView }) {
     confirmPassword: "",
   });
 
+  // Password visibility states
+  const [showOldPassword, setShowOldPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
   const [image, setImage] = useState(null);
   const [tempImage, setTempImage] = useState(null);
   const [profileUrl, setProfileUrl] = useState("");
@@ -185,6 +213,12 @@ function EditProfile({ user, setView }) {
   const [toastVisible, setToastVisible] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
 
+  // Password strength indicator
+  const [passwordStrength, setPasswordStrength] = useState({
+    score: 0,
+    message: "",
+    color: ""
+  });
 
   // Image crop modal states
   const [isPhotoModalOpen, setIsPhotoModalOpen] = useState(false);
@@ -198,6 +232,38 @@ function EditProfile({ user, setView }) {
   const [showDepartmentDropdown, setShowDepartmentDropdown] = useState(false);
   const [showCourseDropdown, setShowCourseDropdown] = useState(false);
   const [showYearLevelDropdown, setShowYearLevelDropdown] = useState(false);
+
+  // Check password strength
+  const checkPasswordStrength = (password) => {
+    if (!password) {
+      setPasswordStrength({ score: 0, message: "", color: "" });
+      return;
+    }
+
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (password.length >= 12) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/[0-9]/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+
+    let message = "";
+    let color = "";
+
+    if (score <= 2) {
+      message = "Weak";
+      color = "bg-red-500";
+    } else if (score <= 4) {
+      message = "Medium";
+      color = "bg-yellow-500";
+    } else {
+      message = "Strong";
+      color = "bg-green-500";
+    }
+
+    setPasswordStrength({ score: Math.min(score, 6), message, color });
+  };
 
   // Check if a course is a graduate program
   const isGraduateProgram = (course) => {
@@ -246,7 +312,15 @@ function EditProfile({ user, setView }) {
   }, [error, successMsg]);
 
   const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
-  const handlePasswordChange = (e) => setPasswordForm({ ...passwordForm, [e.target.name]: e.target.value });
+  
+  const handlePasswordChange = (e) => {
+    const { name, value } = e.target;
+    setPasswordForm({ ...passwordForm, [name]: value });
+    
+    if (name === "newPassword") {
+      checkPasswordStrength(value);
+    }
+  };
 
   // Department dropdown handlers
   const handleDepartmentSelect = (dept) => {
@@ -522,7 +596,7 @@ function EditProfile({ user, setView }) {
     }
   };
 
-  // 📌 Change Password - FIXED endpoints
+  // 📌 Change Password - FIXED endpoints with enhanced validation
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -530,6 +604,7 @@ function EditProfile({ user, setView }) {
     setSuccessMsg("");
 
     try {
+      // Enhanced validation
       if (passwordForm.newPassword !== passwordForm.confirmPassword) {
         setError("New passwords do not match.");
         setLoading(false);
@@ -538,6 +613,13 @@ function EditProfile({ user, setView }) {
 
       if (passwordForm.newPassword.length < 8) {
         setError("New password must be at least 8 characters long.");
+        setLoading(false);
+        return;
+      }
+
+      // Check password strength for better UX
+      if (passwordStrength.score < 3) {
+        setError("Please choose a stronger password (mix of letters, numbers, and special characters).");
         setLoading(false);
         return;
       }
@@ -558,6 +640,7 @@ function EditProfile({ user, setView }) {
         newPassword: "",
         confirmPassword: ""
       });
+      setPasswordStrength({ score: 0, message: "", color: "" });
 
     } catch (err) {
       console.error("Password change error:", err);
@@ -938,46 +1021,140 @@ function EditProfile({ user, setView }) {
 
               <form onSubmit={handlePasswordSubmit}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
+                  {/* Current Password with Eye Icon */}
                   <div className="sm:col-span-2">
                     <label className="block text-sm font-medium text-gray-600 mb-2">
                       Current Password <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="password"
-                      name="oldPassword"
-                      value={passwordForm.oldPassword}
-                      onChange={handlePasswordChange}
-                      required
-                      className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition text-sm sm:text-base"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showOldPassword ? "text" : "password"}
+                        name="oldPassword"
+                        value={passwordForm.oldPassword}
+                        onChange={handlePasswordChange}
+                        required
+                        className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition text-sm sm:text-base pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowOldPassword(!showOldPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer"
+                        tabIndex="-1"
+                      >
+                        {showOldPassword ? (
+                          <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
+                        ) : (
+                          <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
+                  {/* New Password with Eye Icon and Strength Indicator */}
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-2">
                       New Password <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="password"
-                      name="newPassword"
-                      value={passwordForm.newPassword}
-                      onChange={handlePasswordChange}
-                      required
-                      className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition text-sm sm:text-base"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showNewPassword ? "text" : "password"}
+                        name="newPassword"
+                        value={passwordForm.newPassword}
+                        onChange={handlePasswordChange}
+                        required
+                        className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition text-sm sm:text-base pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowNewPassword(!showNewPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer"
+                        tabIndex="-1"
+                      >
+                        {showNewPassword ? (
+                          <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
+                        ) : (
+                          <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+                        )}
+                      </button>
+                    </div>
+                    {/* Password Strength Indicator */}
+                    {passwordForm.newPassword && (
+                      <div className="mt-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full ${passwordStrength.color} transition-all duration-300`}
+                              style={{ width: `${(passwordStrength.score / 6) * 100}%` }}
+                            />
+                          </div>
+                          <span className={`text-xs font-medium ${
+                            passwordStrength.score <= 2 ? 'text-red-600' :
+                            passwordStrength.score <= 4 ? 'text-yellow-600' :
+                            'text-green-600'
+                          }`}>
+                            {passwordStrength.message}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Use at least 8 characters with a mix of letters, numbers & symbols
+                        </p>
+                      </div>
+                    )}
                   </div>
 
+                  {/* Confirm New Password with Eye Icon */}
                   <div>
                     <label className="block text-sm font-medium text-gray-600 mb-2">
                       Confirm New Password <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      value={passwordForm.confirmPassword}
-                      onChange={handlePasswordChange}
-                      required
-                      className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition text-sm sm:text-base"
-                    />
+                    <div className="relative">
+                      <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        name="confirmPassword"
+                        value={passwordForm.confirmPassword}
+                        onChange={handlePasswordChange}
+                        required
+                        className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500/50 focus:border-red-500 transition text-sm sm:text-base pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer"
+                        tabIndex="-1"
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
+                        ) : (
+                          <Eye className="w-4 h-4 sm:w-5 sm:h-5" />
+                        )}
+                      </button>
+                    </div>
+                    {/* Password Match Indicator */}
+                    {passwordForm.confirmPassword && passwordForm.newPassword && (
+                      <div className="mt-2">
+                        <p className={`text-xs flex items-center gap-1 ${
+                          passwordForm.newPassword === passwordForm.confirmPassword
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                        }`}>
+                          {passwordForm.newPassword === passwordForm.confirmPassword ? (
+                            <>
+                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                              <span>Passwords match</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                              <span>Passwords do not match</span>
+                            </>
+                          )}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
