@@ -44,24 +44,21 @@ const isSameManilaDate = (date1, date2) => {
   return getManilaDateString(date1) === getManilaDateString(date2);
 };
 
-// Filter reservations to hide expired, canceled, and completed after 24 hours
+// Filter reservations
 const filterReservations = (reservations) => {
   const now = new Date();
   const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
   
   return reservations.filter(reservation => {
-    // Keep approved and pending reservations regardless of time
     if (reservation.status === "Approved" || reservation.status === "Pending") {
       return true;
     }
     
-    // For rejected, expired, cancelled, or completed reservations, only show if created within last 24 hours
     if (reservation.status === "Rejected" || reservation.status === "Expired" || reservation.status === "Cancelled" || reservation.status === "Completed") {
       const relevantDate = new Date(reservation.statusUpdatedAt || reservation.createdAt);
       return relevantDate > twentyFourHoursAgo;
     }
     
-    // For any other status, show by default
     return true;
   });
 };
@@ -81,7 +78,6 @@ function Dashboard({ user, setView, setSelectedReservation }) {
   const [modalDate, setModalDate] = useState(new Date());
   const [availLoading, setAvailLoading] = useState(false);
   const [availError, setAvailError] = useState("");
-  const [participantConflict, setParticipantConflict] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [newReservation, setNewReservation] = useState(null);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -95,10 +91,10 @@ function Dashboard({ user, setView, setSelectedReservation }) {
   const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
   const [allAnnouncements, setAllAnnouncements] = useState([]);
   
-const API_BASE_URL = `${import.meta.env.VITE_API_URL}`;
-const RESERVATIONS_ENDPOINT = `${API_BASE_URL}/api/reservations`;
-const NEWS_ENDPOINT = `${API_BASE_URL}/api/news`;
-const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
+  const API_BASE_URL = `${import.meta.env.VITE_API_URL}`;
+  const RESERVATIONS_ENDPOINT = `${API_BASE_URL}/api/reservations`;
+  const NEWS_ENDPOINT = `${API_BASE_URL}/api/news`;
+  const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
 
   // Event listener for new reservations
   useEffect(() => {
@@ -123,7 +119,6 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
       const sorted = data.sort((a, b) => new Date(b.datetime) - new Date(a.datetime));
       setAllReservations(sorted);
       
-      // Apply filtering
       const filtered = filterReservations(sorted);
       setFilteredReservations(filtered);
       
@@ -183,78 +178,34 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
   // Fetch announcements
   const fetchAnnouncements = useCallback(async () => {
     try {
-      console.log("Fetching announcements from:", `${ANNOUNCEMENTS_ENDPOINT}/active`);
-      
-      // Try the active endpoint first
       const { data } = await axios.get(`${ANNOUNCEMENTS_ENDPOINT}/active`);
-      console.log("Active announcements response:", data);
       
       let activeAnnouncements = [];
       
-      // Handle different response structures
       if (data.announcements && Array.isArray(data.announcements)) {
-        // Response has announcements array
         activeAnnouncements = data.announcements.filter(announcement => 
           announcement.isActive !== false && 
           new Date(announcement.endDate) >= new Date()
         );
       } else if (Array.isArray(data)) {
-        // Response is directly an array
         activeAnnouncements = data.filter(announcement => 
           announcement.isActive !== false && 
           new Date(announcement.endDate) >= new Date()
         );
       } else if (data.success && Array.isArray(data.data)) {
-        // Response has data array
         activeAnnouncements = data.data.filter(announcement => 
           announcement.isActive !== false && 
           new Date(announcement.endDate) >= new Date()
         );
       }
       
-      console.log("Filtered active announcements:", activeAnnouncements);
       setAnnouncements(activeAnnouncements);
       setAllAnnouncements(activeAnnouncements);
       
     } catch (error) {
-      console.error("Failed to fetch announcements from /active endpoint:", error);
-      
-      // Fallback: try the regular announcements endpoint
-      try {
-        console.log("Trying fallback to regular announcements endpoint");
-        const { data } = await axios.get(ANNOUNCEMENTS_ENDPOINT);
-        console.log("Regular announcements response:", data);
-        
-        let activeAnnouncements = [];
-        const now = new Date();
-        
-        // Handle different response structures for fallback
-        if (data.announcements && Array.isArray(data.announcements)) {
-          activeAnnouncements = data.announcements.filter(announcement => 
-            announcement.isActive !== false && 
-            new Date(announcement.endDate) >= now
-          );
-        } else if (Array.isArray(data)) {
-          activeAnnouncements = data.filter(announcement => 
-            announcement.isActive !== false && 
-            new Date(announcement.endDate) >= now
-          );
-        } else if (data.success && Array.isArray(data.data)) {
-          activeAnnouncements = data.data.filter(announcement => 
-            announcement.isActive !== false && 
-            new Date(announcement.endDate) >= now
-          );
-        }
-        
-        console.log("Fallback filtered announcements:", activeAnnouncements);
-        setAnnouncements(activeAnnouncements);
-        setAllAnnouncements(activeAnnouncements);
-        
-      } catch (fallbackError) {
-        console.error("Failed to fetch announcements with fallback:", fallbackError);
-        setAnnouncements([]);
-        setAllAnnouncements([]);
-      }
+      console.error("Failed to fetch announcements:", error);
+      setAnnouncements([]);
+      setAllAnnouncements([]);
     }
   }, [ANNOUNCEMENTS_ENDPOINT]);
 
@@ -314,12 +265,11 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
     return () => clearInterval(interval);
   }, [showAvailModal, modalDate, RESERVATIONS_ENDPOINT]);
 
-  // Update filtered reservations when allReservations changes
+  // Update filtered reservations
   useEffect(() => {
     const filtered = filterReservations(allReservations);
     setFilteredReservations(filtered);
     
-    // Reset to first page if filtered results change significantly
     if (filtered.length > 0 && currentReservationPage > Math.ceil(filtered.length / reservationsPerPage)) {
       setCurrentReservationPage(1);
     }
@@ -345,7 +295,6 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
       await axios.post(`${ANNOUNCEMENTS_ENDPOINT}/${announcementId}/dismiss`, {
         userId: user._id
       });
-      // Refresh announcements after dismissal
       fetchAnnouncements();
       setShowAnnouncementModal(false);
     } catch (error) {
@@ -413,7 +362,6 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
         className={`absolute inset-0 flex items-center justify-center ${
           isToday ? "bg-yellow-400/20 rounded-full" : ""
         } ${hasRes ? "bg-green-500/10" : ""}`}
-        aria-label={`${date.getDate()} ${isToday ? "Today" : ""} ${hasRes ? "Has reservation" : ""}`}
       >
         {date.getDate()}
       </div>
@@ -434,20 +382,24 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
     return statusColors[status] || 'bg-gray-100 text-gray-600 border border-gray-200';
   };
 
-  // Get current reservations for pagination
+  // Pagination
   const indexOfLastReservation = currentReservationPage * reservationsPerPage;
   const indexOfFirstReservation = indexOfLastReservation - reservationsPerPage;
   const currentReservations = filteredReservations.slice(indexOfFirstReservation, indexOfLastReservation);
   const totalPages = Math.ceil(filteredReservations.length / reservationsPerPage);
 
-  // Change page
   const paginate = (pageNumber) => setCurrentReservationPage(pageNumber);
 
   return (
     <main className="min-h-screen flex flex-col bg-[#FFFCFB] transition-all duration-300">
       {/* HEADER */}
-      <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm bg-white">
+      <header className="bg-white text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm border-b border-gray-200">
         <h1 className="text-xl md:text-2xl font-bold tracking-wide">Dashboard</h1>
+        
+        {/* Desktop Profile Icon - Only visible on mobile header, but we keep it minimal */}
+        <div className="hidden md:block">
+          {/* Empty for now - profile is in sidebar */}
+        </div>
       </header>
 
       {/* BODY */}
@@ -456,7 +408,6 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
         <div className="flex-1 flex flex-col gap-4 sm:gap-6">
           {/* Welcome banner */}
           <div className="bg-gradient-to-r from-red-700 to-red-800 shadow-lg rounded-xl w-full h-32 sm:h-40 flex flex-col items-center justify-center text-center text-white p-4 sm:p-6 relative overflow-hidden">
-            {/* Animated background elements */}
             <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent"></div>
             <div className="absolute top-0 left-0 w-32 h-32 bg-white/5 rounded-full -translate-x-1/2 -translate-y-1/2"></div>
             <div className="absolute bottom-0 right-0 w-40 h-40 bg-white/5 rounded-full translate-x-1/3 translate-y-1/3"></div>
@@ -567,16 +518,11 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
             <div className="border-b border-gray-200 mb-4 sm:mb-5" />
             {isLoading ? (
               <div className="flex flex-col justify-center items-center h-full space-y-4 py-8">
-                {/* Enhanced Spinner */}
                 <div className="relative flex items-center justify-center">
-                  {/* Outer subtle ring */}
                   <div className="w-12 h-12 border-4 border-gray-200 rounded-full"></div>
-                  {/* Spinning red gradient ring */}
                   <div className="absolute w-12 h-12 border-4 border-transparent border-t-red-500 border-l-red-500 rounded-full animate-spin"></div>
-                  {/* Inner dot */}
                   <div className="absolute w-2 h-2 bg-red-500 rounded-full"></div>
                 </div>
-                {/* Loading text */}
                 <span className="text-sm font-medium text-gray-600 animate-pulse">
                   Loading, please wait...
                 </span>
@@ -589,7 +535,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                     className="border border-gray-200 rounded-xl p-4 sm:p-5 bg-white shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col h-full mb-4"
                   >
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
-                      <h3 className="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2">
+                      <h3 className="text-base sm:text-lg font-bold text-gray-800">
                         {reservation.roomName}
                       </h3>
                       <span
@@ -652,7 +598,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                             {reservation.participants.map((participant, index) => (
                               <div 
                                 key={index} 
-                                className="flex items-center bg-gray-50 px-3 py-2 rounded-lg text-sm border border-gray-100 hover:bg-gray-100 transition-colors duration-200"
+                                className="flex items-center bg-gray-50 px-3 py-2 rounded-lg text-sm border border-gray-100"
                               >
                                 <span className="w-6 h-6 rounded-full bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-center text-xs text-white font-medium mr-2">
                                   {participant.name?.charAt(0) || participant.email?.charAt(0)}
@@ -680,7 +626,6 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                           setSelectedReservation?.(reservation);
                           setView?.("reservationDetails");
                         }}
-                        aria-label={`View details for ${reservation.roomName} reservation`}
                       >
                         View details
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -707,7 +652,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                   <p className="text-gray-600 text-sm sm:text-base mb-3">
-                    "There are no active reservations at the moment."
+                    No active reservations at the moment.
                   </p>
                   <button 
                     onClick={handleReserveClick}
@@ -744,7 +689,6 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
               nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">▶</span>}
               prev2Label={null}
               next2Label={null}
-              aria-label="Reservation calendar"
               calendarType="gregory"
               formatShortWeekday={(locale, date) => {
                 const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -772,18 +716,11 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
             }`}
             onClick={handleReserveClick}
             disabled={activeRes?.dayReservationCount >= 2}
-            aria-label={
-              activeRes?.dayReservationCount >= 2
-                ? "Reservation limit reached"
-                : "Reserve a room"
-            }
           >
-            {/* Animated background effect */}
             {!activeRes?.dayReservationCount >= 2 && (
               <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
             )}
 
-            {/* Shimmer effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 transform translate-x-[-100%] group-hover:translate-x-[100%] transition-all duration-1000"></div>
 
             <div className="flex flex-col justify-center items-center text-white relative z-10 transition-all duration-300 group-hover:scale-105">
@@ -837,7 +774,6 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                     className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 transition-all duration-200 border-b border-gray-100 last:border-b-0 px-3 py-3 rounded-lg hover:shadow-sm"
                     onClick={() => handleAnnouncementClick(announcement, index)}
                   >
-                    {/* Microphone icon */}
                     <svg
                       className="w-4 h-4 text-gray-500 flex-shrink-0"
                       viewBox="0 0 24 24"
@@ -853,14 +789,12 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                       />
                     </svg>
 
-                    {/* Announcement title */}
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-gray-800 text-sm truncate">
                         {announcement.title}
                       </h3>
                     </div>
                     
-                    {/* Chevron icon */}
                     <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
@@ -882,12 +816,10 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
       {/* Footer */}
       <footer className="mt-auto bg-white border-t border-gray-200">
         <div className="px-4 sm:px-5 py-3 sm:py-2 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
-          {/* Copyright */}
           <div className="text-xs sm:text-sm text-gray-500 order-2 sm:order-1 flex items-center gap-1">
             © {new Date().getFullYear()} <span className="font-semibold">USA-FLD CircuLink</span>
           </div>
 
-          {/* Report Button */}
           <button
             onClick={() => setShowReportModal(true)}
             className="flex items-center gap-1 text-xs sm:text-sm font-medium text-red-600 hover:text-red-800 transition-all duration-300 cursor-pointer order-1 sm:order-2 hover:gap-2"
@@ -911,7 +843,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
         </div>
       </footer>
 
-      {/* Modal Components */}
+      {/* Modals */}
       {showReportModal && (
         <ReportProblemModal
           isOpen={showReportModal}
@@ -920,7 +852,6 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
         />
       )}
 
-      {/* Announcement Modal */}
       {showAnnouncementModal && (
         <AnnouncementModal
           announcements={allAnnouncements}
@@ -932,7 +863,6 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
         />
       )}
 
-      {/* Room Availability Modal */}
       {showAvailModal && (
         <RoomAvailabilityModal
           selectedDate={modalDate}
