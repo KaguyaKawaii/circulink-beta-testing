@@ -462,28 +462,8 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     },
     { 
       id: "profile", 
-      label: user?.name || "Profile", 
-      icon: (
-        <div className="w-6 h-6 rounded-full bg-gray-600 overflow-hidden flex items-center justify-center text-white text-xs font-bold">
-          {user?.profilePicture ? (
-            <img
-              src={
-                user.profilePicture.startsWith("http")
-                  ? `${user.profilePicture}?t=${imgTimestamp}`
-                  : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`
-              }
-              alt="Profile"
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = "/default-avatar.png";
-              }}
-            />
-          ) : (
-            user?.name?.charAt(0)?.toUpperCase() || "?"
-          )}
-        </div>
-      ),
+      label: "Profile", 
+      icon: <UserCircle size={18} />,
     },
   ];
 
@@ -656,10 +636,8 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                   disabled={user?.suspended}
                   className={`
                     flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer relative group
-                    ${isActive(btn.id)
-                      ? "bg-red-600 text-white shadow-md"
-                      : "bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white"
-                    }
+                    text-gray-300 hover:text-white hover:bg-[#333333]
+                    ${isActive(btn.id) ? "text-white" : ""}
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
                     text-sm
                   `}
@@ -687,12 +665,8 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                   disabled={user?.suspended}
                   className={`
                     flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer w-full
-                    ${showHelp ||
-                      currentView === "help" ||
-                      currentView === "guidelines"
-                        ? "bg-red-600 text-white shadow-md"
-                        : "bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white"
-                    }
+                    text-gray-300 hover:text-white hover:bg-[#333333]
+                    ${(showHelp || currentView === "help" || currentView === "guidelines") ? "text-white" : ""}
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
                     text-sm
                   `}
@@ -794,7 +768,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                           </h2>
                           <p className="text-xs text-gray-600 mt-1">
                             Learn how to use rooms properly
-                              </p>
+                          </p>
                         </button>
                       </div>
                     )}
@@ -809,9 +783,9 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                 onClick={onLogout}
                 disabled={user?.suspended}
                 className={`
-                  w-full flex items-center gap-3 justify-center px-4 py-3 rounded-lg bg-[#2a2a2a] font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group
+                  w-full flex items-center gap-3 justify-center px-4 py-3 rounded-lg font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group
                   ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                  text-sm
+                  text-sm bg-transparent
                 `}
               >
                 <LogOut
