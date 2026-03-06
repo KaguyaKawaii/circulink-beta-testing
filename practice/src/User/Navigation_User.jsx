@@ -8,7 +8,6 @@ import {
   History,
   Bell,
   MessageSquare,
-  UserCircle,
   LogOut,
   HelpCircle,
   Menu,
@@ -16,6 +15,10 @@ import {
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
+  Home,
+  Calendar,
+  User,
+  Settings,
 } from "lucide-react";
 
 function Navigation_User({ user: initialUser, setView, currentView, onLogout }) {
@@ -30,7 +33,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   const [showSuspensionModal, setShowSuspensionModal] = useState(false);
   const [suspensionData, setSuspensionData] = useState(null);
   
-  // Sidebar collapsed state
+  // Sidebar collapsed state - Instagram style
   const [isCollapsed, setIsCollapsed] = useState(false);
   
   // ANNOUNCEMENT STATES
@@ -38,22 +41,18 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
 
-  // Check if device is tablet/desktop for auto-collapse behavior
+  // Check if device is tablet/desktop
   const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
 
-  // 🔊 Notification sound — uses /ringtone_message.wav from public folder
+  // Notification sound
   const messageSound = useRef(null);
-  
-  // FIXED: Use ref to track if socket listeners are set up
   const socketListenersSet = useRef(false);
   
   useEffect(() => {
-    // Create audio element only when needed and hide it
     messageSound.current = new Audio("/ringtone_message.wav");
     messageSound.current.volume = 0.75;
     
-    // Hide audio element from accessibility and visual display
     if (messageSound.current) {
       messageSound.current.style.display = 'none';
       messageSound.current.setAttribute('aria-hidden', 'true');
@@ -61,7 +60,6 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     }
     
     return () => {
-      // Cleanup
       if (messageSound.current) {
         messageSound.current.pause();
         messageSound.current = null;
@@ -69,26 +67,25 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     };
   }, []);
 
-  // Handle window resize for responsive behavior
+  // Handle window resize
   useEffect(() => {
     const handleResize = () => {
       const width = window.innerWidth;
       setIsTablet(width >= 768 && width < 1024);
       setIsDesktop(width >= 1024);
       
-      // Auto-collapse on tablet when switching from desktop
+      // Auto-collapse on tablet
       if (width >= 768 && width < 1024) {
         setIsCollapsed(true);
       }
       
-      // Close mobile menu on desktop
       if (width >= 1024) {
         setIsMobileMenuOpen(false);
       }
     };
 
     window.addEventListener('resize', handleResize);
-    handleResize(); // Initial check
+    handleResize();
     
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -96,7 +93,6 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   useEffect(() => {
     setUser(initialUser);
     
-    // Check if user is suspended when component mounts or user changes
     if (initialUser?.suspended) {
       setSuspensionData({
         reason: initialUser.suspensionReason || 'Violation of terms of service',
@@ -107,32 +103,19 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     }
   }, [initialUser]);
 
-  // Play sound function with better error handling
   const playNotificationSound = () => {
     try {
       if (messageSound.current) {
         messageSound.current.currentTime = 0;
-        messageSound.current.play().catch((error) => {
-          // Silent fail - don't show errors to user
-          console.log("Audio play failed (user gesture required):", error);
-        });
+        messageSound.current.play().catch(() => {});
       }
-    } catch (error) {
-      // Silent fail
-      console.log("Audio error:", error);
-    }
+    } catch (error) {}
   };
 
   const fetchUnreadCounts = async () => {
-    if (!initialUser?._id) {
-      console.warn('No user ID available for fetching unread counts');
-      return;
-    }
+    if (!initialUser?._id) return;
 
     try {
-      console.log('🔔 Fetching unread counts for user:', initialUser._id);
-      
-      // Use Promise.allSettled to handle individual failures
       const [messageResult, notificationResult] = await Promise.allSettled([
         api.get(`/messages/unread-count/${initialUser._id}`),
         api.get(`/notifications/unread-count/${initialUser._id}`)
@@ -141,52 +124,13 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
       let messageCount = 0;
       let notificationCount = 0;
 
-      // Handle message count result
       if (messageResult.status === 'fulfilled') {
-        const messageData = messageResult.value.data;
-        messageCount = messageData.count || messageData.unreadCount || 0;
-        console.log('✅ Message count fetched:', messageCount);
-      } else {
-        console.error('❌ Message count fetch failed:', messageResult.reason);
-        // Fallback: try alternative endpoint
-        try {
-          const fallbackResponse = await api.get(`/messages/user/${initialUser._id}`);
-          if (fallbackResponse.data) {
-            const messages = Array.isArray(fallbackResponse.data) ? fallbackResponse.data : 
-                           fallbackResponse.data.messages || [];
-            messageCount = messages.filter(msg => !msg.read).length;
-            console.log('✅ Message count (fallback):', messageCount);
-          }
-        } catch (fallbackError) {
-          console.error('❌ Fallback message count also failed:', fallbackError);
-        }
+        messageCount = messageResult.value.data.count || messageResult.value.data.unreadCount || 0;
       }
 
-      // Handle notification count result
       if (notificationResult.status === 'fulfilled') {
-        const notificationData = notificationResult.value.data;
-        notificationCount = notificationData.count || notificationData.unreadCount || 0;
-        console.log('✅ Notification count fetched:', notificationCount);
-      } else {
-        console.error('❌ Notification count fetch failed:', notificationResult.reason);
-        // Fallback: try alternative endpoint
-        try {
-          const fallbackResponse = await api.get(`/notifications/user/${initialUser._id}`);
-          if (fallbackResponse.data) {
-            const notifications = Array.isArray(fallbackResponse.data) ? fallbackResponse.data : 
-                                fallbackResponse.data.notifications || [];
-            notificationCount = notifications.filter(notif => !notif.read).length;
-            console.log('✅ Notification count (fallback):', notificationCount);
-          }
-        } catch (fallbackError) {
-          console.error('❌ Fallback notification count also failed:', fallbackError);
-        }
+        notificationCount = notificationResult.value.data.count || notificationResult.value.data.unreadCount || 0;
       }
-
-      console.log('📊 Final unread counts:', { 
-        messages: messageCount, 
-        notifications: notificationCount 
-      });
 
       setUnreadCounts({
         notifications: notificationCount,
@@ -194,12 +138,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
       });
 
     } catch (err) {
-      console.error("❌ Overall unread counts fetch failed:", err);
-      // Set fallback values if API fails
-      setUnreadCounts({
-        notifications: 0,
-        messages: 0,
-      });
+      console.error("Failed to fetch unread counts:", err);
     }
   };
 
@@ -210,7 +149,6 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
       setUser(updatedUser);
       setImgTimestamp(Date.now());
 
-      // Check for suspension after fetching user data
       if (updatedUser.suspended) {
         setSuspensionData({
           reason: updatedUser.suspensionReason || 'Violation of terms of service',
@@ -234,7 +172,6 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   // ANNOUNCEMENT FUNCTIONS
   const fetchAnnouncements = async () => {
     try {
-      // Pass user ID as query parameter instead of relying on auth
       const response = await api.get(`/announcements/active?userId=${initialUser?._id}&userRole=${initialUser?.role || 'student'}`);
       if (response.data.success && response.data.announcements.length > 0) {
         setAnnouncements(response.data.announcements);
@@ -248,17 +185,12 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
 
   const handleDismissAnnouncement = async (announcementId) => {
     try {
-      // Pass user ID in request body instead of relying on auth
       await api.post(`/announcements/${announcementId}/dismiss`, { userId: user?._id });
-      
-      // Remove from local state
       setAnnouncements(prev => prev.filter(ann => ann._id !== announcementId));
       
-      // If no more announcements, close modal
       if (announcements.length <= 1) {
         setShowAnnouncementModal(false);
       } else {
-        // Move to next announcement
         setCurrentAnnouncementIndex(0);
       }
     } catch (error) {
@@ -275,22 +207,18 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   };
 
   const handleCloseAllAnnouncements = () => {
-    // Dismiss all announcements
     announcements.forEach(announcement => {
       handleDismissAnnouncement(announcement._id);
     });
     setShowAnnouncementModal(false);
   };
 
-  // FIXED: Setup socket listeners only once
+  // Socket listeners setup
   const setupSocketListeners = () => {
     if (socketListenersSet.current) return;
     
-    console.log('🔌 Setting up socket listeners for Navigation_User');
-
     const handleUserUpdate = (updatedId) => {
       if (updatedId === initialUser?._id) {
-        console.log('🔄 User update received, refreshing data...');
         fetchData();
       }
     };
@@ -313,16 +241,13 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
       }
     };
     
-    // FIXED: Improved notification handler
     const handleNewNotification = (newNotif) => {
       if (newNotif.userId === initialUser?._id || newNotif.targetRole === 'user' || newNotif.targetRole === 'all') {
-        console.log('🆕 New notification received:', newNotif);
         setUnreadCounts((prev) => ({
           ...prev,
           notifications: prev.notifications + 1,
         }));
         
-        // Play sound for new notifications
         if (currentView !== "notification") {
           playNotificationSound();
         }
@@ -330,33 +255,24 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     };
     
     const handleNewMessage = () => {
-      console.log('🆕 New message received, refreshing counts...');
-      // FIXED: Don't increment locally, fetch fresh data from server
       fetchUnreadCounts();
       
-      // 🔊 Play sound when receiving new messages while NOT on messages page
       if (currentView !== "messages") {
         playNotificationSound();
       }
     };
     
-    // FIXED: Handle notifications read event (when user manually marks as read in Notification component)
     const handleReadNotifications = (data) => {
       if (data.userId === initialUser?._id) {
-        console.log('📭 Notifications read event received in Navigation');
-        fetchUnreadCounts(); // Refresh counts from server
+        fetchUnreadCounts();
       }
     };
     
-    // FIXED: Handle messages read event
     const handleReadMessages = () => {
-      console.log('📭 Messages read event received');
       setUnreadCounts((prev) => ({ ...prev, messages: 0 }));
     };
 
-    // FIXED: Handle unread count updates from socket
     const handleUnreadCountUpdate = (data) => {
-      console.log('🔢 Unread count update received in Navigation:', data);
       if (data.userId === initialUser?._id) {
         setUnreadCounts(prev => ({
           ...prev,
@@ -365,21 +281,16 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
       }
     };
 
-    // FIXED: Handle refresh unread counts event
     const handleRefreshUnreadCounts = (data) => {
       if (data.userId === initialUser?._id) {
-        console.log('🔄 Refresh unread counts event received');
         fetchUnreadCounts();
       }
     };
 
-    // FIXED: Handle unread-counts-updated event (from mark-as-read functions)
     const handleUnreadCountsUpdated = () => {
-      console.log('🔄 Unread counts updated event received in Navigation');
       fetchUnreadCounts();
     };
 
-    // ANNOUNCEMENT SOCKET HANDLERS
     const handleNewAnnouncement = (announcement) => {
       setAnnouncements(prev => [announcement, ...prev]);
       setShowAnnouncementModal(true);
@@ -388,9 +299,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     
     const handleAnnouncementUpdate = (updatedAnnouncement) => {
       setAnnouncements(prev => 
-        prev.map(ann => 
-          ann._id === updatedAnnouncement._id ? updatedAnnouncement : ann
-        )
+        prev.map(ann => ann._id === updatedAnnouncement._id ? updatedAnnouncement : ann)
       );
     };
     
@@ -398,46 +307,35 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
       setAnnouncements(prev => prev.filter(ann => ann._id !== deletedId));
     };
 
-    // Set up all socket listeners
     socket.on("user-updated", handleUserUpdate);
     socket.on("user-suspended", handleUserSuspended);
     socket.on("user-unsuspended", handleUserUnsuspended);
     socket.on("new-notification", handleNewNotification);
-    socket.on("notification", handleNewNotification); // Added for your notification system
+    socket.on("notification", handleNewNotification);
     socket.on("new-message", handleNewMessage);
-    socket.on("notifications-read", handleReadNotifications); // FIXED: Listen for notifications read events
+    socket.on("notifications-read", handleReadNotifications);
     socket.on("messages-read", handleReadMessages);
-    
-    // FIXED: Add all the unread count update handlers
     socket.on("unreadCountUpdate", handleUnreadCountUpdate);
     socket.on("refresh-unread-counts", handleRefreshUnreadCounts);
     socket.on("unread-counts-updated", handleUnreadCountsUpdated);
-    
-    // ANNOUNCEMENT SOCKET EVENTS
     socket.on('new-announcement', handleNewAnnouncement);
     socket.on('announcement-updated', handleAnnouncementUpdate);
     socket.on('announcement-deleted', handleAnnouncementDelete);
 
     socketListenersSet.current = true;
 
-    // Return cleanup function
     return () => {
-      console.log('🧹 Cleaning up Navigation_User socket listeners');
       socket.off("user-updated", handleUserUpdate);
       socket.off("user-suspended", handleUserSuspended);
       socket.off("user-unsuspended", handleUserUnsuspended);
       socket.off("new-notification", handleNewNotification);
-      socket.off("notification", handleNewNotification); // Added for your notification system
+      socket.off("notification", handleNewNotification);
       socket.off("new-message", handleNewMessage);
       socket.off("notifications-read", handleReadNotifications);
       socket.off("messages-read", handleReadMessages);
-      
-      // FIXED: Remove all unread count update handlers
       socket.off("unreadCountUpdate", handleUnreadCountUpdate);
       socket.off("refresh-unread-counts", handleRefreshUnreadCounts);
       socket.off("unread-counts-updated", handleUnreadCountsUpdated);
-      
-      // ANNOUNCEMENT SOCKET CLEANUP
       socket.off('new-announcement', handleNewAnnouncement);
       socket.off('announcement-updated', handleAnnouncementUpdate);
       socket.off('announcement-deleted', handleAnnouncementDelete);
@@ -446,61 +344,61 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     };
   };
 
-  // FIXED: Optimized useEffect hooks for better performance
   useEffect(() => {
     if (initialUser?._id) {
-      console.log('👤 User ID available, fetching initial data...');
       fetchData();
       fetchAnnouncements();
-
-      // Setup socket listeners and get cleanup function
       const cleanupSocketListeners = setupSocketListeners();
-
-      // Return cleanup function
       return cleanupSocketListeners;
-    } else {
-      console.log('⏳ User ID not available yet, skipping data fetch');
     }
   }, [initialUser?._id]);
 
-  // FIXED: Only refresh counts when switching to notification/messages pages
   useEffect(() => {
     if (currentView === "notification" || currentView === "messages") {
-      console.log(`🔄 Switched to ${currentView} view, refreshing counts...`);
       fetchUnreadCounts();
     }
   }, [currentView]);
 
   const handleForcedLogout = () => {
     localStorage.clear();
-    window.location.href = "/"; // Force redirect to home page
+    window.location.href = "/";
   };
 
-  const navButtons = [
-    { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={isCollapsed && isDesktop ? 22 : 18} /> },
-    { id: "history", label: "History", icon: <History size={isCollapsed && isDesktop ? 22 : 18} /> },
-    {
-      id: "notification",
-      label: "Notification",
-      icon: <Bell size={isCollapsed && isDesktop ? 22 : 18} />,
+  // Instagram-style navigation items
+  const navItems = [
+    { 
+      id: "dashboard", 
+      label: "Dashboard", 
+      icon: <LayoutDashboard size={24} />,
+      activeIcon: <LayoutDashboard size={24} fill="currentColor" />
+    },
+    { 
+      id: "history", 
+      label: "History", 
+      icon: <History size={24} />,
+      activeIcon: <History size={24} fill="currentColor" />
+    },
+    { 
+      id: "notification", 
+      label: "Notifications", 
+      icon: <Bell size={24} />,
+      activeIcon: <Bell size={24} fill="currentColor" />,
       badge: unreadCounts.notifications > 0 ? unreadCounts.notifications : null,
     },
-    {
-      id: "messages",
-      label: "Messages",
-      icon: <MessageSquare size={isCollapsed && isDesktop ? 22 : 18} />,
+    { 
+      id: "messages", 
+      label: "Messages", 
+      icon: <MessageSquare size={24} />,
+      activeIcon: <MessageSquare size={24} fill="currentColor" />,
       badge: unreadCounts.messages > 0 ? unreadCounts.messages : null,
     },
-    { id: "profile", label: "Profile", icon: <UserCircle size={isCollapsed && isDesktop ? 22 : 18} /> },
   ];
 
   const handleNavClick = (viewId) => {
-    // Don't allow navigation if user is suspended
     if (user?.suspended) return;
     
     setView(viewId);
     
-    // When clicking on messages, mark messages as read via API
     if (viewId === "messages") {
       socket.emit("mark-messages-read", user._id);
     } 
@@ -524,6 +422,15 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     setIsCollapsed(!isCollapsed);
   };
 
+  // Get profile picture URL
+  const getProfilePictureUrl = () => {
+    if (!user?.profilePicture) return null;
+    
+    return user.profilePicture.startsWith("http")
+      ? `${user.profilePicture}?t=${imgTimestamp}`
+      : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`;
+  };
+
   return (
     <>
       {/* Suspension Modal */}
@@ -540,9 +447,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               <div className="w-12 h-1 bg-red-600 rounded-full mb-4"></div>
               
               <p className="text-gray-600 text-sm leading-relaxed">
-                Your account has been suspended due to violation of our terms of service. 
-                You will be logged out automatically. Please contact the administration 
-                if you believe this is a mistake.
+                Your account has been suspended. You will be logged out automatically.
               </p>
             </div>
             
@@ -550,7 +455,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
             
             <button
               onClick={handleForcedLogout}
-              className="w-full px-6 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors duration-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+              className="w-full px-6 py-3 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700 transition-colors duration-200 cursor-pointer"
               autoFocus
             >
               OK, I Understand
@@ -569,40 +474,32 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         showModal={showAnnouncementModal}
       />
 
-      {/* Mobile Header - Only visible on mobile (< 768px) */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[#171717] z-50 flex items-center justify-between px-4 border-b border-gray-700">
-        <div className="flex items-center space-x-3">
+      {/* Mobile Header - Instagram style */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-14 bg-white z-50 flex items-center justify-between px-4 border-b border-gray-200">
+        <div className="flex items-center space-x-2">
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
+            className="p-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
             aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
             disabled={user?.suspended}
           >
-            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+            {isMobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
-          <img src={Logo} alt="Logo" className="h-8 w-8" />
-          <div>
-            <h1 className="text-white font-semibold text-xs">CircuLink</h1>
-            <p className="text-gray-400 text-[10px]">USA</p>
-          </div>
+          <h1 className="text-xl font-bold text-gray-800">CircuLink</h1>
         </div>
         
-        {/* Mobile User Icon - Click to go to profile */}
+        {/* Mobile Profile Icon - Instagram style */}
         <button
           onClick={() => {
             setView("profile");
             setIsMobileMenuOpen(false);
           }}
-          className="w-8 h-8 rounded-full bg-gray-600 overflow-hidden flex items-center justify-center text-white text-sm font-bold hover:ring-2 hover:ring-red-500 transition-all"
+          className="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-red-500 transition-all"
           disabled={user?.suspended}
         >
           {user?.profilePicture ? (
             <img
-              src={
-                user.profilePicture.startsWith("http")
-                  ? `${user.profilePicture}?t=${imgTimestamp}`
-                  : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`
-              }
+              src={getProfilePictureUrl()}
               alt="Profile"
               className="w-full h-full object-cover"
               onError={(e) => {
@@ -611,12 +508,14 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               }}
             />
           ) : (
-            user?.name?.charAt(0)?.toUpperCase() || "?"
+            <div className="w-full h-full bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-center text-white font-bold text-sm">
+              {user?.name?.charAt(0)?.toUpperCase() || "U"}
+            </div>
           )}
         </button>
       </div>
 
-      {/* Sidebar - Responsive for all devices */}
+      {/* Sidebar - Instagram Style */}
       <aside>
         {/* Mobile Overlay */}
         {isMobileMenuOpen && (
@@ -626,306 +525,267 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
           />
         )}
 
-        {/* Navigation Panel - Responsive Sidebar */}
+        {/* Navigation Panel - Instagram style sidebar */}
         <div className={`
           fixed top-0 left-0 z-50
           transition-all duration-300 ease-in-out
-          bg-[#171717] shadow-md flex flex-col
-          ${isDesktop ? 'h-screen' : ''}
+          bg-white shadow-lg flex flex-col
+          border-r border-gray-200
           
-          /* Mobile styles (< 768px) */
+          /* Mobile styles */
           ${!isDesktop && isMobileMenuOpen 
-            ? 'w-full h-full p-4 translate-x-0' 
+            ? 'w-[280px] h-full p-4 translate-x-0' 
             : !isDesktop && !isMobileMenuOpen
             ? '-translate-x-full'
             : ''
           }
           
-          /* Tablet styles (768px - 1023px) */
-          ${isTablet ? `
-            ${isMobileMenuOpen ? 'w-[200px] p-4 translate-x-0' : '-translate-x-full'}
-            h-full
-          ` : ''}
-          
-          /* Desktop styles (>= 1024px) */
+          /* Desktop styles - Instagram style */
           ${isDesktop ? `
-            ${isCollapsed ? 'w-[70px]' : 'w-[250px]'}
-            p-4 translate-x-0
-            ${isCollapsed ? 'items-center' : ''}
-            rounded-tr-3xl
+            ${isCollapsed ? 'w-[72px]' : 'w-[220px]'}
+            p-3 translate-x-0 h-screen
           ` : ''}
         `}>
-          {/* Close Button - Mobile & Tablet Only */}
+          {/* Logo Area - Desktop only */}
+          {isDesktop && !isCollapsed && (
+            <div className="px-3 py-4 mb-4">
+              <h1 className="text-2xl font-bold text-gray-800">CircuLink</h1>
+              <p className="text-xs text-gray-500">University of San Agustin</p>
+            </div>
+          )}
+
+          {/* Logo - Collapsed view */}
+          {isDesktop && isCollapsed && (
+            <div className="flex justify-center py-4 mb-4">
+              <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold text-xs">
+                USA
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Close Button */}
           {!isDesktop && (
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center mb-6">
               <div className="flex items-center space-x-2">
-                <img src={Logo} alt="Logo" className="h-8 w-8" />
-                <div>
-                  <h1 className="text-white font-semibold text-xs">CircuLink</h1>
-                  <p className="text-gray-400 text-[10px]">USA</p>
+                <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold text-xs">
+                  USA
                 </div>
+                <h2 className="text-lg font-bold text-gray-800">CircuLink</h2>
               </div>
               <button
                 onClick={() => setIsMobileMenuOpen(false)}
-                className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
-                aria-label="Close menu"
+                className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg"
               >
                 <X size={20} />
               </button>
             </div>
           )}
 
-          {/* Logo - Desktop Only */}
-          {isDesktop && !isCollapsed && (
-            <>
-              <div className="flex items-center justify-around mb-2">
-                <img src={Logo} alt="Logo" className="h-[80px] w-[80px]" />
-                <div className="flex flex-col items-start">
-                  <h1 className="text-[13px] font-serif text-white">
-                    University of <br /> San Agustin
-                  </h1>
-                  <div className="border w-full border-b-white/50"></div>
-                  <p className="text-[16px] font-serif font-semibold text-white">CircuLink</p>
-                </div>
-              </div>
-              <div className="border-b border-gray-700 opacity-50 w-full my-2"></div>
-            </>
-          )}
-
-          {/* Desktop Logo - Collapsed View */}
-          {isDesktop && isCollapsed && (
-            <>
-              <div className="flex justify-center mb-4">
-                <img src={Logo} alt="Logo" className="h-[50px] w-[50px]" />
-              </div>
-              <div className="border-b border-gray-700 opacity-50 w-full my-2"></div>
-            </>
-          )}
-
-          {/* Navigation Buttons Container */}
-          <div className={`
-            flex-1 flex flex-col
-            ${!isDesktop ? 'overflow-y-auto' : ''}
-            ${isDesktop && isCollapsed ? 'items-center' : ''}
-          `}>
-            <div className={`
-              flex flex-col
-              ${isDesktop && isCollapsed ? 'gap-3' : 'gap-1.5'}
-            `}>
-              {navButtons.map((btn) => (
+          {/* Navigation Items - Instagram style */}
+          <div className="flex-1 flex flex-col">
+            {/* Main Navigation */}
+            <div className="space-y-1">
+              {navItems.map((item) => (
                 <button
-                  key={btn.id}
-                  onClick={() => handleNavClick(btn.id)}
+                  key={item.id}
+                  onClick={() => handleNavClick(item.id)}
                   disabled={user?.suspended}
                   className={`
-                    flex items-center rounded-lg font-medium transition-all duration-200
-                    cursor-pointer relative group
-                    ${isActive(btn.id)
-                      ? "bg-red-600 text-white shadow-md"
-                      : "bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white"
+                    flex items-center w-full rounded-xl transition-all duration-200
+                    ${isDesktop && isCollapsed ? 'justify-center p-3' : 'px-3 py-3 gap-4'}
+                    ${isActive(item.id)
+                      ? "text-red-600 bg-red-50"
+                      : "text-gray-600 hover:bg-gray-100"
                     }
-                    ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                    
-                    /* Desktop styles */
-                    ${isDesktop && isCollapsed 
-                      ? 'justify-center p-3 w-full' 
-                      : 'justify-start gap-3 px-4 py-3 w-full'
-                    }
-                    
-                    /* Mobile/Tablet styles */
-                    ${!isDesktop ? 'justify-start gap-3 px-4 py-3 w-full' : ''}
-                    
-                    text-sm
+                    ${user?.suspended ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                    relative
                   `}
-                  title={isDesktop && isCollapsed ? btn.label : ''}
+                  title={isDesktop && isCollapsed ? item.label : ''}
                 >
-                  <span
-                    className={`transition-transform duration-200 ${
-                      isActive(btn.id) ? "scale-110" : "group-hover:scale-110"
-                    }`}
-                  >
-                    {btn.icon}
+                  <span className={isActive(item.id) ? "text-red-600" : "text-gray-500"}>
+                    {isActive(item.id) ? item.activeIcon : item.icon}
                   </span>
                   
-                  {/* Show label only when not collapsed on desktop */}
                   {(!isDesktop || (isDesktop && !isCollapsed)) && (
-                    <span className="flex-1 text-left truncate">{btn.label}</span>
+                    <span className="flex-1 text-left text-sm font-medium">
+                      {item.label}
+                    </span>
                   )}
                   
-                  {/* Badge - Always show */}
-                  {btn.badge && (
+                  {/* Badge - Instagram style */}
+                  {item.badge && (
                     <span className={`
-                      bg-red-500 text-white text-xs font-bold rounded-full 
-                      flex items-center justify-center min-w-[20px] flex-shrink-0
-                      ${isDesktop && isCollapsed ? 'absolute -top-1 -right-1 h-5 w-5' : 'h-5 w-5'}
+                      bg-red-500 text-white text-xs font-bold rounded-full
+                      flex items-center justify-center
+                      ${isDesktop && isCollapsed 
+                        ? 'absolute -top-1 -right-1 min-w-[18px] h-[18px]' 
+                        : 'min-w-[20px] h-[20px]'
+                      }
                     `}>
-                      {btn.badge > 9 ? "9+" : btn.badge}
+                      {item.badge > 9 ? "9+" : item.badge}
                     </span>
                   )}
                 </button>
               ))}
+            </div>
 
-              {/* Help Button */}
-              <div className="relative">
-                <button
-                  onClick={() => !user?.suspended && setShowHelp((prev) => !prev)}
-                  disabled={user?.suspended}
-                  className={`
-                    flex items-center rounded-lg font-medium transition-all duration-200
-                    cursor-pointer w-full
-                    ${showHelp ||
-                      currentView === "help" ||
-                      currentView === "guidelines"
-                        ? "bg-red-600 text-white shadow-md"
-                        : "bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white"
-                    }
-                    ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                    
-                    /* Desktop styles */
-                    ${isDesktop && isCollapsed 
-                      ? 'justify-center p-3' 
-                      : 'justify-start gap-3 px-4 py-3'
-                    }
-                    
-                    /* Mobile/Tablet styles */
-                    ${!isDesktop ? 'justify-start gap-3 px-4 py-3' : ''}
-                    
-                    text-sm
-                  `}
-                  title={isDesktop && isCollapsed ? 'Help' : ''}
-                >
-                  <HelpCircle size={isDesktop && isCollapsed ? 22 : 18} />
-                  {(!isDesktop || (isDesktop && !isCollapsed)) && (
-                    <span className="truncate">Help</span>
-                  )}
-                </button>
+            {/* Help Button */}
+            <div className="relative mt-2">
+              <button
+                onClick={() => !user?.suspended && setShowHelp((prev) => !prev)}
+                disabled={user?.suspended}
+                className={`
+                  flex items-center w-full rounded-xl transition-all duration-200
+                  ${isDesktop && isCollapsed ? 'justify-center p-3' : 'px-3 py-3 gap-4'}
+                  ${showHelp ? "text-red-600 bg-red-50" : "text-gray-600 hover:bg-gray-100"}
+                  ${user?.suspended ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                `}
+                title={isDesktop && isCollapsed ? 'Help' : ''}
+              >
+                <HelpCircle size={24} className={showHelp ? "text-red-600" : "text-gray-500"} />
+                {(!isDesktop || (isDesktop && !isCollapsed)) && (
+                  <span className="flex-1 text-left text-sm font-medium">Help</span>
+                )}
+              </button>
 
-                {/* Help Dropdown/Modal */}
-                {showHelp && !user?.suspended && (
-                  <div className={`
-                    ${!isDesktop 
-                      ? 'fixed inset-0 flex items-center justify-center z-50' 
-                      : isCollapsed
-                        ? 'absolute left-full ml-2 top-0 z-50'
-                        : 'absolute top-0 left-full ml-2 z-50'
-                    }
-                  `}>
-                    {/* Mobile/Tablet: Centered Modal */}
-                    {!isDesktop && (
-                      <>
-                        <div 
-                          className="absolute inset-0 bg-black/50"
-                          onClick={() => setShowHelp(false)}
-                        />
-                        <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-[90%] max-w-[280px]">
-                          <div className="flex flex-col space-y-3">
-                            <button
-                              onClick={() => {
-                                setView("help");
-                                setShowHelp(false);
-                                setIsMobileMenuOpen(false);
-                              }}
-                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer"
-                            >
-                              <h2 className="text-sm font-semibold text-gray-800">
-                                Help Center
-                              </h2>
-                              <p className="text-xs text-gray-600 mt-1">
-                                Get answers to your questions
-                              </p>
-                            </button>
-
-                            <button
-                              onClick={() => {
-                                setView("guidelines");
-                                setShowHelp(false);
-                                setIsMobileMenuOpen(false);
-                              }}
-                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer"
-                            >
-                              <h2 className="text-sm font-semibold text-gray-800">
-                                Room Guidelines
-                              </h2>
-                              <p className="text-xs text-gray-600 mt-1">
-                                Learn how to use rooms properly
-                              </p>
-                            </button>
-                            
-                            <button
-                              onClick={() => setShowHelp(false)}
-                              className="mt-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 text-sm font-medium"
-                            >
-                              Close
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Desktop: Right Side Dropdown */}
-                    {isDesktop && (
-                      <div className="flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 p-3 w-[220px]">
+              {/* Help Dropdown - Instagram style */}
+              {showHelp && !user?.suspended && (
+                <div className={`
+                  ${!isDesktop 
+                    ? 'fixed inset-0 flex items-center justify-center z-50' 
+                    : isCollapsed
+                      ? 'absolute left-full ml-2 top-0 z-50'
+                      : 'absolute left-full ml-2 top-0 z-50'
+                  }
+                `}>
+                  {!isDesktop && (
+                    <>
+                      <div 
+                        className="absolute inset-0 bg-black/50"
+                        onClick={() => setShowHelp(false)}
+                      />
+                      <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 p-3 w-[200px]">
                         <button
                           onClick={() => {
                             setView("help");
                             setShowHelp(false);
+                            setIsMobileMenuOpen(false);
                           }}
-                          className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer"
+                          className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
                         >
-                          <h2 className="text-sm font-semibold text-gray-800">
-                            Help Center
-                          </h2>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Get answers to your questions
-                          </p>
+                          Help Center
                         </button>
-
                         <button
                           onClick={() => {
                             setView("guidelines");
                             setShowHelp(false);
+                            setIsMobileMenuOpen(false);
                           }}
-                          className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer mt-3"
+                          className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
                         >
-                          <h2 className="text-sm font-semibold text-gray-800">
-                            Room Guidelines
-                          </h2>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Learn how to use rooms properly
-                          </p>
+                          Room Guidelines
+                        </button>
+                        <div className="border-t border-gray-200 my-1"></div>
+                        <button
+                          onClick={() => setShowHelp(false)}
+                          className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-gray-100 rounded-lg"
+                        >
+                          Close
                         </button>
                       </div>
-                    )}
-                  </div>
-                )}
-              </div>
+                    </>
+                  )}
+
+                  {isDesktop && (
+                    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-2 w-[180px]">
+                      <button
+                        onClick={() => {
+                          setView("help");
+                          setShowHelp(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+                      >
+                        Help Center
+                      </button>
+                      <button
+                        onClick={() => {
+                          setView("guidelines");
+                          setShowHelp(false);
+                        }}
+                        className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
+                      >
+                        Room Guidelines
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Desktop Toggle Button and Logout */}
-            <div className={`
-              ${isDesktop ? 'mt-auto pt-4' : 'mt-4'}
-              ${isDesktop && isCollapsed ? 'flex flex-col items-center gap-2' : ''}
-            `}>
-              {/* Toggle Sidebar Button - Desktop Only */}
+            {/* Spacer */}
+            <div className="flex-1"></div>
+
+            {/* Bottom Section - Profile & Settings */}
+            <div className="mt-auto pt-4 border-t border-gray-200">
+              {/* Profile Button - Instagram style with circular image */}
+              <button
+                onClick={() => handleNavClick("profile")}
+                disabled={user?.suspended}
+                className={`
+                  flex items-center w-full rounded-xl transition-all duration-200 mb-2
+                  ${isDesktop && isCollapsed ? 'justify-center p-2' : 'px-3 py-2 gap-3'}
+                  ${isActive("profile") ? "bg-red-50" : "hover:bg-gray-100"}
+                  ${user?.suspended ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                `}
+                title={isDesktop && isCollapsed ? 'Profile' : ''}
+              >
+                <div className={`
+                  rounded-full overflow-hidden
+                  ${isActive("profile") ? "ring-2 ring-red-500" : "ring-1 ring-gray-300"}
+                  ${isDesktop && isCollapsed ? 'w-8 h-8' : 'w-8 h-8'}
+                `}>
+                  {user?.profilePicture ? (
+                    <img
+                      src={getProfilePictureUrl()}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = "/default-avatar.png";
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-center text-white font-bold text-sm">
+                      {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                    </div>
+                  )}
+                </div>
+                
+                {(!isDesktop || (isDesktop && !isCollapsed)) && (
+                  <div className="flex-1 text-left">
+                    <p className="text-sm font-medium text-gray-800 truncate">
+                      {user?.name || "Profile"}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate">
+                      View your profile
+                    </p>
+                  </div>
+                )}
+              </button>
+
+              {/* Desktop Toggle Button */}
               {isDesktop && (
                 <button
                   onClick={toggleSidebar}
                   className={`
-                    w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg
-                    bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white
-                    transition-all duration-200 cursor-pointer mb-2
-                    ${isCollapsed ? 'p-2' : 'p-2'}
+                    w-full flex items-center justify-center rounded-xl p-2
+                    text-gray-500 hover:bg-gray-100 transition-all duration-200
+                    ${isCollapsed ? 'mt-2' : 'mt-1'}
                   `}
-                  title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                  title={isCollapsed ? 'Expand' : 'Collapse'}
                 >
-                  {isCollapsed ? (
-                    <ChevronRight size={18} />
-                  ) : (
-                    <>
-                      <ChevronLeft size={18} />
-                      <span className="text-xs">Collapse</span>
-                    </>
-                  )}
+                  {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+                  {!isCollapsed && <span className="ml-2 text-sm">Collapse</span>}
                 </button>
               )}
 
@@ -934,36 +794,33 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                 onClick={onLogout}
                 disabled={user?.suspended}
                 className={`
-                  w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                  bg-[#2a2a2a] font-medium text-white hover:bg-red-600
-                  transition-all duration-200 cursor-pointer group
-                  ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                  ${isDesktop && isCollapsed ? 'p-3' : ''}
-                  text-sm
+                  flex items-center w-full rounded-xl transition-all duration-200 mt-1
+                  ${isDesktop && isCollapsed ? 'justify-center p-3' : 'px-3 py-3 gap-4'}
+                  text-gray-600 hover:bg-red-50 hover:text-red-600
+                  ${user?.suspended ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
                 `}
                 title={isDesktop && isCollapsed ? 'Logout' : ''}
               >
-                <LogOut
-                  size={isDesktop && isCollapsed ? 20 : 16}
-                  className="group-hover:scale-110 transition-transform duration-200"
-                />
-                {(!isDesktop || (isDesktop && !isCollapsed)) && 'Logout'}
+                <LogOut size={24} className="text-gray-500 group-hover:text-red-600" />
+                {(!isDesktop || (isDesktop && !isCollapsed)) && (
+                  <span className="flex-1 text-left text-sm font-medium">Logout</span>
+                )}
               </button>
             </div>
           </div>
         </div>
       </aside>
 
-      {/* Main Content Spacer - Adjusts based on sidebar state */}
+      {/* Main Content Spacer */}
       <div className={`
         transition-all duration-300
         ${isDesktop 
-          ? isCollapsed ? 'pl-[70px]' : 'pl-[250px]'
+          ? isCollapsed ? 'pl-[72px]' : 'pl-[220px]'
           : 'pl-0'
         }
       `}>
         {/* Mobile Spacer */}
-        <div className="md:hidden h-16"></div>
+        <div className="md:hidden h-14"></div>
       </div>
     </>
   );
