@@ -86,8 +86,18 @@ function ReserveRoom({ user, setView }) {
     return graduateKeywords.some(keyword => user.course.includes(keyword));
   }, [user]);
 
+  // ✅ NEW: Check if user is Faculty
+  const isFacultyUser = useCallback(() => {
+    return user?.role === "Faculty" || user?.role === "Staff_Office";
+  }, [user]);
+
   // Check if user can reserve a specific floor
   const canReserveFloor = useCallback((floor) => {
+    // Faculty can reserve any floor
+    if (isFacultyUser()) {
+      return true;
+    }
+    
     // Ground Floor - Only for Graduate students
     if (floor === "Ground Floor") {
       return isGraduateStudent();
@@ -104,7 +114,7 @@ function ReserveRoom({ user, setView }) {
     }
     
     return false;
-  }, [isGraduateStudent, isCollegeOfLawUser]);
+  }, [isGraduateStudent, isCollegeOfLawUser, isFacultyUser]);
 
   // Calendar generation functions
   const months = [
@@ -129,7 +139,7 @@ function ReserveRoom({ user, setView }) {
     for (let i = 1; i <= totalDays; i++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       const dateObj = new Date(year, month, i);
-      const isSunday = dateObj.getDay() === 0; // 0 is Sunday
+      const isSunday = dateObj.getDay() === 0;
       const isPastDate = year < currentYear || 
                        (year === currentYear && month < currentMonth) || 
                        (year === currentYear && month === currentMonth && i < today);
@@ -174,10 +184,9 @@ function ReserveRoom({ user, setView }) {
 
     fetchRooms();
 
-    // Listen for room updates via socket
     const handleRoomUpdate = (data) => {
       if (data.type === 'room_updated' || data.type === 'room_created' || data.type === 'room_deleted') {
-        fetchRooms(); // Refresh rooms list
+        fetchRooms();
       }
     };
 
@@ -255,19 +264,15 @@ function ReserveRoom({ user, setView }) {
     }
   }, [user]);
 
-  // Show alert modal function
   const showAlert = (message) => {
     setAlertMessage(message);
     setShowAlertModal(true);
   };
 
-  // Helper function to handle ID number input (numeric only)
   const handleIdNumberInput = (value) => {
-    // Remove all non-numeric characters
     return value.replace(/\D/g, '');
   };
 
-  // ✅ NEW: Scroll to element function
   const scrollToElement = (ref) => {
     if (ref && ref.current) {
       ref.current.scrollIntoView({ 
@@ -276,7 +281,6 @@ function ReserveRoom({ user, setView }) {
         inline: 'nearest'
       });
       
-      // Add a temporary highlight effect
       ref.current.classList.add('ring-4', 'ring-yellow-300', 'ring-opacity-50');
       setTimeout(() => {
         ref.current.classList.remove('ring-4', 'ring-yellow-300', 'ring-opacity-50');
@@ -284,30 +288,26 @@ function ReserveRoom({ user, setView }) {
     }
   };
 
-  // ✅ NEW: Enhanced validateForm with scroll to first invalid field
+  // ✅ MODIFIED: Enhanced validateForm with Faculty exemption
   const validateForm = () => {
-    // Check date
     if (!formData.date) {
       showAlert("Please select a date.");
       scrollToElement(dateRef);
       return false;
     }
 
-    // Check time
     if (!formData.time) {
       showAlert("Please select a time.");
       scrollToElement(timeRef);
       return false;
     }
 
-    // Check location
     if (!formData.location) {
       showAlert("Please select a location/floor.");
       scrollToElement(locationRef);
       return false;
     }
 
-    // Check if selected room is disabled
     const selectedRoom = rooms.find(room => room._id === formData.room_Id);
     if (!formData.roomName || !formData.room_Id) {
       showAlert("Please select a room.");
@@ -321,7 +321,6 @@ function ReserveRoom({ user, setView }) {
       return false;
     }
 
-    // Check if user can reserve the selected floor
     if (!canReserveFloor(formData.location)) {
       if (formData.location === "Ground Floor") {
         showAlert("Ground Floor is reserved for Graduate students only.");
@@ -334,14 +333,12 @@ function ReserveRoom({ user, setView }) {
       return false;
     }
 
-    // Check purpose
     if (!formData.purpose) {
       showAlert("Please enter the purpose of reservation.");
       scrollToElement(purposeRef);
       return false;
     }
 
-    // Check if selected date/time is in the past
     const now = new Date();
     const selectedDate = new Date(`${formData.date}T${formData.time}`);
     if (selectedDate < now) {
@@ -350,34 +347,30 @@ function ReserveRoom({ user, setView }) {
       return false;
     }
 
-    // ✅ FIXED: The participants array now includes ALL users including main reserver
     const totalUsers = parseInt(formData.numUsers);
     
-    // Debug log to see what's happening
     console.log('🔍 Form validation debug:', {
       selectedUsers: totalUsers,
       currentParticipants: formData.participants.length,
-      participants: formData.participants
+      participants: formData.participants,
+      isFaculty: isFacultyUser()
     });
 
-    // Check if we have the exact number of participants for the selected group size
     if (formData.participants.length !== totalUsers) {
       showAlert(`Form error: Expected ${totalUsers} participants for ${totalUsers} users. Please refresh the page and try again.`);
       return false;
     }
 
-    // ✅ FIXED: Count how many participants are actually filled (excluding main reserver)
     const filledParticipants = formData.participants
-      .filter((p, index) => index !== 0) // Exclude main reserver
+      .filter((p, index) => index !== 0)
       .filter(p => p.name && p.name.trim() && p.id_number && p.id_number.toString().trim())
       .length;
 
-    // ✅ FIXED: For the selected group size, we need (totalUsers - 1) additional participants
     const expectedAdditionalParticipants = totalUsers - 1;
 
-    if (filledParticipants !== expectedAdditionalParticipants) {
+    // ✅ NEW: Faculty can reserve with just themselves
+    if (!isFacultyUser() && filledParticipants !== expectedAdditionalParticipants) {
       showAlert(`Please complete all ${expectedAdditionalParticipants} additional participant fields for ${totalUsers} total users.`);
-      // Find the first empty participant field and scroll to it
       for (let i = 1; i < formData.participants.length; i++) {
         const p = formData.participants[i];
         if (!p.name || !p.name.trim() || !p.id_number || !p.id_number.toString().trim()) {
@@ -390,11 +383,21 @@ function ReserveRoom({ user, setView }) {
       return false;
     }
 
-    // ✅ FIXED: Validate that ALL filled participants are verified and complete
+    // For Faculty, we still want to validate if they added participants
+    if (isFacultyUser() && filledParticipants > 0 && filledParticipants !== expectedAdditionalParticipants) {
+      showAlert(`If adding participants, please complete all fields for all ${expectedAdditionalParticipants} additional participants.`);
+      return false;
+    }
+
+    // ✅ MODIFIED: Validate participants with Faculty exemption
     for (let i = 0; i < formData.participants.length; i++) {
       const p = formData.participants[i];
       
-      // Check if all required fields are filled
+      // ✅ NEW: Skip validation for empty participants if user is Faculty
+      if (isFacultyUser() && i > 0 && (!p.name || !p.name.trim() || !p.id_number || !p.id_number.toString().trim())) {
+        continue;
+      }
+      
       if (!p.name || !p.department || !p.id_number) {
         showAlert(`Please complete all fields for participant ${i + 1}.`);
         if (participantRefs.current[i]) {
@@ -403,7 +406,6 @@ function ReserveRoom({ user, setView }) {
         return false;
       }
 
-      // Validate ID number format (numeric only)
       if (!/^\d+$/.test(p.id_number)) {
         showAlert(`Participant ${i + 1} ID number should contain only numbers.`);
         if (participantRefs.current[i]) {
@@ -412,7 +414,6 @@ function ReserveRoom({ user, setView }) {
         return false;
       }
 
-      // For students, check course and year level (unless they are Faculty/Staff)
       if (p.role !== "Faculty" && p.role !== "Staff" && (!p.course || !p.year_level)) {
         showAlert(`Please complete course and year level for participant ${i + 1} (${p.name}).`);
         if (participantRefs.current[i]) {
@@ -421,7 +422,6 @@ function ReserveRoom({ user, setView }) {
         return false;
       }
 
-      // Check verification status
       if (validation[i].status !== "valid") {
         showAlert(`Participant ${i + 1} (${p.name}) is not verified or registered.`);
         if (participantRefs.current[i]) {
@@ -439,7 +439,6 @@ function ReserveRoom({ user, setView }) {
 
     const updated = [...formData.participants];
     
-    // Apply numeric filter for ID number field
     if (field === "id_number") {
       updated[idx][field] = handleIdNumberInput(val);
     } else {
@@ -449,7 +448,6 @@ function ReserveRoom({ user, setView }) {
     if (field === "id_number" && val.trim()) {
       const numericId = handleIdNumberInput(val);
       
-      // Validate ID number length (optional - adjust as needed)
       if (numericId && numericId.length < 5) {
         const v = [...validation];
         v[idx] = { status: "invalid", message: "ID too short", loading: false };
@@ -471,7 +469,6 @@ function ReserveRoom({ user, setView }) {
         return;
       }
 
-      // Set loading state
       v[idx] = { ...v[idx], loading: true };
       setValidation(v);
 
@@ -484,7 +481,6 @@ function ReserveRoom({ user, setView }) {
           v[idx] = { status: "invalid", message: "Not registered", loading: false };
           updated[idx] = { ...updated[idx], name: "", course: "", year_level: "", department: "", id_number: numericId, role: "" };
         } 
-        // ✅ NEW: Check if user is suspended
         else if (res.data.suspended) {
           v[idx] = { status: "invalid", message: "Account suspended", loading: false };
           updated[idx] = { ...updated[idx], name: "", course: "", year_level: "", department: "", id_number: numericId, role: "" };
@@ -522,17 +518,14 @@ function ReserveRoom({ user, setView }) {
     const updated = [...formData.participants];
     const v = [...validation];
     
-    // ✅ FIXED: Create exactly n participants (including main reserver)
     while (updated.length < n) {
       updated.push({ name: "", course: "", year_level: "", department: "", id_number: "", role: "" });
       v.push({ status: null, message: "", loading: false });
     }
 
-    // Trim to exactly n participants
     updated.length = n;
     v.length = n;
     
-    // Auto-fill the first participant (main reserver) with user's data
     if (user && updated.length > 0) {
       updated[0] = {
         name: user.name || "",
@@ -553,15 +546,13 @@ function ReserveRoom({ user, setView }) {
     setShowUsersModal(false);
   }, [formData.participants, validation, user]);
 
-  // ✅ FIXED: Enhanced floor access validation function
   const validateParticipantFloorAccess = async () => {
     try {
       console.log('🔍 Starting floor access validation...');
       
-      // Filter out empty participant IDs and get only the IDs
       const participantIds = formData.participants
         .map(p => p.id_number)
-        .filter(id => id && id.toString().trim() !== "" && id !== user.id_number); // Exclude main user
+        .filter(id => id && id.toString().trim() !== "" && id !== user.id_number);
 
       console.log('📋 Validation data:', {
         location: formData.location,
@@ -569,7 +560,6 @@ function ReserveRoom({ user, setView }) {
         totalParticipants: formData.participants.length
       });
 
-      // If no additional participants besides main user, validation passes
       if (participantIds.length === 0) {
         console.log('✅ No additional participants to validate');
         return true;
@@ -583,7 +573,7 @@ function ReserveRoom({ user, setView }) {
           participantIds: participantIds
         },
         {
-          timeout: 10000, // 10 second timeout
+          timeout: 10000,
           headers: {
             'Content-Type': 'application/json'
           }
@@ -599,7 +589,6 @@ function ReserveRoom({ user, setView }) {
         
         showAlert(errorMessage);
         
-        // Find the first invalid participant and scroll to them
         for (let i = 1; i < formData.participants.length; i++) {
           const participantId = formData.participants[i].id_number;
           const isInvalid = response.data.invalidParticipants.some(
@@ -622,15 +611,12 @@ function ReserveRoom({ user, setView }) {
       let errorMsg = "Error validating participant access. Please try again.";
       
       if (error.response) {
-        // Server responded with error status
         console.error("Server response error:", error.response.data);
         errorMsg = error.response.data.message || `Server error: ${error.response.status}`;
       } else if (error.request) {
-        // Request was made but no response received
         console.error("No response received:", error.request);
         errorMsg = "No response from server. Please check your connection.";
       } else {
-        // Something else happened
         console.error("Error message:", error.message);
         errorMsg = error.message;
       }
@@ -640,34 +626,32 @@ function ReserveRoom({ user, setView }) {
     }
   };
 
+  // ✅ MODIFIED: Submit reservation with Faculty participant filtering
   const submitReservation = async () => {
-    // Prevent multiple clicks
     if (isSubmitting) {
       console.log("Submission already in progress, ignoring click");
       return;
     }
 
-    // Set submitting state to true
     setIsSubmitting(true);
     
     if (!user.verified) {
       setShowNotVerifiedWarning(true);
-      setIsSubmitting(false); // Reset submitting state
+      setIsSubmitting(false);
       return;
     }
 
     if (!validateForm()) {
-      setIsSubmitting(false); // Reset submitting state
+      setIsSubmitting(false);
       return;
     }
 
-    // ✅ FIXED: Enhanced floor access validation with better error handling
     console.log('🔄 Starting floor access validation before submission...');
     const allParticipantsHaveAccess = await validateParticipantFloorAccess();
     if (!allParticipantsHaveAccess) {
       console.log('❌ Floor access validation failed - stopping submission');
-      setIsSubmitting(false); // Reset submitting state
-      return; // Stop submission if participants don't have access
+      setIsSubmitting(false);
+      return;
     }
     console.log('✅ All participants have floor access - proceeding with submission');
 
@@ -682,14 +666,14 @@ function ReserveRoom({ user, setView }) {
 
       if (check.data.blocked) {
         showAlert(check.data.reason || "You have reached your reservation limit for this week.");
-        setIsSubmitting(false); // Reset submitting state
+        setIsSubmitting(false);
         return;
       }
     } catch (err) {
       console.error("Limit check failed", err);
       const message = err.response?.data?.message || "Failed to verify reservation limit.";
       showAlert(message);
-      setIsSubmitting(false); // Reset submitting state
+      setIsSubmitting(false);
       return;
     }
 
@@ -704,6 +688,21 @@ function ReserveRoom({ user, setView }) {
 
       const endManilaTime = manilaTime.clone().add(1, 'hour');
 
+      // ✅ NEW: For Faculty, filter out empty participants
+      let participantsToSend = formData.participants;
+      if (isFacultyUser()) {
+        participantsToSend = formData.participants.filter((p, index) => {
+          if (index === 0) return true;
+          return p.name && p.name.trim() && p.id_number && p.id_number.toString().trim();
+        });
+        
+        console.log('📋 Filtered participants for Faculty:', {
+          original: formData.participants.length,
+          filtered: participantsToSend.length,
+          participants: participantsToSend
+        });
+      }
+
       const reservationData = {
         userId: user._id,
         room_Id: formData.room_Id,
@@ -715,9 +714,9 @@ function ReserveRoom({ user, setView }) {
         time: formData.time,
         endDatetime: endManilaTime.format(),
         endDatetimeUTC: endManilaTime.utc().format(),
-        numUsers: parseInt(formData.numUsers), // Total including main reserver
+        numUsers: isFacultyUser() ? participantsToSend.length : parseInt(formData.numUsers),
         purpose: formData.purpose,
-        participants: formData.participants, // ✅ Send ALL participants including yourself
+        participants: participantsToSend,
         timezone: "Asia/Manila",
         status: "Pending"
       };
@@ -729,13 +728,12 @@ function ReserveRoom({ user, setView }) {
       showAlert(`Reservation failed: ${error.response?.data?.message || error.message}`);
     } finally {
       setLoading(false);
-      setIsSubmitting(false); // Reset submitting state
+      setIsSubmitting(false);
     }
   };
 
   const closeSuccess = () => {
     setShowSuccessModal(false);
-    // ✅ FIXED: Use setView to navigate back to dashboard instead of navigate
     setView("dashboard");
   };
 
@@ -784,34 +782,24 @@ function ReserveRoom({ user, setView }) {
       roomName: room.room,
       room_Id: room._id,
     }));
-    setSelectedRoomDetails(room); // ✅ This passes the full room object with image data
+    setSelectedRoomDetails(room);
   };
 
-  // ✅ FIXED: Enhanced getRoomImage function in ReserveRoom.jsx
   const getRoomImage = (room) => {
-    // ✅ FIRST: Use the image from database if available
     if (room.image && room.image.url) {
       return room.image.url;
     }
 
-    // ✅ SECOND: Fallback to direct mappings
     const directMappings = {
-      // Discussion Rooms
       "Discussion Room 1": "discussion_room_1",
       "Discussion Room 2": "discussion_room_2",
       "Discussion Room 3": "discussion_room_3",
-      
-      // Graduate Research Hubs
       "Graduate Research Hub 1": "graduate_hub_1",
       "Graduate Research Hub 2": "graduate_hub_2", 
       "Graduate Research Hub 3": "graduate_hub_3",
-      
-      // 2nd Floor Rooms
       "2nd Floor Discussion Room 1": "2nd_discussion_room_1_2",
       "2nd Floor Discussion Room 2": "2nd_discussion_room_2_2",
       "2nd Floor Faculty Room": "2nd_faculty_room_1_2",
-      
-      // 5th Floor Rooms
       "Faculty Room": "faculty_room",
       "Collaboration Room": "collab_room",
     };
@@ -824,7 +812,6 @@ function ReserveRoom({ user, setView }) {
       }
     }
 
-    // ✅ THIRD: Final fallback to floor images
     if (room.floor === "Ground Floor") return getRoomImageById("ground_floor")?.url;
     if (room.floor === "2nd Floor") return getRoomImageById("second_floor_1")?.url;
     return getRoomImageById("fifth_floor")?.url;
@@ -872,15 +859,14 @@ function ReserveRoom({ user, setView }) {
   const getFloorImage = (floor) => {
     const floorImageMap = {
       "Ground Floor": getRoomImageById("ground_floor")?.url,
-      "2nd Floor": getRoomImageById("second_floor_1")?.url, // Use actual 2nd floor image
-      "4th Floor": getRoomImageById("fifth_floor")?.url, // You'll need to add 4th floor images
+      "2nd Floor": getRoomImageById("second_floor_1")?.url,
+      "4th Floor": getRoomImageById("fifth_floor")?.url,
       "5th Floor": getRoomImageById("fifth_floor")?.url,
     };
     
     return floorImageMap[floor] || getRoomImageById("ground_floor")?.url;
   };
 
-  // Optimized Mobile Participant Card Component with keyboard stability
   const MobileParticipantCard = React.memo(({ participant, index, validation, handleChange }) => {
     const [isFocused, setIsFocused] = useState(false);
     const [localId, setLocalId] = useState(participant.id_number);
@@ -890,11 +876,8 @@ function ReserveRoom({ user, setView }) {
     const [localDepartment, setLocalDepartment] = useState(participant.department);
     
     const timeoutRef = useRef(null);
-    
-    // Create a ref for this participant card
     const cardRef = useRef(null);
     
-    // Store the ref in the parent's refs array
     useEffect(() => {
       participantRefs.current[index] = cardRef.current;
       return () => {
@@ -902,7 +885,6 @@ function ReserveRoom({ user, setView }) {
       };
     }, [index]);
     
-    // Sync local state when props change (but not during typing)
     useEffect(() => {
       if (!isFocused) {
         setLocalId(participant.id_number);
@@ -920,11 +902,11 @@ function ReserveRoom({ user, setView }) {
       
       timeoutRef.current = setTimeout(() => {
         handleChange(index, field, value);
-      }, 1000); // Delay updates to prevent rapid re-renders
+      }, 1000);
     };
     
     const handleIdChange = (e) => {
-      const value = e.target.value.replace(/\D/g, ''); // Only allow numbers
+      const value = e.target.value.replace(/\D/g, '');
       setLocalId(value);
       debouncedUpdate("id_number", value);
     };
@@ -959,13 +941,11 @@ function ReserveRoom({ user, setView }) {
 
     const handleBlur = () => {
       setIsFocused(false);
-      // Force update any pending changes
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
       
-      // Ensure final values are saved
       if (localId !== participant.id_number) {
         handleChange(index, "id_number", localId);
       }
@@ -983,7 +963,6 @@ function ReserveRoom({ user, setView }) {
       }
     };
     
-    // Clean up timeout on unmount
     useEffect(() => {
       return () => {
         if (timeoutRef.current) {
@@ -1007,7 +986,6 @@ function ReserveRoom({ user, setView }) {
         </div>
 
         <div className="space-y-3">
-          {/* ID Number - SIMPLIFIED for better mobile handling */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">ID Number</label>
             <div className="relative">
@@ -1046,7 +1024,6 @@ function ReserveRoom({ user, setView }) {
             </div>
           </div>
 
-          {/* Name */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
             <input
@@ -1061,7 +1038,6 @@ function ReserveRoom({ user, setView }) {
             />
           </div>
 
-          {/* Course and Year Level - Conditionally Rendered */}
           {(!participant.role || (participant.role !== "Faculty" && participant.role !== "Staff")) && (
             <>
               <div className="grid grid-cols-2 gap-3">
@@ -1095,7 +1071,6 @@ function ReserveRoom({ user, setView }) {
             </>
           )}
 
-          {/* Department */}
           <div>
             <label className="block text-xs font-medium text-gray-700 mb-1">Department</label>
             <input
@@ -1110,7 +1085,6 @@ function ReserveRoom({ user, setView }) {
             />
           </div>
 
-          {/* Status */}
           <div className="pt-2 border-t border-gray-100">
             {validation?.status === "valid" && (
               <span className="text-green-600 text-sm font-medium flex items-center">
@@ -1136,8 +1110,6 @@ function ReserveRoom({ user, setView }) {
       </div>
     );
   }, (prevProps, nextProps) => {
-    // Custom comparison to prevent unnecessary re-renders
-    // Only re-render when validation status changes or participant data changes significantly
     return (
       prevProps.participant.id_number === nextProps.participant.id_number &&
       prevProps.participant.name === nextProps.participant.name &&
@@ -1152,7 +1124,6 @@ function ReserveRoom({ user, setView }) {
 
   MobileParticipantCard.displayName = 'MobileParticipantCard';
 
-  // Optimize images for lazy loading
   const [loadedImages, setLoadedImages] = useState(new Set());
 
   const handleImageLoad = (imageId) => {
@@ -1208,7 +1179,9 @@ function ReserveRoom({ user, setView }) {
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
             </svg>
             <p className="text-blue-800 font-medium text-sm">
-              {isCollegeOfLawUser() 
+              {isFacultyUser() 
+                ? "Faculty Access: You can reserve any floor and can make reservations with just yourself."
+                : isCollegeOfLawUser()
                 ? "College of Law Access: You can reserve 2nd Floor rooms and all general floors."
                 : isGraduateStudent()
                 ? "Graduate Student Access: You can reserve Ground Floor rooms and all general floors."
@@ -1816,6 +1789,11 @@ function ReserveRoom({ user, setView }) {
           </h2>
           <p className="text-xs sm:text-sm text-gray-600 italic mt-2 sm:mt-3 mb-3 sm:mb-4 pb-2 border-b border-gray-100">
             * Enter ID Number to auto-fill participant details. Verified fields will be locked.
+            {isFacultyUser() && (
+              <span className="block text-green-600 font-medium mt-1">
+                Faculty: You can reserve with just yourself. Additional participants are optional.
+              </span>
+            )}
           </p>
           
           {/* Mobile View - Card Layout */}
@@ -2001,6 +1979,12 @@ function ReserveRoom({ user, setView }) {
               <span className="text-red-600 font-bold mr-1">•</span>
               The Learning Resource Center reserves the right to cancel the reservation of any group that does not arrive within fifteen (15) minutes of the scheduled reservation time.
             </li>
+            {isFacultyUser() && (
+              <li className="text-xs sm:text-sm text-green-600 flex items-start font-medium">
+                <span className="text-green-600 font-bold mr-1">•</span>
+                Faculty: You can reserve rooms with just yourself. Additional participants are optional.
+              </li>
+            )}
           </ul>
         </div>
 

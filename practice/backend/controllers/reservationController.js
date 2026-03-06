@@ -80,6 +80,12 @@ const validateFloorAccess = (user, floor) => {
       return false;
     }
 
+    // ✅ NEW: Faculty can access any floor
+    if (user.role === "Faculty" || user.role === "Staff_Office") {
+      console.log(`✅ Faculty user ${user.name} - can access any floor`);
+      return true;
+    }
+
     const normalizedFloor = floor.toString().toLowerCase().trim();
     const userDepartment = user.department?.toString().toLowerCase() || '';
     const userCourse = user.course?.toString().toLowerCase() || '';
@@ -232,7 +238,8 @@ export const validateFloorAccessController = async (req, res) => {
           course: participantUser.course,
           program: participantUser.program,
           verified: participantUser.verified,
-          suspended: participantUser.suspended
+          suspended: participantUser.suspended,
+          role: participantUser.role
         });
 
         // ✅ Check if participant is suspended
@@ -463,21 +470,28 @@ export const createReservation = async (req, res) => {
       totalGroupSize,
       totalParticipantsCount,
       expectedTotal: totalGroupSize,
+      userRole: user.role,
       participants: participants?.map(p => ({ name: p.name, id_number: p.id_number }))
     });
 
-    // Validate total group size is between 4-8
-    if (totalGroupSize < 4 || totalGroupSize > 8) {
-      return res.status(400).json({
-        message: "Total group size must be between 4 and 8 users (including main reserver)."
-      });
-    }
+    // ✅ MODIFIED: For Faculty, allow any group size (including just 1 person)
+    if (user.role === "Faculty" || user.role === "Staff_Office") {
+      console.log('✅ Faculty user - bypassing group size restrictions');
+      // Faculty can have any number of participants (including just themselves)
+    } else {
+      // Validate total group size is between 4-8 for non-Faculty
+      if (totalGroupSize < 4 || totalGroupSize > 8) {
+        return res.status(400).json({
+          message: "Total group size must be between 4 and 8 users (including main reserver)."
+        });
+      }
 
-    // ✅ FIXED: The participants array should contain exactly totalGroupSize participants (including main reserver)
-    if (totalParticipantsCount !== totalGroupSize) {
-      return res.status(400).json({
-        message: `Participant count mismatch. Expected ${totalGroupSize} total participants (including main reserver), but found ${totalParticipantsCount}. Please refresh the page and try again.`
-      });
+      // ✅ FIXED: The participants array should contain exactly totalGroupSize participants (including main reserver)
+      if (totalParticipantsCount !== totalGroupSize) {
+        return res.status(400).json({
+          message: `Participant count mismatch. Expected ${totalGroupSize} total participants (including main reserver), but found ${totalParticipantsCount}. Please refresh the page and try again.`
+        });
+      }
     }
 
     // ✅ FIXED: Check that the main reserver is included in the participants array
