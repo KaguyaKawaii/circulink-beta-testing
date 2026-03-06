@@ -13,7 +13,7 @@ router.post("/validate-session", userController.validateSession);
 // ================== SEARCH ROUTES (MUST COME BEFORE /:id) ==================
 router.get("/search", userController.searchUsers);
 // Add alias for /search/users to maintain compatibility
-router.get("/search/users", userController.searchUsers); // ADD THIS LINE
+router.get("/search/users", userController.searchUsers);
 router.get("/check-participant", userController.checkParticipant);
 
 // ================== STATIC ROUTES (MUST COME BEFORE /:id) ==================
@@ -22,16 +22,20 @@ router.get("/all/users", userController.getAllUsers);
 router.get("/role/users", userController.getUsersByRole);
 router.get("/test/cloudinary", userController.testCloudinary);
 router.get("/verification-stats", userController.getVerificationStats);
-router.get("/messaging", userController.getAllUsersForMessaging); // MOVED UP
+router.get("/messaging", userController.getAllUsersForMessaging);
 
 // ================== UNREAD COUNTS ROUTES (MUST COME BEFORE /:id) ==================
-router.get("/:userId/unread-counts", userController.getUserUnreadCounts); // MOVED UP
+router.get("/:userId/unread-counts", userController.getUserUnreadCounts);
 
-// ================== USER BY ID ROUTE (COMES LAST) ==================
+// ================== USER BY ID ROUTE (GET) ==================
 router.get("/:id", userController.getUserById);
 
-// ================== PROFILE ROUTES ==================
-router.put("/profile/:id", userController.updateProfile);
+// ================== UPDATE PROFILE ROUTE (PUT by ID) - ADD THIS! ==================
+// This matches what the frontend is trying to call: PUT /users/:id
+router.put("/:id", userController.updateProfile);
+
+// ================== PROFILE ROUTES (Alternative paths) ==================
+router.put("/profile/:id", userController.updateProfile); // Keep for backward compatibility
 router.post("/:id/upload-picture", upload.single("profile"), userController.uploadPicture);
 router.delete("/:id/remove-picture", userController.removePicture);
 router.put("/change-password/:id", userController.changePassword);
@@ -53,7 +57,7 @@ router.post("/force-logout/:userId", userController.forceLogoutUser);
 router.post("/revoke-all-verification", userController.revokeAllVerification);
 router.post("/bulk-verify", userController.bulkVerifyUsers);
 router.post("/bulk-archive", userController.bulkArchiveUsers);
-router.post("/bulk-restore-archived", userController.bulkRestoreArchivedUsers); // ADD THIS LINE
-router.post("/bulk-delete-archived", userController.bulkDeleteArchivedUsers); // ADD THIS LINE
+router.post("/bulk-restore-archived", userController.bulkRestoreArchivedUsers);
+router.post("/bulk-delete-archived", userController.bulkDeleteArchivedUsers);
 
 export default router;
