@@ -460,7 +460,31 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
       icon: <MessageSquare size={18} />,
       badge: unreadCounts.messages > 0 ? unreadCounts.messages : null,
     },
-    { id: "profile", label: "Profile", icon: <UserCircle size={18} /> },
+    { 
+      id: "profile", 
+      label: user?.name || "Profile", 
+      icon: (
+        <div className="w-6 h-6 rounded-full bg-gray-600 overflow-hidden flex items-center justify-center text-white text-xs font-bold">
+          {user?.profilePicture ? (
+            <img
+              src={
+                user.profilePicture.startsWith("http")
+                  ? `${user.profilePicture}?t=${imgTimestamp}`
+                  : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`
+              }
+              alt="Profile"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "/default-avatar.png";
+              }}
+            />
+          ) : (
+            user?.name?.charAt(0)?.toUpperCase() || "?"
+          )}
+        </div>
+      ),
+    },
   ];
 
   const handleNavClick = (viewId) => {
@@ -564,29 +588,6 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
             <p className="text-gray-400 text-xs">University of San Agustin</p>
           </div>
         </div>
-        
-        {/* Mobile User Info */}
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-full bg-gray-600 overflow-hidden flex items-center justify-center text-white text-sm font-bold">
-            {user?.profilePicture ? (
-              <img
-                src={
-                  user.profilePicture.startsWith("http")
-                    ? `${user.profilePicture}?t=${imgTimestamp}`
-                    : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`
-                }
-                alt="Profile"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "/default-avatar.png";
-                }}
-              />
-            ) : (
-              user?.name?.charAt(0)?.toUpperCase() || "?"
-            )}
-          </div>
-        </div>
       </div>
 
       {/* Sidebar */}
@@ -642,55 +643,12 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
           
           <div className="border-b border-gray-700 opacity-50 w-full my-4 lg:my-4"></div>
 
-          {/* User Info - FIXED: Made more compact for mobile */}
-          <div className={`flex flex-col items-center ${
-            isMobileMenuOpen ? 'mt-2 lg:mt-4' : 'mt-4'
-          }`}>
-            <div className={`
-              border-2 border-gray-600 rounded-full bg-gray-800 overflow-hidden flex items-center justify-center text-gray-300
-              ${isMobileMenuOpen ? 'w-20 h-20 text-3xl lg:w-[100px] lg:h-[100px] lg:text-4xl' : 'w-[100px] h-[100px] text-4xl'}
-            `}>
-              {user?.profilePicture ? (
-                <img
-                  src={
-                    user.profilePicture.startsWith("http")
-                      ? `${user.profilePicture}?t=${imgTimestamp}`
-                      : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`
-                  }
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/default-avatar.png";
-                  }}
-                />
-              ) : (
-                user?.name?.charAt(0)?.toUpperCase() || "?"
-              )}
-            </div>
-            <h1 className={`
-              font-bold text-white mt-2 text-center truncate max-w-full px-2
-              ${isMobileMenuOpen ? 'text-lg lg:text-[18px]' : 'text-[18px]'}
-            `}>
-              {user?.name}
-            </h1>
-            <p className="text-gray-300 mt-1 text-center text-xs lg:text-sm truncate max-w-full px-2">{user?.email}</p>
-            {user?.id_number && (
-              <p className="text-gray-400 mt-1 text-center text-xs lg:text-sm">ID: {user.id_number}</p>
-            )}
-            {user?.suspended && (
-              <div className="mt-2 px-2 py-1 bg-red-600 text-white text-xs rounded-full">
-                SUSPENDED
-              </div>
-            )}
-          </div>
-
           {/* Navigation Buttons - FIXED: Made container scrollable on mobile */}
           <div className={`
             flex-1 flex flex-col mt-4
             ${isMobileMenuOpen ? 'overflow-y-auto' : ''}
           `}>
-            <div className="flex flex-col gap-2.5"> {/* Increased from gap-1.5 to gap-2.5 */}
+            <div className="flex flex-col gap-2.5">
               {navButtons.map((btn) => (
                 <button
                   key={btn.id}
