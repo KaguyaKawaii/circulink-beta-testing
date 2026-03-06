@@ -5,7 +5,7 @@ import logAction from "../utils/logAction.js";
 import cloudinary from "../config/cloudinary.js";
 import { Readable } from "stream";
 import Notification from "../models/Notification.js";
-import notificationService from "./notificationService.js";
+import notificationService from "./notificationService.js"; // Import the notification service
 import crypto from 'crypto';
 
 // Helper function to generate session token
@@ -91,7 +91,6 @@ export const addUser = async (data, file) => {
 };
 
 // userService.js - Fixed signup function
-
 export const signup = async (data, file) => {
   const { name, email, id_number, password, role, department, course, yearLevel } = data;
 
@@ -120,7 +119,6 @@ export const signup = async (data, file) => {
   }
 
   // 🔴 CRITICAL: Force verified to false for all new signups
-  // Do NOT allow any value from the request body to set verified
   const newUser = new User({
     name,
     email: email.toLowerCase(),
@@ -175,6 +173,7 @@ export const signup = async (data, file) => {
   delete userResponse.sessionToken;
   return userResponse;
 };
+
 // ✅ UPDATED: Login with session token for single device
 export const login = async ({ email, password }, io = null) => {
   const user = await User.findOne({ email: email.toLowerCase() });
@@ -425,8 +424,8 @@ export const getArchivedUsers = async () => User.find({ archived: true })
 // ✅ Get user by ID
 export const getUserById = async (id) => User.findById(id).select("-password -sessionToken");
 
-// ✅ Verify or Unverify user
-export const verifyUser = async (id, verified, io) => {
+// ✅ FIXED: Verify or Unverify user with proper notification handling
+export const verifyUser = async (id, verified, adminId, io) => {
   const user = await User.findByIdAndUpdate(
     id,
     { verified },
@@ -434,10 +433,7 @@ export const verifyUser = async (id, verified, io) => {
   ).select("-password -sessionToken");
 
   if (user) {
-    // Get admin info from context (passed through)
-    const adminId = global.currentAdminId; // You'll need to pass this properly
-    
-    // Log the action
+    // Log the action using the provided adminId
     await logAction(
       adminId || user._id,
       user.id_number,
@@ -446,26 +442,33 @@ export const verifyUser = async (id, verified, io) => {
       verified ? "Account verified by admin" : "Account unverified by admin"
     );
 
-    // ✅ Create a notification for the user
-    await createNotification(
-      {
-        userId: user._id,
-        title: verified ? "Account Verified" : "Account Unverified",
-        message: verified
-          ? "Your account has been verified. You can now log in."
-          : "Your account verification has been removed. Please contact support if you believe this is an error.",
-        type: "system",
-        status: "New",
-      },
-      io
-    );
+    // ✅ Create a notification for the user using notificationService
+    try {
+      await notificationService.createNotification(
+        {
+          userId: user._id,
+          title: verified ? "Account Verified" : "Account Unverified",
+          message: verified
+            ? "Your account has been verified. You can now log in."
+            : "Your account verification has been removed. Please contact support if you believe this is an error.",
+          type: "system",
+          status: "New",
+          targetRole: "user"
+        },
+        io // Pass the io instance for real-time notification
+      );
+      
+      console.log(`✅ Notification created for user ${user._id}`);
+    } catch (notifError) {
+      console.error("Failed to create notification:", notifError);
+    }
   }
 
   return user;
 };
 
 // Suspend user (set suspended: true) - CLEAR SESSION
-export const suspendUser = async (id, io) => {
+export const suspendUser = async (id, adminId, io) => {
   const user = await User.findByIdAndUpdate(
     id,
     { 
@@ -477,9 +480,6 @@ export const suspendUser = async (id, io) => {
   ).select("-password -sessionToken");
 
   if (user) {
-    // Get admin info
-    const adminId = global.currentAdminId;
-    
     await logAction(
       adminId || user._id,
       user.id_number,
@@ -488,16 +488,22 @@ export const suspendUser = async (id, io) => {
       "Account suspended by admin"
     );
     
-    await createNotification(
-      {
-        userId: user._id,
-        title: "Account Suspended",
-        message: "Your account has been suspended. Contact support for more information.",
-        type: "system",
-        status: "New",
-      },
-      io
-    );
+    // Create notification using notificationService
+    try {
+      await notificationService.createNotification(
+        {
+          userId: user._id,
+          title: "Account Suspended",
+          message: "Your account has been suspended. Contact support for more information.",
+          type: "system",
+          status: "New",
+          targetRole: "user"
+        },
+        io
+      );
+    } catch (notifError) {
+      console.error("Failed to create suspension notification:", notifError);
+    }
     
     // Force logout via socket
     if (io) {
@@ -512,7 +518,7 @@ export const suspendUser = async (id, io) => {
 };
 
 // Unsuspend user (set suspended: false)
-export const unsuspendUser = async (id, io) => {
+export const unsuspendUser = async (id, adminId, io) => {
   const user = await User.findByIdAndUpdate(
     id,
     { suspended: false },
@@ -520,9 +526,6 @@ export const unsuspendUser = async (id, io) => {
   ).select("-password -sessionToken");
 
   if (user) {
-    // Get admin info
-    const adminId = global.currentAdminId;
-    
     await logAction(
       adminId || user._id,
       user.id_number,
@@ -531,23 +534,29 @@ export const unsuspendUser = async (id, io) => {
       "Account unsuspended by admin"
     );
     
-    await createNotification(
-      {
-        userId: user._id,
-        title: "Account Restored",
-        message: "Your account has been restored. You may now log in.",
-        type: "system",
-        status: "New",
-      },
-      io
-    );
+    // Create notification using notificationService
+    try {
+      await notificationService.createNotification(
+        {
+          userId: user._id,
+          title: "Account Restored",
+          message: "Your account has been restored. You may now log in.",
+          type: "system",
+          status: "New",
+          targetRole: "user"
+        },
+        io
+      );
+    } catch (notifError) {
+      console.error("Failed to create unsuspension notification:", notifError);
+    }
   }
 
   return user;
 };
 
 // Toggle suspend state (accepts boolean suspend) - CLEAR SESSION IF SUSPENDING
-export const toggleSuspend = async (id, suspend, io) => {
+export const toggleSuspend = async (id, suspend, adminId, io) => {
   const updateData = { suspended: !!suspend };
   
   // Clear session token if suspending
@@ -563,9 +572,6 @@ export const toggleSuspend = async (id, suspend, io) => {
   ).select("-password -sessionToken");
 
   if (user) {
-    // Get admin info
-    const adminId = global.currentAdminId;
-    
     await logAction(
       adminId || user._id,
       user.id_number,
@@ -574,18 +580,24 @@ export const toggleSuspend = async (id, suspend, io) => {
       suspend ? "Account suspended via admin toggle" : "Account unsuspended via admin toggle"
     );
 
-    await createNotification(
-      {
-        userId: user._id,
-        title: suspend ? "Account Suspended" : "Account Restored",
-        message: suspend
-          ? "Your account has been suspended. Contact support for more information."
-          : "Your account has been restored. You may now log in.",
-        type: "system",
-        status: "New",
-      },
-      io
-    );
+    // Create notification using notificationService
+    try {
+      await notificationService.createNotification(
+        {
+          userId: user._id,
+          title: suspend ? "Account Suspended" : "Account Restored",
+          message: suspend
+            ? "Your account has been suspended. Contact support for more information."
+            : "Your account has been restored. You may now log in.",
+          type: "system",
+          status: "New",
+          targetRole: "user"
+        },
+        io
+      );
+    } catch (notifError) {
+      console.error("Failed to create toggle suspension notification:", notifError);
+    }
     
     // Force logout if suspended
     if (suspend && io) {
@@ -600,7 +612,7 @@ export const toggleSuspend = async (id, suspend, io) => {
 };
 
 // ✅ Archive user with timestamp - CLEAR SESSION
-export const archiveUser = async (id) => {
+export const archiveUser = async (id, adminId) => {
   const user = await User.findByIdAndUpdate(
     id,
     { 
@@ -613,9 +625,6 @@ export const archiveUser = async (id) => {
   ).select("-password -sessionToken");
   
   if (user) {
-    // Get admin info
-    const adminId = global.currentAdminId;
-    
     await logAction(
       adminId || user._id,
       user.id_number,
@@ -628,7 +637,7 @@ export const archiveUser = async (id) => {
 };
 
 // ✅ Restore user
-export const restoreUser = async (id) => {
+export const restoreUser = async (id, adminId) => {
   const user = await User.findByIdAndUpdate(
     id,
     { archived: false, archivedAt: null },
@@ -636,9 +645,6 @@ export const restoreUser = async (id) => {
   ).select("-password -sessionToken");
   
   if (user) {
-    // Get admin info
-    const adminId = global.currentAdminId;
-    
     await logAction(
       adminId || user._id,
       user.id_number,
@@ -651,12 +657,9 @@ export const restoreUser = async (id) => {
 };
 
 // ✅ Delete archived user
-export const deleteArchivedUser = async (id) => {
+export const deleteArchivedUser = async (id, adminId) => {
   const user = await User.findByIdAndDelete(id);
   if (user) {
-    // Get admin info
-    const adminId = global.currentAdminId;
-    
     await logAction(
       adminId || user._id,
       user.id_number,
@@ -666,28 +669,4 @@ export const deleteArchivedUser = async (id) => {
     );
   }
   return user;
-};
-
-// Helper function to create notification (same as before)
-const createNotification = async (data, io) => {
-  try {
-    const notification = new Notification({
-      userId: data.userId,
-      type: data.type || "system",
-      title: data.title || "System Notification",
-      message: data.message,
-      status: data.status || "New",
-      isRead: false
-    });
-    await notification.save();
-
-    if (io) {
-      io.to(data.userId.toString()).emit('newNotification', notification);
-    }
-
-    return notification;
-  } catch (error) {
-    console.error("Error creating notification:", error);
-    return null;
-  }
 };
