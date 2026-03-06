@@ -1,32 +1,32 @@
 // utils/sendEmail.js
 import { Resend } from "resend";
 
-let resend = null;
+let resend;
 
-// Initialize Resend
-if (process.env.RESEND_API_KEY) {
-  try {
+// Initialize Resend safely
+try {
+  if (!process.env.RESEND_API_KEY) {
+    console.warn("⚠️ RESEND_API_KEY is missing. Emails will not send.");
+  } else {
     resend = new Resend(process.env.RESEND_API_KEY);
     console.log("✅ Resend initialized successfully");
-  } catch (error) {
-    console.error("❌ Failed to initialize Resend:", error.message);
   }
-} else {
-  console.warn("⚠️ RESEND_API_KEY missing. Email sending disabled.");
+} catch (error) {
+  console.error("❌ Resend initialization failed:", error.message);
 }
 
-const sendEmail = async ({ to, subject, html, text }) => {
-  try {
-    console.log("=".repeat(50));
-    console.log("📧 EMAIL ATTEMPT");
-    console.log("Recipient:", to);
-    console.log("Subject:", subject);
+const sendEmail = async ({ to, subject, html = "", text = "" }) => {
+  console.log("=".repeat(50));
+  console.log("📧 EMAIL ATTEMPT");
+  console.log("Recipient:", to);
+  console.log("Subject:", subject);
 
-    // Disable email in development
+  try {
+    // Disable email sending if configured
     if (process.env.DISABLE_EMAIL === "true") {
       console.log("⚠️ Email sending disabled (DISABLE_EMAIL=true)");
 
-      const otpMatch = text?.match(/\b\d{6}\b/) || html?.match(/\b\d{6}\b/);
+      const otpMatch = text.match(/\b\d{6}\b/) || html.match(/\b\d{6}\b/);
       if (otpMatch) {
         console.log("🔐 OTP:", otpMatch[0]);
       }
@@ -35,42 +35,41 @@ const sendEmail = async ({ to, subject, html, text }) => {
     }
 
     if (!resend) {
-      console.log("📭 Email skipped - Resend not initialized");
-      return { messageId: "no-resend" };
+      throw new Error("Resend not initialized");
     }
 
     if (!to) {
       throw new Error("Recipient email is required");
     }
 
-    const { data, error } = await resend.emails.send({
+    const response = await resend.emails.send({
       from: "CircuLink <onboarding@resend.dev>",
-      to: [to],
+      to,
       subject,
       html,
       text,
     });
 
-    if (error) {
-      throw error;
+    if (response.error) {
+      throw new Error(response.error.message);
     }
 
     console.log("✅ Email sent successfully");
-    console.log("📬 Message ID:", data?.id);
+    console.log("📬 Message ID:", response.data?.id);
 
-    const otpMatch = text?.match(/\b\d{6}\b/) || html?.match(/\b\d{6}\b/);
+    const otpMatch = text.match(/\b\d{6}\b/) || html.match(/\b\d{6}\b/);
     if (otpMatch) {
       console.log("🔐 OTP sent:", otpMatch[0]);
     }
 
     console.log("=".repeat(50));
 
-    return data;
+    return response.data;
 
   } catch (error) {
     console.error("❌ Email sending failed:", error.message);
 
-    const otpMatch = text?.match(/\b\d{6}\b/) || html?.match(/\b\d{6}\b/);
+    const otpMatch = text.match(/\b\d{6}\b/) || html.match(/\b\d{6}\b/);
     if (otpMatch) {
       console.log("🔐 OTP (email failed):", otpMatch[0]);
     }
