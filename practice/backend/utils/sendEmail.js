@@ -1,19 +1,13 @@
 // utils/sendEmail.js
-import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
-let resend;
-
-// Initialize Resend safely
-try {
-  if (!process.env.RESEND_API_KEY) {
-    console.warn("⚠️ RESEND_API_KEY is missing. Emails will not send.");
-  } else {
-    resend = new Resend(process.env.RESEND_API_KEY);
-    console.log("✅ Resend initialized successfully");
-  }
-} catch (error) {
-  console.error("❌ Resend initialization failed:", error.message);
-}
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 const sendEmail = async ({ to, subject, html = "", text = "" }) => {
   console.log("=".repeat(50));
@@ -22,40 +16,22 @@ const sendEmail = async ({ to, subject, html = "", text = "" }) => {
   console.log("Subject:", subject);
 
   try {
-    // Disable email sending if configured
-    if (process.env.DISABLE_EMAIL === "true") {
-      console.log("⚠️ Email sending disabled (DISABLE_EMAIL=true)");
-
-      const otpMatch = text.match(/\b\d{6}\b/) || html.match(/\b\d{6}\b/);
-      if (otpMatch) {
-        console.log("🔐 OTP:", otpMatch[0]);
-      }
-
-      return { messageId: "disabled-" + Date.now() };
-    }
-
-    if (!resend) {
-      throw new Error("Resend not initialized");
-    }
-
     if (!to) {
       throw new Error("Recipient email is required");
     }
 
-    const response = await resend.emails.send({
-      from: "CircuLink <stephenpatingomadero@gmail.com>",
+    const mailOptions = {
+      from: `CircuLink <${process.env.EMAIL_USER}>`,
       to,
       subject,
       html,
       text,
-    });
+    };
 
-    if (response.error) {
-      throw new Error(response.error.message);
-    }
+    const info = await transporter.sendMail(mailOptions);
 
     console.log("✅ Email sent successfully");
-    console.log("📬 Message ID:", response.data?.id);
+    console.log("📬 Message ID:", info.messageId);
 
     const otpMatch = text.match(/\b\d{6}\b/) || html.match(/\b\d{6}\b/);
     if (otpMatch) {
@@ -64,7 +40,7 @@ const sendEmail = async ({ to, subject, html = "", text = "" }) => {
 
     console.log("=".repeat(50));
 
-    return response.data;
+    return info;
 
   } catch (error) {
     console.error("❌ Email sending failed:", error.message);
@@ -76,7 +52,7 @@ const sendEmail = async ({ to, subject, html = "", text = "" }) => {
 
     return {
       messageId: "failed",
-      error: error.message
+      error: error.message,
     };
   }
 };
