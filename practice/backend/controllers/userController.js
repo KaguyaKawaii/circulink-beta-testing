@@ -182,25 +182,25 @@ export const login = async (req, res) => {
       hasPassword: !!user.password
     });
 
-    // 🔴 FIX: CHECK VERIFICATION STATUS FIRST - THIS WAS THE ISSUE
-    // Users MUST be verified to log in
-    if (!user.verified) {
-      console.log("❌ User is not verified - login denied");
+    // // 🔴 FIX: CHECK VERIFICATION STATUS FIRST - THIS WAS THE ISSUE
+    // // Users MUST be verified to log in
+    // if (!user.verified) {
+    //   console.log("❌ User is not verified - login denied");
       
-      // Log failed login attempt due to verification
-      await createActivityLog(
-        user._id,
-        user.id_number,
-        user.name,
-        "login failed",
-        "Account not verified"
-      );
+    //   // Log failed login attempt due to verification
+    //   await createActivityLog(
+    //     user._id,
+    //     user.id_number,
+    //     user.name,
+    //     "login failed",
+    //     "Account not verified"
+    //   );
       
-      return res.status(403).json({ 
-        success: false, 
-        message: "Account is not verified. Please wait for admin verification." 
-      });
-    }
+    //   return res.status(403).json({ 
+    //     success: false, 
+    //     message: "Account is not verified. Please wait for admin verification." 
+    //   });
+    // }
 
     // Check if user is archived
     if (user.archived) {
