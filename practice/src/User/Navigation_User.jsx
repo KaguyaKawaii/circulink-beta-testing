@@ -556,7 +556,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setIsMobileMenu(!isMobileMenuOpen)}
-            className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
+            className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
             aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
             disabled={user?.suspended}
           >
@@ -602,7 +602,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
             </div>
             <button
               onClick={() => setIsMobileMenu(false)}
-              className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
+              className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
               aria-label="Close menu"
             >
               <X size={24} />
@@ -636,8 +636,8 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                   disabled={user?.suspended}
                   className={`
                     flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer relative group
-                    text-gray-300 hover:text-white hover:bg-[#333333]
-                    ${isActive(btn.id) ? "text-white" : ""}
+                    text-gray-300 hover:text-white hover:bg-[#333333] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50
+                    ${isActive(btn.id) ? "text-white bg-red-600" : ""}
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
                     text-sm
                   `}
@@ -665,8 +665,8 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                   disabled={user?.suspended}
                   className={`
                     flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer w-full
-                    text-gray-300 hover:text-white hover:bg-[#333333]
-                    ${(showHelp || currentView === "help" || currentView === "guidelines") ? "text-white" : ""}
+                    text-gray-300 hover:text-white hover:bg-[#333333] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50
+                    ${(showHelp || currentView === "help" || currentView === "guidelines") ? "text-white bg-red-600" : ""}
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
                     text-sm
                   `}
@@ -727,7 +727,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                             
                             <button
                               onClick={() => setShowHelp(false)}
-                              className="mt-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 text-sm font-medium"
+                              className="mt-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
                             >
                               Close
                             </button>
@@ -783,7 +783,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                 onClick={onLogout}
                 disabled={user?.suspended}
                 className={`
-                  w-full flex items-center gap-3 justify-center px-4 py-3 rounded-lg font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group
+                  w-full flex items-center gap-3 justify-center px-4 py-3 rounded-lg font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50
                   ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
                   text-sm bg-transparent
                 `}
