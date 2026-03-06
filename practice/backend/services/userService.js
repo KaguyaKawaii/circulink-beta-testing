@@ -426,6 +426,12 @@ export const getUserById = async (id) => User.findById(id).select("-password -se
 
 // ✅ FIXED: Verify or Unverify user with proper notification handling
 export const verifyUser = async (id, verified, adminId, io) => {
+  console.log("=== VERIFY USER SERVICE ===");
+  console.log("User ID:", id);
+  console.log("Verified status:", verified);
+  console.log("Admin ID:", adminId);
+  console.log("IO instance available:", !!io);
+
   const user = await User.findByIdAndUpdate(
     id,
     { verified },
@@ -433,6 +439,8 @@ export const verifyUser = async (id, verified, adminId, io) => {
   ).select("-password -sessionToken");
 
   if (user) {
+    console.log("User found:", user.name, user.email);
+    
     // Log the action using the provided adminId
     await logAction(
       adminId || user._id,
@@ -444,24 +452,42 @@ export const verifyUser = async (id, verified, adminId, io) => {
 
     // ✅ Create a notification for the user using notificationService
     try {
-      await notificationService.createNotification(
-        {
-          userId: user._id,
-          title: verified ? "Account Verified" : "Account Unverified",
-          message: verified
-            ? "Your account has been verified. You can now log in."
-            : "Your account verification has been removed. Please contact support if you believe this is an error.",
-          type: "system",
-          status: "New",
-          targetRole: "user"
-        },
-        io // Pass the io instance for real-time notification
+      console.log("Creating verification notification...");
+      
+      // Use the convenience method from notificationService
+      const notification = await notificationService.createVerificationNotification(
+        user._id,
+        user.name,
+        verified,
+        io
       );
       
-      console.log(`✅ Notification created for user ${user._id}`);
+      console.log("✅ Notification created successfully:", notification?._id);
+      
+      // Also try the generic method as backup
+      if (!notification) {
+        console.log("Falling back to generic notification method...");
+        await notificationService.createNotification(
+          {
+            userId: user._id,
+            userName: user.name,
+            title: verified ? "Account Verified" : "Account Unverified",
+            message: verified
+              ? `Your account has been verified successfully. You can now log in.`
+              : `Your account has been unverified. Please contact support if you believe this is an error.`,
+            type: "verification",
+            status: verified ? "Verified" : "Unverified",
+            targetRole: "user"
+          },
+          io
+        );
+      }
     } catch (notifError) {
-      console.error("Failed to create notification:", notifError);
+      console.error("❌ Failed to create notification:", notifError);
+      console.error("Error details:", notifError.message);
     }
+  } else {
+    console.log("❌ User not found with ID:", id);
   }
 
   return user;
@@ -469,6 +495,9 @@ export const verifyUser = async (id, verified, adminId, io) => {
 
 // Suspend user (set suspended: true) - CLEAR SESSION
 export const suspendUser = async (id, adminId, io) => {
+  console.log("=== SUSPEND USER SERVICE ===");
+  console.log("User ID:", id);
+  
   const user = await User.findByIdAndUpdate(
     id,
     { 
@@ -480,6 +509,8 @@ export const suspendUser = async (id, adminId, io) => {
   ).select("-password -sessionToken");
 
   if (user) {
+    console.log("User suspended:", user.name);
+    
     await logAction(
       adminId || user._id,
       user.id_number,
@@ -488,26 +519,22 @@ export const suspendUser = async (id, adminId, io) => {
       "Account suspended by admin"
     );
     
-    // Create notification using notificationService
+    // Create notification using notificationService convenience method
     try {
-      await notificationService.createNotification(
-        {
-          userId: user._id,
-          title: "Account Suspended",
-          message: "Your account has been suspended. Contact support for more information.",
-          type: "system",
-          status: "New",
-          targetRole: "user"
-        },
+      await notificationService.createSuspensionNotification(
+        user._id,
+        user.name,
+        true, // isSuspended
         io
       );
+      console.log("✅ Suspension notification created");
     } catch (notifError) {
       console.error("Failed to create suspension notification:", notifError);
     }
     
     // Force logout via socket
     if (io) {
-      io.to(user._id.toString()).emit('force-logout', {
+      io.to(`user-${user._id.toString()}`).emit('force-logout', {
         message: 'Your account has been suspended.',
         reason: 'suspended'
       });
@@ -519,6 +546,9 @@ export const suspendUser = async (id, adminId, io) => {
 
 // Unsuspend user (set suspended: false)
 export const unsuspendUser = async (id, adminId, io) => {
+  console.log("=== UNSUSPEND USER SERVICE ===");
+  console.log("User ID:", id);
+  
   const user = await User.findByIdAndUpdate(
     id,
     { suspended: false },
@@ -526,6 +556,8 @@ export const unsuspendUser = async (id, adminId, io) => {
   ).select("-password -sessionToken");
 
   if (user) {
+    console.log("User unsuspended:", user.name);
+    
     await logAction(
       adminId || user._id,
       user.id_number,
@@ -534,19 +566,15 @@ export const unsuspendUser = async (id, adminId, io) => {
       "Account unsuspended by admin"
     );
     
-    // Create notification using notificationService
+    // Create notification using notificationService convenience method
     try {
-      await notificationService.createNotification(
-        {
-          userId: user._id,
-          title: "Account Restored",
-          message: "Your account has been restored. You may now log in.",
-          type: "system",
-          status: "New",
-          targetRole: "user"
-        },
+      await notificationService.createSuspensionNotification(
+        user._id,
+        user.name,
+        false, // isSuspended (false = restored)
         io
       );
+      console.log("✅ Unsuspension notification created");
     } catch (notifError) {
       console.error("Failed to create unsuspension notification:", notifError);
     }
@@ -580,28 +608,22 @@ export const toggleSuspend = async (id, suspend, adminId, io) => {
       suspend ? "Account suspended via admin toggle" : "Account unsuspended via admin toggle"
     );
 
-    // Create notification using notificationService
+    // Create notification using notificationService convenience method
     try {
-      await notificationService.createNotification(
-        {
-          userId: user._id,
-          title: suspend ? "Account Suspended" : "Account Restored",
-          message: suspend
-            ? "Your account has been suspended. Contact support for more information."
-            : "Your account has been restored. You may now log in.",
-          type: "system",
-          status: "New",
-          targetRole: "user"
-        },
+      await notificationService.createSuspensionNotification(
+        user._id,
+        user.name,
+        suspend, // isSuspended
         io
       );
+      console.log(`✅ ${suspend ? 'Suspension' : 'Unsuspension'} notification created`);
     } catch (notifError) {
       console.error("Failed to create toggle suspension notification:", notifError);
     }
     
     // Force logout if suspended
     if (suspend && io) {
-      io.to(user._id.toString()).emit('force-logout', {
+      io.to(`user-${user._id.toString()}`).emit('force-logout', {
         message: 'Your account has been suspended.',
         reason: 'suspended'
       });
