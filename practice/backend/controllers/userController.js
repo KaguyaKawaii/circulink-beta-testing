@@ -1,7 +1,9 @@
+// userController.js
 import mongoose from "mongoose";
 import * as userService from "../services/userService.js";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
+import Log from "../models/Log.js"; // Add this import
 import { v2 as cloudinary } from 'cloudinary';
 import crypto from 'crypto';
 
@@ -20,6 +22,23 @@ try {
   console.error("❌ Cloudinary configuration error:", error);
 }
 
+// Helper function to create activity logs
+const createActivityLog = async (userId, idNumber, userName, action, details = "") => {
+  try {
+    const log = new Log({
+      userId,
+      id_number: idNumber,
+      userName,
+      action,
+      details
+    });
+    await log.save();
+    console.log(`✅ Activity log created: ${action} - ${userName}`);
+  } catch (error) {
+    console.error("❌ Failed to create activity log:", error);
+  }
+};
+
 // Helper function to generate session token
 const generateSessionToken = () => {
   return crypto.randomBytes(32).toString('hex');
@@ -33,6 +52,19 @@ export const getUsersByRole = async (req, res) => {
       query.role = req.query.role;
     }
     const users = await User.find(query).select("-password -sessionToken");
+    
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "view users by role",
+        `Viewed ${req.query.role || 'all'} users`
+      );
+    }
+    
     res.json({ success: true, users });
   } catch (err) {
     console.error("Get Users By Role Error:", err);
@@ -44,29 +76,61 @@ export const getUsersByRole = async (req, res) => {
 export const addUser = async (req, res) => {
   try {
     const newUser = await userService.addUser(req.body, req.file);
+    
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "add user",
+        `Added new user: ${newUser.name} (${newUser.role})`
+      );
+    }
+    
     res.status(201).json({ success: true, message: "User added successfully.", user: newUser });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message || "Failed to add user." });
   }
 };
 
-// 📌 Signup
+// 📌 Signup - FIXED: Set users as unverified by default
 export const signup = async (req, res) => {
   try {
+    // Ensure user is created as unverified
+    if (!req.body.verified) {
+      req.body.verified = false; // Force unverified status
+    }
+    
     const newUser = await userService.signup(req.body, req.file);
-    res.status(201).json({ success: true, message: "User registered successfully.", user: newUser });
+    
+    // Log activity
+    await createActivityLog(
+      newUser._id,
+      newUser.id_number,
+      newUser.name,
+      "sign up",
+      "New account created (pending verification)"
+    );
+    
+    res.status(201).json({ 
+      success: true, 
+      message: "User registered successfully. Please wait for account verification.", 
+      user: newUser 
+    });
   } catch (err) {
     res.status(400).json({ success: false, message: err.message || "Failed to signup." });
   }
 };
 
-// 📌 Login - UPDATED to use email instead of id_number
+// 📌 Login
 export const login = async (req, res) => {
   try {
     console.log("=== LOGIN ATTEMPT ===");
     console.log("Request body:", req.body);
     
-    const { email, password } = req.body; // Changed from id_number to email
+    const { email, password } = req.body;
     
     // Validate input
     if (!email || !password) {
@@ -77,8 +141,8 @@ export const login = async (req, res) => {
       });
     }
 
-    // Find user by email (not id_number)
-    const user = await User.findOne({ email: email.toLowerCase() }); // Case-insensitive search
+    // Find user by email
+    const user = await User.findOne({ email: email.toLowerCase() });
     console.log("User found:", user ? "Yes" : "No");
     
     if (!user) {
@@ -89,7 +153,7 @@ export const login = async (req, res) => {
       });
     }
 
-    // Log user details (without password)
+    // Log user details
     console.log("User details:", {
       id: user._id,
       name: user.name,
@@ -98,8 +162,18 @@ export const login = async (req, res) => {
       role: user.role,
       archived: user.archived,
       suspended: user.suspended,
+      verified: user.verified,
       hasPassword: !!user.password
     });
+
+    // Check if user is verified
+    if (!user.verified) {
+      console.log("❌ User is not verified");
+      return res.status(403).json({ 
+        success: false, 
+        message: "Account is not verified. Please wait for admin verification." 
+      });
+    }
 
     // Check if user is archived
     if (user.archived) {
@@ -125,6 +199,14 @@ export const login = async (req, res) => {
     console.log("Password valid:", isPasswordValid);
     
     if (!isPasswordValid) {
+      // Log failed login attempt
+      await createActivityLog(
+        user._id,
+        user.id_number,
+        user.name,
+        "login failed",
+        "Incorrect password"
+      );
       return res.status(401).json({ 
         success: false, 
         message: "Invalid credentials." 
@@ -146,12 +228,21 @@ export const login = async (req, res) => {
     console.log("✅ Login successful for:", user.name);
     console.log("Session token generated:", sessionToken.substring(0, 10) + "...");
 
+    // Log successful login
+    await createActivityLog(
+      user._id,
+      user.id_number,
+      user.name,
+      "login",
+      "Logged in successfully"
+    );
+
     // Remove sensitive data
     const userData = user.toObject();
     delete userData.password;
     delete userData.sessionToken;
 
-    // If there's an existing session, notify it to logout (via WebSocket)
+    // If there's an existing session, notify it to logout
     const io = req.io || null;
     if (io && previousSessionToken) {
       try {
@@ -160,6 +251,14 @@ export const login = async (req, res) => {
           timestamp: new Date().toISOString()
         });
         console.log(`✅ Force logout notification sent for previous session`);
+        
+        await createActivityLog(
+          user._id,
+          user.id_number,
+          user.name,
+          "session replaced",
+          "Logged out from other device due to new login"
+        );
       } catch (socketError) {
         console.error("Socket notification error:", socketError);
       }
@@ -182,7 +281,7 @@ export const login = async (req, res) => {
   }
 };
 
-// 📌 Logout - UPDATED to clear session token
+// 📌 Logout
 export const logout = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -190,6 +289,15 @@ export const logout = async (req, res) => {
 
     const user = await User.findById(userId);
     if (user && user.sessionToken === sessionToken) {
+      // Log before clearing session
+      await createActivityLog(
+        user._id,
+        user.id_number,
+        user.name,
+        "logout",
+        "Logged out successfully"
+      );
+      
       user.sessionToken = null;
       user.isLoggedIn = false;
       await user.save();
@@ -204,7 +312,7 @@ export const logout = async (req, res) => {
   }
 };
 
-// 📌 Validate Session - NEW function to check if session is valid
+// 📌 Validate Session
 export const validateSession = async (req, res) => {
   try {
     const { userId, sessionToken } = req.body;
@@ -239,6 +347,14 @@ export const validateSession = async (req, res) => {
       });
     }
 
+    // Check if user is verified
+    if (!user.verified) {
+      return res.json({ 
+        valid: false, 
+        message: "Account is not verified" 
+      });
+    }
+
     // Check if session token matches
     if (user.sessionToken !== sessionToken) {
       return res.json({ 
@@ -268,10 +384,23 @@ export const validateSession = async (req, res) => {
   }
 };
 
-// 📌 Update Profile (Self) - FIXED ENDPOINT
+// 📌 Update Profile (Self)
 export const updateProfile = async (req, res) => {
   try {
     const updatedUser = await userService.updateProfile(req.params.id, req.body);
+    
+    // Log activity
+    const user = await User.findById(req.params.id);
+    if (user) {
+      await createActivityLog(
+        user._id,
+        user.id_number,
+        user.name,
+        "update profile",
+        "Updated profile information"
+      );
+    }
+    
     res.json({ success: true, message: "Profile updated successfully.", user: updatedUser });
   } catch (err) {
     console.error("Update Profile Error:", err);
@@ -279,7 +408,7 @@ export const updateProfile = async (req, res) => {
   }
 };
 
-// 📌 Upload Profile Picture - CLOUDINARY VERSION (FIXED)
+// 📌 Upload Profile Picture
 export const uploadPicture = async (req, res) => {
   try {
     console.log("=== UPLOAD DEBUG ===");
@@ -297,12 +426,10 @@ export const uploadPicture = async (req, res) => {
       hasBuffer: !!req.file.buffer
     });
 
-    // ✅ FIXED: Check if Cloudinary is available
     if (!cloudinary) {
       throw new Error("Cloudinary not configured properly");
     }
 
-    // ✅ FIXED: Check Cloudinary configuration
     const config = cloudinary.config();
     if (!config.cloud_name || !config.api_key || !config.api_secret) {
       console.error("Cloudinary config missing:", {
@@ -313,7 +440,6 @@ export const uploadPicture = async (req, res) => {
       throw new Error("Cloudinary configuration is incomplete. Please check your environment variables.");
     }
 
-    // Convert buffer to base64 for Cloudinary
     const b64 = Buffer.from(req.file.buffer).toString('base64');
     const dataURI = "data:" + req.file.mimetype + ";base64," + b64;
 
@@ -324,7 +450,6 @@ export const uploadPicture = async (req, res) => {
       api_secret: config.api_secret ? "✓" : "✗"
     });
 
-    // ✅ FIXED: Upload to Cloudinary with better error handling
     let cloudinaryResult;
     try {
       cloudinaryResult = await cloudinary.uploader.upload(dataURI, {
@@ -343,7 +468,6 @@ export const uploadPicture = async (req, res) => {
 
     console.log("Cloudinary upload successful:", cloudinaryResult.secure_url);
 
-    // Update user profile with Cloudinary URL
     const updatedUser = await User.findByIdAndUpdate(
       req.params.id,
       { profilePicture: cloudinaryResult.secure_url },
@@ -353,6 +477,15 @@ export const uploadPicture = async (req, res) => {
     if (!updatedUser) {
       return res.status(404).json({ success: false, message: "User not found." });
     }
+
+    // Log activity
+    await createActivityLog(
+      updatedUser._id,
+      updatedUser.id_number,
+      updatedUser.name,
+      "upload picture",
+      "Updated profile picture"
+    );
 
     res.json({ 
       success: true, 
@@ -365,7 +498,6 @@ export const uploadPicture = async (req, res) => {
     console.error("=== UPLOAD ERROR ===");
     console.error("Upload Picture Error:", err);
     
-    // ✅ FIXED: Better error messages
     let errorMessage = "Failed to upload picture.";
     if (err.message.includes("Cloudinary")) {
       errorMessage = err.message;
@@ -381,7 +513,7 @@ export const uploadPicture = async (req, res) => {
   }
 };
 
-// 📌 Remove Profile Picture - CLOUDINARY VERSION
+// 📌 Remove Profile Picture
 export const removePicture = async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
@@ -389,27 +521,31 @@ export const removePicture = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found." });
     }
 
-    // If user has a Cloudinary profile picture, delete it from Cloudinary
     if (user.profilePicture && user.profilePicture.includes('cloudinary')) {
       try {
-        // Extract public_id from Cloudinary URL
         const urlParts = user.profilePicture.split('/');
         const publicIdWithExtension = urlParts[urlParts.length - 1];
         const publicId = publicIdWithExtension.split('.')[0];
         
-        // Get the full public_id with folder
         const fullPublicId = `profile-pictures/${publicId}`;
         await cloudinary.uploader.destroy(fullPublicId);
         console.log("Deleted from Cloudinary:", fullPublicId);
       } catch (cloudinaryError) {
         console.error("Error deleting from Cloudinary:", cloudinaryError);
-        // Continue anyway - we still want to remove the reference
       }
     }
 
-    // Remove profile picture reference from user
     user.profilePicture = null;
     await user.save();
+
+    // Log activity
+    await createActivityLog(
+      user._id,
+      user.id_number,
+      user.name,
+      "remove picture",
+      "Removed profile picture"
+    );
 
     const userResponse = user.toObject();
     delete userResponse.password;
@@ -429,7 +565,7 @@ export const removePicture = async (req, res) => {
   }
 };
 
-// 📌 Change Password - ENHANCED DEBUGGING
+// 📌 Change Password
 export const changePassword = async (req, res) => {
   try {
     console.log("=== PASSWORD CHANGE CONTROLLER ===");
@@ -447,6 +583,18 @@ export const changePassword = async (req, res) => {
     
     await userService.changePassword(req.params.id, oldPassword, newPassword);
     
+    // Log activity
+    const user = await User.findById(req.params.id);
+    if (user) {
+      await createActivityLog(
+        user._id,
+        user.id_number,
+        user.name,
+        "change password",
+        "Password changed successfully"
+      );
+    }
+    
     console.log("✅ Password change successful in service");
     
     res.json({ success: true, message: "Password changed successfully." });
@@ -463,6 +611,19 @@ export const changePassword = async (req, res) => {
 export const adminEditUser = async (req, res) => {
   try {
     const updatedUser = await userService.adminEditUser(req.params.id, req.body, req.file);
+    
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "edit user",
+        `Edited user: ${updatedUser.name} (${updatedUser.role})`
+      );
+    }
+    
     res.json({ success: true, message: "User updated successfully.", user: updatedUser });
   } catch (err) {
     console.error("Admin Edit User Error:", err);
@@ -470,18 +631,28 @@ export const adminEditUser = async (req, res) => {
   }
 };
 
-// 📌 Archive User - UPDATED to clear session token
+// 📌 Archive User
 export const archiveUser = async (req, res) => {
   try {
     const archivedUser = await userService.archiveUser(req.params.id);
     if (!archivedUser) return res.status(404).json({ success: false, message: "User not found." });
     
-    // Clear session token
     archivedUser.sessionToken = null;
     archivedUser.isLoggedIn = false;
     await archivedUser.save();
     
-    // Notify user to logout via WebSocket
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "archive user",
+        `Archived user: ${archivedUser.name}`
+      );
+    }
+    
     const io = req.io || null;
     if (io) {
       io.to(req.params.id).emit('force-logout', {
@@ -507,6 +678,18 @@ export const restoreUser = async (req, res) => {
     const restoredUser = await userService.restoreUser(req.params.id);
     if (!restoredUser) return res.status(404).json({ success: false, message: "User not found." });
     
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "restore user",
+        `Restored user: ${restoredUser.name}`
+      );
+    }
+    
     const userResponse = restoredUser.toObject();
     delete userResponse.password;
     delete userResponse.sessionToken;
@@ -522,7 +705,19 @@ export const restoreUser = async (req, res) => {
 export const getArchivedUsers = async (req, res) => {
   try {
     const archivedUsers = await userService.getArchivedUsers();
-    // Remove sensitive data
+    
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "view archived",
+        `Viewed ${archivedUsers.length} archived users`
+      );
+    }
+    
     const users = archivedUsers.map(user => {
       const u = user.toObject();
       delete u.password;
@@ -539,8 +734,36 @@ export const getArchivedUsers = async (req, res) => {
 // 📌 Delete Archived User
 export const deleteArchivedUser = async (req, res) => {
   try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found." });
+    
+    // Delete profile picture from Cloudinary if exists
+    if (user.profilePicture && user.profilePicture.includes('cloudinary')) {
+      try {
+        const urlParts = user.profilePicture.split('/');
+        const publicIdWithExtension = urlParts[urlParts.length - 1];
+        const publicId = publicIdWithExtension.split('.')[0];
+        const fullPublicId = `profile-pictures/${publicId}`;
+        await cloudinary.uploader.destroy(fullPublicId);
+      } catch (cloudinaryError) {
+        console.error("Error deleting from Cloudinary:", cloudinaryError);
+      }
+    }
+    
     const deletedUser = await userService.deleteArchivedUser(req.params.id);
-    if (!deletedUser) return res.status(404).json({ success: false, message: "User not found." });
+    
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "delete user",
+        `Permanently deleted user: ${user.name}`
+      );
+    }
+    
     res.json({ success: true, message: "Archived user deleted permanently." });
   } catch (err) {
     console.error("Delete Archived User Error:", err);
@@ -552,7 +775,19 @@ export const deleteArchivedUser = async (req, res) => {
 export const getAllUsers = async (req, res) => {
   try {
     const users = await userService.getAllUsers();
-    // Remove sensitive data
+    
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "view all users",
+        `Viewed ${users.length} active users`
+      );
+    }
+    
     const filteredUsers = users.map(user => {
       const u = user.toObject();
       delete u.password;
@@ -566,7 +801,7 @@ export const getAllUsers = async (req, res) => {
   }
 };
 
-// ✅ Toggle suspend - UPDATED to clear session token when suspended
+// ✅ Toggle suspend
 export const toggleSuspendUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -576,7 +811,6 @@ export const toggleSuspendUser = async (req, res) => {
     console.log("User ID:", id);
     console.log("Suspend value:", suspend);
     
-    // Validate suspend parameter
     if (suspend === undefined) {
       return res.status(400).json({ 
         success: false, 
@@ -584,10 +818,8 @@ export const toggleSuspendUser = async (req, res) => {
       });
     }
     
-    // Convert to boolean if it's a string
     const suspendStatus = suspend === true || suspend === "true";
     
-    // Find user first
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ 
@@ -598,10 +830,8 @@ export const toggleSuspendUser = async (req, res) => {
     
     console.log("User found:", user.name, "Current suspended:", user.suspended);
     
-    // Update suspension status
     user.suspended = suspendStatus;
     
-    // Clear session token if suspending
     if (suspendStatus) {
       user.sessionToken = null;
       user.isLoggedIn = false;
@@ -611,7 +841,18 @@ export const toggleSuspendUser = async (req, res) => {
     
     console.log("User suspension updated to:", user.suspended);
     
-    // Create notification if WebSocket is available
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        suspendStatus ? "suspend user" : "unsuspend user",
+        `${suspendStatus ? 'Suspended' : 'Unsuspended'} user: ${user.name}`
+      );
+    }
+    
     const io = req.io || null;
     if (io) {
       try {
@@ -628,7 +869,6 @@ export const toggleSuspendUser = async (req, res) => {
         });
         await notification.save();
         
-        // Emit to user's room
         io.to(user._id.toString()).emit('notification', {
           _id: notification._id,
           title: notification.title,
@@ -639,7 +879,6 @@ export const toggleSuspendUser = async (req, res) => {
           createdAt: notification.createdAt
         });
         
-        // Force logout if suspended
         if (suspendStatus) {
           io.to(user._id.toString()).emit('force-logout', {
             message: 'Your account has been suspended.',
@@ -647,7 +886,6 @@ export const toggleSuspendUser = async (req, res) => {
           });
         }
         
-        // Emit to admin room for real-time updates
         io.to('admin').emit('userSuspensionUpdated', {
           userId: user._id,
           suspended: suspendStatus,
@@ -657,11 +895,9 @@ export const toggleSuspendUser = async (req, res) => {
         console.log("✅ Notifications sent");
       } catch (notifyError) {
         console.error("Notification error:", notifyError);
-        // Don't fail the whole request if notification fails
       }
     }
     
-    // Return user without sensitive data
     const userResponse = user.toObject();
     delete userResponse.password;
     delete userResponse.sessionToken;
@@ -693,9 +929,21 @@ export const suspendUser = async (req, res) => {
     }
     
     user.suspended = true;
-    user.sessionToken = null; // Clear session token
+    user.sessionToken = null;
     user.isLoggedIn = false;
     await user.save();
+    
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "suspend user",
+        `Suspended user: ${user.name}`
+      );
+    }
     
     const userResponse = user.toObject();
     delete userResponse.password;
@@ -727,6 +975,18 @@ export const unsuspendUser = async (req, res) => {
     user.suspended = false;
     await user.save();
     
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "unsuspend user",
+        `Unsuspended user: ${user.name}`
+      );
+    }
+    
     const userResponse = user.toObject();
     delete userResponse.password;
     delete userResponse.sessionToken;
@@ -746,7 +1006,7 @@ export const unsuspendUser = async (req, res) => {
   }
 };
 
-// ✅ Toggle Verify User with WebSocket Notifications - FIXED VERSION
+// ✅ Toggle Verify User with WebSocket Notifications
 export const toggleVerifyUser = async (req, res) => {
   try {
     const { verify } = req.body;
@@ -768,10 +1028,20 @@ export const toggleVerifyUser = async (req, res) => {
     user.verified = verifyStatus;
     await user.save();
 
-    // ✅ WebSocket notification to the user
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        verifyStatus ? "verify user" : "unverify user",
+        `${verifyStatus ? 'Verified' : 'Unverified'} user: ${user.name}`
+      );
+    }
+
     if (io) {
       try {
-        // Create notification in database
         const notification = new Notification({
           userId: user._id,
           title: `Account ${verifyStatus ? 'Verified' : 'Unverified'}`,
@@ -787,7 +1057,6 @@ export const toggleVerifyUser = async (req, res) => {
 
         console.log("✅ Notification created in database:", notification._id);
 
-        // Emit real-time notification to the specific user
         const userRoom = user._id.toString();
         console.log("Emitting to user room:", userRoom);
         
@@ -803,7 +1072,6 @@ export const toggleVerifyUser = async (req, res) => {
 
         console.log("✅ Notification emitted to user");
 
-        // Also emit to admin room for real-time updates
         io.to('admin').emit('userVerificationUpdated', {
           userId: user._id,
           verified: verifyStatus,
@@ -814,7 +1082,6 @@ export const toggleVerifyUser = async (req, res) => {
 
       } catch (notifyError) {
         console.error("❌ Notification error:", notifyError);
-        // Don't fail the whole request if notification fails
       }
     } else {
       console.log("❌ WebSocket (io) not available - notifications skipped");
@@ -858,7 +1125,18 @@ export const verifyUser = async (req, res) => {
     user.verified = verified;
     await user.save();
     
-    // Return user without sensitive data
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        verified ? "verify user" : "unverify user",
+        `${verified ? 'Verified' : 'Unverified'} user: ${user.name}`
+      );
+    }
+    
     const userResponse = user.toObject();
     delete userResponse.password;
     delete userResponse.sessionToken;
@@ -874,29 +1152,37 @@ export const verifyUser = async (req, res) => {
   }
 };
 
-// 📌 Get User By ID - Enhanced to handle email lookups
+// 📌 Get User By ID
 export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Check if the ID parameter is actually an email
     const isEmail = id.includes('@');
     
     let user;
     
     if (isEmail) {
-      // Find by email
       user = await User.findOne({ email: id.toLowerCase() }).select("-password -sessionToken");
     } else if (mongoose.Types.ObjectId.isValid(id)) {
-      // Find by MongoDB ObjectId
       user = await User.findById(id).select("-password -sessionToken");
     } else {
-      // Try to find by id_number as fallback
       user = await User.findOne({ id_number: id }).select("-password -sessionToken");
     }
     
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
+    }
+    
+    // Log activity
+    const currentUser = req.user;
+    if (currentUser) {
+      await createActivityLog(
+        currentUser._id,
+        currentUser.id_number,
+        currentUser.name,
+        "view user",
+        `Viewed user: ${user.name}`
+      );
     }
     
     res.json({ success: true, user });
@@ -906,21 +1192,19 @@ export const getUserById = async (req, res) => {
   }
 };
 
-// 📌 Search Users - FIXED VERSION
+// 📌 Search Users
 export const searchUsers = async (req, res) => {
   try {
     const { q, verified } = req.query;
     
     console.log("🔍 User search request:", { q, verified });
 
-    // Validate input - return empty array instead of 400 for empty query
     if (!q || q.trim() === "") {
-      return res.status(200).json([]); // Return empty array instead of error
+      return res.status(200).json([]);
     }
 
     const searchRegex = new RegExp(q, 'i');
     
-    // Build query
     const query = {
       $or: [
         { name: searchRegex },
@@ -930,12 +1214,10 @@ export const searchUsers = async (req, res) => {
       ]
     };
 
-    // Add verified filter if specified
     if (verified === 'true') {
       query.verified = true;
     }
 
-    // Exclude archived users
     query.archived = { $ne: true };
 
     const users = await User.find(query)
@@ -944,7 +1226,18 @@ export const searchUsers = async (req, res) => {
 
     console.log(`✅ Found ${users.length} users matching "${q}"`);
     
-    // Return as array (not wrapped in success object to match frontend expectation)
+    // Log activity
+    const currentUser = req.user;
+    if (currentUser && users.length > 0) {
+      await createActivityLog(
+        currentUser._id,
+        currentUser.id_number,
+        currentUser.name,
+        "search users",
+        `Searched for "${q}" - found ${users.length} results`
+      );
+    }
+    
     res.status(200).json(users);
   } catch (err) {
     console.error("❌ User search error:", err);
@@ -979,7 +1272,6 @@ export const checkParticipant = async (req, res) => {
     const user = await User.findOne({ id_number });
     if (!user) {
       console.log("User not found with ID:", id_number);
-      // Return 200 with exists: false instead of 404
       return res.status(200).json({ 
         exists: false, 
         verified: false 
@@ -1004,7 +1296,7 @@ export const checkParticipant = async (req, res) => {
   }
 };
 
-// 📌 Get User Unread Counts (for Navigation_User) - FIXED VERSION
+// 📌 Get User Unread Counts (for Navigation_User)
 export const getUserUnreadCounts = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -1013,14 +1305,12 @@ export const getUserUnreadCounts = async (req, res) => {
       return res.status(400).json({ message: "User ID is required" });
     }
 
-    // Get unread messages count
     const Message = (await import("../models/Message.js")).default;
     const messagesCount = await Message.countDocuments({
       receiver: userId,
       read: false
     });
 
-    // Get unread notifications count
     let notificationsCount = 0;
     try {
       const Notification = (await import("../models/Notification.js")).default;
@@ -1051,7 +1341,7 @@ export const getAllUsersForMessaging = async (req, res) => {
   try {
     const users = await User.find({ 
       archived: { $ne: true },
-      role: { $ne: 'admin' } // Exclude admins
+      role: { $ne: 'admin' }
     })
     .select('name email role department id_number floor')
     .sort({ name: 1 });
@@ -1115,12 +1405,11 @@ export const testCloudinary = async (req, res) => {
 export const revokeAllVerification = async (req, res) => {
   try {
     const { roles } = req.body;
-    const rolesToRevoke = roles || ["Student"]; // Default to students only
+    const rolesToRevoke = roles || ["Student"];
     
     console.log("=== REVOKE ALL VERIFICATION ===");
     console.log("Roles to revoke:", rolesToRevoke);
     
-    // Find all users with specified roles that are verified
     const usersToUpdate = await User.find({
       role: { $in: rolesToRevoke },
       verified: true,
@@ -1137,7 +1426,6 @@ export const revokeAllVerification = async (req, res) => {
       });
     }
     
-    // Update all these users to unverified
     const updateResult = await User.updateMany(
       { 
         role: { $in: rolesToRevoke },
@@ -1149,7 +1437,18 @@ export const revokeAllVerification = async (req, res) => {
     
     console.log(`Updated ${updateResult.modifiedCount} users`);
     
-    // Create notifications for all affected users
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "bulk unverify",
+        `Revoked verification for ${updateResult.modifiedCount} users (roles: ${rolesToRevoke.join(', ')})`
+      );
+    }
+    
     const notifications = [];
     const io = req.io || null;
     
@@ -1169,7 +1468,6 @@ export const revokeAllVerification = async (req, res) => {
         await notification.save();
         notifications.push(notification);
         
-        // Emit real-time notification if io is available
         if (io) {
           io.to(user._id.toString()).emit('notification', {
             _id: notification._id,
@@ -1186,7 +1484,6 @@ export const revokeAllVerification = async (req, res) => {
       }
     }
     
-    // Emit socket event for admin UI update
     if (io) {
       io.to('admin').emit('bulk-verification-updated', {
         roles: rolesToRevoke,
@@ -1229,7 +1526,6 @@ export const bulkVerifyUsers = async (req, res) => {
     console.log("Verify status:", verifyStatus);
     console.log("Count:", userIds.length);
     
-    // Update all specified users
     const updateResult = await User.updateMany(
       { 
         _id: { $in: userIds },
@@ -1240,10 +1536,20 @@ export const bulkVerifyUsers = async (req, res) => {
     
     console.log(`Updated ${updateResult.modifiedCount} users`);
     
-    // Get the updated users for notifications
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        verifyStatus ? "bulk verify" : "bulk unverify",
+        `${verifyStatus ? 'Verified' : 'Unverified'} ${updateResult.modifiedCount} users`
+      );
+    }
+    
     const updatedUsers = await User.find({ _id: { $in: userIds } });
     
-    // Create notifications for all affected users
     const notifications = [];
     const io = req.io || null;
     
@@ -1263,7 +1569,6 @@ export const bulkVerifyUsers = async (req, res) => {
         await notification.save();
         notifications.push(notification);
         
-        // Emit real-time notification if io is available
         if (io) {
           io.to(user._id.toString()).emit('notification', {
             _id: notification._id,
@@ -1280,7 +1585,6 @@ export const bulkVerifyUsers = async (req, res) => {
       }
     }
     
-    // Emit socket event for admin UI update
     if (io) {
       io.to('admin').emit('bulk-verification-updated', {
         userIds: userIds,
@@ -1344,7 +1648,7 @@ export const getVerificationStats = async (req, res) => {
   }
 };
 
-// 📌 Bulk Archive Users - UPDATED to clear session tokens
+// 📌 Bulk Archive Users
 export const bulkArchiveUsers = async (req, res) => {
   try {
     const { userIds } = req.body;
@@ -1360,22 +1664,32 @@ export const bulkArchiveUsers = async (req, res) => {
     console.log("User IDs to archive:", userIds);
     console.log("Count:", userIds.length);
     
-    // Update all specified users to archived and clear session tokens
     const updateResult = await User.updateMany(
       { 
         _id: { $in: userIds },
-        archived: { $ne: true } // Don't re-archive already archived users
+        archived: { $ne: true }
       },
       { 
         archived: true,
-        sessionToken: null, // Clear session tokens
+        sessionToken: null,
         isLoggedIn: false
       }
     );
     
     console.log(`Archived ${updateResult.modifiedCount} users`);
     
-    // Create notifications for all affected users
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "bulk archive",
+        `Archived ${updateResult.modifiedCount} users`
+      );
+    }
+    
     const usersToNotify = await User.find({ _id: { $in: userIds } });
     const notifications = [];
     const io = req.io || null;
@@ -1396,7 +1710,6 @@ export const bulkArchiveUsers = async (req, res) => {
         await notification.save();
         notifications.push(notification);
         
-        // Emit real-time notification if io is available
         if (io) {
           io.to(user._id.toString()).emit('notification', {
             _id: notification._id,
@@ -1408,12 +1721,10 @@ export const bulkArchiveUsers = async (req, res) => {
             createdAt: notification.createdAt
           });
           
-          // Also emit that user is archived to disconnect them
           io.to(user._id.toString()).emit('account-archived', {
             message: "Your account has been archived"
           });
 
-          // Force logout
           io.to(user._id.toString()).emit('force-logout', {
             message: 'Your account has been archived.',
             reason: 'archived'
@@ -1424,7 +1735,6 @@ export const bulkArchiveUsers = async (req, res) => {
       }
     }
     
-    // Emit socket event for admin UI update
     if (io) {
       io.to('admin').emit('bulk-archive-completed', {
         userIds: userIds,
@@ -1464,21 +1774,30 @@ export const bulkRestoreArchivedUsers = async (req, res) => {
     console.log("User IDs to restore:", userIds);
     console.log("Count:", userIds.length);
     
-    // Update all specified users to restore (archived: false)
     const updateResult = await User.updateMany(
       { 
         _id: { $in: userIds },
-        archived: true // Only restore archived users
+        archived: true
       },
       { 
         archived: false
-        // Keep sessionToken null - they'll need to login again
       }
     );
     
     console.log(`Restored ${updateResult.modifiedCount} users`);
     
-    // Create notifications for all restored users
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "bulk restore",
+        `Restored ${updateResult.modifiedCount} archived users`
+      );
+    }
+    
     const usersToNotify = await User.find({ _id: { $in: userIds } });
     const notifications = [];
     const io = req.io || null;
@@ -1499,7 +1818,6 @@ export const bulkRestoreArchivedUsers = async (req, res) => {
         await notification.save();
         notifications.push(notification);
         
-        // Emit real-time notification if io is available
         if (io) {
           io.to(user._id.toString()).emit('notification', {
             _id: notification._id,
@@ -1516,7 +1834,6 @@ export const bulkRestoreArchivedUsers = async (req, res) => {
       }
     }
     
-    // Emit socket event for admin UI update
     if (io) {
       io.to('admin').emit('bulk-restore-completed', {
         userIds: userIds,
@@ -1556,41 +1873,46 @@ export const bulkDeleteArchivedUsers = async (req, res) => {
     console.log("User IDs to delete permanently:", userIds);
     console.log("Count:", userIds.length);
     
-    // First, get users to clean up their profile pictures from Cloudinary
     const usersToDelete = await User.find({ 
       _id: { $in: userIds },
-      archived: true // Only delete archived users
+      archived: true
     });
     
-    // Delete profile pictures from Cloudinary
     for (const user of usersToDelete) {
       if (user.profilePicture && user.profilePicture.includes('cloudinary')) {
         try {
-          // Extract public_id from Cloudinary URL
           const urlParts = user.profilePicture.split('/');
           const publicIdWithExtension = urlParts[urlParts.length - 1];
           const publicId = publicIdWithExtension.split('.')[0];
           
-          // Get the full public_id with folder
           const fullPublicId = `profile-pictures/${publicId}`;
           await cloudinary.uploader.destroy(fullPublicId);
           console.log("Deleted from Cloudinary:", fullPublicId);
         } catch (cloudinaryError) {
           console.error(`Error deleting from Cloudinary for user ${user._id}:`, cloudinaryError);
-          // Continue anyway - we still want to delete the user
         }
       }
     }
     
-    // Delete the users permanently
     const deleteResult = await User.deleteMany({ 
       _id: { $in: userIds },
-      archived: true // Only delete archived users
+      archived: true
     });
     
     console.log(`Permanently deleted ${deleteResult.deletedCount} users`);
     
-    // Emit socket event for admin UI update
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "bulk delete",
+        `Permanently deleted ${deleteResult.deletedCount} archived users`
+      );
+    }
+    
     const io = req.io || null;
     if (io) {
       io.to('admin').emit('bulk-delete-completed', {
@@ -1624,12 +1946,22 @@ export const forceLogoutUser = async (req, res) => {
       return res.status(404).json({ success: false, message: "User not found" });
     }
     
-    // Clear session token
     user.sessionToken = null;
     user.isLoggedIn = false;
     await user.save();
     
-    // Notify user to logout via WebSocket
+    // Log activity
+    const adminUser = req.user;
+    if (adminUser) {
+      await createActivityLog(
+        adminUser._id,
+        adminUser.id_number,
+        adminUser.name,
+        "force logout",
+        `Forced logout for user: ${user.name}`
+      );
+    }
+    
     const io = req.io || null;
     if (io) {
       io.to(userId).emit('force-logout', {
