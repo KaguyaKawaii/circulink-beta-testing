@@ -1033,29 +1033,38 @@ export const unsuspendUser = async (req, res) => {
   }
 };
 
-// ✅ Toggle Verify User with WebSocket Notifications
+// ✅ NEW: Toggle Verify User with proper service integration and WebSocket Notifications
 export const toggleVerifyUser = async (req, res) => {
   try {
     const { verify } = req.body;
     const verifyStatus = verify === true || verify === "true";
-    const io = req.io || null;
+    const io = req.app.get('io'); // Get Socket.io instance from app
     
     console.log("=== TOGGLE VERIFY DEBUG ===");
     console.log("User ID:", req.params.id);
     console.log("Verify status:", verifyStatus);
     console.log("WebSocket available:", !!io);
     
-    const user = await User.findById(req.params.id);
+    // Get admin ID from authenticated user
+    const adminId = req.user?._id || req.admin?._id;
+    
+    if (!adminId) {
+      console.warn("Admin ID not found in request - using fallback");
+    }
+    
+    // Use the service function instead of direct DB update
+    const user = await userService.verifyUser(
+      req.params.id, 
+      verifyStatus, 
+      adminId, 
+      io
+    );
+    
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found" });
     }
 
-    console.log("User found:", user.name, user._id.toString());
-    
-    user.verified = verifyStatus;
-    await user.save();
-
-    // Log activity
+    // Log activity (keep your existing logging)
     const adminUser = req.user;
     if (adminUser) {
       await createActivityLog(
@@ -1067,61 +1076,19 @@ export const toggleVerifyUser = async (req, res) => {
       );
     }
 
+    // Also emit to admin room for real-time updates
     if (io) {
-      try {
-        const notification = new Notification({
-          userId: user._id,
-          title: `Account ${verifyStatus ? 'Verified' : 'Unverified'}`,
-          message: `Your account has been ${verifyStatus ? 'verified' : 'unverified'}.`,
-          type: "system",
-          status: verifyStatus ? "Verified" : "Unverified",
-          isRead: false,
-          targetRole: "user",
-          userName: user.name,
-          idNumber: user.id_number
-        });
-        await notification.save();
-
-        console.log("✅ Notification created in database:", notification._id);
-
-        const userRoom = user._id.toString();
-        console.log("Emitting to user room:", userRoom);
-        
-        io.to(userRoom).emit('notification', {
-          _id: notification._id,
-          title: notification.title,
-          message: notification.message,
-          type: notification.type,
-          status: notification.status,
-          isRead: notification.isRead,
-          createdAt: notification.createdAt
-        });
-
-        console.log("✅ Notification emitted to user");
-
-        io.to('admin').emit('userVerificationUpdated', {
-          userId: user._id,
-          verified: verifyStatus,
-          userName: user.name
-        });
-
-        console.log("✅ Admin update emitted");
-
-      } catch (notifyError) {
-        console.error("❌ Notification error:", notifyError);
-      }
-    } else {
-      console.log("❌ WebSocket (io) not available - notifications skipped");
+      io.to('admin').emit('userVerificationUpdated', {
+        userId: user._id,
+        verified: verifyStatus,
+        userName: user.name
+      });
     }
-
-    const userResponse = user.toObject();
-    delete userResponse.password;
-    delete userResponse.sessionToken;
 
     res.json({
       success: true,
       message: `User ${verifyStatus ? "verified" : "unverified"} successfully`,
-      user: userResponse,
+      user: user,
     });
   } catch (error) {
     console.error("Toggle Verify Error:", error);
@@ -1132,7 +1099,7 @@ export const toggleVerifyUser = async (req, res) => {
   }
 };
 
-// 📌 Verify User (simple version for PATCH /verify/:id)
+// 📌 Verify User (simple version for PATCH /verify/:id) - Keep for backward compatibility
 export const verifyUser = async (req, res) => {
   try {
     const { verified } = req.body;
@@ -1140,17 +1107,25 @@ export const verifyUser = async (req, res) => {
       return res.status(400).json({ success: false, message: "Verified status is required." });
     }
     
-    console.log("=== VERIFY USER ===");
+    console.log("=== VERIFY USER (Legacy) ===");
     console.log("User ID:", req.params.id);
     console.log("Verified status:", verified);
     
-    const user = await User.findById(req.params.id);
+    const verifyStatus = verified === true || verified === "true";
+    const io = req.app.get('io');
+    const adminId = req.user?._id || req.admin?._id;
+    
+    // Use the service function
+    const user = await userService.verifyUser(
+      req.params.id, 
+      verifyStatus, 
+      adminId, 
+      io
+    );
+    
     if (!user) {
       return res.status(404).json({ success: false, message: "User not found." });
     }
-    
-    user.verified = verified;
-    await user.save();
     
     // Log activity
     const adminUser = req.user;
@@ -1159,19 +1134,15 @@ export const verifyUser = async (req, res) => {
         adminUser._id,
         adminUser.id_number,
         adminUser.name,
-        verified ? "verify user" : "unverify user",
-        `${verified ? 'Verified' : 'Unverified'} user: ${user.name}`
+        verifyStatus ? "verify user" : "unverify user",
+        `${verifyStatus ? 'Verified' : 'Unverified'} user: ${user.name}`
       );
     }
     
-    const userResponse = user.toObject();
-    delete userResponse.password;
-    delete userResponse.sessionToken;
-    
     res.json({
       success: true,
-      message: `User ${verified ? "verified" : "unverified"}.`,
-      user: userResponse
+      message: `User ${verifyStatus ? "verified" : "unverified"}.`,
+      user: user
     });
   } catch (err) {
     console.error("Verify User Error:", err);
@@ -1540,6 +1511,8 @@ export const bulkVerifyUsers = async (req, res) => {
   try {
     const { userIds, verified } = req.body;
     const verifyStatus = verified === true || verified === "true";
+    const io = req.app.get('io');
+    const adminId = req.user?._id || req.admin?._id;
     
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
       return res.status(400).json({ 
@@ -1553,15 +1526,28 @@ export const bulkVerifyUsers = async (req, res) => {
     console.log("Verify status:", verifyStatus);
     console.log("Count:", userIds.length);
     
-    const updateResult = await User.updateMany(
-      { 
-        _id: { $in: userIds },
-        archived: { $ne: true }
-      },
-      { verified: verifyStatus }
-    );
+    // Process each user individually to ensure notifications are sent
+    const results = [];
+    const errors = [];
     
-    console.log(`Updated ${updateResult.modifiedCount} users`);
+    for (const userId of userIds) {
+      try {
+        const user = await userService.verifyUser(
+          userId,
+          verifyStatus,
+          adminId,
+          io
+        );
+        if (user) {
+          results.push(user);
+        }
+      } catch (error) {
+        console.error(`Failed to process user ${userId}:`, error);
+        errors.push({ userId, error: error.message });
+      }
+    }
+    
+    console.log(`Successfully processed ${results.length} users, ${errors.length} errors`);
     
     // Log activity
     const adminUser = req.user;
@@ -1571,60 +1557,23 @@ export const bulkVerifyUsers = async (req, res) => {
         adminUser.id_number,
         adminUser.name,
         verifyStatus ? "bulk verify" : "bulk unverify",
-        `${verifyStatus ? 'Verified' : 'Unverified'} ${updateResult.modifiedCount} users`
+        `${verifyStatus ? 'Verified' : 'Unverified'} ${results.length} users`
       );
-    }
-    
-    const updatedUsers = await User.find({ _id: { $in: userIds } });
-    
-    const notifications = [];
-    const io = req.io || null;
-    
-    for (const user of updatedUsers) {
-      try {
-        const notification = new Notification({
-          userId: user._id,
-          title: `Account ${verifyStatus ? 'Verified' : 'Unverified'}`,
-          message: `Your account has been ${verifyStatus ? 'verified' : 'unverified'} by an administrator.`,
-          type: "system",
-          status: verifyStatus ? "Verified" : "Unverified",
-          isRead: false,
-          targetRole: "user",
-          userName: user.name,
-          idNumber: user.id_number
-        });
-        await notification.save();
-        notifications.push(notification);
-        
-        if (io) {
-          io.to(user._id.toString()).emit('notification', {
-            _id: notification._id,
-            title: notification.title,
-            message: notification.message,
-            type: notification.type,
-            status: notification.status,
-            isRead: notification.isRead,
-            createdAt: notification.createdAt
-          });
-        }
-      } catch (notifError) {
-        console.error(`Failed to create notification for user ${user._id}:`, notifError);
-      }
     }
     
     if (io) {
       io.to('admin').emit('bulk-verification-updated', {
         userIds: userIds,
         verified: verifyStatus,
-        count: updateResult.modifiedCount
+        count: results.length
       });
     }
     
     res.json({
       success: true,
-      message: `Successfully ${verifyStatus ? 'verified' : 'unverified'} ${updateResult.modifiedCount} users.`,
-      count: updateResult.modifiedCount,
-      notificationsCreated: notifications.length
+      message: `Successfully ${verifyStatus ? 'verified' : 'unverified'} ${results.length} users.`,
+      count: results.length,
+      errors: errors.length > 0 ? errors : undefined
     });
     
   } catch (error) {

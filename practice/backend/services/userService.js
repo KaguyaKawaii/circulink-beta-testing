@@ -464,24 +464,6 @@ export const verifyUser = async (id, verified, adminId, io) => {
       
       console.log("✅ Notification created successfully:", notification?._id);
       
-      // Also try the generic method as backup
-      if (!notification) {
-        console.log("Falling back to generic notification method...");
-        await notificationService.createNotification(
-          {
-            userId: user._id,
-            userName: user.name,
-            title: verified ? "Account Verified" : "Account Unverified",
-            message: verified
-              ? `Your account has been verified successfully. You can now log in.`
-              : `Your account has been unverified. Please contact support if you believe this is an error.`,
-            type: "verification",
-            status: verified ? "Verified" : "Unverified",
-            targetRole: "user"
-          },
-          io
-        );
-      }
     } catch (notifError) {
       console.error("❌ Failed to create notification:", notifError);
       console.error("Error details:", notifError.message);
