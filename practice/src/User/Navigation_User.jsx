@@ -10,11 +10,12 @@ import {
   MessageSquare,
   UserCircle,
   LogOut,
-  Calendar as CalendarIcon,
   HelpCircle,
   Menu,
   X,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 function Navigation_User({ user: initialUser, setView, currentView, onLogout }) {
@@ -29,10 +30,17 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   const [showSuspensionModal, setShowSuspensionModal] = useState(false);
   const [suspensionData, setSuspensionData] = useState(null);
   
+  // Sidebar collapsed state
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  
   // ANNOUNCEMENT STATES
   const [announcements, setAnnouncements] = useState([]);
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
+
+  // Check if device is tablet/desktop for auto-collapse behavior
+  const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 1024);
 
   // 🔊 Notification sound — uses /ringtone_message.wav from public folder
   const messageSound = useRef(null);
@@ -59,6 +67,30 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         messageSound.current = null;
       }
     };
+  }, []);
+
+  // Handle window resize for responsive behavior
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      setIsTablet(width >= 768 && width < 1024);
+      setIsDesktop(width >= 1024);
+      
+      // Auto-collapse on tablet when switching from desktop
+      if (width >= 768 && width < 1024) {
+        setIsCollapsed(true);
+      }
+      
+      // Close mobile menu on desktop
+      if (width >= 1024) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Initial check
+    
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   useEffect(() => {
@@ -445,22 +477,21 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   };
 
   const navButtons = [
-    { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={18} /> },
-    // { id: "calendar", label: "Calendar", icon: <CalendarIcon size={18} /> },
-    { id: "history", label: "History", icon: <History size={18} /> },
+    { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={isCollapsed && isDesktop ? 22 : 18} /> },
+    { id: "history", label: "History", icon: <History size={isCollapsed && isDesktop ? 22 : 18} /> },
     {
       id: "notification",
       label: "Notification",
-      icon: <Bell size={18} />,
+      icon: <Bell size={isCollapsed && isDesktop ? 22 : 18} />,
       badge: unreadCounts.notifications > 0 ? unreadCounts.notifications : null,
     },
     {
       id: "messages",
       label: "Messages",
-      icon: <MessageSquare size={18} />,
+      icon: <MessageSquare size={isCollapsed && isDesktop ? 22 : 18} />,
       badge: unreadCounts.messages > 0 ? unreadCounts.messages : null,
     },
-    { id: "profile", label: "Profile", icon: <UserCircle size={18} /> },
+    { id: "profile", label: "Profile", icon: <UserCircle size={isCollapsed && isDesktop ? 22 : 18} /> },
   ];
 
   const handleNavClick = (viewId) => {
@@ -469,16 +500,13 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     
     setView(viewId);
     
-    // FIXED: REMOVED automatic marking of notifications as read
-    // Users should manually mark notifications as read in the Notification component
-    
-    // FIXED: When clicking on messages, mark messages as read via API
+    // When clicking on messages, mark messages as read via API
     if (viewId === "messages") {
       socket.emit("mark-messages-read", user._id);
     } 
     
     setShowHelp(false);
-    setIsMobileMenu(false);
+    setIsMobileMenuOpen(false);
   };
 
   const isActive = (btnId) => {
@@ -492,14 +520,8 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     return currentView === btnId;
   };
 
-  const setIsMobileMenu = (open) => {
-    setIsMobileMenuOpen(open);
-    // Prevent body scroll when mobile menu is open
-    if (open) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
+  const toggleSidebar = () => {
+    setIsCollapsed(!isCollapsed);
   };
 
   return (
@@ -547,164 +569,175 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         showModal={showAnnouncementModal}
       />
 
-      {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#171717] z-50 flex items-center justify-between px-4 border-b border-gray-700">
+      {/* Mobile Header - Only visible on mobile (< 768px) */}
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 bg-[#171717] z-50 flex items-center justify-between px-4 border-b border-gray-700">
         <div className="flex items-center space-x-3">
           <button
-            onClick={() => setIsMobileMenu(!isMobileMenuOpen)}
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
             aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
             disabled={user?.suspended}
           >
             {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          <img src={Logo} alt="Logo" className="h-10 w-10" />
+          <img src={Logo} alt="Logo" className="h-8 w-8" />
           <div>
-            <h1 className="text-white font-semibold text-sm">CircuLink</h1>
-            <p className="text-gray-400 text-xs">University of San Agustin</p>
+            <h1 className="text-white font-semibold text-xs">CircuLink</h1>
+            <p className="text-gray-400 text-[10px]">USA</p>
           </div>
         </div>
         
-        {/* Mobile User Info */}
-        <div className="flex items-center space-x-2">
-          <div className="w-8 h-8 rounded-full bg-gray-600 overflow-hidden flex items-center justify-center text-white text-sm font-bold">
-            {user?.profilePicture ? (
-              <img
-                src={
-                  user.profilePicture.startsWith("http")
-                    ? `${user.profilePicture}?t=${imgTimestamp}`
-                    : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`
-                }
-                alt="Profile"
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = "/default-avatar.png";
-                }}
-              />
-            ) : (
-              user?.name?.charAt(0)?.toUpperCase() || "?"
-            )}
-          </div>
-        </div>
+        {/* Mobile User Icon - Click to go to profile */}
+        <button
+          onClick={() => {
+            setView("profile");
+            setIsMobileMenuOpen(false);
+          }}
+          className="w-8 h-8 rounded-full bg-gray-600 overflow-hidden flex items-center justify-center text-white text-sm font-bold hover:ring-2 hover:ring-red-500 transition-all"
+          disabled={user?.suspended}
+        >
+          {user?.profilePicture ? (
+            <img
+              src={
+                user.profilePicture.startsWith("http")
+                  ? `${user.profilePicture}?t=${imgTimestamp}`
+                  : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`
+              }
+              alt="Profile"
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = "/default-avatar.png";
+              }}
+            />
+          ) : (
+            user?.name?.charAt(0)?.toUpperCase() || "?"
+          )}
+        </button>
       </div>
 
-      {/* Sidebar */}
+      {/* Sidebar - Responsive for all devices */}
       <aside>
         {/* Mobile Overlay */}
         {isMobileMenuOpen && (
           <div 
-            className="lg:hidden fixed inset-0 bg-black/50 z-40"
-            onClick={() => setIsMobileMenu(false)}
+            className="md:hidden fixed inset-0 bg-black/50 z-40"
+            onClick={() => setIsMobileMenuOpen(false)}
           />
         )}
 
-        {/* Navigation Panel - FIXED: Made sidebar responsive and scrollable */}
+        {/* Navigation Panel - Responsive Sidebar */}
         <div className={`
           fixed top-0 left-0 z-50
           transition-all duration-300 ease-in-out
-          ${isMobileMenuOpen 
-            ? 'w-full h-full p-6 translate-x-0' 
-            : '-translate-x-full lg:translate-x-0 w-[250px] h-screen p-6'
-          }
           bg-[#171717] shadow-md flex flex-col
-          lg:rounded-tr-3xl
+          ${isDesktop ? 'h-screen' : ''}
+          
+          /* Mobile styles (< 768px) */
+          ${!isDesktop && isMobileMenuOpen 
+            ? 'w-full h-full p-4 translate-x-0' 
+            : !isDesktop && !isMobileMenuOpen
+            ? '-translate-x-full'
+            : ''
+          }
+          
+          /* Tablet styles (768px - 1023px) */
+          ${isTablet ? `
+            ${isMobileMenuOpen ? 'w-[200px] p-4 translate-x-0' : '-translate-x-full'}
+            h-full
+          ` : ''}
+          
+          /* Desktop styles (>= 1024px) */
+          ${isDesktop ? `
+            ${isCollapsed ? 'w-[70px]' : 'w-[250px]'}
+            p-4 translate-x-0
+            ${isCollapsed ? 'items-center' : ''}
+            rounded-tr-3xl
+          ` : ''}
         `}>
-          {/* Close Button - Mobile Only */}
-          <div className="lg:hidden flex justify-between items-center mb-4">
-            <div className="flex items-center space-x-3">
-              <img src={Logo} alt="Logo" className="h-10 w-10" />
-              <div>
-                <h1 className="text-white font-semibold text-sm">CircuLink</h1>
-                <p className="text-gray-400 text-xs">University of San Agustin</p>
+          {/* Close Button - Mobile & Tablet Only */}
+          {!isDesktop && (
+            <div className="flex justify-between items-center mb-4">
+              <div className="flex items-center space-x-2">
+                <img src={Logo} alt="Logo" className="h-8 w-8" />
+                <div>
+                  <h1 className="text-white font-semibold text-xs">CircuLink</h1>
+                  <p className="text-gray-400 text-[10px]">USA</p>
+                </div>
               </div>
+              <button
+                onClick={() => setIsMobileMenuOpen(false)}
+                className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
+                aria-label="Close menu"
+              >
+                <X size={20} />
+              </button>
             </div>
-            <button
-              onClick={() => setIsMobileMenu(false)}
-              className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors"
-              aria-label="Close menu"
-            >
-              <X size={24} />
-            </button>
-          </div>
+          )}
 
           {/* Logo - Desktop Only */}
-          <div className="hidden lg:flex items-center justify-around mb-4">
-            <img src={Logo} alt="Logo" className="h-[100px] w-[100px]" />
-            <div className="flex flex-col items-start">
-              <h1 className="text-[15px] font-serif text-white">
-                University of <br /> San Agustin
-              </h1>
-              <div className="border w-full border-b-white/50"></div>
-              <p className="text-[20px] font-serif font-semibold text-white">CircuLink</p>
-            </div>
-          </div>
-          
-          <div className="border-b border-gray-700 opacity-50 w-full my-4 lg:my-4"></div>
-
-          {/* User Info - FIXED: Made more compact for mobile */}
-          <div className={`flex flex-col items-center ${
-            isMobileMenuOpen ? 'mt-2 lg:mt-4' : 'mt-4'
-          }`}>
-            <div className={`
-              border-2 border-gray-600 rounded-full bg-gray-800 overflow-hidden flex items-center justify-center text-gray-300
-              ${isMobileMenuOpen ? 'w-20 h-20 text-3xl lg:w-[100px] lg:h-[100px] lg:text-4xl' : 'w-[100px] h-[100px] text-4xl'}
-            `}>
-              {user?.profilePicture ? (
-                <img
-                  src={
-                    user.profilePicture.startsWith("http")
-                      ? `${user.profilePicture}?t=${imgTimestamp}`
-                      : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`
-                  }
-                  alt="Profile"
-                  className="w-full h-full object-cover"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/default-avatar.png";
-                  }}
-                />
-              ) : (
-                user?.name?.charAt(0)?.toUpperCase() || "?"
-              )}
-            </div>
-            <h1 className={`
-              font-bold text-white mt-2 text-center truncate max-w-full px-2
-              ${isMobileMenuOpen ? 'text-lg lg:text-[18px]' : 'text-[18px]'}
-            `}>
-              {user?.name}
-            </h1>
-            <p className="text-gray-300 mt-1 text-center text-xs lg:text-sm truncate max-w-full px-2">{user?.email}</p>
-            {user?.id_number && (
-              <p className="text-gray-400 mt-1 text-center text-xs lg:text-sm">ID: {user.id_number}</p>
-            )}
-            {user?.suspended && (
-              <div className="mt-2 px-2 py-1 bg-red-600 text-white text-xs rounded-full">
-                SUSPENDED
+          {isDesktop && !isCollapsed && (
+            <>
+              <div className="flex items-center justify-around mb-2">
+                <img src={Logo} alt="Logo" className="h-[80px] w-[80px]" />
+                <div className="flex flex-col items-start">
+                  <h1 className="text-[13px] font-serif text-white">
+                    University of <br /> San Agustin
+                  </h1>
+                  <div className="border w-full border-b-white/50"></div>
+                  <p className="text-[16px] font-serif font-semibold text-white">CircuLink</p>
+                </div>
               </div>
-            )}
-          </div>
+              <div className="border-b border-gray-700 opacity-50 w-full my-2"></div>
+            </>
+          )}
 
-          {/* Navigation Buttons - FIXED: Made container scrollable on mobile */}
+          {/* Desktop Logo - Collapsed View */}
+          {isDesktop && isCollapsed && (
+            <>
+              <div className="flex justify-center mb-4">
+                <img src={Logo} alt="Logo" className="h-[50px] w-[50px]" />
+              </div>
+              <div className="border-b border-gray-700 opacity-50 w-full my-2"></div>
+            </>
+          )}
+
+          {/* Navigation Buttons Container */}
           <div className={`
-            flex-1 flex flex-col mt-4
-            ${isMobileMenuOpen ? 'overflow-y-auto' : ''}
+            flex-1 flex flex-col
+            ${!isDesktop ? 'overflow-y-auto' : ''}
+            ${isDesktop && isCollapsed ? 'items-center' : ''}
           `}>
-            <div className="flex flex-col gap-2.5"> {/* Increased from gap-1.5 to gap-2.5 */}
+            <div className={`
+              flex flex-col
+              ${isDesktop && isCollapsed ? 'gap-3' : 'gap-1.5'}
+            `}>
               {navButtons.map((btn) => (
                 <button
                   key={btn.id}
                   onClick={() => handleNavClick(btn.id)}
                   disabled={user?.suspended}
                   className={`
-                    flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer relative group
+                    flex items-center rounded-lg font-medium transition-all duration-200
+                    cursor-pointer relative group
                     ${isActive(btn.id)
                       ? "bg-red-600 text-white shadow-md"
                       : "bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white"
                     }
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
+                    
+                    /* Desktop styles */
+                    ${isDesktop && isCollapsed 
+                      ? 'justify-center p-3 w-full' 
+                      : 'justify-start gap-3 px-4 py-3 w-full'
+                    }
+                    
+                    /* Mobile/Tablet styles */
+                    ${!isDesktop ? 'justify-start gap-3 px-4 py-3 w-full' : ''}
+                    
                     text-sm
                   `}
+                  title={isDesktop && isCollapsed ? btn.label : ''}
                 >
                   <span
                     className={`transition-transform duration-200 ${
@@ -713,9 +746,19 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                   >
                     {btn.icon}
                   </span>
-                  <span className="flex-1 text-left truncate">{btn.label}</span>
+                  
+                  {/* Show label only when not collapsed on desktop */}
+                  {(!isDesktop || (isDesktop && !isCollapsed)) && (
+                    <span className="flex-1 text-left truncate">{btn.label}</span>
+                  )}
+                  
+                  {/* Badge - Always show */}
                   {btn.badge && (
-                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px] flex-shrink-0">
+                    <span className={`
+                      bg-red-500 text-white text-xs font-bold rounded-full 
+                      flex items-center justify-center min-w-[20px] flex-shrink-0
+                      ${isDesktop && isCollapsed ? 'absolute -top-1 -right-1 h-5 w-5' : 'h-5 w-5'}
+                    `}>
                       {btn.badge > 9 ? "9+" : btn.badge}
                     </span>
                   )}
@@ -723,12 +766,13 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               ))}
 
               {/* Help Button */}
-              <div className="relative mt-1">
+              <div className="relative">
                 <button
                   onClick={() => !user?.suspended && setShowHelp((prev) => !prev)}
                   disabled={user?.suspended}
                   className={`
-                    flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer w-full
+                    flex items-center rounded-lg font-medium transition-all duration-200
+                    cursor-pointer w-full
                     ${showHelp ||
                       currentView === "help" ||
                       currentView === "guidelines"
@@ -736,37 +780,52 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                         : "bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white"
                     }
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
+                    
+                    /* Desktop styles */
+                    ${isDesktop && isCollapsed 
+                      ? 'justify-center p-3' 
+                      : 'justify-start gap-3 px-4 py-3'
+                    }
+                    
+                    /* Mobile/Tablet styles */
+                    ${!isDesktop ? 'justify-start gap-3 px-4 py-3' : ''}
+                    
                     text-sm
                   `}
+                  title={isDesktop && isCollapsed ? 'Help' : ''}
                 >
-                  <HelpCircle size={18} />
-                  <span className="truncate">Help</span>
+                  <HelpCircle size={isDesktop && isCollapsed ? 22 : 18} />
+                  {(!isDesktop || (isDesktop && !isCollapsed)) && (
+                    <span className="truncate">Help</span>
+                  )}
                 </button>
 
+                {/* Help Dropdown/Modal */}
                 {showHelp && !user?.suspended && (
                   <div className={`
-                    ${isMobileMenuOpen 
-                      ? 'fixed inset-0 flex items-center justify-center z-50 lg:hidden' 
-                      : 'hidden lg:block absolute top-0 left-full ml-2 z-50'
+                    ${!isDesktop 
+                      ? 'fixed inset-0 flex items-center justify-center z-50' 
+                      : isCollapsed
+                        ? 'absolute left-full ml-2 top-0 z-50'
+                        : 'absolute top-0 left-full ml-2 z-50'
                     }
                   `}>
-                    {/* Mobile: Centered Modal */}
-                    {isMobileMenuOpen && (
+                    {/* Mobile/Tablet: Centered Modal */}
+                    {!isDesktop && (
                       <>
                         <div 
                           className="absolute inset-0 bg-black/50"
                           onClick={() => setShowHelp(false)}
                         />
-                        <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-[90%] max-w-[300px]">
+                        <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-[90%] max-w-[280px]">
                           <div className="flex flex-col space-y-3">
                             <button
                               onClick={() => {
                                 setView("help");
                                 setShowHelp(false);
-                                setIsMobileMenu(false);
+                                setIsMobileMenuOpen(false);
                               }}
-                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
-                              aria-label="Go to help center"
+                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer"
                             >
                               <h2 className="text-sm font-semibold text-gray-800">
                                 Help Center
@@ -780,10 +839,9 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                               onClick={() => {
                                 setView("guidelines");
                                 setShowHelp(false);
-                                setIsMobileMenu(false);
+                                setIsMobileMenuOpen(false);
                               }}
-                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
-                              aria-label="View guidelines"
+                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer"
                             >
                               <h2 className="text-sm font-semibold text-gray-800">
                                 Room Guidelines
@@ -805,15 +863,14 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                     )}
 
                     {/* Desktop: Right Side Dropdown */}
-                    {!isMobileMenuOpen && (
-                      <div className="flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 p-3 w-[240px]">
+                    {isDesktop && (
+                      <div className="flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 p-3 w-[220px]">
                         <button
                           onClick={() => {
                             setView("help");
                             setShowHelp(false);
                           }}
-                          className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
-                          aria-label="Go to help center"
+                          className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer"
                         >
                           <h2 className="text-sm font-semibold text-gray-800">
                             Help Center
@@ -828,15 +885,14 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                             setView("guidelines");
                             setShowHelp(false);
                           }}
-                          className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 mt-3"
-                          aria-label="View guidelines"
+                          className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer mt-3"
                         >
                           <h2 className="text-sm font-semibold text-gray-800">
                             Room Guidelines
                           </h2>
                           <p className="text-xs text-gray-600 mt-1">
                             Learn how to use rooms properly
-                              </p>
+                          </p>
                         </button>
                       </div>
                     )}
@@ -845,30 +901,70 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               </div>
             </div>
 
-            {/* Logout - FIXED: Positioned at bottom */}
-            <div className="mt-auto pt-4">
+            {/* Desktop Toggle Button and Logout */}
+            <div className={`
+              ${isDesktop ? 'mt-auto pt-4' : 'mt-4'}
+              ${isDesktop && isCollapsed ? 'flex flex-col items-center gap-2' : ''}
+            `}>
+              {/* Toggle Sidebar Button - Desktop Only */}
+              {isDesktop && (
+                <button
+                  onClick={toggleSidebar}
+                  className={`
+                    w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+                    bg-[#2a2a2a] text-gray-300 hover:bg-[#333333] hover:text-white
+                    transition-all duration-200 cursor-pointer mb-2
+                    ${isCollapsed ? 'p-2' : 'p-2'}
+                  `}
+                  title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                >
+                  {isCollapsed ? (
+                    <ChevronRight size={18} />
+                  ) : (
+                    <>
+                      <ChevronLeft size={18} />
+                      <span className="text-xs">Collapse</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* Logout Button */}
               <button
                 onClick={onLogout}
                 disabled={user?.suspended}
                 className={`
-                  w-full flex items-center gap-3 justify-center px-4 py-3 rounded-lg bg-[#2a2a2a] font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group
+                  w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
+                  bg-[#2a2a2a] font-medium text-white hover:bg-red-600
+                  transition-all duration-200 cursor-pointer group
                   ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
+                  ${isDesktop && isCollapsed ? 'p-3' : ''}
                   text-sm
                 `}
+                title={isDesktop && isCollapsed ? 'Logout' : ''}
               >
                 <LogOut
-                  size={16}
+                  size={isDesktop && isCollapsed ? 20 : 16}
                   className="group-hover:scale-110 transition-transform duration-200"
                 />
-                Logout
+                {(!isDesktop || (isDesktop && !isCollapsed)) && 'Logout'}
               </button>
             </div>
           </div>
         </div>
       </aside>
 
-      {/* Mobile Spacer */}
-      <div className="lg:hidden h-16"></div>
+      {/* Main Content Spacer - Adjusts based on sidebar state */}
+      <div className={`
+        transition-all duration-300
+        ${isDesktop 
+          ? isCollapsed ? 'pl-[70px]' : 'pl-[250px]'
+          : 'pl-0'
+        }
+      `}>
+        {/* Mobile Spacer */}
+        <div className="md:hidden h-16"></div>
+      </div>
     </>
   );
 }

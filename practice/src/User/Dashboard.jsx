@@ -44,7 +44,6 @@ const isSameManilaDate = (date1, date2) => {
   return getManilaDateString(date1) === getManilaDateString(date2);
 };
 
-
 // Filter reservations to hide expired, canceled, and completed after 24 hours
 const filterReservations = (reservations) => {
   const now = new Date();
@@ -181,7 +180,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
     }
   }, [NEWS_ENDPOINT]);
 
-  // Fetch announcements - FIXED VERSION
+  // Fetch announcements
   const fetchAnnouncements = useCallback(async () => {
     try {
       console.log("Fetching announcements from:", `${ANNOUNCEMENTS_ENDPOINT}/active`);
@@ -293,18 +292,16 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
           params: { date: manilaDateStr },
         });
 
-// Replace both instances with this:
-setRoomStatuses(
-  Array.isArray(data)
-    ? data.map((r) => ({
-        floor: r.floor || "Unknown Floor",
-        room: r.room || "Unnamed Room",
-        isActive: r.isActive !== false, // ✅ Add this line
-        occupied: Array.isArray(r.occupied) ? r.occupied : [],
-      }))
-    : []
-);
-
+        setRoomStatuses(
+          Array.isArray(data)
+            ? data.map((r) => ({
+                floor: r.floor || "Unknown Floor",
+                room: r.room || "Unnamed Room",
+                isActive: r.isActive !== false,
+                occupied: Array.isArray(r.occupied) ? r.occupied : [],
+              }))
+            : []
+        );
       } catch (error) {
         console.error("Availability fetch error:", error);
         setAvailError("Failed to load availability. Please try again later.");
@@ -384,17 +381,16 @@ setRoomStatuses(
         params: { date: manilaDateStr },
       });
 
-// Replace both instances with this:
-setRoomStatuses(
-  Array.isArray(data)
-    ? data.map((r) => ({
-        floor: r.floor || "Unknown Floor",
-        room: r.room || "Unnamed Room",
-        isActive: r.isActive !== false, // ✅ Add this line
-        occupied: Array.isArray(r.occupied) ? r.occupied : [],
-      }))
-    : []
-);
+      setRoomStatuses(
+        Array.isArray(data)
+          ? data.map((r) => ({
+              floor: r.floor || "Unknown Floor",
+              room: r.room || "Unnamed Room",
+              isActive: r.isActive !== false,
+              occupied: Array.isArray(r.occupied) ? r.occupied : [],
+            }))
+          : []
+      );
     } catch (error) {
       console.error("Availability fetch error:", error);
       setAvailError("Failed to load availability. Please try again later.");
@@ -448,9 +444,9 @@ setRoomStatuses(
   const paginate = (pageNumber) => setCurrentReservationPage(pageNumber);
 
   return (
-    <main className="w-full md:ml-[250px] md:w-[calc(100%-250px)] min-h-screen flex flex-col bg-[#FFFCFB]">
+    <main className="min-h-screen flex flex-col bg-[#FFFCFB] transition-all duration-300">
       {/* HEADER */}
-      <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm">
+      <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm bg-white">
         <h1 className="text-xl md:text-2xl font-bold tracking-wide">Dashboard</h1>
       </header>
 
@@ -594,7 +590,6 @@ setRoomStatuses(
                   >
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
                       <h3 className="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2">
-                        
                         {reservation.roomName}
                       </h3>
                       <span
@@ -736,27 +731,26 @@ setRoomStatuses(
               </svg>
               <h2 className="text-lg font-bold text-gray-800">Calendar</h2>
             </div>
-           <Calendar
-  onClickDay={handleDateClick}
-  value={selectedDate}
-  className="border-0 w-full"
-  tileContent={renderCalendarTile}
-  tileClassName={({ date, view }) => {
-    if (view !== "month") return "";
-    return "relative h-10 sm:h-12 hover:bg-gray-50 rounded-lg transition-colors duration-200";
-  }}
-  prevLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">◀</span>}
-  nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">▶</span>}
-  prev2Label={null}
-  next2Label={null}
-  aria-label="Reservation calendar"
-  // Set calendar to show Sunday as first day
-  calendarType="gregory"  // This ensures Sunday as first day
-  formatShortWeekday={(locale, date) => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    return days[date.getDay()];
-  }}
-/>
+            <Calendar
+              onClickDay={handleDateClick}
+              value={selectedDate}
+              className="border-0 w-full"
+              tileContent={renderCalendarTile}
+              tileClassName={({ date, view }) => {
+                if (view !== "month") return "";
+                return "relative h-10 sm:h-12 hover:bg-gray-50 rounded-lg transition-colors duration-200";
+              }}
+              prevLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">◀</span>}
+              nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">▶</span>}
+              prev2Label={null}
+              next2Label={null}
+              aria-label="Reservation calendar"
+              calendarType="gregory"
+              formatShortWeekday={(locale, date) => {
+                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                return days[date.getDay()];
+              }}
+            />
             <div className="mt-4 flex items-center justify-center space-x-4 flex-wrap gap-2">
               <div className="flex items-center">
                 <div className="w-3 h-3 rounded-full bg-yellow-400/20 border border-yellow-400 mr-2"></div>
@@ -890,7 +884,6 @@ setRoomStatuses(
         <div className="px-4 sm:px-5 py-3 sm:py-2 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
           {/* Copyright */}
           <div className="text-xs sm:text-sm text-gray-500 order-2 sm:order-1 flex items-center gap-1">
-            
             © {new Date().getFullYear()} <span className="font-semibold">USA-FLD CircuLink</span>
           </div>
 
