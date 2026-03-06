@@ -63,7 +63,7 @@ const filterReservations = (reservations) => {
   });
 };
 
-function Dashboard({ user, setView, setSelectedReservation }) {
+function Dashboard({ user, setView, currentView, setSelectedReservation }) {
   // State management
   const [isLoading, setIsLoading] = useState(true);
   const [allReservations, setAllReservations] = useState([]);
@@ -880,6 +880,7 @@ Dashboard.propTypes = {
     name: PropTypes.string,
   }),
   setView: PropTypes.func.isRequired,
+  currentView: PropTypes.string.isRequired,
   setSelectedReservation: PropTypes.func.isRequired,
 };
 
