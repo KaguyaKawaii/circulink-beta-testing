@@ -448,16 +448,16 @@ setRoomStatuses(
   const paginate = (pageNumber) => setCurrentReservationPage(pageNumber);
 
   return (
-    <main className="w-full md:ml-[250px] md:w-[calc(100%-250px)] min-h-screen flex flex-col bg-[#FFFCFB]">
+    <main className="w-full min-h-screen flex flex-col bg-[#FFFCFB]">
       {/* HEADER */}
       <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm">
         <h1 className="text-xl md:text-2xl font-bold tracking-wide">Dashboard</h1>
       </header>
 
       {/* BODY */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col xl:flex-row gap-4 sm:gap-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col xl:flex-row gap-4 sm:gap-6 w-full">
         {/* LEFT COLUMN */}
-        <div className="flex-1 flex flex-col gap-4 sm:gap-6">
+        <div className="flex-1 flex flex-col gap-4 sm:gap-6 w-full">
           {/* Welcome banner */}
           <div className="bg-gradient-to-r from-red-700 to-red-800 shadow-lg rounded-xl w-full h-32 sm:h-40 flex flex-col items-center justify-center text-center text-white p-4 sm:p-6 relative overflow-hidden">
             {/* Animated background elements */}
@@ -495,7 +495,7 @@ setRoomStatuses(
           </div>
 
           {/* User Reservations */}
-          <div className="bg-gradient-to-br from-white to-gray-50 border border-gray-200/75 hover:border-gray-300/75 transition-all duration-300 shadow-lg hover:shadow-xl rounded-2xl flex-1 p-4 sm:p-6 flex flex-col h-full">
+          <div className="bg-gradient-to-br from-white to-gray-50 border border-gray-200/75 hover:border-gray-300/75 transition-all duration-300 shadow-lg hover:shadow-xl rounded-2xl flex-1 p-4 sm:p-6 flex flex-col h-full w-full">
             <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-2">
               <h2 className="text-lg sm:text-xl font-bold text-gray-800 flex items-center gap-2">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -586,11 +586,11 @@ setRoomStatuses(
                 </span>
               </div>
             ) : filteredReservations.length > 0 ? (
-              <div className="flex-1">
+              <div className="flex-1 w-full">
                 {currentReservations.map((reservation) => (
                   <section
                     key={reservation._id}
-                    className="border border-gray-200 rounded-xl p-4 sm:p-5 bg-white shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col h-full mb-4"
+                    className="border border-gray-200 rounded-xl p-4 sm:p-5 bg-white shadow-sm hover:shadow-lg transition-all duration-300 flex flex-col h-full mb-4 w-full"
                   >
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
                       <h3 className="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2">
