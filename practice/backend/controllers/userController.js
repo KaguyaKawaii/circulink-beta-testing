@@ -98,13 +98,25 @@ export const addUser = async (req, res) => {
 // 📌 Signup - FIXED: Ensure users are created as unverified
 export const signup = async (req, res) => {
   try {
-    // CRITICAL FIX: Remove verified from request body if it exists
-    // This ensures users cannot set themselves as verified
-    if (req.body.verified) {
+    console.log("=== SIGNUP ATTEMPT ===");
+    console.log("Request body before fix:", req.body);
+    
+    // CRITICAL FIX: Always remove verified field from request body
+    // This ensures users cannot set their own verification status
+    if (req.body.hasOwnProperty('verified')) {
+      console.log("⚠️ Removing verified field from request body");
       delete req.body.verified;
     }
     
+    // Explicitly set verified to false in the request body
+    // This ensures it's always false regardless of what was sent
+    req.body.verified = false;
+    
+    console.log("Request body after fix:", req.body);
+    
     const newUser = await userService.signup(req.body, req.file);
+    
+    console.log("✅ User created with verified =", newUser.verified);
     
     // Log activity
     await createActivityLog(
@@ -121,6 +133,7 @@ export const signup = async (req, res) => {
       user: newUser 
     });
   } catch (err) {
+    console.error("❌ Signup Error:", err);
     res.status(400).json({ success: false, message: err.message || "Failed to signup." });
   }
 };
