@@ -1,3 +1,4 @@
+// userService.js
 import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import logAction from "../utils/logAction.js";
@@ -80,7 +81,7 @@ export const addUser = async (data, file) => {
   });
 
   await newUser.save();
-  await logAction(newUser._id, newUser.id_number, newUser.name, "User Created", "Added via Admin Panel");
+  await logAction(newUser._id, newUser.id_number, newUser.name, "User Created", `Added new ${role} via Admin Panel`);
   
   // Return user without password
   const userResponse = newUser.toObject();
@@ -115,7 +116,7 @@ export const signup = async (data, file) => {
   }
 
   // IMPORTANT FIX: Explicitly set verified to false for all new signups
-  // This overrides any automatic verification in the model
+  // This ensures users start as unverified and need admin approval
   const newUser = new User({
     name,
     email: email.toLowerCase(),
@@ -132,7 +133,34 @@ export const signup = async (data, file) => {
   });
 
   await newUser.save();
-  await logAction(newUser._id, newUser.id_number, newUser.name, "User Signup", "Registered account");
+  
+  // Log the signup activity
+  await logAction(
+    newUser._id, 
+    newUser.id_number, 
+    newUser.name, 
+    "Sign Up", 
+    `New account created as ${role} - Pending verification`
+  );
+
+  // Create a notification for admins about new user registration
+  try {
+    const admins = await User.find({ role: "admin" });
+    for (const admin of admins) {
+      const notification = new Notification({
+        userId: admin._id,
+        title: "New User Registration",
+        message: `${newUser.name} (${newUser.id_number}) has registered as a ${newUser.role} and is pending verification.`,
+        type: "system",
+        status: "New",
+        isRead: false
+      });
+      await notification.save();
+    }
+    console.log("✅ Admin notifications created for new user signup");
+  } catch (notifError) {
+    console.error("Failed to create admin notifications:", notifError);
+  }
 
   // Return user without password
   const userResponse = newUser.toObject();
@@ -148,6 +176,11 @@ export const login = async ({ email, password }, io = null) => {
 
   const validPass = await bcrypt.compare(password, user.password);
   if (!validPass) throw new Error("Invalid credentials.");
+
+  // Check if user is verified
+  if (!user.verified) {
+    throw new Error("Account is not verified. Please wait for admin approval.");
+  }
 
   if (user.suspended) {
     throw new Error("This account is suspended. Please contact the administrator.");
@@ -170,7 +203,7 @@ export const login = async ({ email, password }, io = null) => {
   await user.save();
 
   // Log the action
-  await logAction(user._id, user.id_number, user.name, "User Login", "Logged in");
+  await logAction(user._id, user.id_number, user.name, "Login", "Logged in successfully");
 
   // If there was a previous session, notify it to logout via WebSocket
   if (io && previousSessionToken) {
@@ -180,6 +213,14 @@ export const login = async ({ email, password }, io = null) => {
         timestamp: new Date().toISOString()
       });
       console.log(`✅ Force logout notification sent for previous session of user: ${user._id}`);
+      
+      await logAction(
+        user._id, 
+        user.id_number, 
+        user.name, 
+        "Session Replaced", 
+        "Logged out from other device due to new login"
+      );
     } catch (socketError) {
       console.error("Socket notification error:", socketError);
     }
@@ -210,7 +251,7 @@ export const logout = async (userId, sessionToken) => {
     user.isLoggedIn = false;
     await user.save();
     
-    await logAction(user._id, user.id_number, user.name, "User Logout", "Logged out");
+    await logAction(user._id, user.id_number, user.name, "Logout", "Logged out successfully");
     return true;
   }
   return false;
@@ -223,6 +264,7 @@ export const validateSession = async (userId, sessionToken) => {
   
   if (user.archived) return { valid: false, message: "Account has been archived" };
   if (user.suspended) return { valid: false, message: "Account has been suspended" };
+  if (!user.verified) return { valid: false, message: "Account is not verified" };
   
   if (user.sessionToken !== sessionToken) {
     return { valid: false, message: "Session expired. You have been logged in from another device." };
@@ -249,7 +291,7 @@ export const updateProfile = async (id, data, file) => {
   }
 
   await user.save();
-  await logAction(user._id, user.id_number, user.name, "Profile Updated", "User updated profile info");
+  await logAction(user._id, user.id_number, user.name, "Profile Update", "Updated profile information");
   
   // Return user without password
   const userResponse = user.toObject();
@@ -303,7 +345,18 @@ export const adminEditUser = async (id, data, file) => {
   }
 
   await user.save();
-  await logAction(user._id, user.id_number, user.name, "Admin Edited User", "User info updated by admin");
+  
+  // Get admin info for logging
+  const admin = await User.findById(data.adminId);
+  if (admin) {
+    await logAction(
+      admin._id, 
+      admin.id_number, 
+      admin.name, 
+      "Admin Edit", 
+      `Edited user: ${user.name} (${user.role})`
+    );
+  }
   
   // Return user without password
   const userResponse = user.toObject();
@@ -350,7 +403,7 @@ export const changePassword = async (id, oldPassword, newPassword) => {
   const verifyNewPassword = await bcrypt.compare(newPassword, user.password);
   console.log("New password verification after save:", verifyNewPassword);
 
-  await logAction(user._id, user.id_number, user.name, "Password Changed", "User changed password");
+  await logAction(user._id, user.id_number, user.name, "Password Change", "Changed password successfully");
 
   return true;
 };
@@ -375,22 +428,26 @@ export const verifyUser = async (id, verified, io) => {
   ).select("-password -sessionToken");
 
   if (user) {
+    // Get admin info from context (passed through)
+    const adminId = global.currentAdminId; // You'll need to pass this properly
+    
     // Log the action
     await logAction(
-      user._id,
+      adminId || user._id,
       user.id_number,
       user.name,
-      verified ? "User Verified" : "User Unverified",
-      verified ? "User account marked as verified" : "User account marked as unverified"
+      verified ? "Verify User" : "Unverify User",
+      verified ? "Account verified by admin" : "Account unverified by admin"
     );
 
-    // ✅ Create a notification for the user only
+    // ✅ Create a notification for the user
     await createNotification(
       {
         userId: user._id,
+        title: verified ? "Account Verified" : "Account Unverified",
         message: verified
-          ? "Your account is now verified."
-          : "Your account is not verified. Please contact support if you believe this is an error.",
+          ? "Your account has been verified. You can now log in."
+          : "Your account verification has been removed. Please contact support if you believe this is an error.",
         type: "system",
         status: "New",
       },
@@ -414,10 +471,21 @@ export const suspendUser = async (id, io) => {
   ).select("-password -sessionToken");
 
   if (user) {
-    await logAction(user._id, user.id_number, user.name, "User Suspended", "User account suspended");
+    // Get admin info
+    const adminId = global.currentAdminId;
+    
+    await logAction(
+      adminId || user._id,
+      user.id_number,
+      user.name,
+      "Suspend User",
+      "Account suspended by admin"
+    );
+    
     await createNotification(
       {
         userId: user._id,
+        title: "Account Suspended",
         message: "Your account has been suspended. Contact support for more information.",
         type: "system",
         status: "New",
@@ -446,10 +514,21 @@ export const unsuspendUser = async (id, io) => {
   ).select("-password -sessionToken");
 
   if (user) {
-    await logAction(user._id, user.id_number, user.name, "User Unsuspended", "User account unsuspended");
+    // Get admin info
+    const adminId = global.currentAdminId;
+    
+    await logAction(
+      adminId || user._id,
+      user.id_number,
+      user.name,
+      "Unsuspend User",
+      "Account unsuspended by admin"
+    );
+    
     await createNotification(
       {
         userId: user._id,
+        title: "Account Restored",
         message: "Your account has been restored. You may now log in.",
         type: "system",
         status: "New",
@@ -478,17 +557,21 @@ export const toggleSuspend = async (id, suspend, io) => {
   ).select("-password -sessionToken");
 
   if (user) {
+    // Get admin info
+    const adminId = global.currentAdminId;
+    
     await logAction(
-      user._id,
+      adminId || user._id,
       user.id_number,
       user.name,
-      suspend ? "User Suspended" : "User Unsuspended",
-      suspend ? "User account suspended via admin toggle" : "User account unsuspended via admin toggle"
+      suspend ? "Suspend User" : "Unsuspend User",
+      suspend ? "Account suspended via admin toggle" : "Account unsuspended via admin toggle"
     );
 
     await createNotification(
       {
         userId: user._id,
+        title: suspend ? "Account Suspended" : "Account Restored",
         message: suspend
           ? "Your account has been suspended. Contact support for more information."
           : "Your account has been restored. You may now log in.",
@@ -523,7 +606,18 @@ export const archiveUser = async (id) => {
     { new: true }
   ).select("-password -sessionToken");
   
-  if (user) await logAction(user._id, user.id_number, user.name, "User Archived", "User account archived");
+  if (user) {
+    // Get admin info
+    const adminId = global.currentAdminId;
+    
+    await logAction(
+      adminId || user._id,
+      user.id_number,
+      user.name,
+      "Archive User",
+      "Account archived by admin"
+    );
+  }
   return user;
 };
 
@@ -535,14 +629,36 @@ export const restoreUser = async (id) => {
     { new: true }
   ).select("-password -sessionToken");
   
-  if (user) await logAction(user._id, user.id_number, user.name, "User Restored", "User account restored from archive");
+  if (user) {
+    // Get admin info
+    const adminId = global.currentAdminId;
+    
+    await logAction(
+      adminId || user._id,
+      user.id_number,
+      user.name,
+      "Restore User",
+      "Account restored from archive by admin"
+    );
+  }
   return user;
 };
 
 // ✅ Delete archived user
 export const deleteArchivedUser = async (id) => {
   const user = await User.findByIdAndDelete(id);
-  if (user) await logAction(user._id, user.id_number, user.name, "User Deleted", "Archived user permanently deleted");
+  if (user) {
+    // Get admin info
+    const adminId = global.currentAdminId;
+    
+    await logAction(
+      adminId || user._id,
+      user.id_number,
+      user.name,
+      "Delete User",
+      "Archived user permanently deleted by admin"
+    );
+  }
   return user;
 };
 
