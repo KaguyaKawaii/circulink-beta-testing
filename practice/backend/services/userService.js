@@ -90,7 +90,7 @@ export const addUser = async (data, file) => {
   return userResponse;
 };
 
-// FIXED: Signup - Students should NOT be verified by default
+// userService.js - Fixed signup function
 export const signup = async (data, file) => {
   const { name, email, id_number, password, role, department, course, yearLevel } = data;
 
@@ -115,7 +115,7 @@ export const signup = async (data, file) => {
     profilePicture = upload.secure_url;
   }
 
-  // IMPORTANT FIX: Explicitly set verified to false for all new signups
+  // IMPORTANT: Force verified to false for all new signups
   // This ensures users start as unverified and need admin approval
   const newUser = new User({
     name,
@@ -127,8 +127,8 @@ export const signup = async (data, file) => {
     year_level: role === "Student" ? yearLevel || "N/A" : "N/A",
     role,
     profilePicture,
-    verified: false, // Explicitly set to false for all new signups
-    sessionToken: null, // Initialize with no session
+    verified: false, // CRITICAL: Always false for new signups
+    sessionToken: null,
     isLoggedIn: false
   });
 
@@ -143,7 +143,7 @@ export const signup = async (data, file) => {
     `New account created as ${role} - Pending verification`
   );
 
-  // Create a notification for admins about new user registration
+  // Create notifications for admins
   try {
     const admins = await User.find({ role: "admin" });
     for (const admin of admins) {

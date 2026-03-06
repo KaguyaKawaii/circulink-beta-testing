@@ -22,11 +22,11 @@ const userSchema = new mongoose.Schema({
     enum: ["Student", "Faculty", "Staff", "Staff_Office"],
     default: "Student",
   },
-  verified:   { type: Boolean, default: false },
+  verified:   { type: Boolean, default: false }, // All users start unverified
   suspended: { type: Boolean, default: false },
   isLoggedIn: { type: Boolean, default: false },
   currentSessionId: { type: String, default: null },
-  // NEW: Session token for single device login
+  // Session token for single device login
   sessionToken: { 
     type: String, 
     default: null,
@@ -71,15 +71,9 @@ userSchema.pre("save", async function (next) {
       }
     }
 
-    // FIXED: Only auto-verify faculty/staff if this is a NEW document
-    // AND verified hasn't been explicitly set to false
-    if (this.isNew && ["Faculty", "Staff", "Staff_Office"].includes(this.role)) {
-      // Only auto-verify if verified is not explicitly set
-      if (this.verified === undefined) {
-        this.verified = true;
-        console.log(`✅ Auto-verified ${this.role} user: ${this.email}`);
-      }
-    }
+    // REMOVED AUTO-VERIFY - All users need admin verification
+    // No role gets auto-verified anymore
+    // All users start with verified: false from schema default
 
     // Set default values for non-student roles
     if (this.isNew) {
