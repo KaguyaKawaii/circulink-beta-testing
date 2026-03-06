@@ -95,12 +95,13 @@ export const addUser = async (req, res) => {
   }
 };
 
-// 📌 Signup - FIXED: Set users as unverified by default
+// 📌 Signup - FIXED: Ensure users are created as unverified
 export const signup = async (req, res) => {
   try {
-    // Ensure user is created as unverified
-    if (!req.body.verified) {
-      req.body.verified = false; // Force unverified status
+    // CRITICAL FIX: Remove verified from request body if it exists
+    // This ensures users cannot set themselves as verified
+    if (req.body.verified) {
+      delete req.body.verified;
     }
     
     const newUser = await userService.signup(req.body, req.file);
