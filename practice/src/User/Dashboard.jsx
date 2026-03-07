@@ -448,16 +448,23 @@ setRoomStatuses(
   const paginate = (pageNumber) => setCurrentReservationPage(pageNumber);
 
   return (
-    <main className="w-full md:ml-[250px] md:w-[calc(100%-250px)] min-h-screen flex flex-col bg-[#FFFCFB]">
+    <main className="w-full min-h-screen flex flex-col bg-[#FFFCFB] lg:pl-[250px]">
       {/* HEADER */}
-      <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm">
+      <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm bg-white sticky top-0 z-10 lg:static">
         <h1 className="text-xl md:text-2xl font-bold tracking-wide">Dashboard</h1>
+        
+        {/* Mobile header with profile indicator - optional */}
+        <div className="lg:hidden flex items-center">
+          <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-bold">
+            {user?.name?.charAt(0) || 'U'}
+          </div>
+        </div>
       </header>
 
       {/* BODY */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col xl:flex-row gap-4 sm:gap-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col xl:flex-row gap-4 sm:gap-6 max-w-full">
         {/* LEFT COLUMN */}
-        <div className="flex-1 flex flex-col gap-4 sm:gap-6">
+        <div className="flex-1 flex flex-col gap-4 sm:gap-6 min-w-0">
           {/* Welcome banner */}
           <div className="bg-gradient-to-r from-red-700 to-red-800 shadow-lg rounded-xl w-full h-32 sm:h-40 flex flex-col items-center justify-center text-center text-white p-4 sm:p-6 relative overflow-hidden">
             {/* Animated background elements */}
@@ -470,10 +477,10 @@ setRoomStatuses(
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex w-[200px] max-w-xs sm:max-w-sm justify-between bg-white shadow-md p-1 rounded-3xl mb-1">
+          <div className="flex w-full max-w-xs sm:max-w-sm justify-between bg-white shadow-md p-1 rounded-3xl mb-1">
             <button
               onClick={() => setView("dashboard")}
-              className={`px-3 sm:px-4 py-2 rounded-3xl font-semibold transition-all duration-300 shadow-lg text-sm sm:text-base ${
+              className={`px-3 sm:px-4 py-2 rounded-3xl font-semibold transition-all duration-300 shadow-lg text-sm sm:text-base flex-1 ${
                 "dashboard" === "dashboard" 
                   ? "bg-red-600 text-white" 
                   : "text-gray-700 hover:bg-gray-200"
@@ -484,7 +491,7 @@ setRoomStatuses(
 
             <button
               onClick={() => setView("news")}
-              className={`px-3 sm:px-4 py-2 rounded-3xl font-semibold transition-all duration-300 cursor-pointer text-sm sm:text-base ${
+              className={`px-3 sm:px-4 py-2 rounded-3xl font-semibold transition-all duration-300 cursor-pointer text-sm sm:text-base flex-1 ${
                 "dashboard" === "news" 
                   ? "bg-red-600 text-white" 
                   : "text-gray-700 hover:bg-gray-200"
@@ -611,18 +618,18 @@ setRoomStatuses(
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                           </svg>
-                          <div>
+                          <div className="min-w-0">
                             <p className="font-medium text-gray-600">Location:</p>
-                            <p className="text-gray-800">{reservation.location}</p>
+                            <p className="text-gray-800 truncate">{reservation.location}</p>
                           </div>
                         </div>
                         <div className="flex items-start gap-2">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          <div>
+                          <div className="min-w-0">
                             <p className="font-medium text-gray-600">Time:</p>
-                            <p className="text-gray-800">
+                            <p className="text-gray-800 text-sm break-words">
                               {formatPH(reservation.datetime)} to {' '}
                               {new Date(reservation.endDatetime).toLocaleTimeString("en-PH", {
                                 timeZone: "Asia/Manila",
@@ -639,9 +646,9 @@ setRoomStatuses(
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <div>
+                        <div className="min-w-0">
                           <p className="font-medium text-gray-600">Purpose:</p>
-                          <p className="text-gray-800">{reservation.purpose}</p>
+                          <p className="text-gray-800 break-words">{reservation.purpose}</p>
                         </div>
                       </div>
                       
@@ -657,9 +664,9 @@ setRoomStatuses(
                             {reservation.participants.map((participant, index) => (
                               <div 
                                 key={index} 
-                                className="flex items-center bg-gray-50 px-3 py-2 rounded-lg text-sm border border-gray-100 hover:bg-gray-100 transition-colors duration-200"
+                                className="flex items-center bg-gray-50 px-3 py-2 rounded-lg text-sm border border-gray-100 hover:bg-gray-100 transition-colors duration-200 min-w-0"
                               >
-                                <span className="w-6 h-6 rounded-full bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-center text-xs text-white font-medium mr-2">
+                                <span className="w-6 h-6 rounded-full bg-gradient-to-r from-red-500 to-red-600 flex items-center justify-center text-xs text-white font-medium mr-2 flex-shrink-0">
                                   {participant.name?.charAt(0) || participant.email?.charAt(0)}
                                 </span>
                                 <span className="truncate text-gray-800">
@@ -696,10 +703,10 @@ setRoomStatuses(
 
                     <div className="text-gray-500 text-xs mt-2 bg-gray-50 p-2 rounded-lg border border-gray-100">
                       <p className="flex items-center gap-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <strong>Note:</strong> Rejected, expired, and completed reservations will only remain visible here for 24 hours.
+                        <span className="break-words"><strong>Note:</strong> Rejected, expired, and completed reservations will only remain visible here for 24 hours.</span>
                       </p>
                     </div>
                   </section>
@@ -707,7 +714,7 @@ setRoomStatuses(
               </div>
             ) : (
               <div className="text-center py-6 sm:py-8 flex flex-col justify-center items-center h-full">
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-2xl border border-gray-200 max-w-md">
+                <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-6 rounded-2xl border border-gray-200 max-w-md w-full">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
@@ -727,36 +734,36 @@ setRoomStatuses(
         </div>
 
         {/* RIGHT SIDEBAR */}
-        <aside className="w-full xl:w-80 flex flex-col gap-4 sm:gap-6">
+        <aside className="w-full xl:w-80 flex flex-col gap-4 sm:gap-6 min-w-0">
           {/* Calendar */}
           <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border border-gray-200 shadow-lg p-4 sm:p-6 hover:shadow-xl transition-all duration-300">
             <div className="flex items-center gap-2 mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <h2 className="text-lg font-bold text-gray-800">Calendar</h2>
             </div>
-           <Calendar
-  onClickDay={handleDateClick}
-  value={selectedDate}
-  className="border-0 w-full"
-  tileContent={renderCalendarTile}
-  tileClassName={({ date, view }) => {
-    if (view !== "month") return "";
-    return "relative h-10 sm:h-12 hover:bg-gray-50 rounded-lg transition-colors duration-200";
-  }}
-  prevLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">◀</span>}
-  nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">▶</span>}
-  prev2Label={null}
-  next2Label={null}
-  aria-label="Reservation calendar"
-  // Set calendar to show Sunday as first day
-  calendarType="gregory"  // This ensures Sunday as first day
-  formatShortWeekday={(locale, date) => {
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    return days[date.getDay()];
-  }}
-/>
+            <Calendar
+              onClickDay={handleDateClick}
+              value={selectedDate}
+              className="border-0 w-full"
+              tileContent={renderCalendarTile}
+              tileClassName={({ date, view }) => {
+                if (view !== "month") return "";
+                return "relative h-10 sm:h-12 hover:bg-gray-50 rounded-lg transition-colors duration-200";
+              }}
+              prevLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">◀</span>}
+              nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">▶</span>}
+              prev2Label={null}
+              next2Label={null}
+              aria-label="Reservation calendar"
+              // Set calendar to show Sunday as first day
+              calendarType="gregory"  // This ensures Sunday as first day
+              formatShortWeekday={(locale, date) => {
+                const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                return days[date.getDay()];
+              }}
+            />
             <div className="mt-4 flex items-center justify-center space-x-4 flex-wrap gap-2">
               <div className="flex items-center">
                 <div className="w-3 h-3 rounded-full bg-yellow-400/20 border border-yellow-400 mr-2"></div>
@@ -792,10 +799,10 @@ setRoomStatuses(
             {/* Shimmer effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 transform translate-x-[-100%] group-hover:translate-x-[100%] transition-all duration-1000"></div>
 
-            <div className="flex flex-col justify-center items-center text-white relative z-10 transition-all duration-300 group-hover:scale-105">
+            <div className="flex flex-col justify-center items-center text-white relative z-10 transition-all duration-300 group-hover:scale-105 px-4">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10 mb-1 sm:mb-2 drop-shadow-md transition-all duration-300 group-hover:scale-110"
+                className="h-6 w-6 sm:h-8 sm:w-8 md:h-10 md:w-10 mb-1 sm:mb-2 drop-shadow-md transition-all duration-300 group-hover:scale-110 flex-shrink-0"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -807,19 +814,19 @@ setRoomStatuses(
                   d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                 />
               </svg>
-              <h2 className="text-lg sm:text-xl md:text-2xl font-bold tracking-wide transition-all duration-300">
+              <h2 className="text-lg sm:text-xl md:text-2xl font-bold tracking-wide transition-all duration-300 text-center">
                 {hasActiveRes ? "Reservation Active" : "Reserve Room"}
               </h2>
               {activeRes?.dayReservationCount >= 2 ? (
-                <p className="text-xs sm:text-sm font-medium mt-1 text-white/90 transition-all duration-300">
+                <p className="text-xs sm:text-sm font-medium mt-1 text-white/90 transition-all duration-300 text-center">
                   Limit reached (2/day)
                 </p>
               ) : hasActiveRes ? (
-                <p className="text-xs sm:text-sm font-medium mt-1 text-white/90 transition-all duration-300">
+                <p className="text-xs sm:text-sm font-medium mt-1 text-white/90 transition-all duration-300 text-center">
                   Check your current reservation
                 </p>
               ) : (
-                <p className="text-xs sm:text-sm font-medium mt-1 text-white/90 transition-all duration-300">
+                <p className="text-xs sm:text-sm font-medium mt-1 text-white/90 transition-all duration-300 text-center">
                   Tap to create a reservation
                 </p>
               )}
@@ -886,7 +893,7 @@ setRoomStatuses(
       </div>
       
       {/* Footer */}
-      <footer className="mt-auto bg-white border-t border-gray-200">
+      <footer className="mt-auto bg-white border-t border-gray-200 lg:ml-[250px]">
         <div className="px-4 sm:px-5 py-3 sm:py-2 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
           {/* Copyright */}
           <div className="text-xs sm:text-sm text-gray-500 order-2 sm:order-1 flex items-center gap-1">
