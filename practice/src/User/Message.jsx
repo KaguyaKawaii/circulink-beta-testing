@@ -517,58 +517,31 @@ function Message({ user, setView, currentView }) {
   }, [isMobile, isSidebarOpen]);
 
   return (
-    <div className="h-screen flex flex-col bg-white">
-      {/* Header - Fixed at top with full width shadow */}
-      <header className="w-full bg-white border-b border-gray-200 shadow-md py-3 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center">
-          {/* Mobile menu button */}
-          <button
-            onClick={() => setIsSidebarOpen(true)}
-            className="md:hidden p-2 mr-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Messages</h1>
-        </div>
+    <div className="lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-[calc(100vh-4rem)] lg:h-screen flex flex-col bg-white">
+      {/* Messages Header - Now with proper shadow */}
+      <div className="flex items-center px-4 sm:px-6 h-[60px] bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
+        {/* Mobile menu button */}
+        <button
+          onClick={() => setIsSidebarOpen(true)}
+          className="md:hidden p-2 -ml-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
         
-        {/* Navigation */}
-        <nav className="flex items-center space-x-2">
-          <button
-            onClick={() => setView('dashboard')}
-            className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-              currentView === 'dashboard' 
-                ? 'bg-blue-500 text-white' 
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            Dashboard
-          </button>
-          <button
-            onClick={() => setView('message')}
-            className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-              currentView === 'message' 
-                ? 'bg-blue-500 text-white' 
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            Messages
-          </button>
-          <button
-            onClick={() => setView('profile')}
-            className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-              currentView === 'profile' 
-                ? 'bg-blue-500 text-white' 
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            Profile
-          </button>
-        </nav>
-      </header>
+        <h1 className="ml-2 md:ml-0 text-lg font-medium text-gray-900">
+          {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : 'Admin Messages'}
+        </h1>
 
-      {/* Main Content */}
+        {/* Unread badge for mobile */}
+        {getCurrentUnreadCount() > 0 && (
+          <span className="ml-3 md:hidden text-xs text-gray-500">
+            {getCurrentUnreadCount()} unread
+          </span>
+        )}
+      </div>
+
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar Overlay */}
         {isSidebarOpen && isMobile && (
@@ -657,7 +630,7 @@ function Message({ user, setView, currentView }) {
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col bg-gray-50">
-          {/* Chat Header */}
+          {/* Chat Header - Desktop */}
           <div className="hidden md:flex items-center px-6 h-16 bg-white border-b border-gray-200">
             <h2 className="text-base font-medium text-gray-900">
               {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : 'Administration'}
@@ -667,13 +640,6 @@ function Message({ user, setView, currentView }) {
                 {getCurrentUnreadCount()} unread
               </span>
             )}
-          </div>
-
-          {/* Mobile Chat Title */}
-          <div className="md:hidden flex items-center px-4 h-14 bg-white border-b border-gray-200">
-            <h2 className="text-base font-medium text-gray-900">
-              {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : 'Administration'}
-            </h2>
           </div>
 
           {/* Messages */}
