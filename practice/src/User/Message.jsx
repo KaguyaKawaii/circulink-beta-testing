@@ -55,7 +55,7 @@ const MessageBubble = ({ message, isOwn, isUnread, activeTab, user, formatTime }
   return (
     <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-2 animate-in fade-in duration-300`}>
       <div 
-        className={`relative max-w-[75%] lg:max-w-[65%] rounded-2xl px-3 py-1.5 shadow-sm ${
+        className={`relative max-w-[75%] lg:max-w-[65%] rounded-2xl px-4 py-2 shadow-sm ${
           isOwn 
             ? activeTab === MESSAGE_TYPES.FLOOR 
               ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-br-none' 
@@ -65,26 +65,26 @@ const MessageBubble = ({ message, isOwn, isUnread, activeTab, user, formatTime }
       >
         {/* Sender name for received messages */}
         {!isOwn && (
-          <div className="text-[10px] font-semibold mb-0.5 text-gray-600">
+          <div className="text-xs font-semibold mb-1 text-gray-600">
             {message.senderName}
           </div>
         )}
         
         {/* Message content */}
-        <div className="text-xs leading-relaxed break-words whitespace-pre-wrap">
+        <div className="text-sm leading-relaxed break-words whitespace-pre-wrap">
           {message.content}
         </div>
         
         {/* Message footer with time and status */}
-        <div className={`flex items-center justify-end space-x-1 mt-0.5 ${
+        <div className={`flex items-center justify-end space-x-1 mt-1 ${
           isOwn ? 'text-white/70' : 'text-gray-400'
         }`}>
-          <span className="text-[8px]">{formatTime(message.createdAt)}</span>
+          <span className="text-[10px]">{formatTime(message.createdAt)}</span>
           
           {/* Read receipt for own messages */}
           {isOwn && (
             <svg 
-              className={`w-2 h-2 ${message.read ? 'text-blue-300' : 'text-white/50'}`} 
+              className={`w-3 h-3 ${message.read ? 'text-blue-300' : 'text-white/50'}`} 
               fill="currentColor" 
               viewBox="0 0 20 20"
             >
@@ -96,9 +96,9 @@ const MessageBubble = ({ message, isOwn, isUnread, activeTab, user, formatTime }
         {/* New message indicator */}
         {isUnread && !isOwn && (
           <div className="absolute -top-1 -left-1">
-            <span className="flex h-1.5 w-1.5">
+            <span className="flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-500"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
             </span>
           </div>
         )}
@@ -115,8 +115,8 @@ const DateSeparator = ({ date }) => {
   };
 
   return (
-    <div className="flex items-center justify-center my-3">
-      <div className="bg-gray-100 text-gray-500 text-[9px] font-medium px-2 py-0.5 rounded-full">
+    <div className="flex items-center justify-center my-4">
+      <div className="bg-gray-100 text-gray-500 text-[10px] font-medium px-3 py-1 rounded-full">
         {getDateText()}
       </div>
     </div>
@@ -126,8 +126,8 @@ const DateSeparator = ({ date }) => {
 const LoadingSkeleton = () => (
   <div className="flex justify-center items-center h-full">
     <div className="text-center">
-      <div className="animate-spin rounded-full h-6 w-6 border-2 border-red-500 border-t-transparent mx-auto mb-2"></div>
-      <p className="text-xs text-gray-500">Loading messages...</p>
+      <div className="animate-spin rounded-full h-8 w-8 border-2 border-red-500 border-t-transparent mx-auto mb-3"></div>
+      <p className="text-sm text-gray-500">Loading messages...</p>
     </div>
   </div>
 );
@@ -135,11 +135,11 @@ const LoadingSkeleton = () => (
 const EmptyState = () => (
   <div className="flex justify-center items-center h-full">
     <div className="text-center text-gray-400">
-      <svg className="w-12 h-12 mx-auto mb-2 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-16 h-16 mx-auto mb-3 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
       </svg>
-      <p className="text-xs">No messages yet</p>
-      <p className="text-[10px] mt-0.5 opacity-70">Start a conversation</p>
+      <p className="text-sm">No messages yet</p>
+      <p className="text-xs mt-1 opacity-70">Start a conversation</p>
     </div>
   </div>
 );
@@ -196,7 +196,7 @@ function Message({ user, setView, currentView }) {
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 60)}px`;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 100)}px`;
     }
   }, [newMessage]);
 
@@ -605,7 +605,7 @@ function Message({ user, setView, currentView }) {
       tabIndex={-1}
     >
       {/* Messages Container */}
-      <div className="flex flex-1 overflow-hidden relative h-full">
+      <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-64px)] lg:h-screen">
         {/* Mobile Sidebar Overlay - No blur */}
         {isSidebarOpen && isMobile && (
           <div 
@@ -617,14 +617,14 @@ function Message({ user, setView, currentView }) {
         {/* Sidebar - Messenger Style */}
         <aside 
           ref={sidebarRef}
-          className={`fixed lg:static top-16 left-0 h-[calc(100vh-64px)] w-[280px] bg-white border-r border-gray-200 z-[70] flex flex-col transition-transform duration-300 ease-in-out shadow-xl lg:shadow-none ${
+          className={`fixed lg:static top-16 left-0 h-[calc(100vh-64px)] w-[300px] bg-white border-r border-gray-200 z-[70] flex flex-col transition-transform duration-300 ease-in-out shadow-xl lg:shadow-none ${
             isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           }`}
         >
           {/* Sidebar Header */}
-          <div className="p-3 border-b border-gray-200 bg-gradient-to-r from-red-50 to-orange-50">
-            <h2 className="font-bold text-gray-800 text-sm flex items-center">
-              <svg className="w-4 h-4 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-red-50 to-orange-50">
+            <h2 className="font-bold text-gray-800 flex items-center">
+              <svg className="w-5 h-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
               Chats
@@ -632,25 +632,25 @@ function Message({ user, setView, currentView }) {
           </div>
           
           {/* Tab Buttons */}
-          <div className="p-2 border-b border-gray-100">
-            <div className="space-y-1">
+          <div className="p-3 border-b border-gray-100">
+            <div className="space-y-2">
               <button
                 onClick={() => handleTabChange(MESSAGE_TYPES.FLOOR)}
-                className={`w-full p-2.5 rounded-lg text-left transition-all duration-200 flex items-center justify-between ${
+                className={`w-full p-3 rounded-xl text-left transition-all duration-200 flex items-center justify-between ${
                   activeTab === MESSAGE_TYPES.FLOOR 
-                    ? "bg-gradient-to-r from-red-50 to-orange-50 border-l-3 border-red-500" 
+                    ? "bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-500" 
                     : "hover:bg-gray-50"
                 }`}
               >
                 <div className="flex items-center">
-                  <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-red-500 to-orange-500 mr-2"></div>
+                  <div className="w-2 h-2 rounded-full bg-gradient-to-r from-red-500 to-orange-500 mr-3"></div>
                   <div>
-                    <div className="font-medium text-gray-800 text-xs">Floors</div>
-                    <div className="text-[10px] text-gray-500">Message Receptionist</div>
+                    <div className="font-medium text-gray-800 text-sm">Floors</div>
+                    <div className="text-xs text-gray-500">Message Receptionist</div>
                   </div>
                 </div>
                 {unreadCounts.floor > 0 && (
-                  <span className="bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                  <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
                     {unreadCounts.floor > 9 ? "9+" : unreadCounts.floor}
                   </span>
                 )}
@@ -658,21 +658,21 @@ function Message({ user, setView, currentView }) {
               
               <button
                 onClick={() => handleTabChange(MESSAGE_TYPES.ADMIN)}
-                className={`w-full p-2.5 rounded-lg text-left transition-all duration-200 flex items-center justify-between ${
+                className={`w-full p-3 rounded-xl text-left transition-all duration-200 flex items-center justify-between ${
                   activeTab === MESSAGE_TYPES.ADMIN 
-                    ? "bg-gradient-to-r from-blue-50 to-cyan-50 border-l-3 border-blue-500" 
+                    ? "bg-gradient-to-r from-blue-50 to-cyan-50 border-l-4 border-blue-500" 
                     : "hover:bg-gray-50"
                 }`}
               >
                 <div className="flex items-center">
-                  <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 mr-2"></div>
+                  <div className="w-2 h-2 rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 mr-3"></div>
                   <div>
-                    <div className="font-medium text-gray-800 text-xs">Administration</div>
-                    <div className="text-[10px] text-gray-500">Contact admin</div>
+                    <div className="font-medium text-gray-800 text-sm">Administration</div>
+                    <div className="text-xs text-gray-500">Contact admin</div>
                   </div>
                 </div>
                 {unreadCounts.admin > 0 && (
-                  <span className="bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                  <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
                     {unreadCounts.admin > 9 ? "9+" : unreadCounts.admin}
                   </span>
                 )}
@@ -682,28 +682,28 @@ function Message({ user, setView, currentView }) {
 
           {/* Floor Selection */}
           {activeTab === MESSAGE_TYPES.FLOOR && (
-            <div className="flex-1 overflow-y-auto py-1">
-              <div className="px-3 mb-1">
-                <h3 className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-2">Floors</h3>
+            <div className="flex-1 overflow-y-auto py-2">
+              <div className="px-3 mb-2">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider px-3">Floors</h3>
               </div>
               {FLOORS.map(floor => (
                 <button
                   key={floor}
                   onClick={() => handleFloorSelect(floor)}
-                  className={`w-full px-3 py-2 flex items-center justify-between hover:bg-gray-50 transition-colors ${
+                  className={`w-full px-4 py-3 flex items-center justify-between hover:bg-gray-50 transition-colors ${
                     selectedFloor === floor ? 'bg-gradient-to-r from-red-50 to-orange-50' : ''
                   }`}
                 >
                   <div className="flex items-center">
-                    <div className={`w-1 h-1 rounded-full mr-2 ${
+                    <div className={`w-1.5 h-1.5 rounded-full mr-3 ${
                       selectedFloor === floor ? 'bg-red-500' : 'bg-gray-300'
                     }`}></div>
-                    <span className={`text-xs ${selectedFloor === floor ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
+                    <span className={`text-sm ${selectedFloor === floor ? 'font-medium text-gray-900' : 'text-gray-700'}`}>
                       {floor}
                     </span>
                   </div>
                   {floorUnreadCounts[floor] > 0 && (
-                    <span className="bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
                       {floorUnreadCounts[floor] > 9 ? "9+" : floorUnreadCounts[floor]}
                     </span>
                   )}
@@ -714,9 +714,9 @@ function Message({ user, setView, currentView }) {
 
           {/* Admin Info */}
           {activeTab === MESSAGE_TYPES.ADMIN && (
-            <div className="p-3">
-              <div className="bg-blue-50 rounded-lg p-2">
-                <p className="text-[10px] text-blue-700 leading-relaxed">
+            <div className="p-4">
+              <div className="bg-blue-50 rounded-xl p-3">
+                <p className="text-xs text-blue-700 leading-relaxed">
                   Contact the administration for account issues, complaints, or general inquiries.
                 </p>
               </div>
@@ -727,38 +727,38 @@ function Message({ user, setView, currentView }) {
         {/* Chat Area */}
         <div className="flex-1 flex flex-col relative h-full">
           {/* Chat Header */}
-          <div className="bg-white px-3 py-2 border-b border-gray-200 flex items-center">
+          <div className="bg-white px-4 py-3 border-b border-gray-200 flex items-center">
             <button 
               onClick={handleHamburgerClick}
               data-hamburger="true"
-              className="lg:hidden p-1.5 mr-2 rounded-lg hover:bg-gray-100 transition-colors"
+              className="lg:hidden p-2 mr-2 rounded-lg hover:bg-gray-100 transition-colors"
               aria-label="Toggle sidebar"
             >
-              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <div className="flex-1">
-              <h2 className="font-semibold text-gray-800 text-sm">
+              <h2 className="font-semibold text-gray-800 text-base">
                 {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "Administration"}
               </h2>
-              <p className="text-[10px] text-gray-500">
+              <p className="text-xs text-gray-500">
                 {activeTab === MESSAGE_TYPES.FLOOR ? 'Receptionist' : 'Support Team'}
               </p>
             </div>
             {getCurrentUnreadCount() > 0 && (
-              <span className="bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">
+              <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
                 {getCurrentUnreadCount()}
               </span>
             )}
           </div>
 
-          {/* Messages Container - Fixed height accounting for navigation */}
+          {/* Messages Container - Fixed height */}
           <div 
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto px-3 py-3 bg-gray-50"
+            className="flex-1 overflow-y-auto px-4 py-4 bg-gray-50"
             style={{ 
-              height: isMobile ? 'calc(100vh - 128px)' : 'calc(100vh - 108px)',
+              height: 'calc(100vh - 180px)',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none'
             }}
@@ -778,7 +778,7 @@ function Message({ user, setView, currentView }) {
                 {Object.entries(messageGroups).map(([date, dateMessages]) => (
                   <div key={date}>
                     <DateSeparator date={date} />
-                    <div className="space-y-0.5">
+                    <div className="space-y-1">
                       {dateMessages.map(msg => (
                         <MessageBubble
                           key={msg._id}
@@ -793,37 +793,37 @@ function Message({ user, setView, currentView }) {
                     </div>
                   </div>
                 ))}
-                <div ref={messagesEndRef} className="h-1" />
+                <div ref={messagesEndRef} />
               </div>
             )}
           </div>
 
-          {/* Message Input - Compact size */}
-          <div className="bg-white border-t border-gray-200 px-3 py-2">
-            <div className="flex items-center space-x-2 max-w-3xl mx-auto">
+          {/* Message Input - Fixed at bottom */}
+          <div className="bg-white border-t border-gray-200 px-4 py-3">
+            <div className="flex items-end space-x-2 max-w-3xl mx-auto">
               <textarea
                 ref={textareaRef}
                 placeholder="Type a message..."
-                className="flex-1 border-0 rounded-full px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-red-500/20 bg-gray-100 resize-none text-xs"
+                className="flex-1 border-0 rounded-2xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500/20 bg-gray-100 resize-none text-sm"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={handleKeyPress}
                 rows={1}
                 style={{ 
-                  minHeight: '32px',
-                  maxHeight: '60px',
+                  minHeight: '40px',
+                  maxHeight: '100px',
                 }}
               />
               <button
                 onClick={sendMessage}
                 disabled={!newMessage.trim()}
-                className={`p-1.5 rounded-full flex-shrink-0 transition-colors ${
+                className={`p-2 rounded-full flex-shrink-0 transition-colors ${
                   activeTab === MESSAGE_TYPES.FLOOR 
                     ? 'text-red-500 hover:bg-red-50 disabled:text-red-300' 
                     : 'text-blue-500 hover:bg-blue-50 disabled:text-blue-300'
                 } disabled:cursor-not-allowed`}
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                 </svg>
               </button>
