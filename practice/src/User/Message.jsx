@@ -605,7 +605,7 @@ function Message({ user, setView, currentView }) {
       tabIndex={-1}
     >
       {/* Messages Container */}
-      <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-64px)] lg:h-screen">
+      <div className="flex flex-1 overflow-hidden relative h-full">
         {/* Mobile Sidebar Overlay - No blur */}
         {isSidebarOpen && isMobile && (
           <div 
@@ -753,12 +753,12 @@ function Message({ user, setView, currentView }) {
             )}
           </div>
 
-          {/* Messages Container - Fixed height */}
+          {/* Messages Container - Fixed height accounting for navigation */}
           <div 
             ref={messagesContainerRef}
             className="flex-1 overflow-y-auto px-4 py-4 bg-gray-50"
             style={{ 
-              height: 'calc(100vh - 180px)',
+              height: isMobile ? 'calc(100vh - 180px)' : 'calc(100vh - 120px)',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none'
             }}
@@ -793,7 +793,7 @@ function Message({ user, setView, currentView }) {
                     </div>
                   </div>
                 ))}
-                <div ref={messagesEndRef} />
+                <div ref={messagesEndRef} className="h-2" />
               </div>
             )}
           </div>
