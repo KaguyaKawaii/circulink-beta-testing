@@ -569,7 +569,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
           </div>
         </div>
         
-        {/* Right side icons - Notification and Profile */}
+        {/* Right side icons - Notification and Profile Picture */}
         <div className="flex items-center space-x-3">
           {/* Notification Icon with Badge */}
           <button
@@ -593,9 +593,13 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
             disabled={user?.suspended}
             aria-label="Profile"
           >
-            {user?.profileImage ? (
+            {user?.profilePicture ? (
               <img
-                src={`${user.profileImage}?t=${imgTimestamp}`}
+                src={
+                  user.profilePicture.startsWith("http")
+                    ? `${user.profilePicture}?t=${imgTimestamp}`
+                    : `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${imgTimestamp}`
+                }
                 alt="Profile"
                 className="w-full h-full object-cover"
                 onError={(e) => {
