@@ -847,8 +847,11 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         </div>
       </aside>
 
-      {/* Mobile Spacer */}
+      {/* Mobile Spacer - This ensures content doesn't go under mobile header */}
       <div className="lg:hidden h-16"></div>
+      
+      {/* Desktop Spacer - This ensures content doesn't go under desktop sidebar */}
+      <div className="hidden lg:block w-[250px] flex-shrink-0"></div>
     </>
   );
 }
