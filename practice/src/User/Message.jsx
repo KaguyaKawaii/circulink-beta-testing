@@ -533,11 +533,10 @@ function Message({ user, setView, currentView }) {
         </h1>
       </div>
 
-      {/* Desktop Header */}
-      <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm bg-white sticky top-0 z-30">
-        <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-wide">Message</h1>
-        
-      </header>
+      {/* Desktop Header with more prominent shadow */}
+<header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between bg-white sticky top-0 z-30 shadow">
+  <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-wide">Message</h1>
+</header>
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar Overlay */}
