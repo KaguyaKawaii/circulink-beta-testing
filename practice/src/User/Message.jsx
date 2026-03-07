@@ -551,12 +551,14 @@ function Message({ user, setView, currentView }) {
         )}
 
         {/* Sidebar */}
+        {/* Sidebar - FIXED Z-INDEX AND POSITIONING */}
         <aside 
           ref={sidebarRef}
           className={`
-            fixed md:static top-0 left-0 w-72 h-full bg-white border-r border-gray-200 z-0
-            transition-transform duration-300 ease-in-out
+            fixed md:static top-16 left-0 w-72 h-[calc(100vh-4rem)] bg-white border-r border-gray-200 z-50
+            transition-transform duration-300 ease-in-out overflow-y-auto
             ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+            shadow-xl md:shadow-none
           `}
         >
           {/* Sidebar Header */}
