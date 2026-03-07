@@ -28,6 +28,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showSuspensionModal, setShowSuspensionModal] = useState(false);
   const [suspensionData, setSuspensionData] = useState(null);
+  const [isTablet, setIsTablet] = useState(false);
   
   // ANNOUNCEMENT STATES
   const [announcements, setAnnouncements] = useState([]);
@@ -39,6 +40,19 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
   
   // FIXED: Use ref to track if socket listeners are set up
   const socketListenersSet = useRef(false);
+  
+  // Add tablet detection
+  useEffect(() => {
+    const checkTablet = () => {
+      const width = window.innerWidth;
+      // iPad typically between 768px and 1024px
+      setIsTablet(width >= 768 && width < 1024);
+    };
+    
+    checkTablet();
+    window.addEventListener('resize', checkTablet);
+    return () => window.removeEventListener('resize', checkTablet);
+  }, []);
   
   useEffect(() => {
     // Create audio element only when needed and hide it
@@ -482,7 +496,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     } 
     
     setShowHelp(false);
-    setIsMobileMenu(false);
+    setIsMobileMenuOpen(false);
   };
 
   const isActive = (btnId) => {
@@ -496,7 +510,8 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     return currentView === btnId;
   };
 
-  const setIsMobileMenu = (open) => {
+  // FIXED: Updated mobile menu handler
+  const toggleMobileMenu = (open) => {
     setIsMobileMenuOpen(open);
     // Prevent body scroll when mobile menu is open
     if (open) {
@@ -551,11 +566,11 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         showModal={showAnnouncementModal}
       />
 
-      {/* Mobile Header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#171717] z-50 flex items-center justify-between px-4 border-b border-gray-700">
+      {/* Mobile/Tablet Header - Updated for tablet */}
+      <div className={`${isTablet ? 'lg:hidden' : 'lg:hidden'} fixed top-0 left-0 right-0 h-16 bg-[#171717] z-50 flex items-center justify-between px-4 border-b border-gray-700`}>
         <div className="flex items-center space-x-3">
           <button
-            onClick={() => setIsMobileMenu(!isMobileMenuOpen)}
+            onClick={() => toggleMobileMenu(!isMobileMenuOpen)}
             className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
             aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
             disabled={user?.suspended}
@@ -618,29 +633,30 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         </div>
       </div>
 
-      {/* Sidebar */}
+      {/* Sidebar - FIXED: Updated for tablet */}
       <aside>
-        {/* Mobile Overlay */}
+        {/* Mobile/Tablet Overlay */}
         {isMobileMenuOpen && (
           <div 
-            className="lg:hidden fixed inset-0 bg-black/50 z-40"
-            onClick={() => setIsMobileMenu(false)}
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={() => toggleMobileMenu(false)}
           />
         )}
 
-        {/* Navigation Panel - FIXED: Made sidebar responsive and scrollable */}
+        {/* Navigation Panel - FIXED: Responsive sidebar */}
         <div className={`
           fixed top-0 left-0 z-50
           transition-all duration-300 ease-in-out
           ${isMobileMenuOpen 
-            ? 'w-full h-full p-6 translate-x-0' 
-            : '-translate-x-full lg:translate-x-0 w-[250px] h-screen p-6'
+            ? 'translate-x-0 w-full sm:w-80' 
+            : '-translate-x-full'
           }
-          bg-[#171717] shadow-md flex flex-col
-          lg:rounded-tr-3xl
+          ${isTablet ? 'w-72' : ''}
+          h-full bg-[#171717] shadow-md flex flex-col
+          overflow-y-auto
         `}>
-          {/* Close Button - Mobile Only */}
-          <div className="lg:hidden flex justify-between items-center mb-4">
+          {/* Close Button - Mobile/Tablet Only */}
+          <div className="flex justify-between items-center p-4 border-b border-gray-700">
             <div className="flex items-center space-x-3">
               <img src={Logo} alt="Logo" className="h-10 w-10" />
               <div>
@@ -649,7 +665,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               </div>
             </div>
             <button
-              onClick={() => setIsMobileMenu(false)}
+              onClick={() => toggleMobileMenu(false)}
               className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
               aria-label="Close menu"
             >
@@ -658,7 +674,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
           </div>
 
           {/* Logo - Desktop Only */}
-          <div className="hidden lg:flex items-center justify-around mb-4">
+          <div className="hidden lg:flex items-center justify-around p-4">
             <img src={Logo} alt="Logo" className="h-[100px] w-[100px]" />
             <div className="flex flex-col items-start">
               <h1 className="text-[15px] font-serif text-white">
@@ -669,14 +685,11 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
             </div>
           </div>
           
-          <div className="border-b border-gray-700 opacity-50 w-full my-4 lg:my-4"></div>
+          <div className="border-b border-gray-700 opacity-50 w-full my-2"></div>
 
-          {/* Navigation Buttons - FIXED: Made container scrollable on mobile */}
-          <div className={`
-            flex-1 flex flex-col mt-4
-            ${isMobileMenuOpen ? 'overflow-y-auto' : ''}
-          `}>
-            <div className="flex flex-col gap-2.5">
+          {/* Navigation Buttons - Scrollable */}
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="flex flex-col gap-2">
               {navButtons.map((btn) => (
                 <button
                   key={btn.id}
@@ -687,7 +700,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                     text-gray-300 hover:text-white hover:bg-[#333333] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50
                     ${isActive(btn.id) ? "text-white bg-red-600" : ""}
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                    text-sm
+                    text-sm w-full
                   `}
                 >
                   <span
@@ -707,7 +720,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
               ))}
 
               {/* Help Button */}
-              <div className="relative mt-1">
+              <div className="relative mt-2">
                 <button
                   onClick={() => !user?.suspended && setShowHelp((prev) => !prev)}
                   disabled={user?.suspended}
@@ -723,110 +736,64 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                   <span className="truncate">Help</span>
                 </button>
 
+                {/* Help Dropdown - FIXED for tablet */}
                 {showHelp && !user?.suspended && (
                   <div className={`
                     ${isMobileMenuOpen 
-                      ? 'fixed inset-0 flex items-center justify-center z-50 lg:hidden' 
-                      : 'hidden lg:block absolute top-0 left-full ml-2 z-50'
+                      ? 'mt-2' 
+                      : 'absolute left-0 bottom-full mb-2 w-full'
                     }
+                    z-50
                   `}>
-                    {/* Mobile: Centered Modal */}
-                    {isMobileMenuOpen && (
-                      <>
-                        <div 
-                          className="absolute inset-0 bg-black/50"
-                          onClick={() => setShowHelp(false)}
-                        />
-                        <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-[90%] max-w-[300px]">
-                          <div className="flex flex-col space-y-3">
-                            <button
-                              onClick={() => {
-                                setView("help");
-                                setShowHelp(false);
-                                setIsMobileMenu(false);
-                              }}
-                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
-                              aria-label="Go to help center"
-                            >
-                              <h2 className="text-sm font-semibold text-gray-800">
-                                Help Center
-                              </h2>
-                              <p className="text-xs text-gray-600 mt-1">
-                                Get answers to your questions
-                              </p>
-                            </button>
+                    <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-3">
+                      <button
+                        onClick={() => {
+                          setView("help");
+                          setShowHelp(false);
+                          toggleMobileMenu(false);
+                        }}
+                        className="w-full bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                        aria-label="Go to help center"
+                      >
+                        <h2 className="text-sm font-semibold text-gray-800">
+                          Help Center
+                        </h2>
+                        <p className="text-xs text-gray-600 mt-1">
+                          Get answers to your questions
+                        </p>
+                      </button>
 
-                            <button
-                              onClick={() => {
-                                setView("guidelines");
-                                setShowHelp(false);
-                                setIsMobileMenu(false);
-                              }}
-                              className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
-                              aria-label="View guidelines"
-                            >
-                              <h2 className="text-sm font-semibold text-gray-800">
-                                Room Guidelines
-                              </h2>
-                              <p className="text-xs text-gray-600 mt-1">
-                                Learn how to use rooms properly
-                              </p>
-                            </button>
-                            
-                            <button
-                              onClick={() => setShowHelp(false)}
-                              className="mt-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
-                            >
-                              Close
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    {/* Desktop: Right Side Dropdown */}
-                    {!isMobileMenuOpen && (
-                      <div className="flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 p-3 w-[240px]">
-                        <button
-                          onClick={() => {
-                            setView("help");
-                            setShowHelp(false);
-                          }}
-                          className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
-                          aria-label="Go to help center"
-                        >
-                          <h2 className="text-sm font-semibold text-gray-800">
-                            Help Center
-                          </h2>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Get answers to your questions
-                          </p>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setView("guidelines");
-                            setShowHelp(false);
-                          }}
-                          className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 mt-3"
-                          aria-label="View guidelines"
-                        >
-                          <h2 className="text-sm font-semibold text-gray-800">
-                            Room Guidelines
-                          </h2>
-                          <p className="text-xs text-gray-600 mt-1">
-                            Learn how to use rooms properly
-                          </p>
-                        </button>
-                      </div>
-                    )}
+                      <button
+                        onClick={() => {
+                          setView("guidelines");
+                          setShowHelp(false);
+                          toggleMobileMenu(false);
+                        }}
+                        className="w-full bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 mt-3"
+                        aria-label="View guidelines"
+                      >
+                        <h2 className="text-sm font-semibold text-gray-800">
+                          Room Guidelines
+                        </h2>
+                        <p className="text-xs text-gray-600 mt-1">
+                          Learn how to use rooms properly
+                        </p>
+                      </button>
+                      
+                      <button
+                        onClick={() => setShowHelp(false)}
+                        className="w-full mt-3 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors duration-200 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                      >
+                        Close
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Logout - FIXED: Positioned at bottom */}
-            <div className="mt-auto pt-4">
+            {/* Logout - Positioned at bottom */}
+            <div className="mt-6 pt-4 border-t border-gray-700">
               <button
                 onClick={onLogout}
                 disabled={user?.suspended}
@@ -847,7 +814,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         </div>
       </aside>
 
-      {/* Mobile Spacer */}
+      {/* Mobile/Tablet Spacer */}
       <div className="lg:hidden h-16"></div>
     </>
   );
