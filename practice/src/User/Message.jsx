@@ -530,9 +530,8 @@ function Message({ user, setView, currentView }) {
           </svg>
         </button>
         
-        <h1 className="ml-2 md:ml-0 text-lg font-medium text-gray-900">
-          Messages
-        </h1>
+                <h1 className="text-xl md:text-2xl font-bold tracking-wide">Messages</h1>
+
 
         {/* Unread badge for mobile */}
         {getCurrentUnreadCount() > 0 && (
