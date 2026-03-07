@@ -190,6 +190,7 @@ function Message({ user, setView, currentView }) {
   const [floorUnreadCounts, setFloorUnreadCounts] = useState({});
   const [unreadMessageIds, setUnreadMessageIds] = useState(new Set());
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [processedMessageIds, setProcessedMessageIds] = useState(new Set()); // Add this to track processed messages
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
@@ -320,7 +321,7 @@ function Message({ user, setView, currentView }) {
     }
   };
 
-  // Socket setup
+  // Socket setup - FIXED VERSION
   useEffect(() => {
     if (!user?._id) return;
 
@@ -345,12 +346,34 @@ function Message({ user, setView, currentView }) {
 
     initializeData();
 
+    // FIXED: Use a ref to track processed message IDs to prevent duplicates
+    const processedMessageIdsRef = { current: new Set() };
+
     const handleNewMessage = (msg) => {
       if (!isMounted) return;
       
+      // Check if we've already processed this message
+      if (processedMessageIdsRef.current.has(msg._id)) {
+        return; // Skip duplicate message
+      }
+      
+      // Add to processed set
+      processedMessageIdsRef.current.add(msg._id);
+
+      // Clean up old message IDs from the set (optional, to prevent memory leak)
+      if (processedMessageIdsRef.current.size > 100) {
+        const idsArray = Array.from(processedMessageIdsRef.current);
+        const newSet = new Set(idsArray.slice(-50)); // Keep last 50
+        processedMessageIdsRef.current = newSet;
+      }
+      
       setMessages(prev => {
+        // Check if message already exists in state
+        const exists = prev.some(m => m._id === msg._id);
+        if (exists) return prev;
+        
         const filtered = prev.filter(m =>
-          !(m.status === "sending" && m.content === msg.content)
+          !(m.status === "sending" && m.content === msg.content && m.sender === user._id)
         );
         
         if (activeTab === MESSAGE_TYPES.FLOOR) {
@@ -359,7 +382,12 @@ function Message({ user, setView, currentView }) {
           
           if (isRelevant) {
             if (msg.sender !== user._id) {
-              setUnreadMessageIds(prev => new Set([...prev, msg._id]));
+              setUnreadMessageIds(prevIds => {
+                const newIds = new Set(prevIds);
+                newIds.add(msg._id);
+                return newIds;
+              });
+              
               setFloorUnreadCounts(prev => ({
                 ...prev,
                 [msg.floor]: (prev[msg.floor] || 0) + 1
@@ -373,7 +401,12 @@ function Message({ user, setView, currentView }) {
           
           if (isRelevant) {
             if (msg.sender !== user._id) {
-              setUnreadMessageIds(prev => new Set([...prev, msg._id]));
+              setUnreadMessageIds(prevIds => {
+                const newIds = new Set(prevIds);
+                newIds.add(msg._id);
+                return newIds;
+              });
+              
               setUnreadCounts(prev => ({
                 ...prev,
                 admin: prev.admin + 1
@@ -388,6 +421,12 @@ function Message({ user, setView, currentView }) {
 
     const handleMessageSent = (msg) => {
       if (!isMounted) return;
+      
+      // Add to processed set to prevent duplication
+      if (msg._id) {
+        processedMessageIdsRef.current.add(msg._id);
+      }
+      
       setMessages(prev => prev.map(m => 
         m.status === "sending" ? { ...msg, status: "sent" } : m
       ));
@@ -401,7 +440,7 @@ function Message({ user, setView, currentView }) {
       socket.off(SOCKET_EVENTS.NEW_MESSAGE, handleNewMessage);
       socket.off(SOCKET_EVENTS.MESSAGE_SENT, handleMessageSent);
     };
-  }, [user, selectedFloor, activeTab]);
+  }, [user, selectedFloor, activeTab]); // Keep dependencies as is
 
   useEffect(() => {
     if (user?._id) {
@@ -443,8 +482,10 @@ function Message({ user, setView, currentView }) {
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
 
+    const tempId = "temp-" + Date.now() + "-" + Math.random().toString(36).substr(2, 9); // More unique temp ID
+    
     const tempMsg = {
-      _id: "temp-" + Date.now(),
+      _id: tempId,
       sender: user._id,
       receiver: activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "admin",
       content: newMessage,
@@ -455,6 +496,7 @@ function Message({ user, setView, currentView }) {
     };
 
     setMessages(prev => [...prev, tempMsg]);
+    const messageContent = newMessage;
     setNewMessage("");
 
     try {
@@ -462,17 +504,17 @@ function Message({ user, setView, currentView }) {
         await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/send-to-floor`, {
           userId: user._id,
           floor: selectedFloor,
-          content: newMessage
+          content: messageContent
         });
       } else {
         await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/send-to-admin`, {
           userId: user._id,
-          content: newMessage
+          content: messageContent
         });
       }
     } catch (err) {
       setMessages(prev => prev.map(msg => 
-        msg._id === tempMsg._id ? { ...msg, status: "failed" } : msg
+        msg._id === tempId ? { ...msg, status: "failed" } : msg
       ));
     }
   };
@@ -530,8 +572,7 @@ function Message({ user, setView, currentView }) {
           </svg>
         </button>
         
-                <h1 className="text-xl md:text-2xl font-bold tracking-wide">Messages</h1>
-
+        <h1 className="text-xl md:text-2xl font-bold tracking-wide">Messages</h1>
 
         {/* Unread badge for mobile */}
         {getCurrentUnreadCount() > 0 && (
@@ -551,7 +592,6 @@ function Message({ user, setView, currentView }) {
         )}
 
         {/* Sidebar */}
-        {/* Sidebar - FIXED Z-INDEX AND POSITIONING */}
         <aside 
           ref={sidebarRef}
           className={`
