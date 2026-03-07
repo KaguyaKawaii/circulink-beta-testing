@@ -7,7 +7,7 @@ function RoomAvailabilityModal({
   availLoading,
   availError,
   onClose,
-  currentUserId = null, // Add current user ID to filter pending reservations
+  currentUserId = null,
 }) {
 
   React.useEffect(() => {
@@ -22,20 +22,23 @@ function RoomAvailabilityModal({
     return moment(iso).tz("Asia/Manila").format("hh:mm A");
   };
 
-  // Filter room statuses to only show approved reservations to other users
+  // Filter room statuses based on user permissions
   const getFilteredRoomStatus = (room) => {
     const isRoomActive = room.isActive !== false;
     const approvedOccupied = Array.isArray(room.occupied) ? room.occupied : [];
+    const pendingReservations = Array.isArray(room.pending) ? room.pending : [];
     
-    // If we have currentUserId, we could show user's own pending reservations
-    // But for other users, only show approved reservations
-    const showToOtherUsers = {
-      ...room,
-      occupied: approvedOccupied, // Only approved reservations
-      // Don't include pending array for other users
-    };
+    // For all users, show approved/ongoing reservations
+    // For pending reservations, only show if they belong to the current user
+    const visiblePending = currentUserId 
+      ? pendingReservations.filter(p => p.mine === true)
+      : [];
 
-    return showToOtherUsers;
+    return {
+      ...room,
+      occupied: approvedOccupied, // Always show approved/ongoing
+      pending: visiblePending, // Only show user's own pending reservations
+    };
   };
 
   const filteredRoomStatuses = roomStatuses.map(getFilteredRoomStatus);
@@ -47,15 +50,18 @@ function RoomAvailabilityModal({
     return acc;
   }, {});
 
-  // Helper function to determine room status (only based on approved reservations)
+  // Helper function to determine room status
   const getRoomStatus = (room) => {
     const isRoomActive = room.isActive !== false;
     const hasOccupied = Array.isArray(room.occupied) && room.occupied.length > 0;
+    const hasPending = Array.isArray(room.pending) && room.pending.length > 0;
 
     if (!isRoomActive) {
       return { status: 'inactive', color: 'gray' };
     } else if (hasOccupied) {
       return { status: 'occupied', color: 'red' };
+    } else if (hasPending) {
+      return { status: 'pending', color: 'yellow' };
     } else {
       return { status: 'available', color: 'green' };
     }
@@ -118,8 +124,10 @@ function RoomAvailabilityModal({
                     {/* Room List */}
                     <div className="divide-y divide-gray-100">
                       {rooms.map((room, rIdx) => {
-                        const { status, color } = getRoomStatus(room);
+                        const { status } = getRoomStatus(room);
                         const isRoomActive = room.isActive !== false;
+                        const allReservations = [...(room.occupied || []), ...(room.pending || [])]
+                          .sort((a, b) => new Date(a.start) - new Date(b.start));
 
                         return (
                           <div key={rIdx} className="p-3">
@@ -128,7 +136,8 @@ function RoomAvailabilityModal({
                               <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                                   status === 'inactive' ? "bg-gray-400" :
-                                  status === 'occupied' ? "bg-red-500" : "bg-green-500"
+                                  status === 'occupied' ? "bg-red-500" :
+                                  status === 'pending' ? "bg-yellow-500" : "bg-green-500"
                                 }`} />
                                 <p className={`font-medium text-sm truncate ${
                                   !isRoomActive ? "text-gray-500" : "text-gray-900"
@@ -145,14 +154,30 @@ function RoomAvailabilityModal({
                                 ) : status === 'occupied' ? (
                                   <div className="space-y-1">
                                     <span className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded block">Occupied</span>
-                                    {room.occupied.slice(0, 2).map((o, i) => (
-                                      <span key={i} className="text-xs text-gray-600 bg-white px-2 py-1 rounded block">
-                                        {formatTime(o.start)}-{formatTime(o.end)}
+                                    {allReservations.slice(0, 2).map((res, i) => (
+                                      <span key={i} className={`text-xs px-2 py-1 rounded block ${
+                                        res.status === 'Pending' 
+                                          ? 'text-yellow-600 bg-yellow-50' 
+                                          : 'text-gray-600 bg-white'
+                                      }`}>
+                                        {formatTime(res.start)}-{formatTime(res.end)}
+                                        {res.mine && res.status === 'Pending' && ' (Your Pending)'}
+                                        {res.mine && res.status === 'Approved' && ' (Your Booking)'}
                                       </span>
                                     ))}
-                                    {room.occupied.length > 2 && (
-                                      <span className="text-xs text-gray-500">+{room.occupied.length - 2} more</span>
+                                    {allReservations.length > 2 && (
+                                      <span className="text-xs text-gray-500">+{allReservations.length - 2} more</span>
                                     )}
+                                  </div>
+                                ) : status === 'pending' ? (
+                                  <div className="space-y-1">
+                                    <span className="text-xs text-yellow-600 bg-yellow-100 px-2 py-1 rounded block">Pending</span>
+                                    {room.pending.map((p, i) => (
+                                      <span key={i} className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded block">
+                                        {formatTime(p.start)}-{formatTime(p.end)}
+                                        {p.mine && ' (Your Request)'}
+                                      </span>
+                                    ))}
                                   </div>
                                 ) : (
                                   <span className="text-xs text-green-600 bg-green-100 px-2 py-1 rounded">Available</span>
