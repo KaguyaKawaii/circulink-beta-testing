@@ -482,7 +482,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     } 
     
     setShowHelp(false);
-    setIsMobileMenuOpen(false);
+    setIsMobileMenu(false);
   };
 
   const isActive = (btnId) => {
@@ -496,11 +496,21 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
     return currentView === btnId;
   };
 
+  const setIsMobileMenu = (open) => {
+    setIsMobileMenuOpen(open);
+    // Prevent body scroll when mobile menu is open
+    if (open) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+  };
+
   return (
     <>
       {/* Suspension Modal */}
       {showSuspensionModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="w-[90%] max-w-md rounded-2xl bg-white shadow-2xl px-6 py-8 relative mx-4">
             <div className="flex flex-col items-center text-center mb-6">
               <div className="mb-4 flex items-center justify-center w-16 h-16 rounded-full bg-red-100">
@@ -541,26 +551,26 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
         showModal={showAnnouncementModal}
       />
 
-      {/* Mobile Header - Fixed at top */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-[#171717] z-50 flex items-center justify-between px-4 border-b border-gray-700">
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 h-16 bg-[#171717] z-50 flex items-center justify-between px-4 border-b border-gray-700">
         <div className="flex items-center space-x-3">
           <button
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            onClick={() => setIsMobileMenu(!isMobileMenuOpen)}
             className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
             aria-label={isMobileMenuOpen ? "Close menu" : "Open menu"}
             disabled={user?.suspended}
           >
             {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-          <img src={Logo} alt="Logo" className="h-8 w-8" />
+          <img src={Logo} alt="Logo" className="h-10 w-10" />
           <div>
-            <h1 className="text-white font-semibold text-xs">CircuLink</h1>
-            <p className="text-gray-400 text-[10px]">University of San Agustin</p>
+            <h1 className="text-white font-semibold text-sm">CircuLink</h1>
+            <p className="text-gray-400 text-xs">University of San Agustin</p>
           </div>
         </div>
         
         {/* Right side icons - Notification and Profile Picture */}
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-3">
           {/* Notification Icon with Badge */}
           <button
             onClick={() => handleNavClick("notification")}
@@ -568,9 +578,9 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
             disabled={user?.suspended}
             aria-label="Notifications"
           >
-            <Bell size={18} />
+            <Bell size={20} />
             {unreadCounts.notifications > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center min-w-[16px]">
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
                 {unreadCounts.notifications > 9 ? "9+" : unreadCounts.notifications}
               </span>
             )}
@@ -579,7 +589,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
           {/* Profile Picture */}
           <button
             onClick={() => handleNavClick("profile")}
-            className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-red-500 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+            className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-transparent hover:border-red-500 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
             disabled={user?.suspended}
             aria-label="Profile"
           >
@@ -600,7 +610,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                 }}
               />
             ) : (
-              <div className="w-full h-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white font-bold text-xs">
+              <div className="w-full h-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white font-bold text-lg">
                 {user?.firstName?.[0] || ''}{user?.lastName?.[0] || ''}
               </div>
             )}
@@ -610,64 +620,70 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
 
       {/* Sidebar */}
       <aside>
-        {/* Mobile Overlay - No blur */}
+        {/* Mobile Overlay */}
         {isMobileMenuOpen && (
           <div 
             className="lg:hidden fixed inset-0 bg-black/50 z-40"
-            onClick={() => setIsMobileMenuOpen(false)}
+            onClick={() => setIsMobileMenu(false)}
           />
         )}
 
-        {/* Navigation Panel */}
+        {/* Navigation Panel - FIXED: Made sidebar responsive and scrollable */}
         <div className={`
-          fixed top-0 left-0 z-50 h-full
-          transition-transform duration-300 ease-in-out
-          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          w-[250px] bg-[#171717] shadow-md flex flex-col
+          fixed top-0 left-0 z-50
+          transition-all duration-300 ease-in-out
+          ${isMobileMenuOpen 
+            ? 'w-full h-full p-6 translate-x-0' 
+            : '-translate-x-full lg:translate-x-0 w-[250px] h-screen p-6'
+          }
+          bg-[#171717] shadow-md flex flex-col
           lg:rounded-tr-3xl
         `}>
           {/* Close Button - Mobile Only */}
-          <div className="lg:hidden flex justify-between items-center p-4 border-b border-gray-700">
-            <div className="flex items-center space-x-2">
-              <img src={Logo} alt="Logo" className="h-8 w-8" />
+          <div className="lg:hidden flex justify-between items-center mb-4">
+            <div className="flex items-center space-x-3">
+              <img src={Logo} alt="Logo" className="h-10 w-10" />
               <div>
-                <h1 className="text-white font-semibold text-xs">CircuLink</h1>
-                <p className="text-gray-400 text-[10px]">University of San Agustin</p>
+                <h1 className="text-white font-semibold text-sm">CircuLink</h1>
+                <p className="text-gray-400 text-xs">University of San Agustin</p>
               </div>
             </div>
             <button
-              onClick={() => setIsMobileMenuOpen(false)}
+              onClick={() => setIsMobileMenu(false)}
               className="p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
               aria-label="Close menu"
             >
-              <X size={20} />
+              <X size={24} />
             </button>
           </div>
 
           {/* Logo - Desktop Only */}
-          <div className="hidden lg:flex items-center justify-around p-4">
-            <img src={Logo} alt="Logo" className="h-[80px] w-[80px]" />
+          <div className="hidden lg:flex items-center justify-around mb-4">
+            <img src={Logo} alt="Logo" className="h-[100px] w-[100px]" />
             <div className="flex flex-col items-start">
-              <h1 className="text-sm font-serif text-white">
+              <h1 className="text-[15px] font-serif text-white">
                 University of <br /> San Agustin
               </h1>
-              <div className="border w-full border-b-white/50 my-1"></div>
-              <p className="text-base font-serif font-semibold text-white">CircuLink</p>
+              <div className="border w-full border-b-white/50"></div>
+              <p className="text-[20px] font-serif font-semibold text-white">CircuLink</p>
             </div>
           </div>
           
-          <div className="border-b border-gray-700 opacity-50 w-full my-2"></div>
+          <div className="border-b border-gray-700 opacity-50 w-full my-4 lg:my-4"></div>
 
-          {/* Navigation Buttons - Scrollable */}
-          <div className="flex-1 overflow-y-auto px-3 py-2">
-            <div className="flex flex-col gap-1">
+          {/* Navigation Buttons - FIXED: Made container scrollable on mobile */}
+          <div className={`
+            flex-1 flex flex-col mt-4
+            ${isMobileMenuOpen ? 'overflow-y-auto' : ''}
+          `}>
+            <div className="flex flex-col gap-2.5">
               {navButtons.map((btn) => (
                 <button
                   key={btn.id}
                   onClick={() => handleNavClick(btn.id)}
                   disabled={user?.suspended}
                   className={`
-                    flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer relative group
+                    flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer relative group
                     text-gray-300 hover:text-white hover:bg-[#333333] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50
                     ${isActive(btn.id) ? "text-white bg-red-600" : ""}
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
@@ -696,7 +712,7 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                   onClick={() => !user?.suspended && setShowHelp((prev) => !prev)}
                   disabled={user?.suspended}
                   className={`
-                    flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer w-full
+                    flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-200 justify-start cursor-pointer w-full
                     text-gray-300 hover:text-white hover:bg-[#333333] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50
                     ${(showHelp || currentView === "help" || currentView === "guidelines") ? "text-white bg-red-600" : ""}
                     ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
@@ -708,23 +724,29 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                 </button>
 
                 {showHelp && !user?.suspended && (
-                  <>
-                    {/* Mobile Help Modal */}
+                  <div className={`
+                    ${isMobileMenuOpen 
+                      ? 'fixed inset-0 flex items-center justify-center z-50 lg:hidden' 
+                      : 'hidden lg:block absolute top-0 left-full ml-2 z-50'
+                    }
+                  `}>
+                    {/* Mobile: Centered Modal */}
                     {isMobileMenuOpen && (
-                      <div className="fixed inset-0 flex items-center justify-center z-[60] lg:hidden">
+                      <>
                         <div 
                           className="absolute inset-0 bg-black/50"
                           onClick={() => setShowHelp(false)}
                         />
-                        <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-[90%] max-w-[280px]">
-                          <div className="flex flex-col space-y-2">
+                        <div className="relative bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-[90%] max-w-[300px]">
+                          <div className="flex flex-col space-y-3">
                             <button
                               onClick={() => {
                                 setView("help");
                                 setShowHelp(false);
-                                setIsMobileMenuOpen(false);
+                                setIsMobileMenu(false);
                               }}
                               className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                              aria-label="Go to help center"
                             >
                               <h2 className="text-sm font-semibold text-gray-800">
                                 Help Center
@@ -738,9 +760,10 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                               onClick={() => {
                                 setView("guidelines");
                                 setShowHelp(false);
-                                setIsMobileMenuOpen(false);
+                                setIsMobileMenu(false);
                               }}
                               className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                              aria-label="View guidelines"
                             >
                               <h2 className="text-sm font-semibold text-gray-800">
                                 Room Guidelines
@@ -758,73 +781,74 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
                             </button>
                           </div>
                         </div>
-                      </div>
+                      </>
                     )}
 
-                    {/* Desktop Help Dropdown */}
+                    {/* Desktop: Right Side Dropdown */}
                     {!isMobileMenuOpen && (
-                      <div className="hidden lg:block absolute top-0 left-full ml-2 z-50">
-                        <div className="flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 p-3 w-[220px]">
-                          <button
-                            onClick={() => {
-                              setView("help");
-                              setShowHelp(false);
-                            }}
-                            className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
-                          >
-                            <h2 className="text-sm font-semibold text-gray-800">
-                              Help Center
-                            </h2>
-                            <p className="text-xs text-gray-600 mt-1">
-                              Get answers to your questions
-                            </p>
-                          </button>
+                      <div className="flex flex-col bg-white rounded-xl shadow-lg border border-gray-200 p-3 w-[240px]">
+                        <button
+                          onClick={() => {
+                            setView("help");
+                            setShowHelp(false);
+                          }}
+                          className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+                          aria-label="Go to help center"
+                        >
+                          <h2 className="text-sm font-semibold text-gray-800">
+                            Help Center
+                          </h2>
+                          <p className="text-xs text-gray-600 mt-1">
+                            Get answers to your questions
+                          </p>
+                        </button>
 
-                          <button
-                            onClick={() => {
-                              setView("guidelines");
-                              setShowHelp(false);
-                            }}
-                            className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 mt-2"
-                          >
-                            <h2 className="text-sm font-semibold text-gray-800">
-                              Room Guidelines
-                            </h2>
-                            <p className="text-xs text-gray-600 mt-1">
-                              Learn how to use rooms properly
-                            </p>
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => {
+                            setView("guidelines");
+                            setShowHelp(false);
+                          }}
+                          className="bg-white border border-gray-200 hover:border-gray-300 transition-all duration-200 shadow-sm rounded-xl w-full flex flex-col items-center justify-center text-center p-3 cursor-pointer focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 mt-3"
+                          aria-label="View guidelines"
+                        >
+                          <h2 className="text-sm font-semibold text-gray-800">
+                            Room Guidelines
+                          </h2>
+                          <p className="text-xs text-gray-600 mt-1">
+                            Learn how to use rooms properly
+                          </p>
+                        </button>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             </div>
-          </div>
 
-          {/* Logout - Fixed at bottom */}
-          <div className="p-3 border-t border-gray-700">
-            <button
-              onClick={onLogout}
-              disabled={user?.suspended}
-              className={`
-                w-full flex items-center gap-3 justify-center px-3 py-2.5 rounded-lg font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50
-                ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
-                text-sm bg-transparent
-              `}
-            >
-              <LogOut
-                size={16}
-                className="group-hover:scale-110 transition-transform duration-200"
-              />
-              Logout
-            </button>
+            {/* Logout - FIXED: Positioned at bottom */}
+            <div className="mt-auto pt-4">
+              <button
+                onClick={onLogout}
+                disabled={user?.suspended}
+                className={`
+                  w-full flex items-center gap-3 justify-center px-4 py-3 rounded-lg font-medium text-white hover:bg-red-600 transition-all duration-200 cursor-pointer group focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50
+                  ${user?.suspended ? 'opacity-50 cursor-not-allowed' : ''}
+                  text-sm bg-transparent
+                `}
+              >
+                <LogOut
+                  size={16}
+                  className="group-hover:scale-110 transition-transform duration-200"
+                />
+                Logout
+              </button>
+            </div>
           </div>
         </div>
       </aside>
 
-      {/* No mobile spacer needed - main content should have its own top padding */}
+      {/* Mobile Spacer */}
+      <div className="lg:hidden h-16"></div>
     </>
   );
 }
