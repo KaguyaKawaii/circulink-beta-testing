@@ -25,7 +25,7 @@ const SOCKET_EVENTS = {
 
 const socket = io(`${import.meta.env.VITE_API_URL}`);
 
-// Utility Functions (moved outside component)
+// Utility Functions
 const formatTime = (iso) => {
   const date = new Date(iso);
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -189,10 +189,7 @@ function Message({ user, setView, currentView }) {
 
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTo({
-        top: messagesContainerRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   };
 
@@ -630,12 +627,12 @@ function Message({ user, setView, currentView }) {
 
   return (
     <main 
-      className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-gray-50 relative overflow-hidden"
+      className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-gray-50 overflow-hidden"
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >      
       {/* HEADER - Only shown on desktop */}
-      <header className="hidden lg:flex text-black px-6 h-[60px] items-center justify-between shadow-sm border-b border-gray-200 bg-white relative z-50">
+      <header className="hidden lg:flex text-black px-6 h-[60px] items-center justify-between shadow-sm border-b border-gray-200 bg-white flex-shrink-0">
         <div className="flex items-center space-x-3">
           <h1 className="text-xl lg:text-2xl font-bold tracking-wide bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
             Messages
@@ -643,11 +640,11 @@ function Message({ user, setView, currentView }) {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 overflow-hidden relative min-h-0">
         {/* Mobile Sidebar Overlay */}
         {isSidebarOpen && isMobile && (
           <div 
-            className="fixed inset-0 z-[100] lg:hidden bg-black/20 backdrop-blur-sm"
+            className="fixed inset-0 z-[100] lg:hidden bg-black/50"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
@@ -657,12 +654,12 @@ function Message({ user, setView, currentView }) {
           ref={sidebarRef}
           className={`message-sidebar
             fixed lg:static top-0 left-0 h-full w-[280px] bg-white border-r border-gray-200 shadow-lg z-[101] flex flex-col
-            transition-transform duration-300 ease-in-out
+            transition-transform duration-300 ease-in-out flex-shrink-0
             ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
           `}
         >
           {/* Mobile Header */}
-          <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-red-50 to-orange-50">
+          <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-red-50 to-orange-50 flex-shrink-0">
             <h2 className="text-lg font-bold text-gray-800 flex items-center">
               <svg className="w-5 h-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
@@ -680,13 +677,13 @@ function Message({ user, setView, currentView }) {
             </button>
           </div>
 
-          <div className="p-6 border-b border-gray-100">
+          <div className="p-6 border-b border-gray-100 flex-shrink-0">
             <h2 className="font-bold text-lg text-gray-800 hidden lg:block">Message Options</h2>
             <p className="text-sm text-gray-600 mt-1 hidden lg:block">Choose who to message</p>
           </div>
           
           {/* Tab Buttons */}
-          <div className="p-4 border-b border-gray-100">
+          <div className="p-4 border-b border-gray-100 flex-shrink-0">
             <div className="flex flex-col space-y-2">
               <button
                 onClick={() => handleTabChange(MESSAGE_TYPES.FLOOR)}
@@ -746,7 +743,7 @@ function Message({ user, setView, currentView }) {
 
           {/* Floor Selection (only show for floor tab) */}
           {activeTab === MESSAGE_TYPES.FLOOR && (
-            <div className="p-4 flex-1 overflow-y-auto">
+            <div className="p-4 flex-1 overflow-y-auto min-h-0">
               <h3 className="text-xs font-semibold text-gray-600 mb-2 uppercase tracking-wide flex items-center">
                 <svg className="w-3 h-3 mr-1 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -790,7 +787,7 @@ function Message({ user, setView, currentView }) {
 
           {/* Admin Info (only show for admin tab) */}
           {activeTab === MESSAGE_TYPES.ADMIN && (
-            <div className="p-4">
+            <div className="p-4 flex-shrink-0">
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3 shadow-sm">
                 <div className="flex items-center mb-2">
                   <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full mr-2 shadow-sm"></div>
@@ -805,16 +802,16 @@ function Message({ user, setView, currentView }) {
         </aside>
 
         {/* Chat Area */}
-        <div className="flex-1 flex flex-col relative w-full lg:w-auto overflow-hidden bg-gray-50">
+        <div className="flex-1 flex flex-col relative w-full lg:w-auto overflow-hidden bg-gray-50 min-h-0">
           {/* Chat Header - Mobile & Desktop */}
-          <div className="bg-white px-4 py-3 lg:px-6 lg:py-4 border-b border-gray-200 shadow-sm relative z-40">
+          <div className="bg-white px-4 py-3 lg:px-6 lg:py-4 border-b border-gray-200 shadow-sm flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 {/* Mobile Hamburger Button */}
                 <button 
                   onClick={handleHamburgerClick}
                   data-hamburger="true"
-                  className="lg:hidden p-2 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md transition-all duration-300 hover:scale-105 active:scale-95 relative z-[999]"
+                  className="lg:hidden p-2 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md transition-all duration-300 hover:scale-105 active:scale-95 relative z-[999] flex-shrink-0"
                   aria-label="Toggle sidebar"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -837,7 +834,7 @@ function Message({ user, setView, currentView }) {
               {/* Unread badge */}
               {getCurrentUnreadCount() > 0 && (
                 <div className="hidden lg:block">
-                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1 shadow-sm">
+                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1 shadow-sm flex-shrink-0">
                     {getCurrentUnreadCount()} new
                   </span>
                 </div>
@@ -846,7 +843,7 @@ function Message({ user, setView, currentView }) {
               {/* Mobile unread indicator */}
               {isMobile && getCurrentUnreadCount() > 0 && (
                 <div className="lg:hidden">
-                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1 shadow-sm">
+                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1 shadow-sm flex-shrink-0">
                     {getCurrentUnreadCount()}
                   </span>
                 </div>
@@ -854,13 +851,11 @@ function Message({ user, setView, currentView }) {
             </div>
           </div>
 
-          {/* Messages Container - Optimized height */}
+          {/* Messages Container - Fixed height calculation */}
           <div 
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto px-4 py-3 lg:px-6 lg:py-4"
+            className="flex-1 overflow-y-auto px-4 py-3 lg:px-6 lg:py-4 min-h-0"
             style={{ 
-              height: 'calc(100vh - 180px)', // Adjusted for better visibility of reply area
-              maxHeight: 'calc(100vh - 180px)',
               scrollbarWidth: 'thin',
               scrollbarColor: '#cbd5e0 #f1f5f9'
             }}
@@ -872,7 +867,6 @@ function Message({ user, setView, currentView }) {
               }
               div[ref="messagesContainerRef"]::-webkit-scrollbar-track {
                 background: #f1f5f9;
-                border-radius: 10px;
               }
               div[ref="messagesContainerRef"]::-webkit-scrollbar-thumb {
                 background: #cbd5e0;
@@ -914,8 +908,8 @@ function Message({ user, setView, currentView }) {
             )}
           </div>
 
-          {/* Message Input - Fixed height */}
-          <div className="bg-white px-4 py-3 lg:px-6 lg:py-4 border-t border-gray-200 shadow-sm">
+          {/* Message Input - Fixed at bottom */}
+          <div className="bg-white px-4 py-3 lg:px-6 lg:py-4 border-t border-gray-200 shadow-sm flex-shrink-0">
             <div className="max-w-full mx-auto lg:max-w-3xl">
               <div className="flex items-end space-x-2">
                 <div className="flex-1 relative">
