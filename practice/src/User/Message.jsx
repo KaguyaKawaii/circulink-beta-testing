@@ -590,7 +590,7 @@ function Message({ user, setView, currentView }) {
   };
 
   return (
-    <main className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-white">
+    <main className="mr-0 lg:mr-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-white">
       {/* Simple Header */}
       <header className="bg-white border-b border-gray-200 px-4 h-[60px] flex items-center shadow-sm">
         <div className="flex items-center justify-between w-full">
@@ -611,83 +611,8 @@ function Message({ user, setView, currentView }) {
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Conversations Sidebar */}
-        <div className={`
-          ${isMobile 
-            ? showMobileConversations 
-              ? 'fixed inset-0 z-50 bg-white' 
-              : 'hidden'
-            : 'w-[360px] border-r border-gray-200 bg-white'
-          } flex flex-col h-full`}
-        >
-          {/* Tabs */}
-          <div className="flex border-b border-gray-200">
-            <button
-              onClick={() => handleTabChange(MESSAGE_TYPES.FLOOR)}
-              className={`flex-1 py-4 text-sm font-medium relative ${
-                activeTab === MESSAGE_TYPES.FLOOR
-                  ? 'text-[#0084ff]'
-                  : 'text-gray-600'
-              }`}
-            >
-              Floors
-              {activeTab === MESSAGE_TYPES.FLOOR && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0084ff]"></div>
-              )}
-            </button>
-            <button
-              onClick={() => handleTabChange(MESSAGE_TYPES.ADMIN)}
-              className={`flex-1 py-4 text-sm font-medium relative ${
-                activeTab === MESSAGE_TYPES.ADMIN
-                  ? 'text-[#0084ff]'
-                  : 'text-gray-600'
-              }`}
-            >
-              Admin
-              {activeTab === MESSAGE_TYPES.ADMIN && (
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0084ff]"></div>
-              )}
-            </button>
-          </div>
-
-          {/* Conversations List */}
-          <div className="flex-1 overflow-y-auto">
-            {activeTab === MESSAGE_TYPES.FLOOR ? (
-              // Floor Conversations
-              FLOORS.map(floor => (
-                <ConversationItem
-                  key={floor}
-                  floor={floor}
-                  isSelected={selectedFloor === floor}
-                  unreadCount={floorUnreadCounts[floor] || 0}
-                  onClick={() => handleFloorSelect(floor)}
-                />
-              ))
-            ) : (
-              // Admin Conversation
-              <AdminConversationItem
-                isSelected={true}
-                unreadCount={unreadCounts.admin}
-                onClick={() => handleTabChange(MESSAGE_TYPES.ADMIN)}
-              />
-            )}
-          </div>
-
-          {/* Mobile Close Button */}
-          {isMobile && showMobileConversations && (
-            <div className="p-3 border-t border-gray-200">
-              <button
-                onClick={() => setShowMobileConversations(false)}
-                className="w-full py-2 bg-[#0084ff] text-white rounded-lg text-sm font-medium"
-              >
-                Close
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col bg-[#f0f2f5] relative">
+        {/* Chat Area - Now on the left */}
+        <div className="flex-1 flex flex-col bg-[#f0f2f5] relative order-1">
           {/* Chat Header */}
           <div className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
             <div className="flex items-center space-x-3">
@@ -775,6 +700,81 @@ function Message({ user, setView, currentView }) {
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Conversations Sidebar - Now on the right */}
+        <div className={`
+          ${isMobile 
+            ? showMobileConversations 
+              ? 'fixed inset-0 z-50 bg-white' 
+              : 'hidden'
+            : 'w-[360px] border-l border-gray-200 bg-white'
+          } flex flex-col h-full order-2`}
+        >
+          {/* Tabs */}
+          <div className="flex border-b border-gray-200">
+            <button
+              onClick={() => handleTabChange(MESSAGE_TYPES.FLOOR)}
+              className={`flex-1 py-4 text-sm font-medium relative ${
+                activeTab === MESSAGE_TYPES.FLOOR
+                  ? 'text-[#0084ff]'
+                  : 'text-gray-600'
+              }`}
+            >
+              Floors
+              {activeTab === MESSAGE_TYPES.FLOOR && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0084ff]"></div>
+              )}
+            </button>
+            <button
+              onClick={() => handleTabChange(MESSAGE_TYPES.ADMIN)}
+              className={`flex-1 py-4 text-sm font-medium relative ${
+                activeTab === MESSAGE_TYPES.ADMIN
+                  ? 'text-[#0084ff]'
+                  : 'text-gray-600'
+              }`}
+            >
+              Admin
+              {activeTab === MESSAGE_TYPES.ADMIN && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0084ff]"></div>
+              )}
+            </button>
+          </div>
+
+          {/* Conversations List */}
+          <div className="flex-1 overflow-y-auto">
+            {activeTab === MESSAGE_TYPES.FLOOR ? (
+              // Floor Conversations
+              FLOORS.map(floor => (
+                <ConversationItem
+                  key={floor}
+                  floor={floor}
+                  isSelected={selectedFloor === floor}
+                  unreadCount={floorUnreadCounts[floor] || 0}
+                  onClick={() => handleFloorSelect(floor)}
+                />
+              ))
+            ) : (
+              // Admin Conversation
+              <AdminConversationItem
+                isSelected={true}
+                unreadCount={unreadCounts.admin}
+                onClick={() => handleTabChange(MESSAGE_TYPES.ADMIN)}
+              />
+            )}
+          </div>
+
+          {/* Mobile Close Button */}
+          {isMobile && showMobileConversations && (
+            <div className="p-3 border-t border-gray-200">
+              <button
+                onClick={() => setShowMobileConversations(false)}
+                className="w-full py-2 bg-[#0084ff] text-white rounded-lg text-sm font-medium"
+              >
+                Close
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </main>
