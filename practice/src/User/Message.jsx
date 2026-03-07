@@ -25,7 +25,7 @@ const SOCKET_EVENTS = {
 
 const socket = io(`${import.meta.env.VITE_API_URL}`);
 
-// Utility Functions (moved outside component)
+// Utility Functions
 const formatTime = (iso) => {
   const date = new Date(iso);
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -33,10 +33,9 @@ const formatTime = (iso) => {
 
 const formatDate = (iso) => {
   const date = new Date(iso);
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
 };
 
-// Helper functions
 const isToday = (iso) => {
   const date = new Date(iso);
   const today = new Date();
@@ -50,97 +49,132 @@ const isYesterday = (iso) => {
   return date.toDateString() === yesterday.toDateString();
 };
 
-// Extracted UI Components
-const MessageBubble = ({ message, isOwn, isUnread, activeTab, user, formatTime }) => {
+// Message Bubble Component
+const MessageBubble = ({ message, isOwn, isUnread }) => {
   return (
-    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4`}>
-      <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-4 shadow-sm transition-all duration-300 hover:shadow-md relative ${
+    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-2`}>
+      <div className={`relative max-w-[75%] px-4 py-2 ${
         isOwn 
-          ? activeTab === MESSAGE_TYPES.FLOOR 
-            ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-br-none' 
-            : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-br-none'
-          : 'bg-white border border-gray-200 rounded-bl-none shadow-sm'
+          ? 'bg-blue-500 text-white rounded-2xl rounded-tr-none' 
+          : 'bg-gray-100 text-gray-800 rounded-2xl rounded-tl-none'
       }`}>
-        {/* NEW BADGE for unread messages */}
-        {isUnread && !isOwn && (
-          <div className="absolute -top-2 -left-2 z-10">
-            <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg flex items-center animate-pulse">
-              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
-              </svg>
-              NEW
-            </span>
+        {!isOwn && (
+          <div className="text-xs font-medium text-gray-600 mb-1">
+            {message.senderName}
           </div>
         )}
-        
-        <div className="flex items-center justify-between mb-2">
-          <div className="text-sm font-semibold">
-            {isOwn ? 'You' : message.senderName}
-          </div>
-          {message.status === "sending" && (
-            <div className="text-xs opacity-80 flex items-center">
-              <svg className="w-3 h-3 mr-1 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v4m0 12v4m8-10h-4M6 12H2" />
-              </svg>
-              Sending...
-            </div>
-          )}
-          {message.status === "failed" && (
-            <div className="text-xs opacity-80 text-red-200 flex items-center">
-              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Failed
-            </div>
-          )}
-        </div>
-        <div className="text-sm leading-relaxed break-words whitespace-pre-wrap">{message.content}</div>
-        <div className={`text-xs mt-2 text-right flex items-center justify-end ${
-          isOwn 
-            ? activeTab === MESSAGE_TYPES.FLOOR ? 'text-red-100' : 'text-blue-100'
-            : 'text-gray-500'
+        <div className="text-sm break-words whitespace-pre-wrap">{message.content}</div>
+        <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${
+          isOwn ? 'text-blue-100' : 'text-gray-500'
         }`}>
           {formatTime(message.createdAt)}
-          {isOwn && (
-            <svg className="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
+          {isOwn && message.status === "sending" && (
+            <span className="text-[10px]">• Sending</span>
+          )}
+          {isOwn && message.status === "failed" && (
+            <span className="text-[10px] text-red-300">• Failed</span>
           )}
         </div>
+        {isUnread && !isOwn && (
+          <div className="absolute -top-1 -left-1 w-2 h-2 bg-green-500 rounded-full"></div>
+        )}
       </div>
     </div>
   );
 };
 
+// Date Separator Component
 const DateSeparator = ({ date }) => {
+  let displayText = formatDate(date);
+  if (isToday(date)) displayText = 'Today';
+  if (isYesterday(date)) displayText = 'Yesterday';
+  
   return (
-    <div className="flex items-center justify-center my-6">
-      <div className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
-        {isToday(date) ? 'Today' : isYesterday(date) ? 'Yesterday' : formatDate(date)}
-      </div>
+    <div className="flex justify-center my-4">
+      <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+        {displayText}
+      </span>
     </div>
   );
 };
 
-const LoadingSkeleton = () => (
-  <div className="flex justify-center items-center h-full">
+// Loading State
+const LoadingState = () => (
+  <div className="flex-1 flex items-center justify-center">
     <div className="text-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
-      <p className="text-gray-600">Loading messages...</p>
+      <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+      <p className="text-sm text-gray-500">Loading messages...</p>
     </div>
   </div>
 );
 
+// Empty State
 const EmptyState = () => (
-  <div className="flex justify-center items-center h-full">
-    <div className="text-center text-gray-500 max-w-sm">
-      <div className="text-6xl mb-4 opacity-60">💬</div>
-      <h3 className="text-lg font-semibold mb-2 text-gray-700">No messages yet</h3>
-      <p className="text-gray-600 mb-4">Start a conversation by sending a message below!</p>
-      <div className="w-16 h-1 bg-gradient-to-r from-gray-300 to-transparent rounded-full mx-auto"></div>
+  <div className="flex-1 flex items-center justify-center">
+    <div className="text-center">
+      <div className="text-4xl mb-2">💬</div>
+      <h3 className="text-sm font-medium text-gray-700 mb-1">No messages yet</h3>
+      <p className="text-xs text-gray-500">Start a conversation below</p>
     </div>
   </div>
 );
+
+// Conversation Item Component (for sidebar)
+const ConversationItem = ({ 
+  type, 
+  label, 
+  subtitle, 
+  isActive, 
+  unreadCount, 
+  onClick 
+}) => {
+  const getActiveColor = () => {
+    if (!isActive) return 'hover:bg-gray-50';
+    return type === MESSAGE_TYPES.FLOOR ? 'bg-blue-50' : 'bg-blue-50';
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full px-4 py-3 flex items-center justify-between rounded-lg transition-colors ${getActiveColor()}`}
+    >
+      <div className="flex-1 text-left">
+        <div className={`text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-700'}`}>
+          {label}
+        </div>
+        {subtitle && (
+          <div className="text-xs text-gray-500 mt-0.5">{subtitle}</div>
+        )}
+      </div>
+      {unreadCount > 0 && (
+        <span className="bg-blue-500 text-white text-xs font-medium rounded-full w-5 h-5 flex items-center justify-center">
+          {unreadCount > 9 ? '9+' : unreadCount}
+        </span>
+      )}
+    </button>
+  );
+};
+
+// Floor Item Component
+const FloorItem = ({ floor, isSelected, unreadCount, onClick }) => {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full px-4 py-3 flex items-center justify-between rounded-lg transition-colors ${
+        isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+      }`}
+    >
+      <span className={`text-sm ${isSelected ? 'text-blue-600 font-medium' : 'text-gray-700'}`}>
+        {floor}
+      </span>
+      {unreadCount > 0 && (
+        <span className="bg-blue-500 text-white text-xs font-medium rounded-full w-5 h-5 flex items-center justify-center">
+          {unreadCount > 9 ? '9+' : unreadCount}
+        </span>
+      )}
+    </button>
+  );
+};
 
 function Message({ user, setView, currentView }) {
   const [messages, setMessages] = useState([]);
@@ -155,10 +189,9 @@ function Message({ user, setView, currentView }) {
   });
   const [floorUnreadCounts, setFloorUnreadCounts] = useState({});
   const [unreadMessageIds, setUnreadMessageIds] = useState(new Set());
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   const messagesEndRef = useRef(null);
-  const messageSound = useRef(new Audio("/ringtone_message.wav"));
   const textareaRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const sidebarRef = useRef(null);
@@ -166,7 +199,7 @@ function Message({ user, setView, currentView }) {
   // Responsive handling
   useEffect(() => {
     const handleResize = () => {
-      const mobile = window.innerWidth < 1024;
+      const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
       if (!mobile) {
         setIsSidebarOpen(false);
@@ -177,11 +210,7 @@ function Message({ user, setView, currentView }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    try { messageSound.current.volume = 0.75; } catch (e) {}
-  }, []);
-
-  // Auto-scroll to bottom when messages change
+  // Auto-scroll to bottom
   useEffect(() => {
     if (messagesContainerRef.current) {
       messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
@@ -192,7 +221,7 @@ function Message({ user, setView, currentView }) {
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 100)}px`;
     }
   }, [newMessage]);
 
@@ -200,9 +229,8 @@ function Message({ user, setView, currentView }) {
   const getCurrentUnreadCount = useCallback(() => {
     if (activeTab === MESSAGE_TYPES.FLOOR) {
       return floorUnreadCounts[selectedFloor] || 0;
-    } else {
-      return unreadCounts.admin;
     }
+    return unreadCounts.admin;
   }, [activeTab, selectedFloor, floorUnreadCounts, unreadCounts]);
 
   const isMessageUnread = useCallback((messageId) => {
@@ -237,7 +265,6 @@ function Message({ user, setView, currentView }) {
           );
           floorCounts[floor] = response.data.count || 0;
         } catch (err) {
-          console.error(`Failed to fetch unread count for ${floor}:`, err);
           floorCounts[floor] = 0;
         }
       }
@@ -255,14 +282,7 @@ function Message({ user, setView, currentView }) {
         admin: adminResponse.data.count || 0
       });
     } catch (err) {
-      console.error("Failed to fetch unread counts:", err);
       setUnreadCounts({ floor: 0, admin: 0 });
-      
-      const initialCounts = {};
-      FLOORS.forEach(floor => {
-        initialCounts[floor] = 0;
-      });
-      setFloorUnreadCounts(initialCounts);
     }
   };
 
@@ -279,27 +299,7 @@ function Message({ user, setView, currentView }) {
         setUnreadMessageIds(new Set(unreadIds));
       }
     } catch (error) {
-      console.error("Failed to fetch unread messages from cloud:", error);
-    }
-  };
-
-  const markMessagesAsReadOnReply = async () => {
-    try {
-      let receiver = activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "admin";
-      
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/mark-read-on-reply`, {
-        userId: user._id,
-        receiver: receiver,
-        conversationType: activeTab
-      });
-      
-      if (response.data.success) {
-        setUnreadMessageIds(new Set());
-        await fetchAllUnreadCounts();
-        await fetchUnreadMessages();
-      }
-    } catch (error) {
-      console.warn("Failed to mark messages as read in cloud:", error.message);
+      console.error("Failed to fetch unread messages:", error);
     }
   };
 
@@ -307,23 +307,20 @@ function Message({ user, setView, currentView }) {
     try {
       let receiver = activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "admin";
       
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/mark-conversation-read`, {
+      await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/mark-conversation-read`, {
         userId: user._id,
         receiver: receiver,
         conversationType: activeTab
       });
       
-      if (response.data.success) {
-        setUnreadMessageIds(new Set());
-        await fetchAllUnreadCounts();
-        await fetchUnreadMessages();
-      }
+      setUnreadMessageIds(new Set());
+      await fetchAllUnreadCounts();
     } catch (error) {
-      console.warn("Failed to mark conversation as read in cloud:", error.message);
+      console.warn("Failed to mark conversation as read:", error);
     }
   };
 
-  // Socket and Data Fetching
+  // Socket setup
   useEffect(() => {
     if (!user?._id) return;
 
@@ -351,77 +348,37 @@ function Message({ user, setView, currentView }) {
     const handleNewMessage = (msg) => {
       if (!isMounted) return;
       
-      console.log("📨 New message received in User Messages:", msg);
-      
       setMessages(prev => {
         const filtered = prev.filter(m =>
-          !(m.status === "sending" &&
-            m.content === msg.content &&
-            m.sender === msg.sender)
+          !(m.status === "sending" && m.content === msg.content)
         );
-        const exists = filtered.find(m => m._id === msg._id);
-        if (exists) return filtered;
         
         if (activeTab === MESSAGE_TYPES.FLOOR) {
-          const isRelevant =
-            (msg.receiver === user._id && msg.floor === selectedFloor) ||
-            (msg.sender === user._id && msg.receiver === selectedFloor) ||
-            (msg.floor === selectedFloor && msg.sender !== user._id) ||
-            (msg.floor === selectedFloor && msg.receiver === user._id);
-
+          const isRelevant = msg.floor === selectedFloor || 
+                            (msg.sender === user._id && msg.receiver === selectedFloor);
+          
           if (isRelevant) {
             if (msg.sender !== user._id) {
-              try {
-                messageSound.current.currentTime = 0;
-                messageSound.current.play().catch(() => {});
-                
-                setUnreadMessageIds(prev => {
-                  const newUnreads = new Set(prev);
-                  newUnreads.add(msg._id);
-                  return newUnreads;
-                });
-                
-                if (msg.floor === selectedFloor) {
-                  setFloorUnreadCounts(prev => ({
-                    ...prev,
-                    [msg.floor]: (prev[msg.floor] || 0) + 1
-                  }));
-                  
-                  setUnreadCounts(prev => ({
-                    ...prev,
-                    floor: prev.floor + 1
-                  }));
-                }
-              } catch (e) {}
+              setUnreadMessageIds(prev => new Set([...prev, msg._id]));
+              setFloorUnreadCounts(prev => ({
+                ...prev,
+                [msg.floor]: (prev[msg.floor] || 0) + 1
+              }));
             }
-            console.log("✅ Adding new floor message:", msg);
             return [...filtered, msg];
           }
-        } else if (activeTab === MESSAGE_TYPES.ADMIN) {
-          const isRelevant =
-            (msg.sender === user._id && msg.receiver === "admin") ||
-            (msg.sender === "admin" && msg.receiver === user._id) ||
-            (msg.receiver === user._id && msg.sender === "admin");
-
+        } else {
+          const isRelevant = (msg.sender === "admin" && msg.receiver === user._id) ||
+                            (msg.sender === user._id && msg.receiver === "admin");
+          
           if (isRelevant) {
             if (msg.sender !== user._id) {
-              try {
-                messageSound.current.currentTime = 0;
-                messageSound.current.play().catch(() => {});
-                
-                setUnreadMessageIds(prev => {
-                  const newUnreads = new Set(prev);
-                  newUnreads.add(msg._id);
-                  return newUnreads;
-                });
-                
-                setUnreadCounts(prev => ({
-                  ...prev,
-                  admin: prev.admin + 1
-                }));
-              } catch (e) {}
+              setUnreadMessageIds(prev => new Set([...prev, msg._id]));
+              setUnreadCounts(prev => ({
+                ...prev,
+                admin: prev.admin + 1
+              }));
             }
-            console.log("✅ Adding new admin message:", msg);
             return [...filtered, msg];
           }
         }
@@ -429,41 +386,19 @@ function Message({ user, setView, currentView }) {
       });
     };
 
-    const handleUnreadCountUpdate = (data) => {
-      if (isMounted && data.userId === user._id) {
-        fetchAllUnreadCounts();
-        fetchUnreadMessages();
-      }
-    };
-
-    const handleRefreshUnreadCounts = (data) => {
-      if (isMounted && data.userId === user._id) {
-        fetchAllUnreadCounts();
-        fetchUnreadMessages();
-      }
-    };
-
     const handleMessageSent = (msg) => {
       if (!isMounted) return;
-      
-      console.log("✅ Message sent confirmation:", msg);
       setMessages(prev => prev.map(m => 
-        m.status === "sending" && m.content === msg.content 
-          ? { ...msg, status: "sent" }
-          : m
+        m.status === "sending" ? { ...msg, status: "sent" } : m
       ));
     };
 
     socket.on(SOCKET_EVENTS.NEW_MESSAGE, handleNewMessage);
-    socket.on(SOCKET_EVENTS.UNREAD_UPDATE, handleUnreadCountUpdate);
-    socket.on(SOCKET_EVENTS.REFRESH_UNREAD, handleRefreshUnreadCounts);
     socket.on(SOCKET_EVENTS.MESSAGE_SENT, handleMessageSent);
 
     return () => {
       isMounted = false;
       socket.off(SOCKET_EVENTS.NEW_MESSAGE, handleNewMessage);
-      socket.off(SOCKET_EVENTS.UNREAD_UPDATE, handleUnreadCountUpdate);
-      socket.off(SOCKET_EVENTS.REFRESH_UNREAD, handleRefreshUnreadCounts);
       socket.off(SOCKET_EVENTS.MESSAGE_SENT, handleMessageSent);
     };
   }, [user, selectedFloor, activeTab]);
@@ -473,7 +408,7 @@ function Message({ user, setView, currentView }) {
       fetchAllUnreadCounts();
       fetchUnreadMessages();
     }
-  }, [activeTab, selectedFloor, user?._id]);
+  }, [activeTab, selectedFloor]);
 
   const fetchMessages = async () => {
     try {
@@ -482,6 +417,7 @@ function Message({ user, setView, currentView }) {
         `${import.meta.env.VITE_API_URL}/api/messages/floor-conversation/${user._id}/${selectedFloor}`
       );
       setMessages(data);
+      await markConversationAsRead();
     } catch (err) {
       console.error("Failed to fetch messages:", err);
     } finally {
@@ -496,6 +432,7 @@ function Message({ user, setView, currentView }) {
         `${import.meta.env.VITE_API_URL}/api/messages/user-admin-conversation/${user._id}`
       );
       setMessages(data);
+      await markConversationAsRead();
     } catch (err) {
       console.error("Failed to fetch admin messages:", err);
     } finally {
@@ -506,13 +443,10 @@ function Message({ user, setView, currentView }) {
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
 
-    let tempMsg;
-    let receiver = activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "admin";
-    
-    tempMsg = {
+    const tempMsg = {
       _id: "temp-" + Date.now(),
       sender: user._id,
-      receiver: receiver,
+      receiver: activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "admin",
       content: newMessage,
       createdAt: new Date().toISOString(),
       status: "sending",
@@ -524,8 +458,6 @@ function Message({ user, setView, currentView }) {
     setNewMessage("");
 
     try {
-      await markMessagesAsReadOnReply();
-      
       if (activeTab === MESSAGE_TYPES.FLOOR) {
         await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/send-to-floor`, {
           userId: user._id,
@@ -539,7 +471,6 @@ function Message({ user, setView, currentView }) {
         });
       }
     } catch (err) {
-      console.error("Failed to send message:", err);
       setMessages(prev => prev.map(msg => 
         msg._id === tempMsg._id ? { ...msg, status: "failed" } : msg
       ));
@@ -556,6 +487,7 @@ function Message({ user, setView, currentView }) {
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setMessages([]);
+    setLoading(true);
     if (tab === MESSAGE_TYPES.FLOOR) {
       fetchMessages();
     } else {
@@ -567,82 +499,69 @@ function Message({ user, setView, currentView }) {
   const handleFloorSelect = (floor) => {
     setSelectedFloor(floor);
     setMessages([]);
+    setLoading(true);
     fetchMessages();
     setIsSidebarOpen(false);
   };
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Escape' && isSidebarOpen) {
-      setIsSidebarOpen(false);
-    }
-  };
-
-  // Handle click outside sidebar on mobile
+  // Click outside to close sidebar
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (isMobile && isSidebarOpen && sidebarRef.current && !sidebarRef.current.contains(e.target) && 
-          !e.target.closest('[data-hamburger]')) {
+      if (isMobile && isSidebarOpen && sidebarRef.current && !sidebarRef.current.contains(e.target)) {
         setIsSidebarOpen(false);
       }
     };
 
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMobile, isSidebarOpen]);
 
-  // Handle click on hamburger button
-  const handleHamburgerClick = (e) => {
-    e.stopPropagation();
-    setIsSidebarOpen(!isSidebarOpen);
-  };
-
-  // FIXED: Proper height calculation to account for navigation header
   return (
-    <main 
-      className="lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-gradient-to-br from-gray-50 via-white to-gray-100 relative overflow-hidden"
-      onKeyDown={handleKeyDown}
-      tabIndex={-1}
-    >      
-      {/* HEADER - Only shown on desktop */}
-      <header className="hidden lg:flex text-black px-6 h-[60px] items-center justify-between shadow-sm border-b border-gray-200 bg-white relative z-40">
-        <div className="flex items-center space-x-3">
-          <h1 className="text-xl lg:text-2xl font-bold tracking-wide bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
-            Messages
-          </h1>
-        </div>
-      </header>
+    <main className="lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-white">
+      {/* Mobile Header */}
+      <div className="md:hidden flex items-center px-4 h-14 border-b border-gray-200 bg-white">
+        <button
+          onClick={() => setIsSidebarOpen(true)}
+          className="p-2 -ml-2 text-gray-600 hover:text-gray-900"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+        <h1 className="ml-2 text-lg font-medium text-gray-900">
+          {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : 'Admin'}
+        </h1>
+      </div>
 
-      <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-60px)]">
-        {/* Mobile Sidebar Overlay */}
+      {/* Desktop Header */}
+      <div className="hidden md:flex items-center px-6 h-16 border-b border-gray-200 bg-white">
+        <h1 className="text-xl font-medium text-gray-900">Messages</h1>
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar Overlay */}
         {isSidebarOpen && isMobile && (
           <div 
-            className="fixed inset-0 bg-black/50 z-[45] lg:hidden"
+            className="fixed inset-0 bg-black/20 z-40"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
 
-        {/* Sidebar - Mobile & Desktop - FIXED: Proper height calculation for mobile */}
+        {/* Sidebar */}
         <aside 
           ref={sidebarRef}
-          className={`message-sidebar
-            fixed lg:static top-0 left-0 w-[280px] bg-white border-r border-gray-200 shadow-lg z-[46] flex flex-col
+          className={`
+            fixed md:static top-0 left-0 w-72 h-full bg-white border-r border-gray-200 z-50
             transition-transform duration-300 ease-in-out
-            ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
-            ${isMobile ? 'h-screen' : 'h-full'}
+            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
           `}
         >
-          {/* Mobile Header - FIXED: Added close button that actually works */}
-          <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-red-50 to-orange-50">
-            <h2 className="text-lg font-bold text-gray-800 flex items-center">
-              <svg className="w-5 h-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              Message Options
-            </h2>
-            <button 
+          {/* Sidebar Header */}
+          <div className="flex items-center justify-between px-4 h-14 border-b border-gray-200 md:hidden">
+            <h2 className="font-medium text-gray-900">Chats</h2>
+            <button
               onClick={() => setIsSidebarOpen(false)}
-              className="p-2 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md hover:shadow-lg transition-all cursor-pointer"
-              aria-label="Close sidebar"
+              className="p-2 text-gray-600 hover:text-gray-900"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -650,227 +569,96 @@ function Message({ user, setView, currentView }) {
             </button>
           </div>
 
-          <div className="p-6 border-b border-gray-100">
-            <h2 className="font-bold text-lg text-gray-800 hidden lg:block">Message Options</h2>
-            <p className="text-sm text-gray-600 mt-1 hidden lg:block">Choose who to message</p>
-          </div>
-          
-          {/* Tab Buttons */}
-          <div className="p-4 border-b border-gray-100">
-            <div className="flex flex-col space-y-3">
-              <button
+          <div className="p-3">
+            {/* Conversations */}
+            <div className="space-y-1">
+              <ConversationItem
+                type={MESSAGE_TYPES.FLOOR}
+                label="Floors"
+                subtitle="Message receptionist"
+                isActive={activeTab === MESSAGE_TYPES.FLOOR}
+                unreadCount={unreadCounts.floor}
                 onClick={() => handleTabChange(MESSAGE_TYPES.FLOOR)}
-                className={`p-4 rounded-xl text-left transition-all duration-300 transform hover:scale-[1.02] cursor-pointer border-2 ${
-                  activeTab === MESSAGE_TYPES.FLOOR 
-                    ? "bg-gradient-to-r from-red-50 to-orange-50 border-red-200 shadow-lg scale-[1.02]" 
-                    : "hover:bg-gray-50 border-transparent hover:border-gray-200"
-                }`}
-                aria-label="Message Receptionist"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className={`w-3 h-3 rounded-full mr-3 transition-colors ${
-                      activeTab === MESSAGE_TYPES.FLOOR ? "bg-gradient-to-r from-red-500 to-orange-500" : "bg-gray-400"
-                    }`}></div>
-                    <div>
-                      <div className="font-semibold text-gray-800">Floors</div>
-                      <div className="text-sm text-gray-500 mt-1">Message Receptionist</div>
-                    </div>
-                  </div>
-                  {unreadCounts.floor > 0 && (
-                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px] shadow-sm">
-                      {unreadCounts.floor > 9 ? "9+" : unreadCounts.floor}
-                    </span>
-                  )}
-                </div>
-              </button>
+              />
               
-              <button
+              <ConversationItem
+                type={MESSAGE_TYPES.ADMIN}
+                label="Administration"
+                subtitle="Contact admin"
+                isActive={activeTab === MESSAGE_TYPES.ADMIN}
+                unreadCount={unreadCounts.admin}
                 onClick={() => handleTabChange(MESSAGE_TYPES.ADMIN)}
-                className={`p-4 rounded-xl text-left transition-all duration-300 transform hover:scale-[1.02] cursor-pointer border-2 ${
-                  activeTab === MESSAGE_TYPES.ADMIN 
-                    ? "bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200 shadow-lg scale-[1.02]" 
-                    : "hover:bg-gray-50 border-transparent hover:border-gray-200"
-                }`}
-                aria-label="Contact administration"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <div className={`w-3 h-3 rounded-full mr-3 transition-colors ${
-                      activeTab === MESSAGE_TYPES.ADMIN ? "bg-gradient-to-r from-blue-500 to-cyan-500" : "bg-gray-400"
-                    }`}></div>
-                    <div>
-                      <div className="font-semibold text-gray-800">Administration</div>
-                      <div className="text-sm text-gray-500 mt-1">Contact admin</div>
-                    </div>
-                  </div>
-                  {unreadCounts.admin > 0 && (
-                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px] shadow-sm">
-                      {unreadCounts.admin > 9 ? "9+" : unreadCounts.admin}
-                    </span>
-                  )}
+              />
+            </div>
+
+            {/* Floor Selection */}
+            {activeTab === MESSAGE_TYPES.FLOOR && (
+              <div className="mt-6">
+                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider px-4 mb-2">
+                  Select Floor
+                </h3>
+                <div className="space-y-1">
+                  {FLOORS.map(floor => (
+                    <FloorItem
+                      key={floor}
+                      floor={floor}
+                      isSelected={selectedFloor === floor}
+                      unreadCount={floorUnreadCounts[floor] || 0}
+                      onClick={() => handleFloorSelect(floor)}
+                    />
+                  ))}
                 </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Floor Selection (only show for floor tab) */}
-          {activeTab === MESSAGE_TYPES.FLOOR && (
-            <div className="p-4 flex-1 overflow-y-auto">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
-                <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-                Select Floor
-              </h3>
-              <div className="space-y-2">
-                {FLOORS.map(floor => (
-                  <button
-                    key={floor}
-                    onClick={() => handleFloorSelect(floor)}
-                    className={`w-full text-left p-4 rounded-xl transition-all duration-300 transform hover:scale-[1.01] cursor-pointer group ${
-                      selectedFloor === floor 
-                        ? "bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-xl scale-[1.02]" 
-                        : "hover:bg-gray-50 bg-white border border-gray-200 hover:border-gray-300"
-                    }`}
-                    aria-label={`Select ${floor}`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center">
-                        {selectedFloor === floor && (
-                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                        <div>
-                          <div className="font-medium text-left">{floor}</div>
-                          <div className={`text-sm mt-1 transition-colors text-left ${
-                            selectedFloor === floor ? "text-red-100" : "text-gray-500 group-hover:text-gray-700"
-                          }`}>
-                            
-                          </div>
-                        </div>
-                      </div>
-                      {floorUnreadCounts[floor] > 0 && (
-                        <span className="bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center min-w-[24px] ml-2 shadow-sm">
-                          {floorUnreadCounts[floor] > 9 ? "9+" : floorUnreadCounts[floor]}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))}
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Admin Info (only show for admin tab) */}
-          {activeTab === MESSAGE_TYPES.ADMIN && (
-            <div className="p-4">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4 shadow-sm">
-                <div className="flex items-center mb-3">
-                  <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full mr-3 shadow-sm"></div>
-                  <span className="font-bold text-blue-800">Admin Support</span>
-                </div>
-                <p className="text-sm text-blue-700 leading-relaxed">
-                  Contact the administration for account issues, complaints, or general inquiries.
-                  We're here to help you!
-                </p>
-              </div>
-            </div>
-          )}
-        </aside>
-
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col relative w-full lg:w-auto overflow-hidden">
-          {/* Chat Header - Mobile & Desktop */}
-          <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-md relative z-40">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                {/* Mobile Hamburger Button */}
-                <button 
-                  onClick={handleHamburgerClick}
-                  data-hamburger="true"
-                  className="lg:hidden p-3 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95 relative z-[47] cursor-pointer"
-                  aria-label="Toggle sidebar"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                </button>
-                <div>
-                  <h2 className="text-lg lg:text-xl font-bold text-gray-800">
-                    {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "Administration Team"}
-                  </h2>
-                  <p className="text-xs lg:text-sm text-gray-600 mt-1 flex items-center">
-                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {activeTab === MESSAGE_TYPES.FLOOR 
-                      ? `${selectedFloor} Receptionist` 
-                      : "System Administrators & Support Staff"
-                    }
+            {/* Admin Info */}
+            {activeTab === MESSAGE_TYPES.ADMIN && (
+              <div className="mt-6 px-4">
+                <div className="bg-blue-50 rounded-lg p-4">
+                  <p className="text-sm text-blue-800">
+                    Contact administration for account issues or general inquiries.
                   </p>
                 </div>
               </div>
-              
-              {/* Unread badge */}
-              {getCurrentUnreadCount() > 0 && (
-                <div className="hidden lg:block">
-                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-3 py-1 shadow-sm">
-                    {getCurrentUnreadCount()} unread
-                  </span>
-                </div>
-              )}
-              
-              {/* Mobile unread indicator */}
-              {isMobile && getCurrentUnreadCount() > 0 && (
-                <div className="lg:hidden">
-                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1 shadow-sm">
-                    {getCurrentUnreadCount()}
-                  </span>
-                </div>
-              )}
-            </div>
+            )}
+          </div>
+        </aside>
+
+        {/* Chat Area */}
+        <div className="flex-1 flex flex-col bg-gray-50">
+          {/* Chat Header */}
+          <div className="hidden md:flex items-center px-6 h-16 bg-white border-b border-gray-200">
+            <h2 className="text-base font-medium text-gray-900">
+              {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : 'Administration'}
+            </h2>
+            {getCurrentUnreadCount() > 0 && (
+              <span className="ml-3 text-xs text-gray-500">
+                {getCurrentUnreadCount()} unread
+              </span>
+            )}
           </div>
 
-          {/* Messages Container - Fixed scrolling - HIDDEN SCROLLBAR */}
+          {/* Messages */}
           <div 
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50"
-            style={{ 
-              minHeight: 0,
-              scrollbarWidth: 'none',
-              msOverflowStyle: 'none'
-            }}
+            className="flex-1 overflow-y-auto px-4 py-4"
           >
-            {/* Inline style for Webkit browsers */}
-            <style>{`
-              .messages-container::-webkit-scrollbar {
-                display: none;
-              }
-            `}</style>
-            
             {loading ? (
-              <LoadingSkeleton />
+              <LoadingState />
             ) : messages.length === 0 ? (
               <EmptyState />
             ) : (
-              <div className="space-y-6 max-w-full mx-auto lg:max-w-4xl">
+              <div className="max-w-3xl mx-auto">
                 {Object.entries(messageGroups).map(([date, dateMessages]) => (
                   <div key={date}>
                     <DateSeparator date={date} />
-                    
-                    {/* Messages for this date */}
-                    <div className="space-y-4">
+                    <div className="space-y-1">
                       {dateMessages.map(msg => (
                         <MessageBubble
                           key={msg._id}
                           message={msg}
                           isOwn={msg.sender === user._id}
                           isUnread={isMessageUnread(msg._id)}
-                          activeTab={activeTab}
-                          user={user}
-                          formatTime={formatTime}
                         />
                       ))}
                     </div>
@@ -881,46 +669,25 @@ function Message({ user, setView, currentView }) {
             )}
           </div>
 
-          {/* Message Input */}
-          <div className="bg-white p-4 lg:p-6 border-t border-gray-200 shadow-lg">
-            <div className="max-w-full mx-auto lg:max-w-4xl">
-              <div className="flex items-end space-x-3">
-                <textarea
-                  ref={textareaRef}
-                  placeholder={
-                    activeTab === MESSAGE_TYPES.FLOOR 
-                      ? `Send a message to ${selectedFloor}` 
-                      : "Send a message to administration"
-                  }
-                  className="flex-1 border-2 border-gray-200 rounded-2xl px-4 lg:px-6 py-3 focus:outline-none focus:border-red-500 transition-colors duration-300 shadow-sm bg-gray-50 focus:bg-white"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyDown={handleKeyPress}
-                  rows={1}
-                  style={{ 
-                    minHeight: '50px', 
-                    maxHeight: '120px',
-                    resize: 'none',
-                    overflow: 'hidden'
-                  }}
-                  aria-label="Type your message"
-                />
-                <button
-                  onClick={sendMessage}
-                  disabled={!newMessage.trim()}
-                  className={`text-white rounded-full p-3 lg:px-8 lg:py-3 disabled:opacity-50 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center flex-shrink-0 cursor-pointer ${
-                    activeTab === MESSAGE_TYPES.FLOOR 
-                      ? "bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600" 
-                      : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
-                  }`}
-                  aria-label="Send message"
-                >
-                  <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                  <span className="hidden lg:inline ml-2">Send</span>
-                </button>
-              </div>
+          {/* Input Area */}
+          <div className="bg-white border-t border-gray-200 px-4 py-3">
+            <div className="max-w-3xl mx-auto flex items-end gap-2">
+              <textarea
+                ref={textareaRef}
+                placeholder="Type a message..."
+                className="flex-1 border-0 focus:ring-0 resize-none text-sm bg-gray-50 rounded-lg px-4 py-2 max-h-24"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={handleKeyPress}
+                rows={1}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!newMessage.trim()}
+                className="px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Send
+              </button>
             </div>
           </div>
         </div>
@@ -929,7 +696,6 @@ function Message({ user, setView, currentView }) {
   );
 }
 
-// Prop Validation
 Message.propTypes = {
   user: PropTypes.shape({
     _id: PropTypes.string.isRequired,
