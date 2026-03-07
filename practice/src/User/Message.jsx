@@ -517,7 +517,7 @@ function Message({ user, setView, currentView }) {
   }, [isMobile, isSidebarOpen]);
 
   return (
-    <main className="lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-white">
+    <main className="lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-[calc(100vh-4rem)] lg:h-screen flex flex-col bg-white">
       {/* Mobile Header */}
       <div className="md:hidden flex items-center px-4 h-14 border-b border-gray-200 bg-white">
         <button
