@@ -1,4 +1,3 @@
-// Message.jsx
 import React, { useEffect, useState, useRef, useMemo, useCallback } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
@@ -26,7 +25,7 @@ const SOCKET_EVENTS = {
 
 const socket = io(`${import.meta.env.VITE_API_URL}`);
 
-// Utility Functions
+// Utility Functions (moved outside component)
 const formatTime = (iso) => {
   const date = new Date(iso);
   return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -34,9 +33,10 @@ const formatTime = (iso) => {
 
 const formatDate = (iso) => {
   const date = new Date(iso);
-  return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
 };
 
+// Helper functions
 const isToday = (iso) => {
   const date = new Date(iso);
   const today = new Date();
@@ -50,169 +50,97 @@ const isYesterday = (iso) => {
   return date.toDateString() === yesterday.toDateString();
 };
 
-// Message Bubble Component
-const MessageBubble = ({ message, isOwn, isUnread, formatTime }) => {
-  const [showTime, setShowTime] = useState(false);
-
+// Extracted UI Components
+const MessageBubble = ({ message, isOwn, isUnread, activeTab, user, formatTime }) => {
   return (
-    <div 
-      className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-2 px-4`}
-      onMouseEnter={() => setShowTime(true)}
-      onMouseLeave={() => setShowTime(false)}
-    >
-      <div className={`relative group max-w-[70%] md:max-w-[60%]`}>
-        {/* Avatar for other users */}
-        {!isOwn && (
-          <div className="absolute -left-8 bottom-0 w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold">
-            {message.senderName?.charAt(0) || 'U'}
+    <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-4`}>
+      <div className={`max-w-[85%] lg:max-w-[70%] rounded-2xl p-4 shadow-sm transition-all duration-300 hover:shadow-md relative ${
+        isOwn 
+          ? activeTab === MESSAGE_TYPES.FLOOR 
+            ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white rounded-br-none' 
+            : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-br-none'
+          : 'bg-white border border-gray-200 rounded-bl-none shadow-sm'
+      }`}>
+        {/* NEW BADGE for unread messages */}
+        {isUnread && !isOwn && (
+          <div className="absolute -top-2 -left-2 z-10">
+            <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg flex items-center animate-pulse">
+              <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clipRule="evenodd" />
+              </svg>
+              NEW
+            </span>
           </div>
         )}
         
-        {/* Message Bubble */}
-        <div className={`
-          relative px-4 py-2.5 break-words
-          ${isOwn 
-            ? 'bg-[#0084ff] text-white rounded-2xl rounded-br-sm' 
-            : 'bg-white border border-gray-200 text-gray-800 rounded-2xl rounded-bl-sm'
-          }
-          shadow-sm hover:shadow-md transition-shadow duration-200
-        `}>
-          {/* Sender Name for group messages */}
-          {!isOwn && message.senderName !== 'Admin' && (
-            <div className="text-xs font-semibold text-blue-600 mb-1">
-              {message.senderName}
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-sm font-semibold">
+            {isOwn ? 'You' : message.senderName}
+          </div>
+          {message.status === "sending" && (
+            <div className="text-xs opacity-80 flex items-center">
+              <svg className="w-3 h-3 mr-1 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v4m0 12v4m8-10h-4M6 12H2" />
+              </svg>
+              Sending...
             </div>
           )}
-          
-          {/* Message Content */}
-          <div className="text-[15px] leading-relaxed whitespace-pre-wrap">
-            {message.content}
-          </div>
-          
-          {/* Message Footer */}
-          <div className={`
-            flex items-center justify-end gap-1 mt-1 text-[11px]
-            ${isOwn ? 'text-blue-100' : 'text-gray-400'}
-          `}>
-            <span className={showTime ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 transition-opacity'}>
-              {formatTime(message.createdAt)}
-            </span>
-            {isOwn && (
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          {message.status === "failed" && (
+            <div className="text-xs opacity-80 text-red-200 flex items-center">
+              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-            )}
-          </div>
-        </div>
-
-        {/* Unread Indicator */}
-        {isUnread && !isOwn && (
-          <div className="absolute -top-1 -right-1">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// Date Separator Component
-const DateSeparator = ({ date }) => {
-  let displayDate = '';
-  if (isToday(date)) displayDate = 'Today';
-  else if (isYesterday(date)) displayDate = 'Yesterday';
-  else displayDate = formatDate(date);
-
-  return (
-    <div className="flex items-center justify-center my-6">
-      <div className="bg-gray-100 text-gray-500 text-xs px-4 py-1.5 rounded-full font-medium shadow-sm">
-        {displayDate}
-      </div>
-    </div>
-  );
-};
-
-// Loading Skeleton
-const LoadingSkeleton = () => (
-  <div className="flex flex-col items-center justify-center h-full space-y-4">
-    <div className="animate-spin rounded-full h-10 w-10 border-3 border-[#0084ff] border-t-transparent"></div>
-    <p className="text-sm text-gray-500 font-medium">Loading messages...</p>
-  </div>
-);
-
-// Empty State
-const EmptyState = () => (
-  <div className="flex flex-col items-center justify-center h-full px-4">
-    <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-      <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-      </svg>
-    </div>
-    <h3 className="text-lg font-semibold text-gray-800 mb-2">No messages yet</h3>
-    <p className="text-sm text-gray-500 text-center max-w-xs">
-      Start a conversation by sending a message below. Your messages will appear here.
-    </p>
-  </div>
-);
-
-// Conversation List Item
-const ConversationItem = ({ floor, isSelected, unreadCount, lastMessage, lastTime, onClick }) => {
-  return (
-    <button
-      onClick={onClick}
-      className={`
-        w-full flex items-center px-4 py-3 transition-all duration-200
-        hover:bg-gray-50 active:bg-gray-100
-        ${isSelected ? 'bg-blue-50 border-l-4 border-[#0084ff]' : 'border-l-4 border-transparent'}
-      `}
-    >
-      <div className="relative flex-shrink-0">
-        <div className={`
-          w-14 h-14 rounded-2xl flex items-center justify-center
-          ${isSelected 
-            ? 'bg-[#0084ff] text-white shadow-md' 
-            : 'bg-gradient-to-br from-gray-100 to-gray-200 text-gray-600'
-          }
-          transition-all duration-200
-        `}>
-          <span className="text-xl font-bold">
-            {floor === 'Administration' ? 'A' : floor.charAt(0)}
-          </span>
-        </div>
-        {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[22px] h-[22px] flex items-center justify-center px-1.5 border-2 border-white shadow-lg animate-pulse">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
-      </div>
-      
-      <div className="ml-4 flex-1 min-w-0">
-        <div className="flex justify-between items-center mb-1">
-          <h3 className={`
-            font-semibold text-sm truncate
-            ${isSelected ? 'text-[#0084ff]' : 'text-gray-800'}
-          `}>
-            {floor === 'Administration' ? 'Administration' : `${floor} Reception`}
-          </h3>
-          {lastTime && (
-            <span className="text-[10px] text-gray-400 whitespace-nowrap ml-2">
-              {lastTime}
-            </span>
+              Failed
+            </div>
           )}
         </div>
-        
-        <p className="text-xs text-gray-500 truncate text-left">
-          {lastMessage || (unreadCount > 0 
-            ? `${unreadCount} unread message${unreadCount > 1 ? 's' : ''}` 
-            : 'No new messages')}
-        </p>
+        <div className="text-sm leading-relaxed break-words whitespace-pre-wrap">{message.content}</div>
+        <div className={`text-xs mt-2 text-right flex items-center justify-end ${
+          isOwn 
+            ? activeTab === MESSAGE_TYPES.FLOOR ? 'text-red-100' : 'text-blue-100'
+            : 'text-gray-500'
+        }`}>
+          {formatTime(message.createdAt)}
+          {isOwn && (
+            <svg className="w-3 h-3 ml-1" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
+          )}
+        </div>
       </div>
-    </button>
+    </div>
   );
 };
+
+const DateSeparator = ({ date }) => {
+  return (
+    <div className="flex items-center justify-center my-6">
+      <div className="bg-gray-200 text-gray-600 text-xs px-3 py-1 rounded-full">
+        {isToday(date) ? 'Today' : isYesterday(date) ? 'Yesterday' : formatDate(date)}
+      </div>
+    </div>
+  );
+};
+
+const LoadingSkeleton = () => (
+  <div className="flex justify-center items-center h-full">
+    <div className="text-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto mb-4"></div>
+      <p className="text-gray-600">Loading messages...</p>
+    </div>
+  </div>
+);
+
+const EmptyState = () => (
+  <div className="flex justify-center items-center h-full">
+    <div className="text-center text-gray-500 max-w-sm">
+      <div className="text-6xl mb-4 opacity-60">💬</div>
+      <h3 className="text-lg font-semibold mb-2 text-gray-700">No messages yet</h3>
+      <p className="text-gray-600 mb-4">Start a conversation by sending a message below!</p>
+      <div className="w-16 h-1 bg-gradient-to-r from-gray-300 to-transparent rounded-full mx-auto"></div>
+    </div>
+  </div>
+);
 
 function Message({ user, setView, currentView }) {
   const [messages, setMessages] = useState([]);
@@ -220,6 +148,7 @@ function Message({ user, setView, currentView }) {
   const [selectedFloor, setSelectedFloor] = useState("Ground Floor");
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(MESSAGE_TYPES.FLOOR);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState({
     floor: 0,
     admin: 0
@@ -227,13 +156,12 @@ function Message({ user, setView, currentView }) {
   const [floorUnreadCounts, setFloorUnreadCounts] = useState({});
   const [unreadMessageIds, setUnreadMessageIds] = useState(new Set());
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
-  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
 
   const messagesEndRef = useRef(null);
-  const messagesContainerRef = useRef(null);
+  const messageSound = useRef(new Audio("/ringtone_message.wav"));
   const textareaRef = useRef(null);
-  const typingTimeoutRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const sidebarRef = useRef(null);
 
   // Responsive handling
   useEffect(() => {
@@ -241,7 +169,7 @@ function Message({ user, setView, currentView }) {
       const mobile = window.innerWidth < 1024;
       setIsMobile(mobile);
       if (!mobile) {
-        setShowMobileSidebar(false);
+        setIsSidebarOpen(false);
       }
     };
     
@@ -249,13 +177,14 @@ function Message({ user, setView, currentView }) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  useEffect(() => {
+    try { messageSound.current.volume = 0.75; } catch (e) {}
+  }, []);
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTo({
-        top: messagesContainerRef.current.scrollHeight,
-        behavior: 'smooth'
-      });
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
     }
   }, [messages]);
 
@@ -266,28 +195,6 @@ function Message({ user, setView, currentView }) {
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
     }
   }, [newMessage]);
-
-  // Typing indicator
-  const handleTyping = () => {
-    if (!isTyping) {
-      setIsTyping(true);
-      socket.emit('typing', {
-        userId: user._id,
-        receiver: activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : 'admin',
-        isTyping: true
-      });
-    }
-
-    clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => {
-      setIsTyping(false);
-      socket.emit('typing', {
-        userId: user._id,
-        receiver: activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : 'admin',
-        isTyping: false
-      });
-    }, 1000);
-  };
 
   // Memoized calculations
   const getCurrentUnreadCount = useCallback(() => {
@@ -316,16 +223,6 @@ function Message({ user, setView, currentView }) {
 
   const messageGroups = useMemo(() => groupMessagesByDate(), [groupMessagesByDate]);
 
-  const getLastMessageForFloor = useCallback((floor) => {
-    // This would need to be implemented based on your data structure
-    return null;
-  }, []);
-
-  const getLastMessageTimeForFloor = useCallback((floor) => {
-    // This would need to be implemented based on your data structure
-    return null;
-  }, []);
-
   // API Functions
   const fetchAllUnreadCounts = async () => {
     if (!user?._id) return;
@@ -340,6 +237,7 @@ function Message({ user, setView, currentView }) {
           );
           floorCounts[floor] = response.data.count || 0;
         } catch (err) {
+          console.error(`Failed to fetch unread count for ${floor}:`, err);
           floorCounts[floor] = 0;
         }
       }
@@ -357,7 +255,14 @@ function Message({ user, setView, currentView }) {
         admin: adminResponse.data.count || 0
       });
     } catch (err) {
+      console.error("Failed to fetch unread counts:", err);
       setUnreadCounts({ floor: 0, admin: 0 });
+      
+      const initialCounts = {};
+      FLOORS.forEach(floor => {
+        initialCounts[floor] = 0;
+      });
+      setFloorUnreadCounts(initialCounts);
     }
   };
 
@@ -374,7 +279,27 @@ function Message({ user, setView, currentView }) {
         setUnreadMessageIds(new Set(unreadIds));
       }
     } catch (error) {
-      console.error("Failed to fetch unread messages:", error);
+      console.error("Failed to fetch unread messages from cloud:", error);
+    }
+  };
+
+  const markMessagesAsReadOnReply = async () => {
+    try {
+      let receiver = activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "admin";
+      
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/mark-read-on-reply`, {
+        userId: user._id,
+        receiver: receiver,
+        conversationType: activeTab
+      });
+      
+      if (response.data.success) {
+        setUnreadMessageIds(new Set());
+        await fetchAllUnreadCounts();
+        await fetchUnreadMessages();
+      }
+    } catch (error) {
+      console.warn("Failed to mark messages as read in cloud:", error.message);
     }
   };
 
@@ -382,17 +307,19 @@ function Message({ user, setView, currentView }) {
     try {
       let receiver = activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "admin";
       
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/mark-conversation-read`, {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/mark-conversation-read`, {
         userId: user._id,
         receiver: receiver,
         conversationType: activeTab
       });
       
-      setUnreadMessageIds(new Set());
-      await fetchAllUnreadCounts();
-      await fetchUnreadMessages();
+      if (response.data.success) {
+        setUnreadMessageIds(new Set());
+        await fetchAllUnreadCounts();
+        await fetchUnreadMessages();
+      }
     } catch (error) {
-      console.warn("Failed to mark conversation as read:", error.message);
+      console.warn("Failed to mark conversation as read in cloud:", error.message);
     }
   };
 
@@ -424,35 +351,77 @@ function Message({ user, setView, currentView }) {
     const handleNewMessage = (msg) => {
       if (!isMounted) return;
       
+      console.log("📨 New message received in User Messages:", msg);
+      
       setMessages(prev => {
         const filtered = prev.filter(m =>
           !(m.status === "sending" &&
             m.content === msg.content &&
             m.sender === msg.sender)
         );
+        const exists = filtered.find(m => m._id === msg._id);
+        if (exists) return filtered;
         
         if (activeTab === MESSAGE_TYPES.FLOOR) {
-          const isRelevant = msg.floor === selectedFloor;
+          const isRelevant =
+            (msg.receiver === user._id && msg.floor === selectedFloor) ||
+            (msg.sender === user._id && msg.receiver === selectedFloor) ||
+            (msg.floor === selectedFloor && msg.sender !== user._id) ||
+            (msg.floor === selectedFloor && msg.receiver === user._id);
+
           if (isRelevant) {
             if (msg.sender !== user._id) {
-              setUnreadMessageIds(prev => new Set([...prev, msg._id]));
-              setFloorUnreadCounts(prev => ({
-                ...prev,
-                [msg.floor]: (prev[msg.floor] || 0) + 1
-              }));
+              try {
+                messageSound.current.currentTime = 0;
+                messageSound.current.play().catch(() => {});
+                
+                setUnreadMessageIds(prev => {
+                  const newUnreads = new Set(prev);
+                  newUnreads.add(msg._id);
+                  return newUnreads;
+                });
+                
+                if (msg.floor === selectedFloor) {
+                  setFloorUnreadCounts(prev => ({
+                    ...prev,
+                    [msg.floor]: (prev[msg.floor] || 0) + 1
+                  }));
+                  
+                  setUnreadCounts(prev => ({
+                    ...prev,
+                    floor: prev.floor + 1
+                  }));
+                }
+              } catch (e) {}
             }
+            console.log("✅ Adding new floor message:", msg);
             return [...filtered, msg];
           }
         } else if (activeTab === MESSAGE_TYPES.ADMIN) {
-          const isRelevant = msg.sender === "admin" || msg.receiver === "admin";
+          const isRelevant =
+            (msg.sender === user._id && msg.receiver === "admin") ||
+            (msg.sender === "admin" && msg.receiver === user._id) ||
+            (msg.receiver === user._id && msg.sender === "admin");
+
           if (isRelevant) {
             if (msg.sender !== user._id) {
-              setUnreadMessageIds(prev => new Set([...prev, msg._id]));
-              setUnreadCounts(prev => ({
-                ...prev,
-                admin: prev.admin + 1
-              }));
+              try {
+                messageSound.current.currentTime = 0;
+                messageSound.current.play().catch(() => {});
+                
+                setUnreadMessageIds(prev => {
+                  const newUnreads = new Set(prev);
+                  newUnreads.add(msg._id);
+                  return newUnreads;
+                });
+                
+                setUnreadCounts(prev => ({
+                  ...prev,
+                  admin: prev.admin + 1
+                }));
+              } catch (e) {}
             }
+            console.log("✅ Adding new admin message:", msg);
             return [...filtered, msg];
           }
         }
@@ -460,9 +429,24 @@ function Message({ user, setView, currentView }) {
       });
     };
 
+    const handleUnreadCountUpdate = (data) => {
+      if (isMounted && data.userId === user._id) {
+        fetchAllUnreadCounts();
+        fetchUnreadMessages();
+      }
+    };
+
+    const handleRefreshUnreadCounts = (data) => {
+      if (isMounted && data.userId === user._id) {
+        fetchAllUnreadCounts();
+        fetchUnreadMessages();
+      }
+    };
+
     const handleMessageSent = (msg) => {
       if (!isMounted) return;
       
+      console.log("✅ Message sent confirmation:", msg);
       setMessages(prev => prev.map(m => 
         m.status === "sending" && m.content === msg.content 
           ? { ...msg, status: "sent" }
@@ -471,15 +455,16 @@ function Message({ user, setView, currentView }) {
     };
 
     socket.on(SOCKET_EVENTS.NEW_MESSAGE, handleNewMessage);
+    socket.on(SOCKET_EVENTS.UNREAD_UPDATE, handleUnreadCountUpdate);
+    socket.on(SOCKET_EVENTS.REFRESH_UNREAD, handleRefreshUnreadCounts);
     socket.on(SOCKET_EVENTS.MESSAGE_SENT, handleMessageSent);
-    socket.on("unreadCountUpdate", fetchAllUnreadCounts);
 
     return () => {
       isMounted = false;
       socket.off(SOCKET_EVENTS.NEW_MESSAGE, handleNewMessage);
+      socket.off(SOCKET_EVENTS.UNREAD_UPDATE, handleUnreadCountUpdate);
+      socket.off(SOCKET_EVENTS.REFRESH_UNREAD, handleRefreshUnreadCounts);
       socket.off(SOCKET_EVENTS.MESSAGE_SENT, handleMessageSent);
-      socket.off("unreadCountUpdate", fetchAllUnreadCounts);
-      clearTimeout(typingTimeoutRef.current);
     };
   }, [user, selectedFloor, activeTab]);
 
@@ -488,7 +473,7 @@ function Message({ user, setView, currentView }) {
       fetchAllUnreadCounts();
       fetchUnreadMessages();
     }
-  }, [activeTab, selectedFloor]);
+  }, [activeTab, selectedFloor, user?._id]);
 
   const fetchMessages = async () => {
     try {
@@ -497,7 +482,6 @@ function Message({ user, setView, currentView }) {
         `${import.meta.env.VITE_API_URL}/api/messages/floor-conversation/${user._id}/${selectedFloor}`
       );
       setMessages(data);
-      await markConversationAsRead();
     } catch (err) {
       console.error("Failed to fetch messages:", err);
     } finally {
@@ -512,7 +496,6 @@ function Message({ user, setView, currentView }) {
         `${import.meta.env.VITE_API_URL}/api/messages/user-admin-conversation/${user._id}`
       );
       setMessages(data);
-      await markConversationAsRead();
     } catch (err) {
       console.error("Failed to fetch admin messages:", err);
     } finally {
@@ -523,10 +506,13 @@ function Message({ user, setView, currentView }) {
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
 
-    const tempMsg = {
+    let tempMsg;
+    let receiver = activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "admin";
+    
+    tempMsg = {
       _id: "temp-" + Date.now(),
       sender: user._id,
-      receiver: activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "admin",
+      receiver: receiver,
       content: newMessage,
       createdAt: new Date().toISOString(),
       status: "sending",
@@ -535,23 +521,25 @@ function Message({ user, setView, currentView }) {
     };
 
     setMessages(prev => [...prev, tempMsg]);
-    const messageToSend = newMessage;
     setNewMessage("");
 
     try {
+      await markMessagesAsReadOnReply();
+      
       if (activeTab === MESSAGE_TYPES.FLOOR) {
         await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/send-to-floor`, {
           userId: user._id,
           floor: selectedFloor,
-          content: messageToSend
+          content: newMessage
         });
       } else {
         await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/send-to-admin`, {
           userId: user._id,
-          content: messageToSend
+          content: newMessage
         });
       }
     } catch (err) {
+      console.error("Failed to send message:", err);
       setMessages(prev => prev.map(msg => 
         msg._id === tempMsg._id ? { ...msg, status: "failed" } : msg
       ));
@@ -565,11 +553,6 @@ function Message({ user, setView, currentView }) {
     }
   };
 
-  const handleInputChange = (e) => {
-    setNewMessage(e.target.value);
-    handleTyping();
-  };
-
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     setMessages([]);
@@ -578,235 +561,290 @@ function Message({ user, setView, currentView }) {
     } else {
       fetchAdminMessages();
     }
-    if (isMobile) {
-      setShowMobileSidebar(false);
-    }
+    setIsSidebarOpen(false);
   };
 
   const handleFloorSelect = (floor) => {
     setSelectedFloor(floor);
     setMessages([]);
     fetchMessages();
-    if (isMobile) {
-      setShowMobileSidebar(false);
+    setIsSidebarOpen(false);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape' && isSidebarOpen) {
+      setIsSidebarOpen(false);
     }
   };
 
-  return (
-    <main className="relative w-full h-screen bg-gray-50">
-      {/* Mobile Header */}
-      {isMobile && (
-        <div className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-gray-200 flex items-center px-4 z-30 shadow-sm">
-          <button
-            onClick={() => setShowMobileSidebar(true)}
-            className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
-          >
-            <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <h1 className="ml-3 text-lg font-semibold text-gray-800">Messages</h1>
-          <div className="ml-auto flex items-center space-x-2">
-            <div className="relative">
-              {unreadCounts.floor + unreadCounts.admin > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 border-2 border-white">
-                  {unreadCounts.floor + unreadCounts.admin > 9 ? '9+' : unreadCounts.floor + unreadCounts.admin}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+  // Handle click outside sidebar on mobile
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (isMobile && isSidebarOpen && sidebarRef.current && !sidebarRef.current.contains(e.target) && 
+          !e.target.closest('[data-hamburger]')) {
+        setIsSidebarOpen(false);
+      }
+    };
 
-      <div className="flex h-full pt-16 lg:pt-0">
-        {/* Sidebar Overlay for Mobile */}
-        {isMobile && showMobileSidebar && (
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [isMobile, isSidebarOpen]);
+
+  // Handle click on hamburger button
+  const handleHamburgerClick = (e) => {
+    e.stopPropagation(); // Prevent event from bubbling to document
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  return (
+    <main 
+      className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-gradient-to-br from-gray-50 via-white to-gray-100 relative overflow-hidden"
+      onKeyDown={handleKeyDown}
+      tabIndex={-1}
+    >      
+      {/* HEADER - Only shown on desktop */}
+      <header className="hidden lg:flex text-black px-6 h-[60px] items-center justify-between shadow-sm border-b border-gray-200 bg-white relative z-50">
+        <div className="flex items-center space-x-3">
+          <h1 className="text-xl lg:text-2xl font-bold tracking-wide bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+            Messages
+          </h1>
+        </div>
+      </header>
+
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Mobile Sidebar Overlay - Higher z-index to ensure it covers navigation */}
+        {isSidebarOpen && isMobile && (
           <div 
-            className="fixed inset-0 bg-black/50 z-40"
-            onClick={() => setShowMobileSidebar(false)}
+            className="fixed inset-0 z-[100] lg:hidden"
+            onClick={() => setIsSidebarOpen(false)}
           />
         )}
 
-        {/* Conversations Sidebar */}
-        <div className={`
-          ${isMobile 
-            ? `fixed inset-y-0 left-0 w-[85%] max-w-[320px] z-50 transform transition-transform duration-300 ease-in-out bg-white`
-            : 'w-[380px] border-r border-gray-200 bg-white'
-          } flex flex-col h-full shadow-xl lg:shadow-none
-          ${isMobile && !showMobileSidebar ? '-translate-x-full' : 'translate-x-0'}
-        `}>
-          {/* Sidebar Header */}
-          <div className="p-5 border-b border-gray-100 bg-gradient-to-br from-blue-50 to-indigo-50">
-            <h2 className="text-xl font-bold text-gray-800 flex items-center">
-              <svg className="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Sidebar - Mobile & Desktop */}
+        <aside 
+          ref={sidebarRef}
+          className={`message-sidebar
+            fixed lg:static top-0 left-0 h-full w-[280px] bg-white border-r border-gray-200 shadow-lg z-[101] flex flex-col
+            transition-transform duration-300 ease-in-out
+            ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
+          `}
+        >
+          {/* Mobile Header */}
+          <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-red-50 to-orange-50">
+            <h2 className="text-lg font-bold text-gray-800 flex items-center">
+              <svg className="w-5 h-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
-              Chats
+              Message Options
             </h2>
-            <p className="text-sm text-gray-600 mt-1">Select a conversation to start messaging</p>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex p-2 bg-gray-50 border-b border-gray-200">
-            <button
-              onClick={() => handleTabChange(MESSAGE_TYPES.FLOOR)}
-              className={`
-                flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all duration-200
-                ${activeTab === MESSAGE_TYPES.FLOOR
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:bg-white/50'
-                }
-              `}
+            <button 
+              onClick={() => setIsSidebarOpen(false)}
+              className="p-2 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md hover:shadow-lg transition-all"
+              aria-label="Close sidebar"
             >
-              Floors
-              {unreadCounts.floor > 0 && (
-                <span className="ml-2 bg-red-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                  {unreadCounts.floor}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => handleTabChange(MESSAGE_TYPES.ADMIN)}
-              className={`
-                flex-1 py-2.5 px-4 rounded-xl text-sm font-medium transition-all duration-200 ml-2
-                ${activeTab === MESSAGE_TYPES.ADMIN
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-600 hover:bg-white/50'
-                }
-              `}
-            >
-              Admin
-              {unreadCounts.admin > 0 && (
-                <span className="ml-2 bg-red-500 text-white text-xs font-bold rounded-full px-1.5 py-0.5">
-                  {unreadCounts.admin}
-                </span>
-              )}
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
 
-          {/* Conversations List */}
-          <div className="flex-1 overflow-y-auto py-2">
-            {activeTab === MESSAGE_TYPES.FLOOR ? (
-              FLOORS.map(floor => (
-                <ConversationItem
-                  key={floor}
-                  floor={floor}
-                  isSelected={selectedFloor === floor}
-                  unreadCount={floorUnreadCounts[floor] || 0}
-                  lastMessage={getLastMessageForFloor(floor)}
-                  lastTime={getLastMessageTimeForFloor(floor)}
-                  onClick={() => handleFloorSelect(floor)}
-                />
-              ))
-            ) : (
-              <ConversationItem
-                floor="Administration"
-                isSelected={true}
-                unreadCount={unreadCounts.admin}
-                lastMessage="Contact admin support"
-                lastTime={null}
-                onClick={() => handleTabChange(MESSAGE_TYPES.ADMIN)}
-              />
-            )}
+          <div className="p-6 border-b border-gray-100">
+            <h2 className="font-bold text-lg text-gray-800 hidden lg:block">Message Options</h2>
+            <p className="text-sm text-gray-600 mt-1 hidden lg:block">Choose who to message</p>
           </div>
-
-          {/* User Info */}
-          <div className="p-4 border-t border-gray-100 bg-gray-50">
-            <div className="flex items-center">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold shadow-md">
-                {user?.name?.charAt(0) || 'U'}
-              </div>
-              <div className="ml-3">
-                <p className="text-sm font-semibold text-gray-800">{user?.name || 'User'}</p>
-                <p className="text-xs text-gray-500">Online</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Chat Area */}
-        <div className="flex-1 flex flex-col bg-gray-50">
-          {/* Chat Header */}
-          <div className="bg-white border-b border-gray-200 px-6 py-4 hidden lg:block">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-xl shadow-md">
-                  {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor.charAt(0) : 'A'}
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-800">
-                    {activeTab === MESSAGE_TYPES.FLOOR ? `${selectedFloor} Reception` : 'Administration'}
-                  </h2>
-                  <p className="text-sm text-gray-500 flex items-center">
-                    <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                    {getCurrentUnreadCount() > 0 
-                      ? `${getCurrentUnreadCount()} unread messages` 
-                      : 'Online'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                <button className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
-                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </button>
-                <button className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
-                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Mobile Chat Header */}
-          <div className="lg:hidden bg-white border-b border-gray-200 px-4 py-3">
-            <div className="flex items-center space-x-3">
+          
+          {/* Tab Buttons */}
+          <div className="p-4 border-b border-gray-100">
+            <div className="flex flex-col space-y-3">
               <button
-                onClick={() => setShowMobileSidebar(true)}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-colors"
+                onClick={() => handleTabChange(MESSAGE_TYPES.FLOOR)}
+                className={`p-4 rounded-xl text-left transition-all duration-300 transform hover:scale-[1.02] cursor-pointer border-2 ${
+                  activeTab === MESSAGE_TYPES.FLOOR 
+                    ? "bg-gradient-to-r from-red-50 to-orange-50 border-red-200 shadow-lg scale-[1.02]" 
+                    : "hover:bg-gray-50 border-transparent hover:border-gray-200"
+                }`}
+                aria-label="Message Receptionist"
               >
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className={`w-3 h-3 rounded-full mr-3 transition-colors ${
+                      activeTab === MESSAGE_TYPES.FLOOR ? "bg-gradient-to-r from-red-500 to-orange-500" : "bg-gray-400"
+                    }`}></div>
+                    <div>
+                      <div className="font-semibold text-gray-800">Floors</div>
+                      <div className="text-sm text-gray-500 mt-1">Message Receptionist</div>
+                    </div>
+                  </div>
+                  {unreadCounts.floor > 0 && (
+                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px] shadow-sm">
+                      {unreadCounts.floor > 9 ? "9+" : unreadCounts.floor}
+                    </span>
+                  )}
+                </div>
               </button>
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold">
-                {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor.charAt(0) : 'A'}
+              
+              <button
+                onClick={() => handleTabChange(MESSAGE_TYPES.ADMIN)}
+                className={`p-4 rounded-xl text-left transition-all duration-300 transform hover:scale-[1.02] cursor-pointer border-2 ${
+                  activeTab === MESSAGE_TYPES.ADMIN 
+                    ? "bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200 shadow-lg scale-[1.02]" 
+                    : "hover:bg-gray-50 border-transparent hover:border-gray-200"
+                }`}
+                aria-label="Contact administration"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <div className={`w-3 h-3 rounded-full mr-3 transition-colors ${
+                      activeTab === MESSAGE_TYPES.ADMIN ? "bg-gradient-to-r from-blue-500 to-cyan-500" : "bg-gray-400"
+                    }`}></div>
+                    <div>
+                      <div className="font-semibold text-gray-800">Administration</div>
+                      <div className="text-sm text-gray-500 mt-1">Contact admin</div>
+                    </div>
+                  </div>
+                  {unreadCounts.admin > 0 && (
+                    <span className="bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px] shadow-sm">
+                      {unreadCounts.admin > 9 ? "9+" : unreadCounts.admin}
+                    </span>
+                  )}
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Floor Selection (only show for floor tab) */}
+          {activeTab === MESSAGE_TYPES.FLOOR && (
+            <div className="p-4 flex-1 overflow-y-auto">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide flex items-center">
+                <svg className="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                Select Floor
+              </h3>
+              <div className="space-y-2">
+                {FLOORS.map(floor => (
+                  <button
+                    key={floor}
+                    onClick={() => handleFloorSelect(floor)}
+                    className={`w-full text-left p-4 rounded-xl transition-all duration-300 transform hover:scale-[1.01] cursor-pointer group ${
+                      selectedFloor === floor 
+                        ? "bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-xl scale-[1.02]" 
+                        : "hover:bg-gray-50 bg-white border border-gray-200 hover:border-gray-300"
+                    }`}
+                    aria-label={`Select ${floor}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        {selectedFloor === floor && (
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                        <div>
+                          <div className="font-medium text-left">{floor}</div>
+                          <div className={`text-sm mt-1 transition-colors text-left ${
+                            selectedFloor === floor ? "text-red-100" : "text-gray-500 group-hover:text-gray-700"
+                          }`}>
+                            
+                          </div>
+                        </div>
+                      </div>
+                      {floorUnreadCounts[floor] > 0 && (
+                        <span className="bg-red-500 text-white text-xs font-bold rounded-full h-6 w-6 flex items-center justify-center min-w-[24px] ml-2 shadow-sm">
+                          {floorUnreadCounts[floor] > 9 ? "9+" : floorUnreadCounts[floor]}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                ))}
               </div>
-              <div>
-                <h2 className="font-semibold text-gray-800">
-                  {activeTab === MESSAGE_TYPES.FLOOR ? `${selectedFloor} Reception` : 'Administration'}
-                </h2>
-                <p className="text-xs text-gray-500">
-                  {getCurrentUnreadCount() > 0 ? `${getCurrentUnreadCount()} unread` : 'Active now'}
+            </div>
+          )}
+
+          {/* Admin Info (only show for admin tab) */}
+          {activeTab === MESSAGE_TYPES.ADMIN && (
+            <div className="p-4">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center mb-3">
+                  <div className="w-4 h-4 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full mr-3 shadow-sm"></div>
+                  <span className="font-bold text-blue-800">Admin Support</span>
+                </div>
+                <p className="text-sm text-blue-700 leading-relaxed">
+                  Contact the administration for account issues, complaints, or general inquiries.
+                  We're here to help you!
                 </p>
               </div>
             </div>
+          )}
+        </aside>
+
+        {/* Chat Area */}
+        <div className="flex-1 flex flex-col relative w-full lg:w-auto overflow-hidden">
+          {/* Chat Header - Mobile & Desktop */}
+          <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-md relative z-40">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                {/* Mobile Hamburger Button - FIXED: Added data attribute and higher z-index */}
+                <button 
+                  onClick={handleHamburgerClick}
+                  data-hamburger="true"
+                  className="lg:hidden p-3 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95 relative z-[999]"
+                  aria-label="Toggle sidebar"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  </svg>
+                </button>
+                <div>
+                  <h2 className="text-lg lg:text-xl font-bold text-gray-800">
+                    {activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : "Administration Team"}
+                  </h2>
+                  <p className="text-xs lg:text-sm text-gray-600 mt-1 flex items-center">
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {activeTab === MESSAGE_TYPES.FLOOR 
+                      ? `${selectedFloor} Receptionist` 
+                      : "System Administrators & Support Staff"
+                    }
+                  </p>
+                </div>
+              </div>
+              
+              {/* Unread badge */}
+              {getCurrentUnreadCount() > 0 && (
+                <div className="hidden lg:block">
+                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-3 py-1 shadow-sm">
+                    {getCurrentUnreadCount()} unread
+                  </span>
+                </div>
+              )}
+              
+              {/* Mobile unread indicator */}
+              {isMobile && getCurrentUnreadCount() > 0 && (
+                <div className="lg:hidden">
+                  <span className="bg-red-500 text-white text-xs font-bold rounded-full px-2 py-1 shadow-sm">
+                    {getCurrentUnreadCount()}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Messages Container */}
+          {/* Messages Container - Fixed scrolling - HIDDEN SCROLLBAR */}
           <div 
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto py-6"
+            className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50"
             style={{ 
-              scrollbarWidth: 'thin',
-              scrollbarColor: '#cbd5e0 #f1f5f9'
+              minHeight: 0,
+              scrollbarWidth: 'none', // Firefox
+              msOverflowStyle: 'none' // IE/Edge
             }}
           >
+            {/* Inline style for Webkit browsers */}
             <style jsx>{`
-              div::-webkit-scrollbar {
-                width: 6px;
-              }
-              div::-webkit-scrollbar-track {
-                background: #f1f5f9;
-              }
-              div::-webkit-scrollbar-thumb {
-                background: #cbd5e0;
-                border-radius: 3px;
-              }
-              div::-webkit-scrollbar-thumb:hover {
-                background: #94a3b8;
+              div[ref="messagesContainerRef"]::-webkit-scrollbar {
+                display: none;
               }
             `}</style>
             
@@ -815,19 +853,25 @@ function Message({ user, setView, currentView }) {
             ) : messages.length === 0 ? (
               <EmptyState />
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-6 max-w-full mx-auto lg:max-w-4xl">
                 {Object.entries(messageGroups).map(([date, dateMessages]) => (
                   <div key={date}>
                     <DateSeparator date={date} />
-                    {dateMessages.map(msg => (
-                      <MessageBubble
-                        key={msg._id}
-                        message={msg}
-                        isOwn={msg.sender === user._id}
-                        isUnread={isMessageUnread(msg._id)}
-                        formatTime={formatTime}
-                      />
-                    ))}
+                    
+                    {/* Messages for this date */}
+                    <div className="space-y-4">
+                      {dateMessages.map(msg => (
+                        <MessageBubble
+                          key={msg._id}
+                          message={msg}
+                          isOwn={msg.sender === user._id}
+                          isUnread={isMessageUnread(msg._id)}
+                          activeTab={activeTab}
+                          user={user}
+                          formatTime={formatTime}
+                        />
+                      ))}
+                    </div>
                   </div>
                 ))}
                 <div ref={messagesEndRef} />
@@ -836,46 +880,45 @@ function Message({ user, setView, currentView }) {
           </div>
 
           {/* Message Input */}
-          <div className="bg-white border-t border-gray-200 px-4 py-4 lg:px-6">
-            <div className="flex items-end space-x-3 max-w-4xl mx-auto">
-              <button className="hidden lg:block p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-              <button className="hidden lg:block p-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-              </button>
-              
-              <div className="flex-1 bg-gray-100 rounded-2xl px-4 py-2 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+          <div className="bg-white p-4 lg:p-6 border-t border-gray-200 shadow-lg">
+            <div className="max-w-full mx-auto lg:max-w-4xl">
+              <div className="flex items-end space-x-3">
                 <textarea
                   ref={textareaRef}
-                  placeholder={`Message ${activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : 'Admin'}...`}
-                  className="w-full bg-transparent outline-none resize-none text-sm max-h-[120px] text-gray-700 placeholder-gray-400"
+                  placeholder={
+                    activeTab === MESSAGE_TYPES.FLOOR 
+                      ? `Send a message to ${selectedFloor}` 
+                      : "Send a message to administration"
+                  }
+                  className="flex-1 border-2 border-gray-200 rounded-2xl px-4 lg:px-6 py-3 focus:outline-none focus:border-red-500 transition-colors duration-300 shadow-sm bg-gray-50 focus:bg-white"
                   value={newMessage}
-                  onChange={handleInputChange}
+                  onChange={(e) => setNewMessage(e.target.value)}
                   onKeyDown={handleKeyPress}
                   rows={1}
+                  style={{ 
+                    minHeight: '50px', 
+                    maxHeight: '120px',
+                    resize: 'none',
+                    overflow: 'hidden'
+                  }}
+                  aria-label="Type your message"
                 />
+                <button
+                  onClick={sendMessage}
+                  disabled={!newMessage.trim()}
+                  className={`text-white rounded-full p-3 lg:px-8 lg:py-3 disabled:opacity-50 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center flex-shrink-0 ${
+                    activeTab === MESSAGE_TYPES.FLOOR 
+                      ? "bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600" 
+                      : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
+                  }`}
+                  aria-label="Send message"
+                >
+                  <svg className="w-5 h-5 lg:w-6 lg:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                  <span className="hidden lg:inline ml-2">Send</span>
+                </button>
               </div>
-              
-              <button
-                onClick={sendMessage}
-                disabled={!newMessage.trim()}
-                className={`
-                  p-3 rounded-2xl transition-all duration-200 flex-shrink-0
-                  ${newMessage.trim() 
-                    ? 'bg-[#0084ff] text-white shadow-lg hover:shadow-xl hover:bg-[#0073e6] active:scale-95' 
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  }
-                `}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-              </button>
             </div>
           </div>
         </div>
@@ -884,6 +927,7 @@ function Message({ user, setView, currentView }) {
   );
 }
 
+// Prop Validation
 Message.propTypes = {
   user: PropTypes.shape({
     _id: PropTypes.string.isRequired,
