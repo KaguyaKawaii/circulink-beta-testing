@@ -592,14 +592,14 @@ function Message({ user, setView, currentView }) {
 
   // Handle click on hamburger button
   const handleHamburgerClick = (e) => {
-    e.stopPropagation(); // Prevent event from bubbling to document
+    e.stopPropagation();
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  // FIXED: Added proper positioning to account for navigation sidebar
+  // FIXED: Removed pt-16 to eliminate the space at the top
   return (
     <main 
-      className="lg:ml-[250px] w-full lg:w-[calc(100%-250px)] min-h-screen flex flex-col bg-gradient-to-br from-gray-50 via-white to-gray-100 relative overflow-hidden pt-16 lg:pt-0"
+      className="lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-gradient-to-br from-gray-50 via-white to-gray-100 relative overflow-hidden"
       onKeyDown={handleKeyDown}
       tabIndex={-1}
     >      
@@ -612,7 +612,7 @@ function Message({ user, setView, currentView }) {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-60px)] lg:h-[calc(100vh-60px)]">
+      <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-60px)]">
         {/* Mobile Sidebar Overlay - FIXED: z-index lower than navigation (which is 50-100) */}
         {isSidebarOpen && isMobile && (
           <div 
@@ -621,11 +621,11 @@ function Message({ user, setView, currentView }) {
           />
         )}
 
-        {/* Sidebar - Mobile & Desktop - FIXED: z-index lower than navigation (which is 50-100) */}
+        {/* Sidebar - Mobile & Desktop - FIXED: Starts from top (0) instead of top-16 */}
         <aside 
           ref={sidebarRef}
           className={`message-sidebar
-            fixed lg:static top-16 left-0 h-[calc(100vh-64px)] w-[280px] bg-white border-r border-gray-200 shadow-lg z-[46] flex flex-col
+            fixed lg:static top-0 left-0 h-full w-[280px] bg-white border-r border-gray-200 shadow-lg z-[46] flex flex-col
             transition-transform duration-300 ease-in-out
             ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
           `}
@@ -785,7 +785,7 @@ function Message({ user, setView, currentView }) {
           <div className="bg-white p-4 lg:p-6 border-b border-gray-200 shadow-md relative z-40">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                {/* Mobile Hamburger Button - FIXED: z-index higher than overlay but lower than navigation */}
+                {/* Mobile Hamburger Button */}
                 <button 
                   onClick={handleHamburgerClick}
                   data-hamburger="true"
