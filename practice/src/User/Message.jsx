@@ -72,7 +72,7 @@ const MessageBubble = ({ message, isOwn, isUnread }) => {
             <span className="text-[10px]">• Sending</span>
           )}
           {isOwn && message.status === "failed" && (
-            <span className="text-[10px]" style={{ color: '#CC0000' }}>• Failed</span>
+            <span className="text-[10px] text-red-300">• Failed</span>
           )}
         </div>
         {isUnread && !isOwn && (
