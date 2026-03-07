@@ -591,7 +591,7 @@ function Message({ user, setView, currentView }) {
 
   return (
     <main className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-white">
-      {/* Messenger-style Header */}
+      {/* Simple Header */}
       <header className="bg-white border-b border-gray-200 px-4 h-[60px] flex items-center shadow-sm">
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center space-x-3">
@@ -605,20 +605,13 @@ function Message({ user, setView, currentView }) {
                 </svg>
               </button>
             )}
-            <h1 className="text-xl font-semibold text-[#050505]">Chats</h1>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-            </button>
+            <h1 className="text-xl font-semibold text-[#050505]">Messages</h1>
           </div>
         </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Conversations Sidebar - Messenger Style */}
+        {/* Conversations Sidebar */}
         <div className={`
           ${isMobile 
             ? showMobileConversations 
@@ -627,25 +620,11 @@ function Message({ user, setView, currentView }) {
             : 'w-[360px] border-r border-gray-200 bg-white'
           } flex flex-col h-full`}
         >
-          {/* Search Bar */}
-          <div className="p-3">
-            <div className="bg-[#f0f2f5] rounded-full px-4 py-2 flex items-center">
-              <svg className="w-4 h-4 text-gray-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-              <input
-                type="text"
-                placeholder="Search messages"
-                className="bg-transparent outline-none text-sm flex-1"
-              />
-            </div>
-          </div>
-
           {/* Tabs */}
-          <div className="flex border-b border-gray-200 px-3">
+          <div className="flex border-b border-gray-200">
             <button
               onClick={() => handleTabChange(MESSAGE_TYPES.FLOOR)}
-              className={`flex-1 py-3 text-sm font-medium relative ${
+              className={`flex-1 py-4 text-sm font-medium relative ${
                 activeTab === MESSAGE_TYPES.FLOOR
                   ? 'text-[#0084ff]'
                   : 'text-gray-600'
@@ -658,7 +637,7 @@ function Message({ user, setView, currentView }) {
             </button>
             <button
               onClick={() => handleTabChange(MESSAGE_TYPES.ADMIN)}
-              className={`flex-1 py-3 text-sm font-medium relative ${
+              className={`flex-1 py-4 text-sm font-medium relative ${
                 activeTab === MESSAGE_TYPES.ADMIN
                   ? 'text-[#0084ff]'
                   : 'text-gray-600'
@@ -732,18 +711,6 @@ function Message({ user, setView, currentView }) {
                 </p>
               </div>
             </div>
-            <div className="flex items-center space-x-2">
-              <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                </svg>
-              </button>
-              <button className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                </svg>
-              </button>
-            </div>
           </div>
 
           {/* Messages Container */}
@@ -779,23 +746,13 @@ function Message({ user, setView, currentView }) {
             )}
           </div>
 
-          {/* Message Input - Messenger Style */}
-          <div className="bg-white border-t border-gray-200 px-4 py-3">
+          {/* Message Input - Full width with only send button */}
+          <div className="bg-white border-t border-gray-200 p-4">
             <div className="flex items-end space-x-2">
-              <button className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-              <button className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0">
-                <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                </svg>
-              </button>
               <div className="flex-1 bg-[#f0f2f5] rounded-2xl px-4 py-2">
                 <textarea
                   ref={textareaRef}
-                  placeholder={`Message ${activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : 'Admin'}`}
+                  placeholder={`Message ${activeTab === MESSAGE_TYPES.FLOOR ? selectedFloor : 'Admin'}...`}
                   className="w-full bg-transparent outline-none resize-none text-sm max-h-[100px]"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
@@ -806,7 +763,7 @@ function Message({ user, setView, currentView }) {
               <button
                 onClick={sendMessage}
                 disabled={!newMessage.trim()}
-                className={`p-2 rounded-full transition-colors flex-shrink-0 ${
+                className={`p-3 rounded-full transition-colors flex-shrink-0 ${
                   newMessage.trim() 
                     ? 'text-[#0084ff] hover:bg-[#e7f3ff]' 
                     : 'text-gray-400 cursor-not-allowed'
