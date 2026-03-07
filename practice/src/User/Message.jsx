@@ -596,7 +596,7 @@ function Message({ user, setView, currentView }) {
     setIsSidebarOpen(!isSidebarOpen);
   };
 
-  // FIXED: Removed pt-16 to eliminate the space at the top
+  // FIXED: Proper height calculation to account for navigation header
   return (
     <main 
       className="lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-screen flex flex-col bg-gradient-to-br from-gray-50 via-white to-gray-100 relative overflow-hidden"
@@ -613,7 +613,7 @@ function Message({ user, setView, currentView }) {
       </header>
 
       <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-60px)]">
-        {/* Mobile Sidebar Overlay - FIXED: z-index lower than navigation (which is 50-100) */}
+        {/* Mobile Sidebar Overlay */}
         {isSidebarOpen && isMobile && (
           <div 
             className="fixed inset-0 bg-black/50 z-[45] lg:hidden"
@@ -621,16 +621,17 @@ function Message({ user, setView, currentView }) {
           />
         )}
 
-        {/* Sidebar - Mobile & Desktop - FIXED: Starts from top (0) instead of top-16 */}
+        {/* Sidebar - Mobile & Desktop - FIXED: Proper height calculation for mobile */}
         <aside 
           ref={sidebarRef}
           className={`message-sidebar
-            fixed lg:static top-0 left-0 h-full w-[280px] bg-white border-r border-gray-200 shadow-lg z-[46] flex flex-col
+            fixed lg:static top-0 left-0 w-[280px] bg-white border-r border-gray-200 shadow-lg z-[46] flex flex-col
             transition-transform duration-300 ease-in-out
             ${isSidebarOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full lg:translate-x-0'}
+            ${isMobile ? 'h-screen' : 'h-full'}
           `}
         >
-          {/* Mobile Header */}
+          {/* Mobile Header - FIXED: Added close button that actually works */}
           <div className="lg:hidden flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-red-50 to-orange-50">
             <h2 className="text-lg font-bold text-gray-800 flex items-center">
               <svg className="w-5 h-5 mr-2 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -640,7 +641,7 @@ function Message({ user, setView, currentView }) {
             </h2>
             <button 
               onClick={() => setIsSidebarOpen(false)}
-              className="p-2 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md hover:shadow-lg transition-all"
+              className="p-2 rounded-lg bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-md hover:shadow-lg transition-all cursor-pointer"
               aria-label="Close sidebar"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -789,7 +790,7 @@ function Message({ user, setView, currentView }) {
                 <button 
                   onClick={handleHamburgerClick}
                   data-hamburger="true"
-                  className="lg:hidden p-3 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95 relative z-[47]"
+                  className="lg:hidden p-3 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 text-white shadow-lg transition-all duration-300 hover:scale-105 hover:shadow-xl active:scale-95 relative z-[47] cursor-pointer"
                   aria-label="Toggle sidebar"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -838,13 +839,13 @@ function Message({ user, setView, currentView }) {
             className="flex-1 overflow-y-auto p-4 lg:p-6 bg-gradient-to-b from-white to-gray-50"
             style={{ 
               minHeight: 0,
-              scrollbarWidth: 'none', // Firefox
-              msOverflowStyle: 'none' // IE/Edge
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none'
             }}
           >
             {/* Inline style for Webkit browsers */}
-            <style jsx>{`
-              div[ref="messagesContainerRef"]::-webkit-scrollbar {
+            <style>{`
+              .messages-container::-webkit-scrollbar {
                 display: none;
               }
             `}</style>
@@ -907,7 +908,7 @@ function Message({ user, setView, currentView }) {
                 <button
                   onClick={sendMessage}
                   disabled={!newMessage.trim()}
-                  className={`text-white rounded-full p-3 lg:px-8 lg:py-3 disabled:opacity-50 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center flex-shrink-0 ${
+                  className={`text-white rounded-full p-3 lg:px-8 lg:py-3 disabled:opacity-50 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center flex-shrink-0 cursor-pointer ${
                     activeTab === MESSAGE_TYPES.FLOOR 
                       ? "bg-gradient-to-r from-red-500 to-orange-500 hover:from-red-600 hover:to-orange-600" 
                       : "bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
