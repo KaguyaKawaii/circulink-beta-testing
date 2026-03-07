@@ -130,14 +130,21 @@ function News({ user, setView }) {
   };
 
   return (
-    <main className="w-full md:ml-[250px] md:w-[calc(100%-250px)] min-h-screen flex flex-col bg-[#FFFCFB]">
+    <main className="w-full min-h-screen flex flex-col bg-[#FFFCFB] lg:pl-[250px]">
       {/* Header */}
-      <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm">
+      <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm bg-white sticky top-0 z-10 lg:static">
         <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-wide">News</h1>
+        
+        {/* Mobile header with profile indicator - optional */}
+        <div className="lg:hidden flex items-center">
+          <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-bold">
+            {user?.name?.charAt(0) || 'U'}
+          </div>
+        </div>
       </header>
 
       {/* Tab Switcher */}
-      <div className="flex w-full max-w-[200px] justify-between bg-white shadow-md p-1 rounded-3xl mt-4 sm:mt-6 ml-4 sm:ml-6 mx-4 sm:mx-0">
+      <div className="flex w-[200px] max-w-xs sm:max-w-sm justify-between bg-white shadow-md p-1 rounded-3xl mt-4 sm:mt-6 ml-4 sm:ml-6">
         <button
           onClick={() => setView("dashboard")}
           className={`px-3 sm:px-4 py-2 rounded-3xl font-semibold transition-all duration-300 text-sm sm:text-base cursor-pointer ${
@@ -163,12 +170,33 @@ function News({ user, setView }) {
 
       {/* News Content */}
       <div className="flex justify-center p-3 sm:p-4 md:p-6">
-        <div className="space-y-4 max-h-[calc(100vh-200px)] pr-2 w-full max-w-6xl">
+        <div className="space-y-4 max-h-[calc(100vh-200px)] pr-2 w-full max-w-6xl overflow-y-auto">
           {isLoading ? (
-            <div className="text-center py-8 text-gray-500">Loading news...</div>
+            <div className="flex flex-col justify-center items-center h-full space-y-4 py-8">
+              {/* Enhanced Spinner */}
+              <div className="relative flex items-center justify-center">
+                {/* Outer subtle ring */}
+                <div className="w-12 h-12 border-4 border-gray-200 rounded-full"></div>
+                {/* Spinning red gradient ring */}
+                <div className="absolute w-12 h-12 border-4 border-transparent border-t-red-500 border-l-red-500 rounded-full animate-spin"></div>
+                {/* Inner dot */}
+                <div className="absolute w-2 h-2 bg-red-500 rounded-full"></div>
+              </div>
+              {/* Loading text */}
+              <span className="text-sm font-medium text-gray-600 animate-pulse">
+                Loading news...
+              </span>
+            </div>
           ) : !newsList || newsList.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500">No announcements available at this time.</p>
+            <div className="text-center py-12">
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 p-8 rounded-2xl border border-gray-200 max-w-md mx-auto">
+                <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
+                </svg>
+                <p className="text-gray-600 text-sm sm:text-base">
+                  No announcements available at this time.
+                </p>
+              </div>
             </div>
           ) : (
             newsList.map((n) => {
@@ -178,12 +206,12 @@ function News({ user, setView }) {
               return (
                 <article
                   key={n._id}
-                  className="p-3 sm:p-4 border border-gray-100 rounded-lg hover:shadow transition-shadow bg-white"
+                  className="p-3 sm:p-4 border border-gray-100 rounded-lg hover:shadow transition-shadow bg-white w-full"
                 >
                   <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-3">
                     <div className="flex items-center gap-2 sm:gap-3 mb-2 md:mb-0">
                       {/* Circle with Admin SVG */}
-                      <div className="flex items-center justify-center border border-gray-500 rounded-full w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] bg-yellow-300">
+                      <div className="flex items-center justify-center border border-gray-500 rounded-full w-[40px] h-[40px] sm:w-[50px] sm:h-[50px] bg-yellow-300 flex-shrink-0">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
                           className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700"
@@ -199,7 +227,7 @@ function News({ user, setView }) {
                           />
                         </svg>
                       </div>
-                      <h1 className="font-bold text-sm sm:text-base">USA-FLD Admin</h1>
+                      <h1 className="font-bold text-sm sm:text-base truncate">USA-FLD Admin</h1>
                     </div>
                     <time className="text-xs text-gray-500 flex items-center gap-1 mt-1 sm:mt-0">
                       {formatPH(n.createdAt)}
@@ -214,7 +242,7 @@ function News({ user, setView }) {
                         <img
                           src={getImageUrl(images[0])}
                           alt={n.title}
-                          className="w-full rounded-lg object-contain cursor-pointer"
+                          className="w-full rounded-lg object-contain cursor-pointer hover:opacity-90 transition-opacity"
                           style={{ maxHeight: "600px" }}
                           onError={(e) => {
                             console.error("Image failed to load:", images[0]);
@@ -226,11 +254,11 @@ function News({ user, setView }) {
                         // Multiple images - grid layout
                         <div className={`grid gap-2 ${images.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
                           {images.slice(0, 3).map((img, index) => (
-                            <div key={index} className="relative">
+                            <div key={index} className="relative aspect-square">
                               <img
                                 src={getImageUrl(img)}
                                 alt={`${n.title} - ${index + 1}`}
-                                className="w-full h-48 object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                                className="w-full h-full object-cover rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                                 onError={(e) => {
                                   console.error("Image failed to load:", img);
                                   e.target.style.display = 'none';
@@ -238,7 +266,10 @@ function News({ user, setView }) {
                                 onClick={() => handleImageClick(img, index)}
                               />
                               {images.length > 3 && index === 2 && (
-                                <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center">
+                                <div 
+                                  className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center cursor-pointer"
+                                  onClick={() => handleImageClick(img, index)}
+                                >
                                   <span className="text-white font-bold text-lg">
                                     +{images.length - 3}
                                   </span>
@@ -257,9 +288,9 @@ function News({ user, setView }) {
                   )}
 
                   <div className="border-b border-gray-100 mb-3" />
-                  <h2 className="font-bold text-gray-800 text-base sm:text-lg">{n.title}</h2>
+                  <h2 className="font-bold text-gray-800 text-base sm:text-lg mb-2 break-words">{n.title}</h2>
                   <div
-                    className="text-sm text-gray-600"
+                    className="text-sm text-gray-600 prose prose-sm max-w-none break-words"
                     dangerouslySetInnerHTML={{ __html: n.content }}
                   />
                 </article>
@@ -272,7 +303,7 @@ function News({ user, setView }) {
       {/* Fullscreen Image Modal with Navigation */}
       {selectedImage && (
         <div
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4"
           onClick={() => {
             setSelectedImage(null);
             setSelectedImageIndex(0);
@@ -294,13 +325,13 @@ function News({ user, setView }) {
             
             {/* Close button */}
             <button
-              className="absolute top-4 right-4 bg-black/50 text-white rounded-full p-2 hover:bg-black/70 transition-colors cursor-pointer"
+              className="absolute top-2 right-2 sm:top-4 sm:right-4 bg-black/50 text-white rounded-full p-2 hover:bg-black/70 transition-colors cursor-pointer"
               onClick={() => {
                 setSelectedImage(null);
                 setSelectedImageIndex(0);
               }}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -316,14 +347,14 @@ function News({ user, setView }) {
               
               if (isCurrentItem && itemImages.length > 1) {
                 return (
-                  <>
+                  <React.Fragment key={newsItem._id}>
                     {/* Previous button */}
                     {selectedImageIndex > 0 && (
                       <button
-                        className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition-colors cursor-pointer"
+                        className="absolute left-2 sm:left-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full p-2 sm:p-3 hover:bg-black/70 transition-colors cursor-pointer"
                         onClick={() => handlePrevImage(itemImages)}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                         </svg>
                       </button>
@@ -332,20 +363,20 @@ function News({ user, setView }) {
                     {/* Next button */}
                     {selectedImageIndex < itemImages.length - 1 && (
                       <button
-                        className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full p-3 hover:bg-black/70 transition-colors cursor-pointer"
+                        className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 bg-black/50 text-white rounded-full p-2 sm:p-3 hover:bg-black/70 transition-colors cursor-pointer"
                         onClick={() => handleNextImage(itemImages)}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </button>
                     )}
 
                     {/* Image counter */}
-                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white px-3 py-1 rounded-full text-sm">
+                    <div className="absolute bottom-2 sm:bottom-4 left-1/2 transform -translate-x-1/2 bg-black/50 text-white px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm">
                       {selectedImageIndex + 1} / {itemImages.length}
                     </div>
-                  </>
+                  </React.Fragment>
                 );
               }
               return null;
