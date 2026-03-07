@@ -605,11 +605,11 @@ function Message({ user, setView, currentView }) {
       tabIndex={-1}
     >
       {/* Messages Container */}
-      <div className="flex flex-1 overflow-hidden relative">
-        {/* Mobile Sidebar Overlay */}
+      <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-64px)] lg:h-screen">
+        {/* Mobile Sidebar Overlay - No blur */}
         {isSidebarOpen && isMobile && (
           <div 
-            className="fixed inset-0 bg-black/20 z-[60] lg:hidden backdrop-blur-sm transition-opacity duration-300"
+            className="fixed inset-0 bg-black/50 z-[60] lg:hidden"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
@@ -753,11 +753,12 @@ function Message({ user, setView, currentView }) {
             )}
           </div>
 
-          {/* Messages Container */}
+          {/* Messages Container - Fixed height */}
           <div 
             ref={messagesContainerRef}
             className="flex-1 overflow-y-auto px-4 py-4 bg-gray-50"
             style={{ 
+              height: 'calc(100vh - 180px)',
               scrollbarWidth: 'none',
               msOverflowStyle: 'none'
             }}
@@ -797,19 +798,19 @@ function Message({ user, setView, currentView }) {
             )}
           </div>
 
-          {/* Message Input - Messenger Style */}
+          {/* Message Input - Fixed at bottom */}
           <div className="bg-white border-t border-gray-200 px-4 py-3">
             <div className="flex items-end space-x-2 max-w-3xl mx-auto">
               <textarea
                 ref={textareaRef}
                 placeholder="Type a message..."
-                className="flex-1 border-0 rounded-2xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500/20 bg-gray-100 resize-none text-sm max-h-24"
+                className="flex-1 border-0 rounded-2xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-500/20 bg-gray-100 resize-none text-sm"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={handleKeyPress}
                 rows={1}
                 style={{ 
-                  minHeight: '36px',
+                  minHeight: '40px',
                   maxHeight: '100px',
                 }}
               />
