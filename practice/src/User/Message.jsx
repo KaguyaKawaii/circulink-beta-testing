@@ -190,7 +190,6 @@ function Message({ user, setView, currentView }) {
   const [floorUnreadCounts, setFloorUnreadCounts] = useState({});
   const [unreadMessageIds, setUnreadMessageIds] = useState(new Set());
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [isTablet, setIsTablet] = useState(window.innerWidth >= 768 && window.innerWidth < 1024);
 
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
@@ -200,12 +199,9 @@ function Message({ user, setView, currentView }) {
   // Responsive handling
   useEffect(() => {
     const handleResize = () => {
-      const width = window.innerWidth;
-      const mobile = width < 768;
-      const tablet = width >= 768 && width < 1024;
+      const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      setIsTablet(tablet);
-      if (!mobile && !tablet) {
+      if (!mobile) {
         setIsSidebarOpen(false);
       }
     };
@@ -511,20 +507,20 @@ function Message({ user, setView, currentView }) {
   // Click outside to close sidebar
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if ((isMobile || isTablet) && isSidebarOpen && sidebarRef.current && !sidebarRef.current.contains(e.target)) {
+      if (isMobile && isSidebarOpen && sidebarRef.current && !sidebarRef.current.contains(e.target)) {
         setIsSidebarOpen(false);
       }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isMobile, isTablet, isSidebarOpen]);
+  }, [isMobile, isSidebarOpen]);
 
   return (
     <div className="lg:ml-[250px] w-full lg:w-[calc(100%-250px)] h-[calc(100vh-4rem)] lg:h-screen flex flex-col bg-white">
-      {/* Messages Header */}
+      {/* Messages Header - Now with proper shadow */}
       <div className="flex items-center px-4 sm:px-6 h-[60px] bg-white border-b border-gray-200 shadow-sm sticky top-0 z-30">
-        {/* Mobile/Tablet menu button */}
+        {/* Mobile menu button */}
         <button
           onClick={() => setIsSidebarOpen(true)}
           className="md:hidden p-2 -ml-2 text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-100"
@@ -534,9 +530,10 @@ function Message({ user, setView, currentView }) {
           </svg>
         </button>
         
-        <h1 className="text-xl md:text-2xl font-bold tracking-wide ml-2">Messages</h1>
+                <h1 className="text-xl md:text-2xl font-bold tracking-wide">Messages</h1>
 
-        {/* Unread badge for mobile/tablet */}
+
+        {/* Unread badge for mobile */}
         {getCurrentUnreadCount() > 0 && (
           <span className="ml-3 md:hidden text-xs text-gray-500">
             {getCurrentUnreadCount()} unread
@@ -545,22 +542,21 @@ function Message({ user, setView, currentView }) {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar Overlay - Updated for tablet */}
-        {isSidebarOpen && (isMobile || isTablet) && (
+        {/* Sidebar Overlay */}
+        {isSidebarOpen && isMobile && (
           <div 
             className="fixed inset-0 bg-black/20 z-40"
             onClick={() => setIsSidebarOpen(false)}
           />
         )}
 
-        {/* Sidebar - Updated for tablet */}
+        {/* Sidebar */}
         <aside 
           ref={sidebarRef}
           className={`
             fixed md:static top-0 left-0 w-72 h-full bg-white border-r border-gray-200 z-50
-            transition-transform duration-300 ease-in-out overflow-y-auto
+            transition-transform duration-300 ease-in-out
             ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-            ${isTablet ? 'shadow-xl' : ''}
           `}
         >
           {/* Sidebar Header */}
