@@ -476,11 +476,11 @@ setRoomStatuses(
             <p className="text-red-100 mt-1 sm:mt-2 text-sm sm:text-base relative z-10">Manage your room reservations and stay updated</p>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex w-full max-w-xs sm:max-w-sm justify-between bg-white shadow-md p-1 rounded-3xl mb-1">
+          {/* Navigation Tabs - Preserved original sizing */}
+          <div className="flex w-[200px] max-w-xs sm:max-w-sm justify-between bg-white shadow-md p-1 rounded-3xl mb-1">
             <button
               onClick={() => setView("dashboard")}
-              className={`px-3 sm:px-4 py-2 rounded-3xl font-semibold transition-all duration-300 shadow-lg text-sm sm:text-base flex-1 ${
+              className={`px-3 sm:px-4 py-2 rounded-3xl font-semibold transition-all duration-300 shadow-lg text-sm sm:text-base ${
                 "dashboard" === "dashboard" 
                   ? "bg-red-600 text-white" 
                   : "text-gray-700 hover:bg-gray-200"
@@ -491,7 +491,7 @@ setRoomStatuses(
 
             <button
               onClick={() => setView("news")}
-              className={`px-3 sm:px-4 py-2 rounded-3xl font-semibold transition-all duration-300 cursor-pointer text-sm sm:text-base flex-1 ${
+              className={`px-3 sm:px-4 py-2 rounded-3xl font-semibold transition-all duration-300 cursor-pointer text-sm sm:text-base ${
                 "dashboard" === "news" 
                   ? "bg-red-600 text-white" 
                   : "text-gray-700 hover:bg-gray-200"
@@ -892,9 +892,9 @@ setRoomStatuses(
         </aside>
       </div>
       
-      {/* Footer */}
-      <footer className="mt-auto bg-white border-t border-gray-200 lg:ml-[250px]">
-        <div className="px-4 sm:px-5 py-3 sm:py-2 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
+      {/* Footer - Fixed to work with sidebar */}
+      <footer className="mt-auto bg-white border-t border-gray-200 w-full">
+        <div className="px-4 sm:px-5 py-3 sm:py-2 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0 max-w-full">
           {/* Copyright */}
           <div className="text-xs sm:text-sm text-gray-500 order-2 sm:order-1 flex items-center gap-1">
             
