@@ -568,6 +568,50 @@ function Navigation_User({ user: initialUser, setView, currentView, onLogout }) 
             <p className="text-gray-400 text-xs">University of San Agustin</p>
           </div>
         </div>
+        
+        {/* Right side icons - Notification and Profile */}
+        <div className="flex items-center space-x-3">
+          {/* Notification Icon with Badge */}
+          <button
+            onClick={() => handleNavClick("notification")}
+            className="relative p-2 text-white hover:bg-[#2a2a2a] rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+            disabled={user?.suspended}
+            aria-label="Notifications"
+          >
+            <Bell size={20} />
+            {unreadCounts.notifications > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center min-w-[20px]">
+                {unreadCounts.notifications > 9 ? "9+" : unreadCounts.notifications}
+              </span>
+            )}
+          </button>
+
+          {/* Profile Picture */}
+          <button
+            onClick={() => handleNavClick("profile")}
+            className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-transparent hover:border-red-500 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50"
+            disabled={user?.suspended}
+            aria-label="Profile"
+          >
+            {user?.profileImage ? (
+              <img
+                src={`${user.profileImage}?t=${imgTimestamp}`}
+                alt="Profile"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                    user?.firstName?.[0] || '' + user?.lastName?.[0] || ''
+                  )}&background=random&length=2&font-size=0.33&rounded=true`;
+                }}
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white font-bold text-lg">
+                {user?.firstName?.[0] || ''}{user?.lastName?.[0] || ''}
+              </div>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Sidebar */}
