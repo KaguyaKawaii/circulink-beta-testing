@@ -4,8 +4,6 @@ import { Calendar } from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import ReportProblemModal from "./Modals/ReportProblemModal";
 
-
-
 function History({ user, setView, setSelectedReservation, historyRefreshKey }) {
   const [reservations, setReservations] = useState([]);
   const [filteredReservations, setFilteredReservations] = useState([]);
@@ -25,6 +23,7 @@ function History({ user, setView, setSelectedReservation, historyRefreshKey }) {
     const fetchReservations = async () => {
       try {
         const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations/user/${user._id}`);
+        // Sort by datetime in descending order (latest first)
         const sortedReservations = response.data.sort(
           (a, b) => new Date(b.datetime) - new Date(a.datetime)
         );
