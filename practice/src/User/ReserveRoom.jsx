@@ -1131,7 +1131,7 @@ function ReserveRoom({ user, setView }) {
   };
 
   return (
-    <main className="w-full md:ml-[250px] md:w-[calc(100%-250px)] flex flex-col bg-gray-50 min-h-screen">
+    <main className="w-full min-h-screen flex flex-col bg-gray-50 lg:pl-[250px]">
       {loading && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center z-50">
           <svg
@@ -1171,14 +1171,14 @@ function ReserveRoom({ user, setView }) {
         </button>
       </header>
 
-      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
+      <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-full overflow-x-hidden">
         {/* User Type Notice */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <div className="flex items-center">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mr-2 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
             </svg>
-            <p className="text-blue-800 font-medium text-sm">
+            <p className="text-blue-800 font-medium text-sm sm:text-base">
               {isFacultyUser() 
                 ? "Faculty Access: You can reserve any floor and can make reservations with just yourself."
                 : isCollegeOfLawUser()
@@ -1209,7 +1209,7 @@ function ReserveRoom({ user, setView }) {
                   !formData.date ? "border-red-300 bg-red-50" : "border-gray-300"
                 }`}
               >
-                <span className={formData.date ? "text-gray-800" : "text-gray-400 font-semibold"}>
+                <span className={formData.date ? "text-gray-800 truncate" : "text-gray-400 font-semibold truncate"}>
                   {formData.date ? (
                     new Date(formData.date).toLocaleDateString('en-US', {
                       year: 'numeric',
@@ -1218,7 +1218,7 @@ function ReserveRoom({ user, setView }) {
                     })
                   ) : "Select Date"}
                 </span>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -1241,10 +1241,10 @@ function ReserveRoom({ user, setView }) {
                   !formData.time ? "border-red-300 bg-red-50" : "border-gray-300"
                 }`}
               >
-                <span className={formData.time ? "text-gray-800" : "text-gray-400 font-semibold"}>
+                <span className={formData.time ? "text-gray-800 truncate" : "text-gray-400 font-semibold truncate"}>
                   {formData.time ? formatDisplayTime(formData.time) : "Select Time"}
                 </span>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -1265,10 +1265,10 @@ function ReserveRoom({ user, setView }) {
                 onClick={() => setShowUsersModal(true)}
                 className="w-full p-3 sm:p-3 border rounded-lg border-gray-300 shadow-sm outline-none focus:border-[#CC0000] flex items-center cursor-pointer hover:bg-gray-50 transition-colors text-sm sm:text-base min-h-[44px] justify-between"
               >
-                <span className={formData.numUsers ? "text-gray-800" : "text-gray-400"}>
+                <span className={formData.numUsers ? "text-gray-800 truncate" : "text-gray-400 truncate"}>
                   {formData.numUsers ? `${formData.numUsers} Users` : "Select Users"}
                 </span>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
@@ -1706,7 +1706,7 @@ function ReserveRoom({ user, setView }) {
               <div className="md:col-span-2">
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-3 sm:mb-4 gap-2">
                   <div>
-                    <h3 className="text-lg sm:text-xl font-bold text-gray-800">{selectedRoomDetails.room}</h3>
+                    <h3 className="text-lg sm:text-xl font-bold text-gray-800 break-words">{selectedRoomDetails.room}</h3>
                     <p className="text-gray-600 text-sm sm:text-base">{selectedRoomDetails.floor} • {selectedRoomDetails.type}</p>
                   </div>
                   <span className={`px-2 py-1 sm:px-3 sm:py-1 rounded-full text-xs sm:text-sm font-medium self-start ${
