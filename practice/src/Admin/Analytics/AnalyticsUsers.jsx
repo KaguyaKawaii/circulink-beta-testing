@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Users,
@@ -442,17 +441,6 @@ function AnalyticsUsers({ setView, admin }) {
     );
   };
 
-  const GrowthChartSkeleton = () => (
-    <div className="h-64 flex items-end justify-between gap-2 animate-pulse">
-      {Array(7).fill(0).map((_, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center gap-2">
-          <div className="w-full bg-gray-200 rounded-t h-40"></div>
-          <div className="h-3 bg-gray-200 rounded w-8"></div>
-        </div>
-      ))}
-    </div>
-  );
-
   const userStats = {
     total: userData.total || 0,
     students: userData.byRole?.student || 0,
@@ -464,10 +452,6 @@ function AnalyticsUsers({ setView, admin }) {
     suspended: userData.byStatus?.suspended || 0,
     active: userData.byStatus?.active || 0,
   };
-
-  // Find the maximum value for the growth chart to scale properly
-  const maxGrowthValue = Math.max(...(userData.growth?.values || []), 1);
-  const chartHeight = 200; // Fixed height for the chart in pixels
 
   return (
     <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
@@ -792,105 +776,6 @@ function AnalyticsUsers({ setView, admin }) {
                 )
               )}
             </div>
-          </div>
-        </div>
-
-        {/* Growth Chart - FIXED: Bars from bottom to top like AnalyticsReservations */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">
-            User Growth - {dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : dateRange === 'year' ? 'Monthly' : 'Custom Period'}
-          </h2>
-          {loading ? (
-            <GrowthChartSkeleton />
-          ) : (
-            <div>
-              <div className="h-64 flex items-end justify-between gap-2">
-                {userData.growth?.values && userData.growth.values.length > 0 ? (
-                  userData.growth.values.map((value, index) => {
-                    const max = Math.max(...userData.growth.values, 1);
-                    const height = max > 0 ? (value / max) * 200 : 0; // 200px max height
-                    
-                    return (
-                      <div key={index} className="flex-1 flex flex-col items-center gap-2">
-                        <div className="relative w-full flex justify-center group">
-                          <div 
-                            className="w-3/4 bg-gradient-to-t from-[#CC0000] to-[#FF4444] rounded-t transition-all duration-300 hover:from-[#990000] hover:to-[#CC0000] cursor-pointer"
-                            style={{ height: `${height}px` }}
-                          >
-                            {/* Tooltip */}
-                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
-                              {value} new users
-                            </div>
-                          </div>
-                        </div>
-                        <span className="text-xs text-gray-600 font-medium">{userData.growth.labels?.[index] || ''}</span>
-                        <span className="text-xs text-gray-800">{value}</span>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="w-full text-center text-gray-500 py-12">
-                    No growth data available for this period
-                  </div>
-                )}
-              </div>
-              
-              {userData.growth?.values && userData.growth.values.length > 0 && (
-                <div className="flex justify-between items-center mt-4 text-xs text-gray-500">
-                  <div>Total new users: {userData.growth.values.reduce((a, b) => a + b, 0)}</div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-gradient-to-t from-[#CC0000] to-[#FF4444] rounded"></div>
-                    <span>Bar height relative to peak period</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Registration Stats */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Registration Statistics</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {loading ? (
-              <>
-                <div className="bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
-                  <div className="h-8 bg-gray-300 rounded w-12"></div>
-                </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
-                  <div className="h-8 bg-gray-300 rounded w-12"></div>
-                </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
-                  <div className="h-8 bg-gray-300 rounded w-12"></div>
-                </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
-                  <div className="h-8 bg-gray-300 rounded w-12"></div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <p className="text-sm text-gray-600 font-medium mb-1">Today</p>
-                  <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.today || 0}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <p className="text-sm text-gray-600 font-medium mb-1">This Week</p>
-                  <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.thisWeek || 0}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <p className="text-sm text-gray-600 font-medium mb-1">This Month</p>
-                  <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.thisMonth || 0}</p>
-                </div>
-                <div className="bg-white p-4 rounded-lg border border-gray-200">
-                  <p className="text-sm text-gray-600 font-medium mb-1">Avg. Per Day</p>
-                  <p className="text-2xl font-bold text-gray-800">{userData.registrationStats?.avgPerDay || 0}</p>
-                </div>
-              </>
-            )}
           </div>
         </div>
 

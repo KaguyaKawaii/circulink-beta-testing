@@ -1,841 +1,997 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import {
-  Users,
-  Download,
-  RefreshCw,
-  ArrowUp,
-  ArrowDown,
-  Activity,
-  UserCheck,
-  UserX,
-  Award,
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import AdminNavigation from "../AdminNavigation";
+import { 
+  Eye, 
+  Trash2, 
+  RefreshCw, 
+  Search, 
+  ChevronDown, 
+  X, 
+  CheckSquare, 
+  Square,
+  AlertTriangle,
+  RotateCcw,
+  Filter,
+  User,
+  Mail,
+  Hash,
+  Building2,
   GraduationCap,
-  UserCog,
-  Building,
-  Calendar,
-  X
+  Calendar
 } from "lucide-react";
-import api from "../../utils/api";
 
-function AnalyticsUsers({ setView, admin }) {
+function AdminArchivedUsers({ setView, onLogout }) {
+  const [archivedUsers, setArchivedUsers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [dateRange, setDateRange] = useState("month");
-  const [customStartDate, setCustomStartDate] = useState("");
-  const [customEndDate, setCustomEndDate] = useState("");
-  const [showCustomDate, setShowCustomDate] = useState(false);
-  const [userData, setUserData] = useState({
-    total: 0,
-    active: 0,
-    new: 0,
-    deleted: 0,
-    byRole: {
-      student: 0,
-      faculty: 0,
-      staff: 0,
-      staff_office: 0,
-      admin: 0
-    },
-    byStatus: {
-      active: 0,
-      inactive: 0,
-      suspended: 0,
-      pending: 0,
-      verified: 0,
-      unverified: 0
-    },
-    byDepartment: [],
-    growth: {
-      labels: [],
-      values: []
-    },
-    trends: {
-      daily: { value: 0, percentage: 0, direction: 'up' },
-      weekly: { value: 0, percentage: 0, direction: 'up' },
-      monthly: { value: 0, percentage: 0, direction: 'up' }
-    },
-    topUsers: [],
-    registrationStats: {
-      today: 0,
-      thisWeek: 0,
-      thisMonth: 0,
-      avgPerDay: 0
-    },
-    activityStats: {
-      activeToday: 0,
-      activeThisWeek: 0,
-      activeThisMonth: 0,
-      retentionRate: 0
-    },
-    roleDistribution: [],
-    departmentStats: []
-  });
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("newest");
+  const [page, setPage] = useState(1);
+  const [viewUser, setViewUser] = useState(null);
+  const [restoreConfirm, setRestoreConfirm] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [alertModal, setAlertModal] = useState({ show: false, title: "", message: "", type: "info" });
+  
+  // Selection State
+  const [selectedUsers, setSelectedUsers] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [showBulkRestoreConfirm, setShowBulkRestoreConfirm] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [isBulkActionLoading, setIsBulkActionLoading] = useState(false);
 
-  const calendarRef = useRef(null);
+  const itemsPerPage = 10;
 
-  const fetchUserAnalytics = useCallback(async () => {
-    setLoading(true);
+  // Show alert modal
+  const showAlert = (title, message, type = "info") => {
+    setAlertModal({ show: true, title, message, type });
+  };
+
+  // ✅ Fetch archived users
+  const fetchArchivedUsers = async () => {
     try {
-      let url = `/analytics/users?range=${dateRange}`;
-      
-      // Add custom date parameters if custom range is selected
-      if (dateRange === "custom" && customStartDate && customEndDate) {
-        url = `/analytics/users?startDate=${customStartDate}&endDate=${customEndDate}`;
-      }
-      
-      const response = await api.get(url);
-      
-      if (response.data && response.data.success) {
-        setUserData(response.data.data);
-        console.log("Analytics data loaded for range:", dateRange);
+      setLoading(true);
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/users/archived/all`);
+
+      console.log("Archived Users Response:", res.data);
+
+      if (res.data && Array.isArray(res.data.users)) {
+        setArchivedUsers(res.data.users);
+        // Clear selections when fetching new data
+        setSelectedUsers([]);
+        setSelectAll(false);
       } else {
-        console.error("API returned unsuccessful response:", response.data);
+        console.error("Response does not contain 'users' array");
+        setArchivedUsers([]);
       }
-    } catch (error) {
-      console.error("Error fetching user analytics:", error);
+    } catch (err) {
+      console.error("Failed to fetch archived users:", err);
+      showAlert("Error", "Failed to load archived users. Please try again.", "error");
+      setArchivedUsers([]);
     } finally {
       setLoading(false);
     }
-  }, [dateRange, customStartDate, customEndDate]);
+  };
 
   useEffect(() => {
-    fetchUserAnalytics();
-  }, [fetchUserAnalytics]);
-
-  // Close calendar when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event) {
-      if (calendarRef.current && !calendarRef.current.contains(event.target)) {
-        setShowCustomDate(false);
-      }
-    }
-    
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
+    fetchArchivedUsers();
   }, []);
 
-  const formatDateTime = (date) => {
-    if (!date) return "—";
-    try {
-      return new Date(date).toLocaleString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
-    } catch (error) {
-      return "Invalid date";
-    }
-  };
-
-  const formatDate = (date) => {
-    if (!date) return "";
-    try {
-      return new Date(date).toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "short",
-        day: "numeric"
-      });
-    } catch (error) {
-      return "";
-    }
-  };
-
-  const handleCustomDateApply = () => {
-    if (customStartDate && customEndDate) {
-      // Validate that start date is before end date
-      if (new Date(customStartDate) > new Date(customEndDate)) {
-        alert("Start date must be before end date");
-        return;
-      }
-      
-      setDateRange("custom");
-      setShowCustomDate(false);
-      // fetchUserAnalytics will be triggered by the useEffect
+  // Selection Handlers
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedUsers([]);
     } else {
-      alert("Please select both start and end dates");
+      const filteredIds = filteredUsers.map(user => user._id);
+      setSelectedUsers(filteredIds);
     }
+    setSelectAll(!selectAll);
   };
 
-  const handleCustomDateClear = () => {
-    setCustomStartDate("");
-    setCustomEndDate("");
-    setShowCustomDate(false);
-  };
-
-  // CSV Export Function (no external dependencies)
-  const exportToCSV = () => {
-    try {
-      // Create CSV content
-      let csvContent = "";
-      
-      // Helper to add a row
-      const addRow = (cells) => {
-        csvContent += cells.join(',') + '\n';
-      };
-
-      // Helper to escape CSV fields
-      const escapeField = (field) => {
-        if (field === null || field === undefined) return '';
-        const stringField = String(field);
-        if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
-          return `"${stringField.replace(/"/g, '""')}"`;
+  const handleSelectUser = (userId) => {
+    setSelectedUsers(prev => {
+      if (prev.includes(userId)) {
+        const newSelected = prev.filter(id => id !== userId);
+        setSelectAll(false);
+        return newSelected;
+      } else {
+        const newSelected = [...prev, userId];
+        // Check if all filtered users are selected
+        if (newSelected.length === filteredUsers.length) {
+          setSelectAll(true);
         }
-        return stringField;
-      };
-
-      // Get date range description
-      let rangeDescription = "";
-      if (dateRange === "week") rangeDescription = "Last 7 days";
-      else if (dateRange === "month") rangeDescription = "Last 30 days";
-      else if (dateRange === "year") rangeDescription = "Last 12 months";
-      else if (dateRange === "custom") rangeDescription = `${formatDate(customStartDate)} to ${formatDate(customEndDate)}`;
-
-      // 1. Summary Section
-      addRow(['USER ANALYTICS REPORT', `Generated: ${new Date().toLocaleString()}`]);
-      addRow(['Date Range', rangeDescription]);
-      addRow([]);
-      
-      // 2. Key Metrics
-      addRow(['KEY METRICS']);
-      addRow(['Metric', 'Value']);
-      addRow(['Total Users', userData.total || 0]);
-      addRow(['Active Users (7 days)', userData.active || 0]);
-      addRow(['New Users', userData.new || 0]);
-      addRow(['Deleted/Archived', userData.deleted || 0]);
-      addRow(['Retention Rate', `${userData.activityStats?.retentionRate || 0}%`]);
-      addRow([]);
-      
-      // 3. Registration Statistics
-      addRow(['REGISTRATION STATISTICS']);
-      addRow(['Period', 'Count']);
-      addRow(['Today', userData.registrationStats?.today || 0]);
-      addRow(['This Week', userData.registrationStats?.thisWeek || 0]);
-      addRow(['This Month', userData.registrationStats?.thisMonth || 0]);
-      addRow(['Average Per Day', userData.registrationStats?.avgPerDay || 0]);
-      addRow([]);
-      
-      // 4. Users by Role (with Staff Office)
-      addRow(['USERS BY ROLE']);
-      addRow(['Role', 'Count', 'Percentage']);
-      addRow(['Students', userData.byRole?.student || 0, `${userData.total ? Math.round((userData.byRole.student / userData.total) * 100) : 0}%`]);
-      addRow(['Faculty', userData.byRole?.faculty || 0, `${userData.total ? Math.round((userData.byRole.faculty / userData.total) * 100) : 0}%`]);
-      addRow(['Staff', userData.byRole?.staff || 0, `${userData.total ? Math.round((userData.byRole.staff / userData.total) * 100) : 0}%`]);
-      addRow(['Staff Office', userData.byRole?.staff_office || 0, `${userData.total ? Math.round((userData.byRole.staff_office / userData.total) * 100) : 0}%`]);
-      addRow([]);
-      
-      // 5. Users by Status
-      addRow(['USERS BY STATUS']);
-      addRow(['Status', 'Count']);
-      addRow(['Active (7 days)', userData.byStatus?.active || 0]);
-      addRow(['Inactive', userData.byStatus?.inactive || 0]);
-      addRow(['Suspended', userData.byStatus?.suspended || 0]);
-      addRow(['Verified', userData.byStatus?.verified || 0]);
-      addRow(['Unverified', userData.byStatus?.unverified || 0]);
-      addRow(['Pending', userData.byStatus?.pending || 0]);
-      addRow([]);
-      
-      // 6. Top Departments
-      addRow(['TOP DEPARTMENTS']);
-      addRow(['Department', 'User Count', 'Percentage']);
-      if (userData.departmentStats && userData.departmentStats.length > 0) {
-        userData.departmentStats.forEach(dept => {
-          addRow([
-            dept.name || 'Unknown',
-            dept.count || 0,
-            `${userData.total ? Math.round((dept.count / userData.total) * 100) : 0}%`
-          ]);
-        });
-      } else {
-        addRow(['No department data available', '', '']);
+        return newSelected;
       }
-      addRow([]);
-      
-      // 7. Growth Data
-      addRow(['USER GROWTH', `(${dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : 'Monthly'})`]);
-      addRow(['Period', 'New Users']);
-      if (userData.growth?.labels && userData.growth.labels.length > 0) {
-        userData.growth.labels.forEach((label, index) => {
-          addRow([label, userData.growth?.values?.[index] || 0]);
-        });
-      } else {
-        addRow(['No growth data available', '']);
-      }
-      addRow([]);
-      
-      // 8. Most Active Users
-      addRow(['MOST ACTIVE USERS']);
-      addRow(['Name', 'Email', 'Role', 'Actions Count']);
-      if (userData.topUsers && userData.topUsers.length > 0) {
-        userData.topUsers.forEach(user => {
-          addRow([
-            escapeField(user.name || 'Unknown'),
-            escapeField(user.email || ''),
-            user.role || 'Unknown',
-            user.reservations || 0
-          ]);
-        });
-      } else {
-        addRow(['No active users data available', '', '', '']);
-      }
-      addRow([]);
-      
-      // 9. Activity Stats
-      addRow(['ACTIVITY STATISTICS']);
-      addRow(['Metric', 'Value']);
-      addRow(['Active Today', userData.activityStats?.activeToday || 0]);
-      addRow(['Active This Week', userData.activityStats?.activeThisWeek || 0]);
-      addRow(['Active This Month', userData.activityStats?.activeThisMonth || 0]);
-      addRow(['Retention Rate', `${userData.activityStats?.retentionRate || 0}%`]);
-      addRow([]);
-      
-      // 10. Trends
-      addRow(['TRENDS']);
-      addRow(['Period', 'Value', 'Change', 'Direction']);
-      addRow(['Daily', userData.trends?.daily?.value || 0, `${userData.trends?.daily?.percentage || 0}%`, userData.trends?.daily?.direction || 'none']);
-      addRow(['Weekly', userData.trends?.weekly?.value || 0, `${userData.trends?.weekly?.percentage || 0}%`, userData.trends?.weekly?.direction || 'none']);
-      addRow(['Monthly', userData.trends?.monthly?.value || 0, `${userData.trends?.monthly?.percentage || 0}%`, userData.trends?.monthly?.direction || 'none']);
+    });
+  };
 
-      // Create download link
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `User Analytics ${dateRange} ${new Date().toISOString().split('T')[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-    } catch (error) {
-      console.error("Error exporting to CSV:", error);
-      alert("Failed to export data. Please try again.");
+  // Bulk Restore Handler
+  const handleBulkRestoreClick = () => {
+    if (selectedUsers.length === 0) {
+      showAlert("No Users Selected", "Please select at least one user to restore.", "warning");
+      return;
+    }
+    setShowBulkRestoreConfirm(true);
+  };
+
+  // Bulk Restore Handler - UPDATED to use the new endpoint
+  const handleBulkRestoreConfirm = async () => {
+    if (selectedUsers.length === 0) return;
+    
+    setIsBulkActionLoading(true);
+    
+    try {
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/users/bulk-restore-archived`,
+        { userIds: selectedUsers }
+      );
+
+      if (response.data.success) {
+        showAlert(
+          "Success", 
+          `Successfully restored ${response.data.count} user${response.data.count !== 1 ? 's' : ''}.`, 
+          "success"
+        );
+        
+        // Refresh archived list
+        fetchArchivedUsers();
+        
+        // Clear selections
+        setSelectedUsers([]);
+        setSelectAll(false);
+      } else {
+        throw new Error(response.data.message || "Failed to restore users");
+      }
+    } catch (err) {
+      console.error("Bulk restore error:", err);
+      showAlert(
+        "Error", 
+        err.response?.data?.message || "Failed to restore users. Please try again.", 
+        "error"
+      );
+    } finally {
+      setIsBulkActionLoading(false);
+      setShowBulkRestoreConfirm(false);
     }
   };
 
-  const StatCard = ({ title, value, icon: Icon, trend, color = "blue", isLoading = false }) => {
-    const getColorClass = (colorName) => {
-      const colorMap = {
-        blue: "text-blue-500",
-        green: "text-green-500",
-        purple: "text-purple-500",
-        yellow: "text-yellow-500",
-        orange: "text-orange-500",
-        red: "text-red-500",
-        indigo: "text-indigo-500"
-      };
-      return colorMap[colorName] || "text-blue-500";
-    };
+  const handleBulkRestoreCancel = () => {
+    setShowBulkRestoreConfirm(false);
+  };
 
-    if (isLoading) {
-      return (
-        <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-              <div className="h-8 bg-gray-300 rounded w-16"></div>
+  // Bulk Delete Handler
+  const handleBulkDeleteClick = () => {
+    if (selectedUsers.length === 0) {
+      showAlert("No Users Selected", "Please select at least one user to delete.", "warning");
+      return;
+    }
+    setShowBulkDeleteConfirm(true);
+  };
+
+  // Bulk Delete Handler - UPDATED to use the new endpoint
+  const handleBulkDeleteConfirm = async () => {
+    if (selectedUsers.length === 0) return;
+    
+    setIsBulkActionLoading(true);
+    
+    try {
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/users/bulk-delete-archived`,
+        { userIds: selectedUsers }
+      );
+
+      if (response.data.success) {
+        showAlert(
+          "Success", 
+          `Successfully deleted ${response.data.count} archived user${response.data.count !== 1 ? 's' : ''}.`, 
+          "success"
+        );
+        
+        // Refresh archived list
+        fetchArchivedUsers();
+        
+        // Clear selections
+        setSelectedUsers([]);
+        setSelectAll(false);
+      } else {
+        throw new Error(response.data.message || "Failed to delete users");
+      }
+    } catch (err) {
+      console.error("Bulk delete error:", err);
+      showAlert(
+        "Error", 
+        err.response?.data?.message || "Failed to delete users. Please try again.", 
+        "error"
+      );
+    } finally {
+      setIsBulkActionLoading(false);
+      setShowBulkDeleteConfirm(false);
+    }
+  };
+
+  const handleBulkDeleteCancel = () => {
+    setShowBulkDeleteConfirm(false);
+  };
+
+  // ✅ Restore user
+  const handleRestore = async (id) => {
+    try {
+      await axios.put(`${import.meta.env.VITE_API_URL}/api/users/restore/${id}`);
+      showAlert("Success", "User restored successfully.", "success");
+      fetchArchivedUsers();
+    } catch (err) {
+      console.error("Failed to restore user:", err);
+      const errorMessage = err.response?.data?.message || "Failed to restore user.";
+      showAlert("Error", errorMessage, "error");
+    }
+  };
+
+  // ✅ Permanently delete user
+  const handleDelete = async (id) => {
+    try {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/api/users/archived/${id}`);
+      showAlert("Success", "User permanently deleted.", "success");
+      fetchArchivedUsers();
+    } catch (err) {
+      console.error("Failed to delete user:", err);
+      const errorMessage = err.response?.data?.message || "Failed to delete user.";
+      showAlert("Error", errorMessage, "error");
+    }
+  };
+
+  // Format date for display
+  const formatDate = (date) => {
+    return date
+      ? new Date(date).toLocaleDateString("en-PH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        })
+      : "—";
+  };
+
+  // Format datetime for display
+  const formatDateTime = (date) => {
+    return date
+      ? new Date(date).toLocaleString("en-PH", {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "—";
+  };
+
+  // Filter & sort
+  const filteredUsers = archivedUsers
+    .filter(user => {
+      const matchesSearch = 
+        user.name?.toLowerCase().includes(search.toLowerCase()) ||
+        user.id_number?.toLowerCase().includes(search.toLowerCase()) ||
+        user.email?.toLowerCase().includes(search.toLowerCase()) ||
+        user.department?.toLowerCase().includes(search.toLowerCase()) ||
+        user.course?.toLowerCase().includes(search.toLowerCase());
+      
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      const matchesDepartment = departmentFilter === "all" || user.department === departmentFilter;
+      
+      return matchesSearch && matchesRole && matchesDepartment;
+    })
+    .sort((a, b) => {
+      if (sortBy === "newest") return new Date(b.archivedAt) - new Date(a.archivedAt);
+      if (sortBy === "oldest") return new Date(a.archivedAt) - new Date(b.archivedAt);
+      if (sortBy === "name-az") return a.name?.localeCompare(b.name);
+      if (sortBy === "name-za") return b.name?.localeCompare(a.name);
+      if (sortBy === "id-az") return a.id_number?.localeCompare(b.id_number);
+      if (sortBy === "id-za") return b.id_number?.localeCompare(a.id_number);
+      if (sortBy === "email-az") return a.email?.localeCompare(b.email);
+      if (sortBy === "email-za") return b.email?.localeCompare(a.email);
+      return 0;
+    });
+
+  const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
+  const paginatedUsers = filteredUsers.slice(
+    (page - 1) * itemsPerPage,
+    page * itemsPerPage
+  );
+
+  // Get unique values for filters
+  const roleOptions = ["all", ...new Set(archivedUsers.map(u => u.role))];
+  const departmentOptions = ["all", ...new Set(archivedUsers.map(u => u.department).filter(Boolean))];
+
+  return (
+    <>
+      <AdminNavigation setView={setView} currentView="adminArchivedUsers" onLogout={onLogout} />
+      <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
+        <header className="bg-white px-6 py-4 border-b border-gray-200">
+          <h1 className="text-2xl font-bold text-[#CC0000]">Archived Users</h1>
+          <p className="text-gray-600">View and manage archived user accounts</p>
+        </header>
+
+        <div className="p-6">
+          {/* Search & Sort & Filter */}
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* Search */}
+              <div className="relative md:col-span-2">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={18}
+                />
+                <input
+                  type="text"
+                  placeholder="Search by name, ID number, email, department, course..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:outline-none"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
+              {/* Role Filter */}
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:outline-none appearance-none cursor-pointer"
+                >
+                  {roleOptions.map(role => (
+                    <option key={role} value={role}>
+                      {role === "all" ? "All Roles" : role}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                  size={16}
+                />
+              </div>
+
+              {/* Department Filter */}
+              <div className="relative">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <select
+                  value={departmentFilter}
+                  onChange={(e) => setDepartmentFilter(e.target.value)}
+                  className="w-full pl-10 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:outline-none appearance-none cursor-pointer"
+                >
+                  {departmentOptions.map(dept => (
+                    <option key={dept} value={dept}>
+                      {dept === "all" ? "All Departments" : dept || "No Department"}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                  size={16}
+                />
+              </div>
+
+              {/* Sort */}
+              <div className="relative">
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full pl-4 pr-8 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#CC0000] focus:outline-none appearance-none cursor-pointer"
+                >
+                  <option value="newest">Newest Archived</option>
+                  <option value="oldest">Oldest Archived</option>
+                  <option value="name-az">Name A-Z</option>
+                  <option value="name-za">Name Z-A</option>
+                  <option value="id-az">ID Number A-Z</option>
+                  <option value="id-za">ID Number Z-A</option>
+                  <option value="email-az">Email A-Z</option>
+                  <option value="email-za">Email Z-A</option>
+                </select>
+                <ChevronDown
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                  size={16}
+                />
+              </div>
             </div>
-            <div className="p-2">
-              <div className="w-5 h-5 bg-gray-300 rounded"></div>
+
+            {/* Bulk Actions Row */}
+            <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSelectAll}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-sm"
+                >
+                  {selectAll ? <Square size={16} /> : <CheckSquare size={16} />}
+                  <span>{selectAll ? "Deselect All" : "Select All"}</span>
+                </button>
+                <span className="text-sm text-gray-600">
+                  {selectedUsers.length} user{selectedUsers.length !== 1 ? 's' : ''} selected
+                </span>
+              </div>
+
+              {selectedUsers.length > 0 && (
+                <>
+                  <button
+                    onClick={handleBulkRestoreClick}
+                    className="flex items-center gap-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer text-sm"
+                  >
+                    <RotateCcw size={16} />
+                    <span>Restore Selected</span>
+                  </button>
+                  <button
+                    onClick={handleBulkDeleteClick}
+                    className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer text-sm"
+                  >
+                    <Trash2 size={16} />
+                    <span>Delete Selected</span>
+                  </button>
+                </>
+              )}
+
+              <div className="flex-1"></div>
+
+              <button
+                onClick={fetchArchivedUsers}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+              >
+                <RefreshCw size={16} />
+                <span>Refresh</span>
+              </button>
             </div>
           </div>
-        </div>
-      );
-    }
 
-    return (
-      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600 font-medium">{title}</p>
-            <p className="text-2xl font-bold text-gray-800">
-              {typeof value === 'number' ? value.toLocaleString() : value}
-            </p>
-            {trend && trend.percentage > 0 && (
-              <div className="flex items-center gap-1 mt-1">
-                {trend.direction === 'up' ? (
-                  <ArrowUp size={16} className="text-green-500" />
-                ) : trend.direction === 'down' ? (
-                  <ArrowDown size={16} className="text-red-500" />
-                ) : null}
-                <span className={trend.direction === 'up' ? "text-green-500 text-sm" : "text-red-500 text-sm"}>
-                  {trend.percentage}%
-                </span>
+          {/* Users List */}
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-gray-800">Archived Users List</h2>
+              <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                {filteredUsers.length} {filteredUsers.length === 1 ? 'user' : 'users'}
+              </span>
+            </div>
+
+            {loading ? (
+              <div className="text-center p-8">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#CC0000] mx-auto"></div>
+                <p className="mt-2 text-gray-500 font-bold">Loading archived users...</p>
+              </div>
+            ) : paginatedUsers.length === 0 ? (
+              <div className="text-center p-8 border border-dashed border-gray-300 rounded-lg">
+                <User className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No archived users found</h3>
+                <p className="mt-1 text-sm text-gray-500">All users are currently active or no users have been archived yet.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-gray-200">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                        <button
+                          onClick={handleSelectAll}
+                          className="text-gray-600 hover:text-gray-800"
+                        >
+                          {selectAll ? <CheckSquare size={18} /> : <Square size={18} />}
+                        </button>
+                      </th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID Number</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Department</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Archived On</th>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {paginatedUsers.map((user, index) => (
+                      <tr key={user._id} className="hover:bg-gray-50 transition-colors">
+                        <td className="p-3 whitespace-nowrap">
+                          <button
+                            onClick={() => handleSelectUser(user._id)}
+                            className="text-gray-600 hover:text-gray-800"
+                          >
+                            {selectedUsers.includes(user._id) ? (
+                              <CheckSquare size={18} className="text-[#CC0000]" />
+                            ) : (
+                              <Square size={18} />
+                            )}
+                          </button>
+                        </td>
+                        <td className="p-3 text-gray-700">{(page - 1) * itemsPerPage + index + 1}</td>
+                        <td className="p-3 font-medium text-gray-900">{user.id_number}</td>
+                        <td className="p-3">
+                          <div className="font-medium text-gray-900">{user.name}</div>
+                          {user.course && (
+                            <div className="text-xs text-gray-500">
+                              {user.course} {user.year_level ? `• Year ${user.year_level}` : ''}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3 text-gray-600">{user.email}</td>
+                        <td className="p-3">
+                          <span
+                            className={`px-2 py-1 rounded-full text-xs font-medium ${
+                              user.role === "admin"
+                                ? "bg-purple-100 text-purple-800"
+                                : user.role === "faculty"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-green-100 text-green-800"
+                            }`}
+                          >
+                            {user.role}
+                          </span>
+                        </td>
+                        <td className="p-3 text-gray-600">{user.department || "—"}</td>
+                        <td className="p-3 text-gray-500 text-sm">
+                          {formatDateTime(user.archivedAt)}
+                        </td>
+                        <td className="p-3">
+                          <div className="flex gap-2">
+                            <button
+                              className="text-blue-600 hover:text-blue-800 p-2 rounded-md bg-blue-50 hover:bg-blue-100 transition-all cursor-pointer outline-0"
+                              onClick={() => setViewUser(user)}
+                              title="View Details"
+                            >
+                              <Eye size={16} />
+                            </button>
+
+                            <button
+                              className="text-green-600 hover:text-green-800 p-2 rounded-md bg-green-50 hover:bg-green-100 transition-all cursor-pointer outline-0"
+                              onClick={() => setRestoreConfirm(user)}
+                              title="Restore"
+                            >
+                              <RotateCcw size={16} />
+                            </button>
+                            
+                            <button
+                              className="text-red-600 hover:text-red-800 p-2 rounded-md bg-red-50 hover:bg-red-100 transition-all cursor-pointer outline-0"
+                              onClick={() => setDeleteConfirm(user)}
+                              title="Delete Permanently"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Pagination */}
+            {filteredUsers.length > 0 && (
+              <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
+                <div className="text-sm text-gray-500">
+                  Showing {(page - 1) * itemsPerPage + 1} to {Math.min(page * itemsPerPage, filteredUsers.length)} of {filteredUsers.length} entries
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    disabled={page === 1}
+                    onClick={() => setPage(page - 1)}
+                    className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1 cursor-pointer outline-0"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Previous
+                  </button>
+                  <div className="flex gap-1">
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (page <= 3) {
+                        pageNum = i + 1;
+                      } else if (page >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = page - 2 + i;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setPage(pageNum)}
+                          className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                            page === pageNum
+                              ? "bg-[#CC0000] text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          } transition-colors cursor-pointer outline-0`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    disabled={page === totalPages}
+                    onClick={() => setPage(page + 1)}
+                    className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1 cursor-pointer outline-0"
+                  >
+                    Next
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             )}
           </div>
-          <div className="p-2">
-            <Icon className={getColorClass(color)} size={20} />
-          </div>
-        </div>
-      </div>
-    );
-  };
 
-  const ProgressBarSkeleton = () => (
-    <div className="animate-pulse">
-      <div className="flex justify-between mb-1">
-        <div className="h-4 bg-gray-200 rounded w-24"></div>
-        <div className="h-4 bg-gray-200 rounded w-12"></div>
-      </div>
-      <div className="w-full bg-gray-200 rounded-full h-2">
-        <div className="bg-gray-300 rounded-full h-2 w-3/4"></div>
-      </div>
-    </div>
-  );
-
-  const TableRowSkeleton = ({ cols }) => (
-    <tr className="animate-pulse">
-      {Array(cols).fill(0).map((_, i) => (
-        <td key={i} className="px-6 py-4 whitespace-nowrap">
-          <div className="h-4 bg-gray-200 rounded w-24"></div>
-        </td>
-      ))}
-    </tr>
-  );
-
-  const ProgressBar = ({ label, value, total, color = "blue", showValue = true, isLoading = false }) => {
-    const rawPercentage = total > 0 ? (value / total) * 100 : 0;
-    const percentage = Math.min(Math.round(rawPercentage), 100);
-    
-    const getBgColorClass = (colorName) => {
-      const colorMap = {
-        blue: "bg-blue-500",
-        green: "bg-green-500",
-        purple: "bg-purple-500",
-        orange: "bg-orange-500",
-        yellow: "bg-yellow-500",
-        red: "bg-red-500",
-        indigo: "bg-indigo-500"
-      };
-      return colorMap[colorName] || "bg-blue-500";
-    };
-
-    if (isLoading) {
-      return <ProgressBarSkeleton />;
-    }
-
-    return (
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-1">
-          <span className="text-sm font-medium text-gray-700 truncate max-w-[60%]" title={label}>
-            {label}
-          </span>
-          <div className="flex items-center gap-2">
-            {showValue && <span className="text-sm font-semibold text-gray-900">{value.toLocaleString()}</span>}
-            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">
-              {percentage}%
-            </span>
-          </div>
-        </div>
-        <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
-          <div 
-            className={`${getBgColorClass(color)} rounded-full h-2.5 transition-all duration-300`}
-            style={{ width: `${percentage}%` }}
-          />
-        </div>
-      </div>
-    );
-  };
-
-  const userStats = {
-    total: userData.total || 0,
-    students: userData.byRole?.student || 0,
-    faculty: userData.byRole?.faculty || 0,
-    staff: userData.byRole?.staff || 0,
-    staffOffice: userData.byRole?.staff_office || 0,
-    verified: userData.byStatus?.verified || 0,
-    unverified: userData.byStatus?.unverified || 0,
-    suspended: userData.byStatus?.suspended || 0,
-    active: userData.byStatus?.active || 0,
-  };
-
-  return (
-    <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white px-6 py-4 border-b border-gray-200">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-[#CC0000]">
-              User Analytics
-            </h1>
-            <p className="text-gray-600">
-              {dateRange === 'week' ? 'Last 7 days' : 
-               dateRange === 'month' ? 'Last 30 days' : 
-               dateRange === 'year' ? 'Last 12 months' : 
-               dateRange === 'custom' && customStartDate && customEndDate ? `${formatDate(customStartDate)} to ${formatDate(customEndDate)}` : 
-               'Real-time user data from database'}
-            </p>
-          </div>
-          <div className="flex items-center space-x-4">
-            {/* Date Range Selector */}
-            <div className="flex bg-gray-100 rounded-lg p-1 relative">
-              {["week", "month", "year"].map((range) => (
-                <button
-                  key={range}
-                  onClick={() => {
-                    setDateRange(range);
-                    setShowCustomDate(false);
-                  }}
-                  className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer ${
-                    dateRange === range && !showCustomDate
-                      ? "bg-[#CC0000] text-white"
-                      : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
-                  }`}
-                >
-                  {range === 'week' ? 'Week' : 
-                   range === 'month' ? 'Month' : 
-                   'Year'}
-                </button>
-              ))}
-              
-              {/* Custom Date Button */}
-              <button
-                onClick={() => setShowCustomDate(!showCustomDate)}
-                className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer flex items-center gap-1 ${
-                  showCustomDate || dateRange === 'custom'
-                    ? "bg-[#CC0000] text-white"
-                    : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
-                }`}
-              >
-                <Calendar size={14} />
-                <span>Custom</span>
-              </button>
-
-              {/* Custom Date Range Picker */}
-              {showCustomDate && (
-                <div 
-                  ref={calendarRef}
-                  className="absolute top-12 right-0 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-50 w-72"
-                >
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-sm font-semibold text-gray-700">Select Date Range</h3>
-                    <button
-                      onClick={() => setShowCustomDate(false)}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      <X size={16} />
-                    </button>
+          {/* Restore Confirmation Modal */}
+          {restoreConfirm && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white p-6 rounded-xl w-full max-w-md">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-green-100 rounded-full">
+                    <RotateCcw size={24} className="text-green-600" />
                   </div>
-                  <div className="flex flex-col gap-3">
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">Start Date</label>
-                      <input
-                        type="date"
-                        value={customStartDate}
-                        onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
-                        max={customEndDate || undefined}
-                      />
+                  <h2 className="text-xl font-bold text-gray-800">Confirm Restore</h2>
+                </div>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to restore user "<span className="font-semibold">{restoreConfirm.name}</span>" ({restoreConfirm.id_number})?
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer outline-0"
+                    onClick={() => setRestoreConfirm(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer outline-0"
+                    onClick={() => {
+                      handleRestore(restoreConfirm._id);
+                      setRestoreConfirm(null);
+                    }}
+                  >
+                    Restore
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Delete Confirmation Modal */}
+          {deleteConfirm && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white p-6 rounded-xl w-full max-w-md">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-red-100 rounded-full">
+                    <Trash2 size={24} className="text-red-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-800">Confirm Delete</h2>
+                </div>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to permanently delete user "<span className="font-semibold">{deleteConfirm.name}</span>" ({deleteConfirm.id_number})? This action cannot be undone.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer outline-0"
+                    onClick={() => setDeleteConfirm(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer outline-0"
+                    onClick={() => {
+                      handleDelete(deleteConfirm._id);
+                      setDeleteConfirm(null);
+                    }}
+                  >
+                    Delete Permanently
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bulk Restore Confirmation Modal */}
+          {showBulkRestoreConfirm && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white p-6 rounded-xl w-full max-w-md">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-green-100 rounded-full">
+                    <RotateCcw size={24} className="text-green-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-800">Restore Multiple Users</h2>
+                </div>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to restore {selectedUsers.length} selected user{selectedUsers.length !== 1 ? 's' : ''}?
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer outline-0"
+                    onClick={handleBulkRestoreCancel}
+                    disabled={isBulkActionLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer outline-0 flex items-center gap-2"
+                    onClick={handleBulkRestoreConfirm}
+                    disabled={isBulkActionLoading}
+                  >
+                    {isBulkActionLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Restoring...
+                      </>
+                    ) : (
+                      'Restore All'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bulk Delete Confirmation Modal */}
+          {showBulkDeleteConfirm && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white p-6 rounded-xl w-full max-w-md">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-red-100 rounded-full">
+                    <AlertTriangle size={24} className="text-red-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-800">Delete Multiple Users</h2>
+                </div>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to permanently delete {selectedUsers.length} selected user{selectedUsers.length !== 1 ? 's' : ''}? This action cannot be undone.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    className="px-4 py-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors cursor-pointer outline-0"
+                    onClick={handleBulkDeleteCancel}
+                    disabled={isBulkActionLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer outline-0 flex items-center gap-2"
+                    onClick={handleBulkDeleteConfirm}
+                    disabled={isBulkActionLoading}
+                  >
+                    {isBulkActionLoading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        Deleting...
+                      </>
+                    ) : (
+                      'Delete All'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* View User Modal */}
+          {viewUser && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white p-6 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold text-gray-800">User Details</h2>
+                  <button
+                    className="text-gray-500 hover:text-gray-700 cursor-pointer outline-0"
+                    onClick={() => setViewUser(null)}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <User size={20} className="text-gray-500" />
+                      Basic Information
+                    </h3>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                          <Hash size={14} /> ID Number
+                        </label>
+                        <p className="text-gray-900">{viewUser.id_number}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                          <User size={14} /> Full Name
+                        </label>
+                        <p className="text-gray-900">{viewUser.name}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                          <Mail size={14} /> Email
+                        </label>
+                        <p className="text-gray-900">{viewUser.email}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500">Role</label>
+                        <p className="text-gray-900">
+                          <span
+                            className={`px-3 py-1 rounded-full text-sm font-medium ${
+                              viewUser.role === "admin"
+                                ? "bg-purple-100 text-purple-800"
+                                : viewUser.role === "faculty"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-green-100 text-green-800"
+                            }`}
+                          >
+                            {viewUser.role}
+                          </span>
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-xs text-gray-600 mb-1">End Date</label>
-                      <input
-                        type="date"
-                        value={customEndDate}
-                        onChange={(e) => setCustomEndDate(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
-                        min={customStartDate || undefined}
-                      />
-                    </div>
-                    <div className="flex gap-2 mt-2">
-                      <button
-                        onClick={handleCustomDateApply}
-                        className="flex-1 bg-[#CC0000] text-white text-sm py-2 rounded-lg hover:bg-[#990000] transition-colors"
-                      >
-                        Apply
-                      </button>
-                      <button
-                        onClick={handleCustomDateClear}
-                        className="flex-1 bg-gray-200 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-300 transition-colors"
-                      >
-                        Clear
-                      </button>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                      <GraduationCap size={20} className="text-gray-500" />
+                      Academic Information
+                    </h3>
+                    <div className="space-y-3">
+                      <div>
+                        <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                          <Building2 size={14} /> Department
+                        </label>
+                        <p className="text-gray-900">{viewUser.department || "—"}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                          <GraduationCap size={14} /> Course
+                        </label>
+                        <p className="text-gray-900">{viewUser.course || "—"}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                          <Calendar size={14} /> Year Level
+                        </label>
+                        <p className="text-gray-900">{viewUser.year_level || "—"}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              )}
-            </div>
-            
-            {/* Export to CSV Button */}
-            <button
-              onClick={exportToCSV}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
-              title="Export to CSV"
-            >
-              <Download size={18} />
-              <span>Excel</span>
-            </button>
 
-            {/* Refresh Button */}
-            <button 
-              onClick={fetchUserAnalytics}
-              className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
-              title="Refresh Data"
-            >
-              <RefreshCw size={18} />
-            </button>
-          </div>
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Calendar size={20} className="text-gray-500" />
+                    Archive Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-gray-500">Archived On</label>
+                      <p className="text-gray-900">{formatDateTime(viewUser.archivedAt)}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="flex justify-end">
+                  <button
+                    className="px-4 py-2 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer outline-0"
+                    onClick={() => setViewUser(null)}
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-      </header>
+      </main>
 
-      {/* Main Content */}
-      <div className="p-6">
-        {/* User Statistics Cards */}
-        <div className="flex flex-col gap-4 mb-6 w-full">
-          {/* Role Statistics Section - With Staff Office */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">User Roles</h2>
-            <div className="flex flex-wrap gap-4">
-              <StatCard 
-                title="Total Users" 
-                value={userStats.total} 
-                icon={Users} 
-                trend={userData.trends?.monthly}
-                color="blue" 
-                isLoading={loading}
-              />
-              <StatCard 
-                title="Students" 
-                value={userStats.students} 
-                icon={GraduationCap} 
-                color="green" 
-                isLoading={loading}
-              />
-              <StatCard 
-                title="Faculty" 
-                value={userStats.faculty} 
-                icon={UserCog} 
-                color="purple" 
-                isLoading={loading}
-              />
-              <StatCard 
-                title="Staff" 
-                value={userStats.staff} 
-                icon={UserCheck} 
-                color="yellow" 
-                isLoading={loading}
-              />
-              <StatCard 
-                title="Staff Office" 
-                value={userStats.staffOffice} 
-                icon={Building} 
-                color="indigo" 
-                isLoading={loading}
-              />
-            </div>
-          </div>
+      {/* Alert Modal */}
+      {alertModal.show && (
+        <AlertModal
+          title={alertModal.title}
+          message={alertModal.message}
+          type={alertModal.type}
+          onClose={() => setAlertModal({ show: false, title: "", message: "", type: "info" })}
+        />
+      )}
 
-          {/* Status Statistics Section */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Account Status</h2>
-            <div className="flex flex-wrap gap-4">
-              <StatCard 
-                title="Verified" 
-                value={userStats.verified} 
-                icon={UserCheck} 
-                color="green" 
-                isLoading={loading}
-              />
-              <StatCard 
-                title="Unverified" 
-                value={userStats.unverified} 
-                icon={UserX} 
-                color="red" 
-                isLoading={loading}
-              />
-              <StatCard 
-                title="Suspended" 
-                value={userStats.suspended} 
-                icon={UserX} 
-                color="orange" 
-                isLoading={loading}
-              />
-              <StatCard 
-                title="Active (7d)" 
-                value={userStats.active} 
-                icon={Activity} 
-                color="blue" 
-                isLoading={loading}
-              />
-              <StatCard 
-                title="Retention Rate" 
-                value={`${userData.activityStats?.retentionRate || 0}%`} 
-                icon={Award} 
-                color="yellow" 
-                isLoading={loading}
-              />
+      {/* Loading Overlay for Bulk Actions */}
+      {isBulkActionLoading && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-12 h-12 border-4 border-green-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Processing
+              </h3>
+              <p className="text-gray-600 text-center">
+                Please wait while we process your request...
+              </p>
             </div>
           </div>
         </div>
-
-        {/* Analytics Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* By Role - With Staff Office */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Users by Role</h2>
-            <div className="space-y-4">
-              <ProgressBar 
-                label="Students" 
-                value={userData.byRole?.student || 0} 
-                total={userData.total || 1} 
-                color="blue"
-                isLoading={loading}
-              />
-              <ProgressBar 
-                label="Faculty" 
-                value={userData.byRole?.faculty || 0} 
-                total={userData.total || 1} 
-                color="green"
-                isLoading={loading}
-              />
-              <ProgressBar 
-                label="Staff" 
-                value={userData.byRole?.staff || 0} 
-                total={userData.total || 1} 
-                color="purple"
-                isLoading={loading}
-              />
-              <ProgressBar 
-                label="Staff Office" 
-                value={userData.byRole?.staff_office || 0} 
-                total={userData.total || 1} 
-                color="indigo"
-                isLoading={loading}
-              />
-            </div>
-          </div>
-
-          {/* By Status */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Users by Status</h2>
-            <div className="space-y-4">
-              {loading ? (
-                <>
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                </>
-              ) : (
-                <>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Active (7d)</span>
-                    <span className="text-green-600 font-bold">{(userData.byStatus?.active || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Inactive</span>
-                    <span className="text-yellow-600 font-bold">{(userData.byStatus?.inactive || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Suspended</span>
-                    <span className="text-red-600 font-bold">{(userData.byStatus?.suspended || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                    <span className="text-gray-600">Verified</span>
-                    <span className="text-blue-600 font-bold">{(userData.byStatus?.verified || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-gray-600">Unverified</span>
-                    <span className="text-orange-600 font-bold">{(userData.byStatus?.unverified || 0).toLocaleString()}</span>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          {/* Top Departments */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Top Departments</h2>
-            <div className="space-y-4">
-              {loading ? (
-                <>
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                  <ProgressBarSkeleton />
-                </>
-              ) : (
-                userData.departmentStats && userData.departmentStats.length > 0 ? (
-                  userData.departmentStats.slice(0, 5).map((dept, idx) => (
-                    <ProgressBar 
-                      key={idx}
-                      label={dept.name || 'Unknown'} 
-                      value={dept.count || 0} 
-                      total={userData.total || 1} 
-                      color={idx === 0 ? "blue" : idx === 1 ? "green" : idx === 2 ? "purple" : "orange"}
-                    />
-                  ))
-                ) : (
-                  <p className="text-gray-500 text-center py-4">No department data available</p>
-                )
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Most Active Users */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Most Active Users</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
-                <tr>
-                  <th className="px-6 py-3 text-left font-medium">User</th>
-                  <th className="px-6 py-3 text-left font-medium">Email</th>
-                  <th className="px-6 py-3 text-left font-medium">Role</th>
-                  <th className="px-6 py-3 text-left font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200">
-                {loading ? (
-                  <>
-                    <TableRowSkeleton cols={4} />
-                    <TableRowSkeleton cols={4} />
-                    <TableRowSkeleton cols={4} />
-                    <TableRowSkeleton cols={4} />
-                    <TableRowSkeleton cols={4} />
-                  </>
-                ) : (
-                  userData.topUsers && userData.topUsers.length > 0 ? (
-                    userData.topUsers.map((user, index) => (
-                      <tr key={user.id || index} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.name || 'Unknown'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-600">{user.email || ''}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                            user.role?.toLowerCase() === 'student' ? 'bg-green-100 text-green-800' :
-                            user.role?.toLowerCase() === 'faculty' ? 'bg-purple-100 text-purple-800' :
-                            user.role?.toLowerCase() === 'staff' ? 'bg-yellow-100 text-yellow-800' :
-                            user.role?.toLowerCase() === 'staff_office' ? 'bg-indigo-100 text-indigo-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {user.role === 'staff_office' ? 'Staff Office' : (user.role || 'Unknown')}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{user.reservations || 0}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={4} className="px-6 py-4 text-center text-gray-500">
-                        No user activity data available
-                      </td>
-                    </tr>
-                  )
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </main>
+      )}
+    </>
   );
 }
 
-export default AnalyticsUsers;
+// Alert Modal Component
+function AlertModal({ title, message, type = "info", onClose }) {
+  const getIcon = () => {
+    switch (type) {
+      case "success":
+        return (
+          <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
+      case "error":
+        return (
+          <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
+      case "warning":
+        return (
+          <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+        );
+      default:
+        return (
+          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
+    }
+  };
+
+  const getBackgroundColor = () => {
+    switch (type) {
+      case "success":
+        return "bg-green-50 border-green-200";
+      case "error":
+        return "bg-red-50 border-red-200";
+      case "warning":
+        return "bg-yellow-50 border-yellow-200";
+      default:
+        return "bg-blue-50 border-blue-200";
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[70] p-4 backdrop-blur-sm">
+      <div className={`bg-white rounded-2xl shadow-xl w-full max-w-md border ${getBackgroundColor()}`}>
+        <div className="p-6">
+          <div className="flex items-center gap-4">
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              {getIcon()}
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-900">
+                {title}
+              </h3>
+              <p className="text-gray-600 mt-1">
+                {message}
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 rounded-b-2xl">
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 font-medium text-sm cursor-pointer outline-0"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default AdminArchivedUsers;
