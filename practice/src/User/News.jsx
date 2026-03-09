@@ -135,12 +135,7 @@ function News({ user, setView }) {
       <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm bg-white sticky top-0 z-10 lg:static">
         <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-wide">News</h1>
         
-        {/* Mobile header with profile indicator - optional */}
-        <div className="lg:hidden flex items-center">
-          <div className="w-8 h-8 rounded-full bg-red-600 flex items-center justify-center text-white font-bold">
-            {user?.name?.charAt(0) || 'U'}
-          </div>
-        </div>
+        
       </header>
 
       {/* Tab Switcher */}

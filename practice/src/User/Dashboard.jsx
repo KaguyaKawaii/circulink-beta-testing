@@ -170,18 +170,50 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
     }
   }, [user, RESERVATIONS_ENDPOINT]);
 
-  // Fetch news
+  // Fetch news - FIXED with error handling for 404
   const fetchNews = useCallback(async () => {
     try {
+      console.log("Fetching news from:", NEWS_ENDPOINT);
       const { data } = await axios.get(NEWS_ENDPOINT);
-      setNewsList(data);
+      console.log("News response:", data);
+      
+      // Handle different response structures
+      if (data && data.news && Array.isArray(data.news)) {
+        setNewsList(data.news);
+      } else if (Array.isArray(data)) {
+        setNewsList(data);
+      } else if (data && data.data && Array.isArray(data.data)) {
+        setNewsList(data.data);
+      } else {
+        console.log("Unexpected news data format, setting empty array");
+        setNewsList([]);
+      }
     } catch (error) {
       console.error("Failed to fetch news:", error);
-      setNewsList([]);
+      
+      // Try fallback endpoint if 404
+      if (error.response && error.response.status === 404) {
+        try {
+          console.log("Trying fallback news endpoint");
+          const fallbackResponse = await axios.get(`${API_BASE_URL}/news`);
+          if (Array.isArray(fallbackResponse.data)) {
+            setNewsList(fallbackResponse.data);
+          } else if (fallbackResponse.data && fallbackResponse.data.news) {
+            setNewsList(fallbackResponse.data.news);
+          } else {
+            setNewsList([]);
+          }
+        } catch (fallbackError) {
+          console.error("Fallback news fetch also failed:", fallbackError);
+          setNewsList([]);
+        }
+      } else {
+        setNewsList([]);
+      }
     }
-  }, [NEWS_ENDPOINT]);
+  }, [NEWS_ENDPOINT, API_BASE_URL]);
 
-  // Fetch announcements - FIXED VERSION
+  // Fetch announcements
   const fetchAnnouncements = useCallback(async () => {
     try {
       console.log("Fetching announcements from:", `${ANNOUNCEMENTS_ENDPOINT}/active`);
@@ -293,17 +325,16 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
           params: { date: manilaDateStr },
         });
 
-// Replace both instances with this:
-setRoomStatuses(
-  Array.isArray(data)
-    ? data.map((r) => ({
-        floor: r.floor || "Unknown Floor",
-        room: r.room || "Unnamed Room",
-        isActive: r.isActive !== false, // ✅ Add this line
-        occupied: Array.isArray(r.occupied) ? r.occupied : [],
-      }))
-    : []
-);
+        setRoomStatuses(
+          Array.isArray(data)
+            ? data.map((r) => ({
+                floor: r.floor || "Unknown Floor",
+                room: r.room || "Unnamed Room",
+                isActive: r.isActive !== false,
+                occupied: Array.isArray(r.occupied) ? r.occupied : [],
+              }))
+            : []
+        );
 
       } catch (error) {
         console.error("Availability fetch error:", error);
@@ -362,13 +393,10 @@ setRoomStatuses(
     setCurrentAnnouncementIndex(0);
   };
 
-  // Event handlers
+  // Event handlers - REMOVED RESERVATION LIMIT
   const handleReserveClick = () => {
-    if (activeRes?.dayReservationCount >= 2) {
-      setShowBlock(true);
-    } else {
-      setView("reserve");
-    }
+    // No more limit check - directly go to reserve view
+    setView("reserve");
   };
 
   const handleDateClick = async (date) => {
@@ -384,17 +412,16 @@ setRoomStatuses(
         params: { date: manilaDateStr },
       });
 
-// Replace both instances with this:
-setRoomStatuses(
-  Array.isArray(data)
-    ? data.map((r) => ({
-        floor: r.floor || "Unknown Floor",
-        room: r.room || "Unnamed Room",
-        isActive: r.isActive !== false, // ✅ Add this line
-        occupied: Array.isArray(r.occupied) ? r.occupied : [],
-      }))
-    : []
-);
+      setRoomStatuses(
+        Array.isArray(data)
+          ? data.map((r) => ({
+              floor: r.floor || "Unknown Floor",
+              room: r.room || "Unnamed Room",
+              isActive: r.isActive !== false,
+              occupied: Array.isArray(r.occupied) ? r.occupied : [],
+            }))
+          : []
+      );
     } catch (error) {
       console.error("Availability fetch error:", error);
       setAvailError("Failed to load availability. Please try again later.");
@@ -770,25 +797,14 @@ setRoomStatuses(
             </div>
           </div>
 
-          {/* Reserve Room Button */}
+          {/* Reserve Room Button - UPDATED: No limit check */}
           <button
-            className={`relative overflow-hidden rounded-2xl w-full h-28 sm:h-36 flex items-center justify-center transition-all duration-300 shadow-lg group ${
-              activeRes?.dayReservationCount >= 2
-                ? "bg-gray-300 cursor-not-allowed"
-                : "bg-gradient-to-r from-red-500 via-red-600 to-red-700 hover:from-red-600 hover:via-red-700 hover:to-red-800 cursor-pointer focus:outline-none focus:ring-4 focus:ring-red-300 focus:ring-opacity-50"
-            }`}
+            className={`relative overflow-hidden rounded-2xl w-full h-28 sm:h-36 flex items-center justify-center transition-all duration-300 shadow-lg group bg-gradient-to-r from-red-500 via-red-600 to-red-700 hover:from-red-600 hover:via-red-700 hover:to-red-800 cursor-pointer focus:outline-none focus:ring-4 focus:ring-red-300 focus:ring-opacity-50`}
             onClick={handleReserveClick}
-            disabled={activeRes?.dayReservationCount >= 2}
-            aria-label={
-              activeRes?.dayReservationCount >= 2
-                ? "Reservation limit reached"
-                : "Reserve a room"
-            }
+            aria-label="Reserve a room"
           >
             {/* Animated background effect */}
-            {!activeRes?.dayReservationCount >= 2 && (
-              <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
-            )}
+            <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500"></div>
 
             {/* Shimmer effect */}
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -skew-x-12 transform translate-x-[-100%] group-hover:translate-x-[100%] transition-all duration-1000"></div>
@@ -811,11 +827,7 @@ setRoomStatuses(
               <h2 className="text-lg sm:text-xl md:text-2xl font-bold tracking-wide transition-all duration-300 text-center">
                 {hasActiveRes ? "Reservation Active" : "Reserve Room"}
               </h2>
-              {activeRes?.dayReservationCount >= 2 ? (
-                <p className="text-xs sm:text-sm font-medium mt-1 text-white/90 transition-all duration-300 text-center">
-                  Limit reached (2/day)
-                </p>
-              ) : hasActiveRes ? (
+              {hasActiveRes ? (
                 <p className="text-xs sm:text-sm font-medium mt-1 text-white/90 transition-all duration-300 text-center">
                   Check your current reservation
                 </p>
