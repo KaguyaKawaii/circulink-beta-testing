@@ -239,9 +239,12 @@ io.on("connection", (socket) => {
 // Make io accessible to routes
 app.set("io", io);
 
-// ✅ FIXED: Consistent API routes
+// ✅ FIXED: Mount news routes at both /news and /api/news for compatibility
+app.use("/news", newsRoutes);        // For frontend calls without /api
+app.use("/api/news", newsRoutes);    // For frontend calls with /api
+
+// ✅ FIXED: Consistent API routes for other modules
 app.use("/api/logs", logRoutes);
-app.use("/api/news", newsRoutes);
 app.use("/api/messages", messageRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use("/api/notifications", notificationRoutes);
@@ -345,6 +348,8 @@ mongoose
       // Log all registered routes for debugging
       console.log("\n📋 Registered Routes:");
       const routes = [
+        "/news (with and without /api)",
+        "/api/news (with and without /api)",
         "/api/users",
         "/api/users/search/users",
         "/api/reservations",
@@ -357,7 +362,6 @@ mongoose
         "/api/announcements",
         "/api/analytics",
         "/api/logs",
-        "/api/news",
         "/api/reports",
         "/api/system"
       ];

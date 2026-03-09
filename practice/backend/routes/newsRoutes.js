@@ -17,31 +17,32 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
 });
 
-// 🔹 Routes order is important!
+// 🔹 Routes order is important! 
+// 🔸 Put SPECIFIC routes BEFORE generic ones
 
-// Search news
+// Search news (specific path)
 router.get("/search/:query", newsController.searchNews);
 
-// Get archived news
+// Get archived news (specific path)
 router.get("/archived", newsController.getArchivedNews);
 
-// Get all active news
+// Get all active news (specific path)
 router.get("/active", newsController.getAllNews);
 
-// Get single news item by ID
-router.get("/:id", newsController.getNewsById);
-
-// Create news - upload.array("images") instead of upload.single("image")
-router.post("/", upload.array("images", 10), newsController.createNews);
-
-// Update news - upload.array("images") instead of upload.single("image")
-router.put("/:id", upload.array("images", 10), newsController.updateNews);
-
-// Archive / Restore
+// Archive / Restore (specific paths with actions)
 router.put("/archive/:id", newsController.archiveNews);
 router.put("/restore/:id", newsController.restoreNews);
 
-// Delete news (only archived)
+// Create news - upload.array("images", 10)
+router.post("/", upload.array("images", 10), newsController.createNews);
+
+// Update news
+router.put("/:id", upload.array("images", 10), newsController.updateNews);
+
+// Get single news item by ID (generic - should be near the end)
+router.get("/:id", newsController.getNewsById);
+
+// Delete news (only archived) - generic but should be after specific GET routes
 router.delete("/:id", newsController.deleteNews);
 
 export default router;
