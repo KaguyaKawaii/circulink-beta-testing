@@ -55,7 +55,7 @@ const MessageBubble = ({ message, isOwn, isUnread }) => {
     <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-2`}>
       <div className={`relative max-w-[75%] px-4 py-2 ${
         isOwn 
-          ? 'bg-blue-500 text-white rounded-2xl rounded-tr-none' 
+          ? 'bg-[#cc0000] text-white rounded-2xl rounded-tr-none' 
           : 'bg-gray-100 text-gray-800 rounded-2xl rounded-tl-none'
       }`}>
         {!isOwn && (
@@ -65,7 +65,7 @@ const MessageBubble = ({ message, isOwn, isUnread }) => {
         )}
         <div className="text-sm break-words whitespace-pre-wrap">{message.content}</div>
         <div className={`text-[10px] mt-1 flex items-center justify-end gap-1 ${
-          isOwn ? 'text-blue-100' : 'text-gray-500'
+          isOwn ? 'text-red-100' : 'text-gray-500'
         }`}>
           {formatTime(message.createdAt)}
           {isOwn && message.status === "sending" && (
@@ -76,7 +76,7 @@ const MessageBubble = ({ message, isOwn, isUnread }) => {
           )}
         </div>
         {isUnread && !isOwn && (
-          <div className="absolute -top-1 -left-1 w-2 h-2 bg-green-500 rounded-full"></div>
+          <div className="absolute -top-1 -left-1 w-2 h-2 bg-[#cc0000] rounded-full"></div>
         )}
       </div>
     </div>
@@ -102,7 +102,7 @@ const DateSeparator = ({ date }) => {
 const LoadingState = () => (
   <div className="flex-1 flex items-center justify-center">
     <div className="text-center">
-      <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+      <div className="w-8 h-8 border-2 border-[#cc0000] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
       <p className="text-sm text-gray-500">Loading messages...</p>
     </div>
   </div>
@@ -130,7 +130,7 @@ const ConversationItem = ({
 }) => {
   const getActiveColor = () => {
     if (!isActive) return 'hover:bg-gray-50';
-    return type === MESSAGE_TYPES.FLOOR ? 'bg-blue-50' : 'bg-blue-50';
+    return type === MESSAGE_TYPES.FLOOR ? 'bg-red-50' : 'bg-red-50';
   };
 
   return (
@@ -139,7 +139,7 @@ const ConversationItem = ({
       className={`w-full px-4 py-3 flex items-center justify-between rounded-lg transition-colors ${getActiveColor()}`}
     >
       <div className="flex-1 text-left">
-        <div className={`text-sm font-medium ${isActive ? 'text-blue-600' : 'text-gray-700'}`}>
+        <div className={`text-sm font-medium ${isActive ? 'text-[#cc0000]' : 'text-gray-700'}`}>
           {label}
         </div>
         {subtitle && (
@@ -147,7 +147,7 @@ const ConversationItem = ({
         )}
       </div>
       {unreadCount > 0 && (
-        <span className="bg-blue-500 text-white text-xs font-medium rounded-full w-5 h-5 flex items-center justify-center">
+        <span className="bg-[#cc0000] text-white text-xs font-medium rounded-full w-5 h-5 flex items-center justify-center">
           {unreadCount > 9 ? '9+' : unreadCount}
         </span>
       )}
@@ -161,14 +161,14 @@ const FloorItem = ({ floor, isSelected, unreadCount, onClick }) => {
     <button
       onClick={onClick}
       className={`w-full px-4 py-3 flex items-center justify-between rounded-lg transition-colors ${
-        isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'
+        isSelected ? 'bg-red-50' : 'hover:bg-gray-50'
       }`}
     >
-      <span className={`text-sm ${isSelected ? 'text-blue-600 font-medium' : 'text-gray-700'}`}>
+      <span className={`text-sm ${isSelected ? 'text-[#cc0000] font-medium' : 'text-gray-700'}`}>
         {floor}
       </span>
       {unreadCount > 0 && (
-        <span className="bg-blue-500 text-white text-xs font-medium rounded-full w-5 h-5 flex items-center justify-center">
+        <span className="bg-[#cc0000] text-white text-xs font-medium rounded-full w-5 h-5 flex items-center justify-center">
           {unreadCount > 9 ? '9+' : unreadCount}
         </span>
       )}
@@ -659,8 +659,8 @@ function Message({ user, setView, currentView }) {
             {/* Admin Info */}
             {activeTab === MESSAGE_TYPES.ADMIN && (
               <div className="mt-6 px-4">
-                <div className="bg-blue-50 rounded-lg p-4">
-                  <p className="text-sm text-blue-800">
+                <div className="bg-red-50 rounded-lg p-4">
+                  <p className="text-sm text-[#cc0000]">
                     Contact administration for account issues or general inquiries.
                   </p>
                 </div>
@@ -729,7 +729,7 @@ function Message({ user, setView, currentView }) {
               <button
                 onClick={sendMessage}
                 disabled={!newMessage.trim()}
-                className="px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-4 py-2 bg-[#cc0000] text-white text-sm font-medium rounded-lg hover:bg-[#b30000] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Send
               </button>
