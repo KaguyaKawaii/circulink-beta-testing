@@ -29,6 +29,10 @@ router.get("/archived", newsController.getArchivedNews);
 // Get all active news (specific path)
 router.get("/active", newsController.getAllNews);
 
+// ================== BULK OPERATIONS ==================
+router.post("/bulk-restore", newsController.bulkRestoreArchivedNews);
+router.post("/bulk-delete", newsController.bulkDeleteArchivedNews);
+
 // Archive / Restore (specific paths with actions)
 router.put("/archive/:id", newsController.archiveNews);
 router.put("/restore/:id", newsController.restoreNews);

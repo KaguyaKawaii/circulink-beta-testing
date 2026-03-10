@@ -95,6 +95,104 @@ export const restoreNews = async (req, res) => {
   }
 };
 
+// 🔄 Bulk Restore Archived News
+export const bulkRestoreArchivedNews = async (req, res) => {
+  try {
+    const { newsIds } = req.body;
+    
+    if (!newsIds || !Array.isArray(newsIds) || newsIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "No news IDs provided" 
+      });
+    }
+
+    // Update all selected news items to archived: false
+    const result = await News.updateMany(
+      { _id: { $in: newsIds }, archived: true },
+      { $set: { archived: false, updatedAt: new Date() } }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "No archived news found with the provided IDs" 
+      });
+    }
+
+    // Log bulk restoration
+    await Log.create({
+      userId: req.user?._id,
+      action: 'BULK_RESTORE_NEWS',
+      details: `Bulk restored ${result.modifiedCount} news items`,
+      id_number: 'N/A',
+      userName: req.user?.name || 'Admin'
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully restored ${result.modifiedCount} news items`,
+      count: result.modifiedCount
+    });
+  } catch (err) {
+    console.error("Error bulk restoring news:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: "Failed to bulk restore news.",
+      message: err.message 
+    });
+  }
+};
+
+// 🗑️ Bulk Delete Archived News (Permanently)
+export const bulkDeleteArchivedNews = async (req, res) => {
+  try {
+    const { newsIds } = req.body;
+    
+    if (!newsIds || !Array.isArray(newsIds) || newsIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "No news IDs provided" 
+      });
+    }
+
+    // Find news to be deleted (for logging)
+    const newsToDelete = await News.find({ _id: { $in: newsIds }, archived: true });
+    
+    if (newsToDelete.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "No archived news found with the provided IDs" 
+      });
+    }
+
+    // Delete permanently
+    const result = await News.deleteMany({ _id: { $in: newsIds }, archived: true });
+
+    // Log bulk deletion
+    await Log.create({
+      userId: req.user?._id,
+      action: 'BULK_DELETE_NEWS',
+      details: `Bulk deleted ${result.deletedCount} archived news items`,
+      id_number: 'N/A',
+      userName: req.user?.name || 'Admin'
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${result.deletedCount} archived news items`,
+      count: result.deletedCount
+    });
+  } catch (err) {
+    console.error("Error bulk deleting news:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: "Failed to bulk delete news.",
+      message: err.message 
+    });
+  }
+};
+
 // 📄 Get single news item
 export const getNewsById = async (req, res) => {
   try {
@@ -149,7 +247,8 @@ export const createNews = async (req, res) => {
       title, 
       content, 
       images: imageUrls,
-      image: imageUrls.length > 0 ? imageUrls[0] : null // First image for backward compatibility
+      image: imageUrls.length > 0 ? imageUrls[0] : null, // First image for backward compatibility
+      archived: false
     });
     
     await newNews.save();
@@ -224,7 +323,8 @@ export const updateNews = async (req, res) => {
         title, 
         content, 
         images: imageUrls,
-        image: imageUrls.length > 0 ? imageUrls[0] : null
+        image: imageUrls.length > 0 ? imageUrls[0] : null,
+        updatedAt: new Date()
       },
       { new: true, runValidators: true }
     );
