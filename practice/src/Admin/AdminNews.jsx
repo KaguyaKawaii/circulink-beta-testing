@@ -2,6 +2,20 @@ import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import AdminNavigation from "./AdminNavigation";
 import { Editor, EditorProvider } from "react-simple-wysiwyg";
+import { 
+  Eye, 
+  Trash2, 
+  RefreshCw, 
+  Search, 
+  ChevronDown, 
+  X, 
+  CheckSquare, 
+  Square,
+  AlertTriangle,
+  RotateCcw,
+  Filter,
+  Archive
+} from "lucide-react";
 
 function AdminNews({ setView, admin, onLogout }) {
   const [newsList, setNewsList] = useState([]);
@@ -23,6 +37,12 @@ function AdminNews({ setView, admin, onLogout }) {
   const [uploadProgress, setUploadProgress] = useState({}); // Track upload progress per image
   const [isDragging, setIsDragging] = useState(false);
   
+  // Selection State for Bulk Actions
+  const [selectedNews, setSelectedNews] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [showBulkArchiveConfirm, setShowBulkArchiveConfirm] = useState(false);
+  const [isBulkActionLoading, setIsBulkActionLoading] = useState(false);
+  
   const fileInputRef = useRef(null);
   const dropZoneRef = useRef(null);
 
@@ -37,6 +57,9 @@ function AdminNews({ setView, admin, onLogout }) {
     try {
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/news/active`);
       setNewsList(Array.isArray(res.data) ? res.data : []);
+      // Clear selections when fetching new data
+      setSelectedNews([]);
+      setSelectAll(false);
     } catch (err) {
       console.error("Error fetching news:", err);
       setNewsList([]);
@@ -61,6 +84,86 @@ function AdminNews({ setView, admin, onLogout }) {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  // Selection Handlers
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedNews([]);
+    } else {
+      const filteredIds = filteredNews.map(news => news._id);
+      setSelectedNews(filteredIds);
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleSelectNews = (newsId) => {
+    setSelectedNews(prev => {
+      if (prev.includes(newsId)) {
+        const newSelected = prev.filter(id => id !== newsId);
+        setSelectAll(false);
+        return newSelected;
+      } else {
+        const newSelected = [...prev, newsId];
+        // Check if all filtered news are selected
+        if (newSelected.length === filteredNews.length) {
+          setSelectAll(true);
+        }
+        return newSelected;
+      }
+    });
+  };
+
+  // Bulk Archive Handler
+  const handleBulkArchiveClick = () => {
+    if (selectedNews.length === 0) {
+      showAlert("No News Selected", "Please select at least one news item to archive.", "warning");
+      return;
+    }
+    setShowBulkArchiveConfirm(true);
+  };
+
+  const handleBulkArchiveConfirm = async () => {
+    if (selectedNews.length === 0) return;
+    
+    setIsBulkActionLoading(true);
+    
+    try {
+      // Use Promise.all to archive all selected news
+      const archivePromises = selectedNews.map(id => 
+        axios.put(`${import.meta.env.VITE_API_URL}/api/news/archive/${id}`)
+      );
+      
+      await Promise.all(archivePromises);
+      
+      showAlert(
+        "Success", 
+        `Successfully archived ${selectedNews.length} news item${selectedNews.length !== 1 ? 's' : ''}.`, 
+        "success"
+      );
+      
+      // Refresh news list
+      fetchNews();
+      
+      // Clear selections
+      setSelectedNews([]);
+      setSelectAll(false);
+      
+    } catch (err) {
+      console.error("Bulk archive error:", err);
+      showAlert(
+        "Error", 
+        err.response?.data?.message || "Failed to archive news. Please try again.", 
+        "error"
+      );
+    } finally {
+      setIsBulkActionLoading(false);
+      setShowBulkArchiveConfirm(false);
+    }
+  };
+
+  const handleBulkArchiveCancel = () => {
+    setShowBulkArchiveConfirm(false);
   };
 
   // Handle drag and drop events
@@ -599,6 +702,49 @@ function AdminNews({ setView, admin, onLogout }) {
             </div>
           )}
 
+          {/* Bulk Archive Confirmation Modal */}
+          {showBulkArchiveConfirm && (
+            <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+              <div className="bg-white p-6 rounded-xl w-full max-w-md border border-gray-200">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-orange-100 rounded-full">
+                    <Archive size={24} className="text-orange-600" />
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-800">Archive Multiple News</h2>
+                </div>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to archive {selectedNews.length} selected news item{selectedNews.length !== 1 ? 's' : ''}? This action cannot be undone.
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    className="px-4 py-2.5 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors font-medium cursor-pointer"
+                    onClick={handleBulkArchiveCancel}
+                    disabled={isBulkActionLoading}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    className="px-4 py-2.5 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors font-medium flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    onClick={handleBulkArchiveConfirm}
+                    disabled={isBulkActionLoading}
+                  >
+                    {isBulkActionLoading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Archiving...
+                      </>
+                    ) : (
+                      <>
+                        <Archive size={16} />
+                        Archive All
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Post Confirmation Modal */}
           {postConfirm && (
             <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -746,33 +892,77 @@ function AdminNews({ setView, admin, onLogout }) {
           )}
 
           {/* Search & Sort */}
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4 flex justify-between items-center">
-            <div className="relative w-1/3">
-              <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                <svg className="w-4 h-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20">
-                  <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="m19 19-4-4m0-7A7 7 0 1 1 1 8a7 7 0 0 1 14 0Z"/>
-                </svg>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-4">
+            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+              <div className="relative w-full md:w-1/3">
+                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                  <Search className="w-4 h-4 text-gray-500" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Search news..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="border border-gray-300 p-2.5 pl-10 rounded-lg w-full focus:ring-2 focus:ring-[#CC0000] outline-0 focus:border-transparent"
+                />
+                {search && (
+                  <button
+                    onClick={() => setSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
               </div>
-              <input
-                type="text"
-                placeholder="Search news..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="border border-gray-300 p-2.5 pl-10 rounded-lg w-full focus:ring-2 focus:ring-[#CC0000] outline-0 focus:border-transparent"
-              />
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Sort by:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-[#CC0000] outline-0 focus:border-transparent"
+                >
+                  <option value="newest">Newest</option>
+                  <option value="oldest">Oldest</option>
+                  <option value="az">Title A–Z</option>
+                  <option value="za">Title Z–A</option>
+                </select>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Sort by:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-[#CC0000] outline-0 focus:border-transparent"
+
+            {/* Bulk Actions Row */}
+            <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSelectAll}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-sm"
+                >
+                  {selectAll ? <Square size={16} /> : <CheckSquare size={16} />}
+                  <span>{selectAll ? "Deselect All" : "Select All"}</span>
+                </button>
+                <span className="text-sm text-gray-600">
+                  {selectedNews.length} item{selectedNews.length !== 1 ? 's' : ''} selected
+                </span>
+              </div>
+
+              {selectedNews.length > 0 && (
+                <button
+                  onClick={handleBulkArchiveClick}
+                  className="flex items-center gap-2 px-3 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors cursor-pointer text-sm"
+                >
+                  <Archive size={16} />
+                  <span>Archive Selected</span>
+                </button>
+              )}
+
+              <div className="flex-1"></div>
+
+              <button
+                onClick={fetchNews}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
               >
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="az">Title A–Z</option>
-                <option value="za">Title Z–A</option>
-              </select>
+                <RefreshCw size={16} />
+                <span>Refresh</span>
+              </button>
             </div>
           </div>
 
@@ -803,6 +993,14 @@ function AdminNews({ setView, admin, onLogout }) {
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
+                      <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                        <button
+                          onClick={handleSelectAll}
+                          className="text-gray-600 hover:text-gray-800"
+                        >
+                          {selectAll ? <CheckSquare size={18} /> : <Square size={18} />}
+                        </button>
+                      </th>
                       <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
                       <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
                       <th className="p-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
@@ -814,6 +1012,18 @@ function AdminNews({ setView, admin, onLogout }) {
                   <tbody className="bg-white divide-y divide-gray-200">
                     {paginatedNews.map((item, index) => (
                       <tr key={item._id} className="hover:bg-gray-50 transition-colors">
+                        <td className="p-3 whitespace-nowrap">
+                          <button
+                            onClick={() => handleSelectNews(item._id)}
+                            className="text-gray-600 hover:text-gray-800"
+                          >
+                            {selectedNews.includes(item._id) ? (
+                              <CheckSquare size={18} className="text-[#CC0000]" />
+                            ) : (
+                              <Square size={18} />
+                            )}
+                          </button>
+                        </td>
                         <td className="p-3 text-gray-700">{(page - 1) * itemsPerPage + index + 1}</td>
                         <td className="p-3 font-medium text-gray-900">{item.title}</td>
                         <td className="p-3">
@@ -853,10 +1063,7 @@ function AdminNews({ setView, admin, onLogout }) {
                               onClick={() => setViewNews(item)}
                               title="View"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              </svg>
+                              <Eye size={16} />
                             </button>
 
                             <button
@@ -878,13 +1085,11 @@ function AdminNews({ setView, admin, onLogout }) {
                             </button>
                             
                             <button
-                              className="text-[#CC0000] hover:text-red-800 p-2 rounded-md bg-red-50 hover:bg-red-100 transition-all cursor-pointer"
+                              className="text-orange-600 hover:text-orange-800 p-2 rounded-md bg-orange-50 hover:bg-orange-100 transition-all cursor-pointer"
                               onClick={() => setArchiveConfirm(item)}
                               title="Archive"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
+                              <Archive size={16} />
                             </button>
                           </div>
                         </td>
@@ -913,19 +1118,32 @@ function AdminNews({ setView, admin, onLogout }) {
                     Previous
                   </button>
                   <div className="flex gap-1">
-                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                      <button
-                        key={pageNum}
-                        onClick={() => setPage(pageNum)}
-                        className={`w-10 h-10 rounded-lg flex items-center justify-center cursor-pointer ${
-                          page === pageNum
-                            ? "bg-[#CC0000] text-white"
-                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                        } transition-colors`}
-                      >
-                        {pageNum}
-                      </button>
-                    ))}
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (page <= 3) {
+                        pageNum = i + 1;
+                      } else if (page >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = page - 2 + i;
+                      }
+                      
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setPage(pageNum)}
+                          className={`w-10 h-10 rounded-lg flex items-center justify-center cursor-pointer ${
+                            page === pageNum
+                              ? "bg-[#CC0000] text-white"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                          } transition-colors`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
                   </div>
                   <button
                     disabled={page === totalPages}
@@ -1010,6 +1228,23 @@ function AdminNews({ setView, admin, onLogout }) {
           type={alertModal.type}
           onClose={() => setAlertModal({ show: false, title: "", message: "", type: "info" })}
         />
+      )}
+
+      {/* Loading Overlay for Bulk Actions */}
+      {isBulkActionLoading && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-12 h-12 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                Processing
+              </h3>
+              <p className="text-gray-600 text-center">
+                Please wait while we archive the selected items...
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );
