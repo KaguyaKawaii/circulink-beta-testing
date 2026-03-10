@@ -256,7 +256,7 @@ function AdminDashboard({ setView }) {
       const endpoints = [
         { key: 'reservations', url: '/api/reservations' },
         // FIXED: Changed from '/api/users/all/users' to '/api/users/all' to match the controller
-        { key: 'users', url: '/api/users/all/users' },
+        { key: 'users', url: '/api/all/users' },
         { key: 'reports', url: '/api/reports' },
         { key: 'rooms', url: '/api/rooms' },
         { key: 'news', url: '/api/news/active' },

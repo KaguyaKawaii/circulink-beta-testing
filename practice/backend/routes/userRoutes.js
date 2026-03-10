@@ -10,50 +10,58 @@ router.post("/login", userController.login);
 router.post("/logout/:userId", userController.logout);
 router.post("/validate-session", userController.validateSession);
 
-// ================== SEARCH ROUTES ==================
+// ================== SEARCH ROUTES (MUST COME BEFORE /:id) ==================
 router.get("/search", userController.searchUsers);
 router.get("/search/users", userController.searchUsers);
 router.get("/check-participant", userController.checkParticipant);
 
-// ================== USER LIST ROUTES ==================
-router.get("/list/all", userController.getAllUsers);           // GET /api/users/list/all
-router.get("/list/archived", userController.getArchivedUsers); // GET /api/users/list/archived
-router.get("/list/role", userController.getUsersByRole);       // GET /api/users/list/role
-router.get("/list/messaging", userController.getAllUsersForMessaging); // GET /api/users/list/messaging
+// ================== STATIC ROUTES (MUST COME BEFORE /:id) ==================
+router.get("/archived/all", userController.getArchivedUsers);
 
-// ================== STATS ROUTES ==================
-router.get("/stats/verification", userController.getVerificationStats);
+// ✅ FIX: Add multiple aliases for getAllUsers to handle different frontend patterns
+router.get("/all/users", userController.getAllUsers);      // Your current backend route
+router.get("/all", userController.getAllUsers);            // Alternative pattern
+router.get("/list", userController.getAllUsers);           // Another alternative
+router.get("/users/all", userController.getAllUsers);      // What frontend is trying to access
+
+router.get("/role/users", userController.getUsersByRole);
 router.get("/test/cloudinary", userController.testCloudinary);
+router.get("/verification-stats", userController.getVerificationStats);
+router.get("/messaging", userController.getAllUsersForMessaging);
 
-// ================== UNREAD COUNTS ==================
+// ================== UNREAD COUNTS ROUTES (MUST COME BEFORE /:id) ==================
 router.get("/:userId/unread-counts", userController.getUserUnreadCounts);
 
-// ================== SINGLE USER ROUTES ==================
+// ================== USER BY ID ROUTE (GET) ==================
 router.get("/:id", userController.getUserById);
+
+// ================== UPDATE PROFILE ROUTE (PUT by ID) ==================
 router.put("/:id", userController.updateProfile);
+
+// ================== PROFILE ROUTES ==================
 router.put("/profile/:id", userController.updateProfile);
 router.post("/:id/upload-picture", upload.single("profile"), userController.uploadPicture);
 router.delete("/:id/remove-picture", userController.removePicture);
 router.put("/change-password/:id", userController.changePassword);
 
 // ================== ADMIN ROUTES ==================
-router.put("/admin/toggle-suspend/:id", userController.toggleSuspendUser);
-router.put("/admin/toggle-verify/:id", userController.toggleVerifyUser);
-router.put("/admin/suspend/:id", userController.suspendUser);
-router.put("/admin/unsuspend/:id", userController.unsuspendUser);
-router.patch("/admin/verify/:id", userController.verifyUser);
-router.put("/admin/archive/:id", userController.archiveUser);
-router.put("/admin/restore/:id", userController.restoreUser);
-router.put("/admin/edit/:id", upload.single("profile"), userController.adminEditUser);
-router.post("/admin/add", upload.single("profile"), userController.addUser);
-router.delete("/admin/archived/:id", userController.deleteArchivedUser);
-router.post("/admin/force-logout/:userId", userController.forceLogoutUser);
+router.put("/toggle-suspend/:id", userController.toggleSuspendUser);
+router.put("/toggle-verify/:id", userController.toggleVerifyUser);
+router.put("/suspend/:id", userController.suspendUser);
+router.put("/unsuspend/:id", userController.unsuspendUser);
+router.patch("/verify/:id", userController.verifyUser);
+router.put("/archive/:id", userController.archiveUser);
+router.put("/restore/:id", userController.restoreUser);
+router.put("/admin-edit/:id", upload.single("profile"), userController.adminEditUser);
+router.post("/add-user", upload.single("profile"), userController.addUser);
+router.delete("/archived/:id", userController.deleteArchivedUser);
+router.post("/force-logout/:userId", userController.forceLogoutUser);
 
-// ================== BULK OPERATIONS ==================
-router.post("/admin/bulk/revoke-verification", userController.revokeAllVerification);
-router.post("/admin/bulk/verify", userController.bulkVerifyUsers);
-router.post("/admin/bulk/archive", userController.bulkArchiveUsers);
-router.post("/admin/bulk/restore-archived", userController.bulkRestoreArchivedUsers);
-router.post("/admin/bulk/delete-archived", userController.bulkDeleteArchivedUsers);
+// ================== BULK OPERATIONS ROUTES ==================
+router.post("/revoke-all-verification", userController.revokeAllVerification);
+router.post("/bulk-verify", userController.bulkVerifyUsers);
+router.post("/bulk-archive", userController.bulkArchiveUsers);
+router.post("/bulk-restore-archived", userController.bulkRestoreArchivedUsers);
+router.post("/bulk-delete-archived", userController.bulkDeleteArchivedUsers);
 
 export default router;
