@@ -255,7 +255,8 @@ function AdminDashboard({ setView }) {
       // Define all API endpoints to fetch - using correct endpoints from your routes
       const endpoints = [
         { key: 'reservations', url: '/api/reservations' },
-        { key: 'users', url: '/api/users/all/users' }, // Corrected endpoint
+        // FIXED: Changed from '/api/users/all/users' to '/api/users/all' to match the controller
+        { key: 'users', url: '/api/users/all' },
         { key: 'reports', url: '/api/reports' },
         { key: 'rooms', url: '/api/rooms' },
         { key: 'news', url: '/api/news/active' },
@@ -303,7 +304,14 @@ function AdminDashboard({ setView }) {
       Array.isArray(array) ? array.filter(item => item.status === status).length : 0;
 
     // Process data with safe fallbacks
-    const usersData = Array.isArray(data.users) ? data.users : [];
+    // FIXED: Handle the response structure from getAllUsers which returns { success: true, users: [...] }
+    let usersData = [];
+    if (data.users && data.users.success && Array.isArray(data.users.users)) {
+      usersData = data.users.users;
+    } else if (Array.isArray(data.users)) {
+      usersData = data.users;
+    }
+    
     const reservationsData = Array.isArray(data.reservations) ? data.reservations : [];
     const reportsData = Array.isArray(data.reports) ? data.reports : [];
     const roomsData = Array.isArray(data.rooms) ? data.rooms : [];
@@ -764,7 +772,7 @@ function AdminDashboard({ setView }) {
                 </div>
               </div>
 
-              {/* Users Card */}
+              {/* Users Card - Now showing correct count */}
               <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
                 <div className="flex items-center justify-between mb-4">
                   <div className="p-3 rounded-xl bg-green-50 text-green-600">
