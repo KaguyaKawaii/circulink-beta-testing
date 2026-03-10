@@ -61,6 +61,9 @@ function AdminReservations({ setView, onLogout }) {
   const [dailyActivities, setDailyActivities] = useState([]);
   const [roomUsage, setRoomUsage] = useState({});
   const [viewMode, setViewMode] = useState("list");
+  
+  // Date Filter State
+  const [dateFilter, setDateFilter] = useState("all"); // "today" or "all"
 
   const formatPHDateTime = (date) =>
     date
@@ -362,6 +365,7 @@ function AdminReservations({ setView, onLogout }) {
     setSelectedReservation(null);
   };
 
+  // Filter reservations based on status, search, and date
   const filteredReservations = reservations.filter((res) => {
     const reserver = res.userId?.name || "";
     const matchesStatus = filter === "All" || res.status === filter;
@@ -369,7 +373,20 @@ function AdminReservations({ setView, onLogout }) {
       reserver.toLowerCase().includes(search.toLowerCase()) ||
       (res.roomName || "").toLowerCase().includes(search.toLowerCase()) ||
       (res.location || "").toLowerCase().includes(search.toLowerCase());
-    return matchesStatus && matchesSearch;
+    
+    // Date filter logic
+    let matchesDate = true;
+    if (dateFilter === "today") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const reservationDate = new Date(res.datetime);
+      matchesDate = reservationDate >= today && reservationDate < tomorrow;
+    }
+    
+    return matchesStatus && matchesSearch && matchesDate;
   });
 
   const StatCard = ({ title, value, icon, color, subtitle }) => (
@@ -475,6 +492,32 @@ function AdminReservations({ setView, onLogout }) {
                   Daily Logs
                 </button>
               </div>
+
+              {/* Date Filter Toggle (only in list view) */}
+              {viewMode === "list" && (
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setDateFilter("all")}
+                    className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
+                      dateFilter === "all" 
+                        ? "bg-blue-600 text-white" 
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    All Reservations
+                  </button>
+                  <button
+                    onClick={() => setDateFilter("today")}
+                    className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
+                      dateFilter === "today" 
+                        ? "bg-blue-600 text-white" 
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    Today's Reservations
+                  </button>
+                </div>
+              )}
 
               {/* Search */}
               <div className="relative flex-1">
@@ -723,6 +766,16 @@ function AdminReservations({ setView, onLogout }) {
           ) : (
             /* LIST VIEW */
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              {/* Date filter info */}
+              <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
+                <div className="flex items-center">
+                  <CalendarIcon size={16} className="text-gray-500 mr-2" />
+                  <span className="text-sm text-gray-600">
+                    {dateFilter === "today" ? "Showing today's reservations only" : "Showing all reservations"}
+                  </span>
+                </div>
+              </div>
+              
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
