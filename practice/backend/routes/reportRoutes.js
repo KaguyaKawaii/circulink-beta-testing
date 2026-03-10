@@ -12,6 +12,10 @@ router.get("/:id", reportController.getReportById); // GET report by ID
 router.post("/", reportController.createReport); // CREATE new report
 router.post("/:id/start", reportController.startReport); // START report (staff begins work)
 
+// ================== BULK OPERATIONS ==================
+router.post("/bulk-restore-archived", reportController.bulkRestoreArchivedReports); // BULK RESTORE archived reports
+router.post("/bulk-delete-archived", reportController.bulkDeleteArchivedReports); // BULK DELETE archived reports
+
 router.put("/:id/status", reportController.updateReportStatus); // UPDATE report status
 router.put("/:id/resolve", reportController.resolveReport); // RESOLVE report
 router.put("/:id/archive", reportController.archiveReport); // ARCHIVE report

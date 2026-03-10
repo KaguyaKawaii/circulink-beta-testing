@@ -414,6 +414,151 @@ export const restoreReport = async (req, res) => {
 };
 
 /* ------------------------------------------------
+   ✅ Bulk Restore Archived Reports
+------------------------------------------------ */
+export const bulkRestoreArchivedReports = async (req, res) => {
+  try {
+    const { archivedIds, restoredBy } = req.body;
+    
+    if (!archivedIds || !Array.isArray(archivedIds) || archivedIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "No archived report IDs provided" 
+      });
+    }
+
+    // Get restorer info for logging
+    let restorerName = "Admin";
+    let restorerIdNumber = "N/A";
+    
+    if (restoredBy) {
+      const restorer = await User.findById(restoredBy);
+      if (restorer) {
+        restorerName = restorer.name;
+        restorerIdNumber = restorer.id_number || "N/A";
+      }
+    }
+
+    // Find all archived reports
+    const archivedReports = await ArchivedReport.find({
+      _id: { $in: archivedIds }
+    });
+
+    if (archivedReports.length === 0) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "No archived reports found" 
+      });
+    }
+
+    // Create new active reports from archived data
+    const restoredReports = await Promise.all(
+      archivedReports.map(async (archivedReport) => {
+        const restoredReport = await Report.create({
+          reportedBy: archivedReport.reportedBy,
+          userId: archivedReport.userId,
+          category: archivedReport.category,
+          details: archivedReport.details,
+          floor: archivedReport.floor,
+          room: archivedReport.room,
+          status: "Pending",
+          assignedTo: null,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+        return restoredReport;
+      })
+    );
+
+    // Delete from archived collection
+    await ArchivedReport.deleteMany({
+      _id: { $in: archivedIds }
+    });
+
+    // Log bulk restoration
+    await logAction(
+      restoredBy || null,
+      restorerIdNumber,
+      restorerName,
+      "Bulk Restore",
+      `Bulk restored ${archivedReports.length} reports from archive by ${restorerName}`
+    );
+
+    res.json({
+      success: true,
+      message: `Successfully restored ${archivedReports.length} reports`,
+      count: archivedReports.length,
+      reports: restoredReports
+    });
+  } catch (err) {
+    console.error("❌ Error bulk restoring reports:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+};
+
+/* ------------------------------------------------
+   ✅ Bulk Delete Archived Reports (Permanently)
+------------------------------------------------ */
+export const bulkDeleteArchivedReports = async (req, res) => {
+  try {
+    const { archivedIds, deletedBy } = req.body;
+    
+    if (!archivedIds || !Array.isArray(archivedIds) || archivedIds.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "No archived report IDs provided" 
+      });
+    }
+
+    // Get deleter info for logging
+    let deleterName = "Admin";
+    let deleterIdNumber = "N/A";
+    
+    if (deletedBy) {
+      const deleter = await User.findById(deletedBy);
+      if (deleter) {
+        deleterName = deleter.name;
+        deleterIdNumber = deleter.id_number || "N/A";
+      }
+    }
+
+    // Find reports for logging
+    const reports = await ArchivedReport.find({
+      _id: { $in: archivedIds }
+    });
+
+    // Delete from archived collection
+    const result = await ArchivedReport.deleteMany({
+      _id: { $in: archivedIds }
+    });
+
+    // Log bulk deletion
+    await logAction(
+      deletedBy || null,
+      deleterIdNumber,
+      deleterName,
+      "Bulk Delete",
+      `Bulk deleted ${result.deletedCount} archived reports by ${deleterName}`
+    );
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${result.deletedCount} archived reports`,
+      count: result.deletedCount
+    });
+  } catch (err) {
+    console.error("❌ Error bulk deleting reports:", err);
+    res.status(500).json({ 
+      success: false, 
+      error: err.message 
+    });
+  }
+};
+
+/* ------------------------------------------------
    ✅ Delete Archived Report (Permanently delete) - FIXED
 ------------------------------------------------ */
 export const deleteArchivedReport = async (req, res) => {
