@@ -247,53 +247,53 @@ function AdminDashboard({ setView }) {
     }
   };
 
-  const fetchAllData = useCallback(async () => {
-    try {
-      setRefreshing(true);
-      setError(null);
-      
-      // Define all API endpoints to fetch - using correct endpoints from your routes
-      const endpoints = [
-        { key: 'reservations', url: '/api/reservations' },
-        // FIXED: Changed from '/api/users/all/users' to '/api/users/all' to match the controller
-        { key: 'users', url: '/api/all/users' },
-        { key: 'reports', url: '/api/reports' },
-        { key: 'rooms', url: '/api/rooms' },
-        { key: 'news', url: '/api/news/active' },
-        { key: 'logs', url: '/api/logs' },
-        { key: 'adminRecipients', url: '/api/messages/recipients/admin' } // This one works
-      ];
+const fetchAllData = useCallback(async () => {
+  try {
+    setRefreshing(true);
+    setError(null);
+    
+    // Define all API endpoints to fetch - using correct endpoints from your routes
+    const endpoints = [
+      { key: 'reservations', url: '/api/reservations' },
+      // ✅ FIXED: Changed from '/api/all/users' to '/api/users/all' to match your routes
+      { key: 'users', url: '/api/users/all' },
+      { key: 'reports', url: '/api/reports' },
+      { key: 'rooms', url: '/api/rooms' },
+      { key: 'news', url: '/api/news/active' },
+      { key: 'logs', url: '/api/logs' },
+      { key: 'adminRecipients', url: '/api/messages/recipients/admin' }
+    ];
 
-      // Fetch all data in parallel with error handling for each
-      const fetchPromises = endpoints.map(async (endpoint) => {
-        try {
-          const data = await apiService.get(endpoint.url);
-          return { key: endpoint.key, data };
-        } catch (error) {
-          console.log(`⚠️ Failed to fetch ${endpoint.key}, using empty data`);
-          return { key: endpoint.key, data: [] };
-        }
-      });
+    // Fetch all data in parallel with error handling for each
+    const fetchPromises = endpoints.map(async (endpoint) => {
+      try {
+        const data = await apiService.get(endpoint.url);
+        return { key: endpoint.key, data };
+      } catch (error) {
+        console.log(`⚠️ Failed to fetch ${endpoint.key}, using empty data`);
+        return { key: endpoint.key, data: [] };
+      }
+    });
 
-      const results = await Promise.all(fetchPromises);
-      
-      // Process results
-      const data = {};
-      results.forEach(result => {
-        data[result.key] = result.data;
-      });
+    const results = await Promise.all(fetchPromises);
+    
+    // Process results
+    const data = {};
+    results.forEach(result => {
+      data[result.key] = result.data;
+    });
 
-      // Process and validate data
-      processFetchedData(data);
+    // Process and validate data
+    processFetchedData(data);
 
-    } catch (error) {
-      console.error("Error fetching dashboard data:", error);
-      setError("Some dashboard data failed to load. Showing available information.");
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+  } catch (error) {
+    console.error("Error fetching dashboard data:", error);
+    setError("Some dashboard data failed to load. Showing available information.");
+  } finally {
+    setLoading(false);
+    setRefreshing(false);
+  }
+}, []);
 
   const processFetchedData = (data) => {
     // Helper function to safely get array length
