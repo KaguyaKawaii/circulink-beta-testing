@@ -953,7 +953,7 @@ function AlertModal({ title, message, type = "info", onClose }) {
             onClick={onClose}
             className="w-full px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 font-medium text-sm cursor-pointer outline-0"
           >
-            OK
+            OK!
           </button>
         </div>
       </div>
