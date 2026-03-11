@@ -22,6 +22,7 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
+  const [resolveError, setResolveError] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [actionTaken, setActionTaken] = useState("");
@@ -91,12 +92,13 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
 
     // Validate action taken
     if (!actionTaken || actionTaken.trim() === "") {
-      alert("Please describe the action taken to resolve this report.");
+      setResolveError("Please describe the action taken to resolve this report.");
       return;
     }
 
     try {
       setActionLoading(true);
+      setResolveError("");
       
       const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
       const resolvedBy = currentUser._id || "admin";
@@ -107,24 +109,17 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
       });
       
       if (response.data.success || response.data.message) {
-        alert("Report resolved successfully!");
+        // Success - close modal and refresh
         onReportUpdated?.();
         setShowConfirmModal(false);
         setActionTaken(""); // Clear the input
-        
-        // Refresh report data
-        const updatedReport = await axios.get(`${API_URL}/${report._id}`);
-        if (updatedReport.data.success && updatedReport.data.report) {
-          setReport(updatedReport.data.report);
-        } else {
-          setReport(updatedReport.data);
-        }
+        onClose(); // Close the main modal
       } else {
-        alert("Failed to resolve report: " + (response.data.message || "Unknown error"));
+        setResolveError(response.data.message || "Failed to resolve report");
       }
     } catch (err) {
       console.error("Error resolving report:", err);
-      alert("Failed to resolve report: " + (err.response?.data?.message || err.message));
+      setResolveError(err.response?.data?.message || err.message || "Failed to resolve report");
     } finally {
       setActionLoading(false);
     }
@@ -523,6 +518,13 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
                 Please describe the action taken to resolve this report:
               </p>
               
+              {resolveError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+                  <AlertCircle size={16} className="text-red-600 flex-shrink-0" />
+                  <p className="text-sm text-red-700">{resolveError}</p>
+                </div>
+              )}
+              
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Action Taken *
@@ -545,6 +547,7 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
                   onClick={() => {
                     setShowConfirmModal(false);
                     setActionTaken("");
+                    setResolveError("");
                   }}
                   className="px-4 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200 hover:bg-gray-100 rounded-lg"
                   disabled={actionLoading}
