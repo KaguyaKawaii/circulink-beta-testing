@@ -277,8 +277,6 @@ function AdminReports({ setView, onLogout }) {
         return `${baseClasses} bg-yellow-100 text-yellow-800 border border-yellow-200`;
       case "Resolved":
         return `${baseClasses} bg-green-100 text-green-800 border border-green-200`;
-      case "In Progress":
-        return `${baseClasses} bg-blue-100 text-blue-800 border border-blue-200`;
       default:
         return `${baseClasses} bg-gray-100 text-gray-800 border border-gray-300`;
     }
@@ -288,8 +286,6 @@ function AdminReports({ setView, onLogout }) {
     switch (status) {
       case "Pending":
         return <Clock size={12} className="mr-1" />;
-      case "In Progress":
-        return <Wrench size={12} className="mr-1" />;
       case "Resolved":
         return <CheckCircle size={12} className="mr-1" />;
       default:
@@ -519,7 +515,7 @@ function AdminReports({ setView, onLogout }) {
                 value={statusFilter} 
                 setValue={setStatusFilter} 
                 label="Status" 
-                options={["All", "Pending", "In Progress", "Resolved"]} 
+                options={["All", "Pending", "Resolved"]} 
               />
 
               {/* Category filter */}
