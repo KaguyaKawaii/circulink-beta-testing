@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import AdminNavigation from "./AdminNavigation";
-import ReportModal from "./Modals/ReportModal";  // Fixed import
+import ReportModal from "./Modals/ReportModal";
 import {
   Eye,
   Trash2,
@@ -11,7 +11,6 @@ import {
   X,
   Download,
   Filter,
-  Save,
   ChevronLeft,
   ChevronRight,
   ChevronUp,
@@ -30,7 +29,6 @@ import {
   CheckSquare,
   Square
 } from "lucide-react";
-
 
 function AdminReports({ setView, onLogout }) {
   const [reports, setReports] = useState([]);
@@ -331,8 +329,7 @@ function AdminReports({ setView, onLogout }) {
         (report.reportedBy || "").toLowerCase().includes(search.toLowerCase()) ||
         (report.floor || "").toLowerCase().includes(search.toLowerCase()) ||
         (report.room || "").toLowerCase().includes(search.toLowerCase()) ||
-        (report.details || "").toLowerCase().includes(search.toLowerCase()) ||
-        (report.assignedTo?.name || "").toLowerCase().includes(search.toLowerCase());
+        (report.details || "").toLowerCase().includes(search.toLowerCase());
       
       const matchesDate = (() => {
         if (dateFilter === "All") return true;
@@ -362,10 +359,7 @@ function AdminReports({ setView, onLogout }) {
         let aValue = a[sortConfig.key];
         let bValue = b[sortConfig.key];
 
-        if (sortConfig.key === "assignedTo") {
-          aValue = a.assignedTo?.name || "Unassigned";
-          bValue = b.assignedTo?.name || "Unassigned";
-        } else if (sortConfig.key === "details") {
+        if (sortConfig.key === "details") {
           aValue = a.details || "";
           bValue = b.details || "";
         }
@@ -435,7 +429,7 @@ function AdminReports({ setView, onLogout }) {
     try {
       setIsExporting(true);
       
-      const headers = ["Category", "Reported By", "Floor", "Room", "Status", "Date Reported", "Details", "Assigned Staff"];
+      const headers = ["Category", "Reported By", "Floor", "Room", "Status", "Date Reported", "Details"];
       const csvContent = [
         headers.join(","),
         ...filteredAndSortedReports.map(report => [
@@ -445,8 +439,7 @@ function AdminReports({ setView, onLogout }) {
           `"${report.room || ""}"`,
           `"${report.status || ""}"`,
           `"${formatDateOnly(report.createdAt)}"`,
-          `"${(report.details || "").replace(/"/g, '""')}"`,
-          `"${report.assignedTo?.name || "Unassigned"}"`
+          `"${(report.details || "").replace(/"/g, '""')}"`
         ].join(","))
       ].join("\n");
 
@@ -481,7 +474,7 @@ function AdminReports({ setView, onLogout }) {
                 Report Management
               </h1>
               <p className="text-gray-600">
-                Manage, assign, and resolve facility reports
+                Manage and resolve facility reports
               </p>
             </div>
             <div className="flex items-center space-x-4">
@@ -508,7 +501,7 @@ function AdminReports({ setView, onLogout }) {
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by category, reported by, location, problem, or assigned staff..."
+                  placeholder="Search by category, reported by, location, or problem..."
                   className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-0"
                 />
                 {search && (
@@ -567,14 +560,6 @@ function AdminReports({ setView, onLogout }) {
               >
                 <Download size={16} />
                 {isExporting ? "Exporting..." : "Export"}
-              </button>
-
-              <button
-                onClick={() => setShowPresetModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
-              >
-                <Save size={16} />
-                <span>Save Filter</span>
               </button>
             </div>
 
@@ -683,15 +668,6 @@ function AdminReports({ setView, onLogout }) {
                     </th>
                     <th 
                       className="px-6 py-3 text-left font-medium cursor-pointer hover:bg-gray-100 transition-colors"
-                      onClick={() => handleSort("assignedTo")}
-                    >
-                      <div className="flex items-center gap-1">
-                        Assigned Staff
-                        {getSortIcon("assignedTo")}
-                      </div>
-                    </th>
-                    <th 
-                      className="px-6 py-3 text-left font-medium cursor-pointer hover:bg-gray-100 transition-colors"
                       onClick={() => handleSort("createdAt")}
                     >
                       <div className="flex items-center gap-1">
@@ -705,13 +681,13 @@ function AdminReports({ setView, onLogout }) {
                 <tbody className="divide-y divide-gray-200">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={10} className="px-6 py-4 text-center text-gray-500 font-bold">
+                      <td colSpan={9} className="px-6 py-4 text-center text-gray-500 font-bold">
                         Loading reports...
                       </td>
                     </tr>
                   ) : paginatedReports.length === 0 ? (
                     <tr>
-                      <td colSpan={10} className="px-6 py-4 text-center text-gray-500">
+                      <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
                         <div className="flex flex-col items-center justify-center">
                           <FileText size={48} className="text-gray-300 mb-2" />
                           <span>No reports found</span>
@@ -787,18 +763,6 @@ function AdminReports({ setView, onLogout }) {
                             {getStatusIcon(report.status)}
                             {report.status}
                           </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            {report.assignedTo ? (
-                              <>
-                                <Users size={14} className="text-gray-400" />
-                                <span className="text-gray-900">{report.assignedTo.name}</span>
-                              </>
-                            ) : (
-                              <span className="text-gray-400 text-sm">Unassigned</span>
-                            )}
-                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
