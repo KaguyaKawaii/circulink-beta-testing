@@ -425,7 +425,7 @@ function AdminReports({ setView, onLogout }) {
     showConfirmation("Success", "Filter preset deleted!", null);
   };
 
-  const exportToCSV = async () => {
+  const exportToCSV = () => {
     try {
       setIsExporting(true);
       
@@ -453,7 +453,7 @@ function AdminReports({ setView, onLogout }) {
       link.click();
       document.body.removeChild(link);
       
-      showConfirmation("Success", "Reports exported successfully!", null);
+      // No confirmation modal here - direct download
     } catch (err) {
       console.error("Error exporting reports:", err);
       showConfirmation("Error", "Failed to export reports: " + err.message, null);
@@ -559,7 +559,7 @@ function AdminReports({ setView, onLogout }) {
                 className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors cursor-pointer"
               >
                 <Download size={16} />
-                {isExporting ? "Exporting..." : "Export"}
+                {isExporting ? "Exporting..." : "Export CSV"}
               </button>
             </div>
 
@@ -905,51 +905,6 @@ function AdminReports({ setView, onLogout }) {
                     <RefreshCw size={16} className="animate-spin" />
                   )}
                   {confirmationModal.loading ? "Processing..." : "Confirm"}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Save Filter Preset Modal */}
-      {showPresetModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-lg max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-blue-100 rounded-full">
-                  <Save size={24} className="text-blue-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Save Filter Preset
-                </h3>
-              </div>
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Preset Name
-                </label>
-                <input
-                  type="text"
-                  value={presetName}
-                  onChange={(e) => setPresetName(e.target.value)}
-                  placeholder="Enter a name for this filter preset..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 outline-0"
-                  onKeyPress={(e) => e.key === "Enter" && saveFilterPreset()}
-                />
-              </div>
-              <div className="flex justify-end space-x-3">
-                <button
-                  onClick={() => setShowPresetModal(false)}
-                  className="px-4 py-2 text-gray-600 hover:text-gray-800 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveFilterPreset}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 cursor-pointer"
-                >
-                  Save Preset
                 </button>
               </div>
             </div>
