@@ -38,6 +38,13 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   const [participantToRemove, setParticipantToRemove] = useState(null);
   const [showAddParticipantModal, setShowAddParticipantModal] = useState(false);
 
+  // Extension states
+  const [extensionReason, setExtensionReason] = useState("");
+  const [extensionMinutes, setExtensionMinutes] = useState(30);
+  const [extensionHours, setExtensionHours] = useState(0);
+  const [customEndTime, setCustomEndTime] = useState("");
+  const [extensionType, setExtensionType] = useState("fixed");
+
   // Helper function to get participant ID consistently
   const getParticipantId = (participant) => {
     return participant.id_number || participant.idNumber || participant._id;
@@ -46,6 +53,18 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   // Helper function to get participant name consistently
   const getParticipantName = (participant) => {
     return participant.name || `${participant.firstName || ''} ${participant.lastName || ''}`.trim() || 'N/A';
+  };
+
+  // Helper function to format datetime for input
+  const formatDateTimeForInput = (date) => {
+    if (!date) return "";
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const hours = String(d.getHours()).padStart(2, '0');
+    const minutes = String(d.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
   // Load reservation from localStorage on component mount and when reservation prop changes
@@ -187,6 +206,21 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   const reservationUserId = getReservationUserId();
   const isMainReserver = user && reservationUserId === user._id;
   const isStaffOrAdmin = user && (user.role === "Staff" || user.role === "Admin");
+
+  // Calculate min and max for extension
+  const getExtendedEndTime = () => {
+    if (!localReservation?.extendedEndDatetime) return null;
+    return new Date(localReservation.extendedEndDatetime);
+  };
+
+  const extendedEndTime = getExtendedEndTime();
+  const originalEndTime = localReservation ? new Date(localReservation.endDatetime) : null;
+  const currentEndTime = extendedEndTime || originalEndTime;
+
+  const minExtensionTime = currentEndTime ? new Date(currentEndTime) : null;
+  const maxExtensionTime = localReservation?.maxExtendedEndDatetime 
+    ? new Date(localReservation.maxExtendedEndDatetime)
+    : (currentEndTime ? new Date(currentEndTime.getTime() + 4 * 60 * 60 * 1000) : null); // 4 hours max by default
 
   // Participant management functions
   const fetchAvailableUsers = async (search = "") => {
@@ -358,7 +392,11 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
           endpoint = `${import.meta.env.VITE_API_URL}/api/reservations/${localReservation._id}/request-extension`;
           method = "put";
           requestData = { 
-            reason: data.reason || "Need more time"
+            extensionType: data.extensionType || "fixed",
+            extensionReason: data.extensionReason || "",
+            extensionMinutes: data.extensionMinutes || 0,
+            extensionHours: data.extensionHours || 0,
+            customEndTime: data.customEndTime || null
           };
           break;
 
@@ -426,12 +464,43 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
 
   const handleShowExtendModal = () => {
     setShowExtendModal(true);
+    // Reset extension form
+    setExtensionReason("");
+    setExtensionMinutes(30);
+    setExtensionHours(0);
+    setCustomEndTime("");
+    setExtensionType("fixed");
   };
 
   const handleExtendSubmit = async () => {
-    await handleAction("request-extension", {
-      extensionType: "continuous"
-    });
+    // Calculate total minutes for fixed extension
+    const totalMinutes = (parseInt(extensionHours) * 60) + parseInt(extensionMinutes);
+    
+    let requestData = {
+      extensionType: extensionType,
+      extensionReason: extensionReason
+    };
+
+    if (extensionType === "fixed") {
+      requestData = {
+        ...requestData,
+        extensionMinutes: totalMinutes,
+        extensionHours: parseInt(extensionHours)
+      };
+    } else if (extensionType === "continuous") {
+      requestData = {
+        ...requestData,
+        extensionType: "continuous"
+      };
+    } else if (extensionType === "custom" && customEndTime) {
+      requestData = {
+        ...requestData,
+        extensionType: "custom",
+        customEndTime: customEndTime
+      };
+    }
+
+    await handleAction("request-extension", requestData);
     setShowExtendModal(false);
   };
 
@@ -467,24 +536,29 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
     refreshReservationData();
   };
 
-  const formatTimeOnly = (datetime) =>
-    new Date(datetime).toLocaleString("en-PH", {
+  const formatTimeOnly = (datetime) => {
+    if (!datetime) return "N/A";
+    return new Date(datetime).toLocaleString("en-PH", {
       timeZone: "Asia/Manila",
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
     });
+  };
 
-  const formatDateOnly = (datetime) =>
-    new Date(datetime).toLocaleString("en-PH", {
+  const formatDateOnly = (datetime) => {
+    if (!datetime) return "N/A";
+    return new Date(datetime).toLocaleString("en-PH", {
       timeZone: "Asia/Manila",
       year: "numeric",
       month: "long",
       day: "numeric",
     });
+  };
 
-  const formatDateTime = (datetime) =>
-    new Date(datetime).toLocaleString("en-PH", {
+  const formatDateTime = (datetime) => {
+    if (!datetime) return "N/A";
+    return new Date(datetime).toLocaleString("en-PH", {
       timeZone: "Asia/Manila",
       year: "numeric",
       month: "long",
@@ -493,6 +567,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
       minute: "2-digit",
       hour12: true,
     });
+  };
 
   // Skeleton loader component
   const SkeletonLoader = () => (
@@ -538,15 +613,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
       </div>
     );
   }
-
-  const getExtendedEndTime = () => {
-    if (!localReservation.extendedEndDatetime) return null;
-    return new Date(localReservation.extendedEndDatetime);
-  };
-
-  const extendedEndTime = getExtendedEndTime();
-  const originalEndTime = new Date(localReservation.endDatetime);
-  const currentEndTime = extendedEndTime || originalEndTime;
 
   const statusColorClass = {
     Pending: "bg-yellow-100 text-yellow-800 border border-yellow-200",
@@ -1414,229 +1480,229 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         </div>
       )}
 
-{/* Extend Modal - Updated with manual time selection */}
-{showExtendModal && (
-  <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[90] p-2 sm:p-4">
-    <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 mx-2">
-      <div className="flex items-center mb-4">
-        <div className="bg-purple-100 p-2 rounded-full mr-3">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <h3 className="text-xl font-semibold text-gray-800">Request Time Extension</h3>
-      </div>
-      
-      <div className="space-y-4 mb-6 max-h-[60vh] overflow-y-auto pr-1">
-        {/* Current Schedule */}
-        <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
-          <p className="text-xs font-medium text-gray-500 mb-1">Current End Time</p>
-          <p className="text-sm font-semibold text-gray-900">{formatTimeOnly(currentEndTime)}</p>
-        </div>
-
-        {/* Extension Type Selection */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Extension Type
-          </label>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                setExtensionType("fixed");
-                setExtensionMinutes(30);
-                setExtensionHours(0);
-                setCustomEndTime("");
-              }}
-              className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
-                extensionType === "fixed"
-                  ? "bg-purple-600 text-white border-purple-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              Fixed
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setExtensionType("continuous");
-                setExtensionMinutes(0);
-                setExtensionHours(0);
-                setCustomEndTime("");
-              }}
-              className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
-                extensionType === "continuous"
-                  ? "bg-purple-600 text-white border-purple-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              Continuous
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setExtensionType("custom");
-                setExtensionMinutes(0);
-                setExtensionHours(0);
-              }}
-              className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
-                extensionType === "custom"
-                  ? "bg-purple-600 text-white border-purple-600"
-                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-              }`}
-            >
-              Custom
-            </button>
-          </div>
-        </div>
-
-        {/* Fixed Extension Controls */}
-        {extensionType === "fixed" && (
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Hours
-              </label>
-              <select
-                value={extensionHours}
-                onChange={(e) => setExtensionHours(parseInt(e.target.value))}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-              >
-                {[0, 1, 2, 3, 4].map(hours => (
-                  <option key={hours} value={hours}>{hours} hour{hours !== 1 ? 's' : ''}</option>
-                ))}
-              </select>
+      {/* Extend Modal - Updated with manual time selection */}
+      {showExtendModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[90] p-2 sm:p-4">
+          <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 mx-2">
+            <div className="flex items-center mb-4">
+              <div className="bg-purple-100 p-2 rounded-full mr-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-semibold text-gray-800">Request Time Extension</h3>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Minutes
-              </label>
-              <select
-                value={extensionMinutes}
-                onChange={(e) => setExtensionMinutes(parseInt(e.target.value))}
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-              >
-                {[0, 15, 30, 45].map(minutes => (
-                  <option key={minutes} value={minutes}>{minutes} minutes</option>
-                ))}
-              </select>
-            </div>
-            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-              <p className="text-sm text-purple-700">
-                Total extension: <span className="font-bold">{extensionHours} hour{extensionHours !== 1 ? 's' : ''} {extensionMinutes > 0 ? `${extensionMinutes} minutes` : ''}</span>
-              </p>
-              <p className="text-xs text-purple-600 mt-1">
-                New end time: {formatTimeOnly(new Date(currentEndTime.getTime() + (extensionHours * 60 + extensionMinutes) * 60000))}
-              </p>
-            </div>
-          </div>
-        )}
+            
+            <div className="space-y-4 mb-6 max-h-[60vh] overflow-y-auto pr-1">
+              {/* Current Schedule */}
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <p className="text-xs font-medium text-gray-500 mb-1">Current End Time</p>
+                <p className="text-sm font-semibold text-gray-900">{formatTimeOnly(currentEndTime)}</p>
+              </div>
 
-        {/* Continuous Extension Info */}
-        {extensionType === "continuous" && (
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-              </svg>
+              {/* Extension Type Selection */}
               <div>
-                <p className="text-sm font-medium text-blue-800 mb-1">Continuous Extension</p>
-                <p className="text-xs text-blue-700">
-                  Your reservation will continue automatically until you end it, staff ends it, or until the next reservation starts.
-                </p>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Extension Type
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExtensionType("fixed");
+                      setExtensionMinutes(30);
+                      setExtensionHours(0);
+                      setCustomEndTime("");
+                    }}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
+                      extensionType === "fixed"
+                        ? "bg-purple-600 text-white border-purple-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    Fixed
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExtensionType("continuous");
+                      setExtensionMinutes(0);
+                      setExtensionHours(0);
+                      setCustomEndTime("");
+                    }}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
+                      extensionType === "continuous"
+                        ? "bg-purple-600 text-white border-purple-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    Continuous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setExtensionType("custom");
+                      setExtensionMinutes(0);
+                      setExtensionHours(0);
+                    }}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
+                      extensionType === "custom"
+                        ? "bg-purple-600 text-white border-purple-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    Custom
+                  </button>
+                </div>
+              </div>
+
+              {/* Fixed Extension Controls */}
+              {extensionType === "fixed" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Hours
+                    </label>
+                    <select
+                      value={extensionHours}
+                      onChange={(e) => setExtensionHours(parseInt(e.target.value))}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    >
+                      {[0, 1, 2, 3, 4].map(hours => (
+                        <option key={hours} value={hours}>{hours} hour{hours !== 1 ? 's' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Minutes
+                    </label>
+                    <select
+                      value={extensionMinutes}
+                      onChange={(e) => setExtensionMinutes(parseInt(e.target.value))}
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    >
+                      {[0, 15, 30, 45].map(minutes => (
+                        <option key={minutes} value={minutes}>{minutes} minutes</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                    <p className="text-sm text-purple-700">
+                      Total extension: <span className="font-bold">{extensionHours} hour{extensionHours !== 1 ? 's' : ''} {extensionMinutes > 0 ? `${extensionMinutes} minutes` : ''}</span>
+                    </p>
+                    <p className="text-xs text-purple-600 mt-1">
+                      New end time: {currentEndTime ? formatTimeOnly(new Date(currentEndTime.getTime() + (extensionHours * 60 + extensionMinutes) * 60000)) : "N/A"}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Continuous Extension Info */}
+              {extensionType === "continuous" && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-blue-800 mb-1">Continuous Extension</p>
+                      <p className="text-xs text-blue-700">
+                        Your reservation will continue automatically until you end it, staff ends it, or until the next reservation starts.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Custom End Time */}
+              {extensionType === "custom" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select New End Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={customEndTime}
+                    onChange={(e) => setCustomEndTime(e.target.value)}
+                    min={minExtensionTime ? formatDateTimeForInput(minExtensionTime) : ""}
+                    max={maxExtensionTime ? formatDateTimeForInput(maxExtensionTime) : ""}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  />
+                  {maxExtensionTime && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Maximum extension until: {formatTimeOnly(maxExtensionTime)}
+                      {localReservation.maxExtendedEndDatetime && " (due to next reservation)"}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Reason/Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Extension <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={extensionReason}
+                  onChange={(e) => setExtensionReason(e.target.value)}
+                  placeholder="Please explain why you need additional time for your reservation..."
+                  rows="4"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
+                  required
+                />
+              </div>
+
+              {/* Info Banner */}
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-sm text-blue-700">
+                    Your extension request will be reviewed by staff. You'll receive a notification once it's processed.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* Custom End Time */}
-        {extensionType === "custom" && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Select New End Time
-            </label>
-            <input
-              type="datetime-local"
-              value={customEndTime}
-              onChange={(e) => setCustomEndTime(e.target.value)}
-              min={formatDateTimeForInput(minExtensionTime)}
-              max={formatDateTimeForInput(maxExtensionTime)}
-              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-            />
-            {maxExtensionTime && (
-              <p className="text-xs text-gray-500 mt-1">
-                Maximum extension until: {formatTimeOnly(maxExtensionTime)}
-                {localReservation.maxExtendedEndDatetime && " (due to next reservation)"}
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* Reason/Notes */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Reason for Extension <span className="text-red-500">*</span>
-          </label>
-          <textarea
-            value={extensionReason}
-            onChange={(e) => setExtensionReason(e.target.value)}
-            placeholder="Please explain why you need additional time for your reservation..."
-            rows="4"
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
-            required
-          />
-        </div>
-
-        {/* Info Banner */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-            <p className="text-sm text-blue-700">
-              Your extension request will be reviewed by staff. You'll receive a notification once it's processed.
-            </p>
+            <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+              <button
+                onClick={() => {
+                  setShowExtendModal(false);
+                  setExtensionReason("");
+                  setExtensionMinutes(30);
+                  setExtensionHours(0);
+                  setCustomEndTime("");
+                  setExtensionType("fixed");
+                }}
+                className="w-full sm:w-auto px-6 py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer font-medium min-h-[44px]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleExtendSubmit}
+                disabled={
+                  !extensionReason.trim() || 
+                  processingAction === "request-extension" || 
+                  (extensionType === "fixed" && extensionHours === 0 && extensionMinutes === 0) ||
+                  (extensionType === "custom" && !customEndTime)
+                }
+                className="w-full sm:w-auto px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors flex items-center justify-center cursor-pointer font-medium min-h-[44px]"
+              >
+                {processingAction === "request-extension" ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Requesting...
+                  </>
+                ) : (
+                  "Request Extension"
+                )}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-
-      <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
-        <button
-          onClick={() => {
-            setShowExtendModal(false);
-            setExtensionReason("");
-            setExtensionMinutes(30);
-            setExtensionHours(0);
-            setCustomEndTime("");
-            setExtensionType("fixed");
-          }}
-          className="w-full sm:w-auto px-6 py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer font-medium min-h-[44px]"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handleExtendSubmit}
-          disabled={
-            !extensionReason.trim() || 
-            processingAction === "request-extension" || 
-            (extensionType === "fixed" && extensionHours === 0 && extensionMinutes === 0) ||
-            (extensionType === "custom" && !customEndTime)
-          }
-          className="w-full sm:w-auto px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors flex items-center justify-center cursor-pointer font-medium min-h-[44px]"
-        >
-          {processingAction === "request-extension" ? (
-            <>
-              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Requesting...
-            </>
-          ) : (
-            "Request Extension"
-          )}
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
 
       {/* Remove Participant Confirmation Modal */}
       {showRemoveConfirm && participantToRemove && (
