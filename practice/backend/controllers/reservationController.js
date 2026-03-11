@@ -1439,7 +1439,7 @@ export const requestExtension = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ HANDLE EXTENSION REQUEST - UPDATED
+   ✅ HANDLE EXTENSION REQUEST - FIXED TIME ADDITION
 ------------------------------------------------ */
 export const handleExtension = async (req, res) => {
   try {
@@ -1467,14 +1467,48 @@ export const handleExtension = async (req, res) => {
     let updateData = {};
     
     if (action === "approve") {
-      // Approve the extension
+      // Calculate the new end time based on extension type
+      let newEndTime;
+      const currentEndTime = new Date(reservation.endDatetime);
+      
+      if (reservation.extensionType === "fixed") {
+        // Add the requested minutes/hours to the current end time
+        const totalMinutes = (reservation.extensionHours * 60) + reservation.extensionMinutes;
+        newEndTime = new Date(currentEndTime.getTime() + totalMinutes * 60000);
+        console.log(`📊 Fixed extension: Adding ${totalMinutes} minutes to end time`);
+      } 
+      else if (reservation.extensionType === "custom" && reservation.extendedEndDatetime) {
+        // Use the custom end time directly
+        newEndTime = new Date(reservation.extendedEndDatetime);
+        console.log(`📊 Custom extension: Setting end time to ${newEndTime}`);
+      } 
+      else if (reservation.extensionType === "continuous") {
+        // For continuous, use the previously calculated extended end time
+        newEndTime = reservation.extendedEndDatetime || 
+                    new Date(currentEndTime.getTime() + 2 * 60 * 60 * 1000); // Default 2 hours if not set
+        console.log(`📊 Continuous extension: Setting end time to ${newEndTime}`);
+      } 
+      else {
+        // Default fallback
+        newEndTime = reservation.extendedEndDatetime || 
+                    new Date(currentEndTime.getTime() + 60 * 60 * 1000); // Default 1 hour
+      }
+
+      // Ensure we don't exceed maximum allowed time
+      if (reservation.maxExtendedEndDatetime && newEndTime > new Date(reservation.maxExtendedEndDatetime)) {
+        newEndTime = new Date(reservation.maxExtendedEndDatetime);
+        console.log(`⚠️ Extension capped to max allowed: ${newEndTime}`);
+      }
+
+      // Approve the extension and update the end time
       updateData = {
         extensionStatus: "Approved",
-        // Update the end datetime to the extended time
-        endDatetime: reservation.extendedEndDatetime || reservation.endDatetime
+        endDatetime: newEndTime, // ✅ THIS IS KEY - actually update the reservation end time
+        extensionApprovedAt: new Date()
       };
       
       console.log('✅ Extension approved for reservation:', reservation._id);
+      console.log(`🕒 New end time: ${newEndTime}`);
       
     } else if (action === "reject") {
       // Reject the extension - reset extension fields but KEEP extensionRequested as true
@@ -1496,13 +1530,13 @@ export const handleExtension = async (req, res) => {
       });
     }
 
-    // Use findByIdAndUpdate to avoid validation issues with roomId
+    // Use findByIdAndUpdate to update the reservation
     const updatedReservation = await Reservation.findByIdAndUpdate(
       id,
       { $set: updateData },
       { 
         new: true,
-        runValidators: false // Skip validation to avoid roomId requirement
+        runValidators: true // Enable validation to ensure dates are valid
       }
     );
 
@@ -1519,7 +1553,9 @@ export const handleExtension = async (req, res) => {
         updatedReservation.userId?.id_number || "N/A",
         updatedReservation.userId?.name || "N/A",
         `Extension ${action === "approve" ? "Approved" : "Rejected"}`,
-        `Extension ${action === "approve" ? "approved" : "rejected"} for reservation in ${updatedReservation.roomName}`
+        `Extension ${action === "approve" ? "approved" : "rejected"} for reservation in ${updatedReservation.roomName}. ${
+          action === "approve" ? `New end time: ${new Date(updatedReservation.endDatetime).toLocaleString()}` : ""
+        }`
       );
     } catch (logError) {
       console.warn("⚠️ Failed to log extension action:", logError.message);
@@ -1528,6 +1564,20 @@ export const handleExtension = async (req, res) => {
     // ✅ CREATE NOTIFICATION
     try {
       if (typeof notificationService.createNotification === 'function') {
+        let notificationMessage = `Your extension request has been ${action === "approve" ? "approved" : "rejected"}.`;
+        
+        if (action === "approve") {
+          const formattedTime = new Date(updatedReservation.endDatetime).toLocaleString("en-PH", {
+            timeZone: "Asia/Manila",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+            month: "short",
+            day: "numeric"
+          });
+          notificationMessage = `Your extension request has been approved. New end time: ${formattedTime}`;
+        }
+        
         await notificationService.createNotification(
           {
             userId: updatedReservation.userId,
@@ -1536,15 +1586,42 @@ export const handleExtension = async (req, res) => {
             status: action === "approve" ? "approved" : "rejected",
             targetRole: "user",
             roomName: updatedReservation.roomName,
-            message: `Your extension request has been ${action === "approve" ? "approved" : "rejected"}. ${
-              action === "approve" ? "The reservation end time has been updated." : ""
-            }`
+            message: notificationMessage
           },
           req.app.get("io")
         );
       }
     } catch (notifError) {
       console.warn("⚠️ Failed to create notification:", notifError.message);
+    }
+
+    // ✅ Send email notification
+    try {
+      const user = await User.findById(updatedReservation.userId);
+      if (user?.email) {
+        const subject = `Extension Request ${action === "approve" ? "Approved" : "Rejected"}`;
+        const html = `
+          <h2>Extension Request ${action === "approve" ? "Approved" : "Rejected"}</h2>
+          <p>Dear ${user.name},</p>
+          <p>Your request to extend the reservation for <strong>${updatedReservation.roomName}</strong> has been <strong>${action === "approve" ? "approved" : "rejected"}</strong>.</p>
+          ${action === "approve" ? `
+            <p><strong>New End Time:</strong> ${new Date(updatedReservation.endDatetime).toLocaleString("en-PH", {
+              timeZone: "Asia/Manila",
+              dateStyle: "full",
+              timeStyle: "short"
+            })}</p>
+          ` : ''}
+          <p>Thank you for using our reservation system.</p>
+        `;
+        
+        await sendEmail({
+          to: user.email,
+          subject,
+          html
+        });
+      }
+    } catch (emailError) {
+      console.warn("⚠️ Failed to send extension email:", emailError.message);
     }
 
     res.json({
