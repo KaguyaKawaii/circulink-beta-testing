@@ -771,18 +771,29 @@ function ReserveRoom({ user, setView }) {
     return slot ? slot.display : "Select Time";
   };
 
-  const handleRoomSelect = (room) => {
-    if (!room.isActive) {
-      showAlert("This room is currently unavailable. Please select another room.");
-      return;
-    }
-    
-    setFormData((prev) => ({
-      ...prev,
-      roomName: room.room,
-      room_Id: room._id,
-    }));
+  // ✅ FIXED: Allow clicking on any room to view details, but only select if available and user has access
+  const handleRoomClick = (room) => {
+    // Always show room details
     setSelectedRoomDetails(room);
+    
+    // Only select the room (set as form data) if it's active and user has access
+    if (room.isActive && canReserveFloor(room.floor)) {
+      setFormData((prev) => ({
+        ...prev,
+        roomName: room.room,
+        room_Id: room._id,
+      }));
+    } else if (!room.isActive) {
+      showAlert("This room is currently unavailable. You can view details but cannot reserve it.");
+    } else if (!canReserveFloor(room.floor)) {
+      if (room.floor === "Ground Floor") {
+        showAlert("Ground Floor is reserved for Graduate students only. You can view details but cannot reserve this room.");
+      } else if (room.floor === "2nd Floor") {
+        showAlert("2nd Floor is reserved for College of Law students only. You can view details but cannot reserve this room.");
+      } else {
+        showAlert("You don't have access to this floor. You can view details but cannot reserve this room.");
+      }
+    }
   };
 
   const getRoomImage = (room) => {
@@ -1606,31 +1617,16 @@ function ReserveRoom({ user, setView }) {
                   return (
                     <button
                       key={room._id}
-                      onClick={() => {
-                        if (!canReserve) {
-                          if (room.floor === "Ground Floor") {
-                            showAlert("Ground Floor is reserved for Graduate students only.");
-                          } else if (room.floor === "2nd Floor") {
-                            showAlert("2nd Floor is reserved for College of Law students only.");
-                          } else {
-                            showAlert("You don't have access to this floor.");
-                          }
-                          return;
-                        }
-                        if (!isDisabled) {
-                          handleRoomSelect(room);
-                        }
-                      }}
+                      onClick={() => handleRoomClick(room)}
                       className={`border-2 rounded-2xl w-full sm:w-[280px] md:w-[300px] h-[250px] sm:h-[280px] md:h-[300px] flex justify-center items-center cursor-pointer relative overflow-hidden transition-all duration-200 ${
-                        isSelected
+                        isSelected && room.isActive && canReserve
                           ? "border-[#CC0000] ring-2 ring-red-100 bg-red-50"
-                          : isDisabled
-                          ? "border-gray-300 bg-gray-100 cursor-not-allowed opacity-60"
-                          : !canReserve
-                          ? "border-gray-300 bg-gray-100 cursor-not-allowed opacity-60"
+                          : isSelected && (!room.isActive || !canReserve)
+                          ? "border-gray-400 ring-2 ring-gray-200 bg-gray-50"
+                          : isDisabled || !canReserve
+                          ? "border-gray-300 bg-gray-100 cursor-pointer opacity-60"
                           : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                       }`}
-                      disabled={isDisabled || !canReserve}
                     >
                       {roomImage && (
                         <img
@@ -1656,6 +1652,13 @@ function ReserveRoom({ user, setView }) {
                       {!canReserve && !isDisabled && (
                         <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
                           Restricted
+                        </div>
+                      )}
+                      
+                      {/* View Details Badge */}
+                      {(isDisabled || !canReserve) && (
+                        <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
+                          Click to View Details
                         </div>
                       )}
                       
