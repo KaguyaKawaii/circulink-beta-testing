@@ -22,8 +22,7 @@ import {
   Shield,
   IdCard,
   BookOpen,
-  GraduationCap,
-  Hourglass
+  GraduationCap
 } from "lucide-react";
 
 const ReservationModal = ({ 
@@ -59,38 +58,39 @@ const ReservationModal = ({
     const configs = {
       Pending: { 
         color: "bg-amber-100 text-amber-800 border-amber-200", 
-        icon: <Hourglass size={14} />,
-        label: "Waiting for Approval"
+        icon: <Clock size={14} />,
+        // Only change: updated the display text
+        displayText: "Waiting for Approval"
       },
       Approved: { 
         color: "bg-emerald-100 text-emerald-800 border-emerald-200", 
         icon: <CheckCircle size={14} />,
-        label: "Approved - Ready to Start"
+        displayText: "Approved"
       },
       Ongoing: { 
         color: "bg-blue-100 text-blue-800 border-blue-200", 
         icon: <Play size={14} />,
-        label: "In Progress"
+        displayText: "Ongoing"
       },
       Rejected: { 
         color: "bg-rose-100 text-rose-800 border-rose-200", 
         icon: <XCircle size={14} />,
-        label: "Rejected"
+        displayText: "Rejected"
       },
       Cancelled: { 
         color: "bg-gray-100 text-gray-800 border-gray-300", 
         icon: <XCircle size={14} />,
-        label: "Cancelled"
+        displayText: "Cancelled"
       },
       Expired: { 
         color: "bg-orange-100 text-orange-800 border-orange-200", 
         icon: <Clock size={14} />,
-        label: "Expired"
+        displayText: "Expired"
       },
       Completed: { 
         color: "bg-violet-100 text-violet-800 border-violet-200", 
         icon: <CheckCircle size={14} />,
-        label: "Completed"
+        displayText: "Completed"
       }
     };
     return configs[status] || configs.Pending;
@@ -125,6 +125,7 @@ const handleAction = async (action, data = {}) => {
         break;
 
       case "end-early":
+        // ✅ FIXED: Correct endpoint structure
         endpoint = `${import.meta.env.VITE_API_URL}/api/reservations/${reservation._id}/end-early`;
         method = "post";
         break;
@@ -138,8 +139,7 @@ const handleAction = async (action, data = {}) => {
         endpoint = `${import.meta.env.VITE_API_URL}/api/reservations/${reservation._id}/request-extension`;
         method = "put";
         requestData = { 
-          extensionReason: data.reason || "Need more time",
-          extensionType: "continuous"
+          reason: data.reason || "Need more time"
         };
         break;
 
@@ -158,8 +158,6 @@ const handleAction = async (action, data = {}) => {
       default:
         throw new Error("Unknown action");
     }
-
-    console.log(`Executing ${action} action:`, { endpoint, method, requestData });
 
     const response = await axios({
       method,
@@ -197,7 +195,8 @@ const handleAction = async (action, data = {}) => {
 
   const handleRequestExtension = async () => {
     await handleAction("request-extension", {
-      reason: extensionReason
+      extensionType: "continuous",
+      extensionReason: extensionReason
     });
     setShowExtensionModal(false);
     setExtensionReason("");
@@ -212,7 +211,7 @@ const handleAction = async (action, data = {}) => {
   const originalEndTime = new Date(reservation.endDatetime);
   const currentEndTime = extendedEndTime || originalEndTime;
 
-  // Get all participants
+  // Get only the additional participants (excluding main reserver)
   const allParticipants = reservation.participants || [];
   const totalParticipants = allParticipants.length;
 
@@ -262,7 +261,7 @@ const handleAction = async (action, data = {}) => {
               className="px-4 py-2.5 bg-rose-600 text-white rounded-lg hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium text-sm flex items-center gap-2"
             >
               <XCircle size={16} />
-              {isProcessing && processingAction === 'cancel' ? "Cancelling..." : "Cancel Reservation"}
+              {isProcessing && processingAction === 'cancel' ? "Cancelling..." : "Cancel"}
             </button>
           );
         }
@@ -327,7 +326,7 @@ const handleAction = async (action, data = {}) => {
                 className="px-3 py-2 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium text-xs flex items-center gap-1"
               >
                 <XCircle size={14} />
-                Reject Extension
+                Reject
               </button>
               <button
                 onClick={handleApproveExtension}
@@ -335,7 +334,7 @@ const handleAction = async (action, data = {}) => {
                 className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium text-xs flex items-center gap-1"
               >
                 <CheckCircle size={14} />
-                Approve Extension
+                Approve
               </button>
             </div>
           );
@@ -347,7 +346,7 @@ const handleAction = async (action, data = {}) => {
               className="px-4 py-2.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-all duration-200 font-medium text-sm flex items-center gap-2"
             >
               <Plus size={16} />
-              Request Extension
+              Extend Time
             </button>
           );
         }
@@ -398,7 +397,7 @@ const handleAction = async (action, data = {}) => {
             </div>
             <div className="flex items-center gap-1">
               <Building size={12} />
-              <span className="truncate">{participant.department || "N/A"}</span>
+              <span className="truncate">{participant.department}</span>
             </div>
             {(participant.course && participant.course !== "N/A") && (
               <div className="flex items-center gap-1">
@@ -446,7 +445,8 @@ const handleAction = async (action, data = {}) => {
             <div className="flex items-center gap-3">
               <div className={`px-3 py-1.5 rounded-full border flex items-center gap-2 text-sm font-medium ${statusConfig.color}`}>
                 {statusConfig.icon}
-                <span>{statusConfig.label}</span>
+                {/* Use displayText instead of status */}
+                {statusConfig.displayText}
               </div>
               <button
                 onClick={onClose}
@@ -496,7 +496,7 @@ const handleAction = async (action, data = {}) => {
                   title="Total Participants"
                   value={totalParticipants}
                   icon={<Users size={20} />}
-                  subtitle="Including main reserver"
+                  subtitle="Additional members only"
                 />
                 <InfoCard
                   title="Start Time"
@@ -569,8 +569,8 @@ const handleAction = async (action, data = {}) => {
                       <Users size={20} className="text-gray-600" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">All Participants</h3>
-                      <p className="text-sm text-gray-600">{totalParticipants} total participant(s)</p>
+                      <h3 className="text-lg font-semibold text-gray-900">Additional Participants</h3>
+                      <p className="text-sm text-gray-600">{totalParticipants} additional member(s)</p>
                     </div>
                   </div>
                   <div className="px-3 py-1.5 bg-gray-100 text-gray-800 rounded-full text-sm font-medium">
@@ -579,37 +579,6 @@ const handleAction = async (action, data = {}) => {
                 </div>
 
                 <div className="space-y-3">
-                  {/* Main Reserver */}
-                  {reservation.userId && (
-                    <div className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm bg-gradient-to-br from-blue-500 to-blue-600">
-                          {reservation.userId.name?.charAt(0) || "M"}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
-                            <p className="font-semibold text-gray-900 truncate">{reservation.userId.name}</p>
-                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">
-                              Main Reserver
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-gray-600">
-                            <div className="flex items-center gap-1">
-                              <IdCard size={12} />
-                              <span className="font-mono truncate">{reservation.userId.id_number}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Building size={12} />
-                              <span className="truncate">{reservation.userId.department || "N/A"}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
-                    </div>
-                  )}
-
-                  {/* Additional Participants */}
                   {allParticipants.map((participant, index) => (
                     <ParticipantCard
                       key={index}
@@ -637,7 +606,7 @@ const handleAction = async (action, data = {}) => {
                   <div className="space-y-3">
                     <div className="flex justify-between items-center py-2 border-b border-gray-100">
                       <span className="text-gray-600">Reservation ID</span>
-                      <span className="font-mono text-sm text-gray-900">{reservation._id}</span>
+                      <span className="font-mono text-sm text-gray-900">{reservation._id?.slice(-8)}</span>
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-gray-100">
                       <span className="text-gray-600">Created</span>
@@ -646,10 +615,6 @@ const handleAction = async (action, data = {}) => {
                     <div className="flex justify-between items-center py-2 border-b border-gray-100">
                       <span className="text-gray-600">Last Updated</span>
                       <span className="text-gray-900">{formatPHDateTime(reservation.updatedAt)}</span>
-                    </div>
-                    <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                      <span className="text-gray-600">Room ID</span>
-                      <span className="font-mono text-sm text-gray-900">{reservation.room_Id}</span>
                     </div>
                   </div>
                 </div>
@@ -673,12 +638,6 @@ const handleAction = async (action, data = {}) => {
                           <span className="font-semibold text-amber-900">{formatPHDateTime(reservation.extendedEndDatetime)}</span>
                         </div>
                       )}
-                      {reservation.extensionReason && (
-                        <div className="mt-3 pt-3 border-t border-amber-200">
-                          <p className="text-sm text-amber-800 font-medium mb-1">Reason:</p>
-                          <p className="text-sm text-amber-700">{reservation.extensionReason}</p>
-                        </div>
-                      )}
                     </div>
                   </div>
                 )}
@@ -696,11 +655,6 @@ const handleAction = async (action, data = {}) => {
               {isMainReserver && (
                 <span className="ml-2 px-2 py-1 bg-gray-200 text-gray-700 rounded text-xs font-medium">
                   Main Reserver
-                </span>
-              )}
-              {isStaffOrAdmin && !isMainReserver && (
-                <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium">
-                  Staff/Admin
                 </span>
               )}
             </div>
