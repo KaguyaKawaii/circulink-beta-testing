@@ -41,7 +41,8 @@ const ReservationModal = ({
 
   if (!reservation) return null;
 
-  const isStaffOrAdmin = currentUser?.role === "Staff" || currentUser?.role === "Admin";
+  const isAdmin = currentUser?.role === "Admin";
+  const isStaff = currentUser?.role === "Staff";
   const isMainReserver = currentUser?._id === reservation.userId?._id;
 
   const formatPHDateTime = (iso) => {
@@ -59,7 +60,6 @@ const ReservationModal = ({
       Pending: { 
         color: "bg-amber-100 text-amber-800 border-amber-200", 
         icon: <Clock size={14} />,
-        // Only change: updated the display text
         displayText: "Waiting for Approval"
       },
       Approved: { 
@@ -125,7 +125,6 @@ const handleAction = async (action, data = {}) => {
         break;
 
       case "end-early":
-        // ✅ FIXED: Correct endpoint structure
         endpoint = `${import.meta.env.VITE_API_URL}/api/reservations/${reservation._id}/end-early`;
         method = "post";
         break;
@@ -218,7 +217,8 @@ const handleAction = async (action, data = {}) => {
   const statusConfig = getStatusConfig(reservation.status);
 
   const renderActionButtons = () => {
-    if (!isStaffOrAdmin && !isMainReserver) {
+    // If user is not admin and not main reserver, only show close button
+    if (!isAdmin && !isMainReserver) {
       return (
         <button
           onClick={onClose}
@@ -231,7 +231,8 @@ const handleAction = async (action, data = {}) => {
 
     switch (reservation.status) {
       case "Pending":
-        if (isStaffOrAdmin) {
+        // Only admin can approve/reject pending reservations
+        if (isAdmin) {
           return (
             <div className="flex gap-2">
               <button
@@ -253,6 +254,7 @@ const handleAction = async (action, data = {}) => {
             </div>
           );
         }
+        // Main reserver can only cancel pending reservations
         if (isMainReserver) {
           return (
             <button
@@ -269,8 +271,9 @@ const handleAction = async (action, data = {}) => {
 
       case "Approved":
         const actions = [];
-              
-        if (isStaffOrAdmin) {
+        
+        // Both admin and staff can start approved reservations
+        if (isAdmin || isStaff) {
           actions.push(
             <button
               key="start"
@@ -284,6 +287,7 @@ const handleAction = async (action, data = {}) => {
           );
         }
         
+        // Main reserver can cancel approved reservations
         if (isMainReserver) {
           actions.push(
             <button
@@ -298,12 +302,20 @@ const handleAction = async (action, data = {}) => {
           );
         }
 
-        return actions;
+        return actions.length > 0 ? actions : (
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 font-medium text-sm"
+          >
+            Close
+          </button>
+        );
 
       case "Ongoing":
         const ongoingActions = [];
         
-        if (isStaffOrAdmin) {
+        // Both admin and staff can end ongoing reservations early
+        if (isAdmin || isStaff) {
           ongoingActions.push(
             <button
               key="end-early"
@@ -317,7 +329,8 @@ const handleAction = async (action, data = {}) => {
           );
         }
 
-        if (reservation.extensionRequested && reservation.extensionStatus === "Pending" && isStaffOrAdmin) {
+        // Admin can handle extension requests
+        if (reservation.extensionRequested && reservation.extensionStatus === "Pending" && isAdmin) {
           ongoingActions.push(
             <div key="extension-actions" className="flex gap-2">
               <button
@@ -338,7 +351,9 @@ const handleAction = async (action, data = {}) => {
               </button>
             </div>
           );
-        } else if (isMainReserver && !reservation.extensionRequested) {
+        } 
+        // Main reserver can request extension if not already requested
+        else if (isMainReserver && !reservation.extensionRequested) {
           ongoingActions.push(
             <button
               key="request-extension"
@@ -351,7 +366,14 @@ const handleAction = async (action, data = {}) => {
           );
         }
 
-        return ongoingActions;
+        return ongoingActions.length > 0 ? ongoingActions : (
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 font-medium text-sm"
+          >
+            Close
+          </button>
+        );
 
       default:
         return (
@@ -445,7 +467,6 @@ const handleAction = async (action, data = {}) => {
             <div className="flex items-center gap-3">
               <div className={`px-3 py-1.5 rounded-full border flex items-center gap-2 text-sm font-medium ${statusConfig.color}`}>
                 {statusConfig.icon}
-                {/* Use displayText instead of status */}
                 {statusConfig.displayText}
               </div>
               <button
