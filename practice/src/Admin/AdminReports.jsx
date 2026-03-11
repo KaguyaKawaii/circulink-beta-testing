@@ -29,7 +29,7 @@ import {
   CheckSquare,
   Square
 } from "lucide-react";
-import ReportModal from "./ReportModal";
+import ReportModal from "./ReportModal.jsx";  // Fixed import
 
 function AdminReports({ setView, onLogout }) {
   const [reports, setReports] = useState([]);
