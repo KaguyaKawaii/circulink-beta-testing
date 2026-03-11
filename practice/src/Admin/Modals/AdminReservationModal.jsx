@@ -35,6 +35,10 @@ const AdminReservationModal = ({
   const [error, setError] = useState("");
   const [showExtensionModal, setShowExtensionModal] = useState(false);
   const [extensionReason, setExtensionReason] = useState("");
+  const [extensionMinutes, setExtensionMinutes] = useState(30);
+  const [extensionHours, setExtensionHours] = useState(0);
+  const [customEndTime, setCustomEndTime] = useState("");
+  const [extensionType, setExtensionType] = useState("fixed"); // "fixed" or "continuous"
   const [conflictInfo, setConflictInfo] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -129,7 +133,11 @@ const AdminReservationModal = ({
           endpoint = `${import.meta.env.VITE_API_URL}/api/reservations/${reservation._id}/request-extension`;
           method = "put";
           requestData = { 
-            reason: data.reason || "Need more time"
+            extensionType: data.extensionType || "fixed",
+            extensionReason: data.extensionReason || "",
+            extensionMinutes: data.extensionMinutes || 0,
+            extensionHours: data.extensionHours || 0,
+            customEndTime: data.customEndTime || null
           };
           break;
 
@@ -184,12 +192,40 @@ const AdminReservationModal = ({
   const handleRejectExtension = () => handleAction("reject-extension");
 
   const handleRequestExtension = async () => {
-    await handleAction("request-extension", {
-      extensionType: "continuous",
+    // Calculate total minutes for fixed extension
+    const totalMinutes = (parseInt(extensionHours) * 60) + parseInt(extensionMinutes);
+    
+    let requestData = {
+      extensionType: extensionType,
       extensionReason: extensionReason
-    });
+    };
+
+    if (extensionType === "fixed") {
+      requestData = {
+        ...requestData,
+        extensionMinutes: totalMinutes,
+        extensionHours: parseInt(extensionHours)
+      };
+    } else if (extensionType === "continuous") {
+      requestData = {
+        ...requestData,
+        extensionType: "continuous"
+      };
+    } else if (extensionType === "custom" && customEndTime) {
+      requestData = {
+        ...requestData,
+        extensionType: "custom",
+        customEndTime: customEndTime
+      };
+    }
+
+    await handleAction("request-extension", requestData);
     setShowExtensionModal(false);
     setExtensionReason("");
+    setExtensionMinutes(30);
+    setExtensionHours(0);
+    setCustomEndTime("");
+    setExtensionType("fixed");
   };
 
   const getExtendedEndTime = () => {
@@ -206,6 +242,17 @@ const AdminReservationModal = ({
   const totalParticipants = allParticipants.length;
 
   const statusConfig = getStatusConfig(reservation.status);
+
+  // Calculate min and max for extension
+  const now = new Date();
+  const minExtensionTime = new Date(currentEndTime);
+  const maxExtensionTime = reservation.maxExtendedEndDatetime 
+    ? new Date(reservation.maxExtendedEndDatetime)
+    : new Date(currentEndTime.getTime() + 4 * 60 * 60 * 1000); // 4 hours max by default
+
+  const formatDateTimeForInput = (date) => {
+    return moment(date).tz("Asia/Manila").format("YYYY-MM-DDTHH:mm");
+  };
 
   const renderActionButtons = () => {
     if (!isStaffOrAdmin && !isMainReserver) {
@@ -620,8 +667,26 @@ const AdminReservationModal = ({
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-amber-700">Type</span>
-                        <span className="font-semibold text-amber-900">Continuous</span>
+                        <span className="font-semibold text-amber-900">
+                          {reservation.extensionType === "fixed" ? "Fixed Time" : 
+                           reservation.extensionType === "continuous" ? "Continuous" : 
+                           reservation.extensionType === "custom" ? "Custom End Time" : "N/A"}
+                        </span>
                       </div>
+                      {reservation.extensionReason && (
+                        <div className="flex flex-col gap-1 py-2">
+                          <span className="text-amber-700">Reason</span>
+                          <span className="text-amber-900 bg-amber-100/50 p-2 rounded-lg text-sm">
+                            {reservation.extensionReason}
+                          </span>
+                        </div>
+                      )}
+                      {reservation.extensionMinutes > 0 && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-amber-700">Extension Minutes</span>
+                          <span className="font-semibold text-amber-900">{reservation.extensionMinutes} minutes</span>
+                        </div>
+                      )}
                       {reservation.extendedEndDatetime && (
                         <div className="flex justify-between items-center">
                           <span className="text-amber-700">Extended Until</span>
@@ -666,10 +731,139 @@ const AdminReservationModal = ({
               </div>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+              {/* Current Schedule */}
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <p className="text-xs font-medium text-gray-500 mb-1">Current End Time</p>
+                <p className="text-sm font-semibold text-gray-900">{formatTime(currentEndTime)}</p>
+              </div>
+
+              {/* Extension Type Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Reason for extension
+                  Extension Type
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExtensionType("fixed")}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
+                      extensionType === "fixed"
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    Fixed
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExtensionType("continuous")}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
+                      extensionType === "continuous"
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    Continuous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExtensionType("custom")}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
+                      extensionType === "custom"
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    Custom
+                  </button>
+                </div>
+              </div>
+
+              {/* Fixed Extension Controls */}
+              {extensionType === "fixed" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Hours
+                    </label>
+                    <select
+                      value={extensionHours}
+                      onChange={(e) => setExtensionHours(parseInt(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {[0, 1, 2, 3, 4].map(hours => (
+                        <option key={hours} value={hours}>{hours} hour{hours !== 1 ? 's' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Minutes
+                    </label>
+                    <select
+                      value={extensionMinutes}
+                      onChange={(e) => setExtensionMinutes(parseInt(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {[0, 15, 30, 45].map(minutes => (
+                        <option key={minutes} value={minutes}>{minutes} minutes</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                    <p className="text-sm text-indigo-700">
+                      Total extension: <span className="font-bold">{extensionHours} hour{extensionHours !== 1 ? 's' : ''} {extensionMinutes > 0 ? `${extensionMinutes} minutes` : ''}</span>
+                    </p>
+                    <p className="text-xs text-indigo-600 mt-1">
+                      New end time: {formatTime(new Date(currentEndTime.getTime() + (extensionHours * 60 + extensionMinutes) * 60000))}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Continuous Extension Info */}
+              {extensionType === "continuous" && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle size={18} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-800 mb-1">Continuous Extension</p>
+                      <p className="text-xs text-blue-700">
+                        Your reservation will continue automatically until you end it, staff ends it, or until the next reservation starts.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Custom End Time */}
+              {extensionType === "custom" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select New End Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={customEndTime}
+                    onChange={(e) => setCustomEndTime(e.target.value)}
+                    min={formatDateTimeForInput(minExtensionTime)}
+                    max={formatDateTimeForInput(maxExtensionTime)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {maxExtensionTime && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Maximum extension until: {formatTime(maxExtensionTime)}
+                      {reservation.maxExtendedEndDatetime && " (due to next reservation)"}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Reason/Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Extension <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={extensionReason}
@@ -677,9 +871,11 @@ const AdminReservationModal = ({
                   placeholder="Please explain why you need additional time for your reservation..."
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-colors duration-200"
                   rows={4}
+                  required
                 />
               </div>
               
+              {/* Info Banner */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <AlertCircle size={18} className="text-blue-600 mt-0.5 flex-shrink-0" />
@@ -695,6 +891,10 @@ const AdminReservationModal = ({
                 onClick={() => {
                   setShowExtensionModal(false);
                   setExtensionReason("");
+                  setExtensionMinutes(30);
+                  setExtensionHours(0);
+                  setCustomEndTime("");
+                  setExtensionType("fixed");
                 }}
                 className="px-4 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200 hover:bg-white rounded-lg"
               >
@@ -702,7 +902,12 @@ const AdminReservationModal = ({
               </button>
               <button
                 onClick={handleRequestExtension}
-                disabled={!extensionReason.trim() || isProcessing}
+                disabled={
+                  !extensionReason.trim() || 
+                  isProcessing || 
+                  (extensionType === "fixed" && extensionHours === 0 && extensionMinutes === 0) ||
+                  (extensionType === "custom" && !customEndTime)
+                }
                 className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors duration-200 flex items-center gap-2"
               >
                 {isProcessing ? (

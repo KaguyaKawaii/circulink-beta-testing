@@ -1280,20 +1280,30 @@ export const endReservationEarly = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ REQUEST TIME EXTENSION
+   ✅ REQUEST TIME EXTENSION - UPDATED WITH MANUAL TIME SELECTION
 ------------------------------------------------ */
 export const requestExtension = async (req, res) => {
   try {
     const { id } = req.params;
     const { 
       extensionReason, 
-      extensionType = "continuous" 
+      extensionType = "fixed",
+      extensionMinutes = 0,
+      extensionHours = 0,
+      customEndTime = null
     } = req.body;
 
-    console.log('🔄 Requesting continuous extension for reservation:', id);
+    console.log('🔄 Requesting extension for reservation:', id);
     console.log('📦 Request data:', req.body);
 
-    // Find the reservation and make sure all required fields are populated
+    // Validate reason
+    if (!extensionReason || !extensionReason.trim()) {
+      return res.status(400).json({ 
+        error: "Extension reason is required" 
+      });
+    }
+
+    // Find the reservation
     const reservation = await Reservation.findById(id);
     
     if (!reservation) {
@@ -1332,31 +1342,71 @@ export const requestExtension = async (req, res) => {
 
     let maxExtendedEndDatetime = null;
     let conflictTime = null;
+    let calculatedExtendedEndDatetime = null;
 
+    // Calculate maximum allowed extension
     if (nextReservation) {
       // Set maximum extension to 15 minutes before next reservation
       maxExtendedEndDatetime = new Date(nextReservation.datetime.getTime() - 15 * 60 * 1000);
       conflictTime = maxExtendedEndDatetime;
       console.log('⏰ Next reservation found, max extension until:', maxExtendedEndDatetime);
     } else {
-      // No next reservation - set maximum to 2 hours from current end
-      maxExtendedEndDatetime = new Date(reservation.endDatetime.getTime() + 2 * 60 * 60 * 1000);
+      // No next reservation - set maximum to 4 hours from current end
+      maxExtendedEndDatetime = new Date(reservation.endDatetime.getTime() + 4 * 60 * 60 * 1000);
       console.log('✅ No conflicts, max extension until:', maxExtendedEndDatetime);
     }
 
-    // For continuous extension, set extendedEndDatetime to max possible
-    const extendedEndDatetime = maxExtendedEndDatetime;
+    // Calculate new end time based on extension type
+    const currentEndTime = new Date(reservation.endDatetime);
+    
+    if (extensionType === "fixed") {
+      const totalMinutes = (parseInt(extensionHours) * 60) + parseInt(extensionMinutes);
+      
+      if (totalMinutes <= 0) {
+        return res.status(400).json({ 
+          error: "Extension time must be greater than 0 minutes" 
+        });
+      }
+      
+      calculatedExtendedEndDatetime = new Date(currentEndTime.getTime() + totalMinutes * 60000);
+      
+    } else if (extensionType === "custom" && customEndTime) {
+      calculatedExtendedEndDatetime = new Date(customEndTime);
+      
+      // Validate custom end time is after current end time
+      if (calculatedExtendedEndDatetime <= currentEndTime) {
+        return res.status(400).json({ 
+          error: "Custom end time must be after the current end time" 
+        });
+      }
+      
+    } else if (extensionType === "continuous") {
+      // For continuous, set to maximum allowed
+      calculatedExtendedEndDatetime = maxExtendedEndDatetime;
+    } else {
+      return res.status(400).json({ 
+        error: "Invalid extension type" 
+      });
+    }
 
-    // Use findByIdAndUpdate instead of direct modification to avoid validation issues
+    // Validate against maximum allowed time
+    if (calculatedExtendedEndDatetime > maxExtendedEndDatetime) {
+      return res.status(400).json({ 
+        error: `Requested extension exceeds maximum allowed time. Maximum extension until: ${maxExtendedEndDatetime}`,
+        maxAllowedTime: maxExtendedEndDatetime
+      });
+    }
+
+    // Prepare update data
     const updateData = {
       extensionRequested: true,
       extensionStatus: "Pending",
-      extensionType: "continuous",
-      extendedEndDatetime: extendedEndDatetime,
+      extensionType: extensionType,
+      extendedEndDatetime: calculatedExtendedEndDatetime,
       maxExtendedEndDatetime: maxExtendedEndDatetime,
       extensionReason: extensionReason,
-      extensionMinutes: 0,
-      extensionHours: 0
+      extensionMinutes: extensionMinutes,
+      extensionHours: extensionHours
     };
 
     console.log('📝 Update data:', updateData);
@@ -1370,17 +1420,17 @@ export const requestExtension = async (req, res) => {
       }
     );
 
-    console.log('✅ Continuous extension requested successfully:', updatedReservation._id);
+    console.log('✅ Extension requested successfully:', updatedReservation._id);
     
     res.json({
       success: true,
-      message: "Continuous extension requested successfully",
+      message: "Extension requested successfully",
       reservation: updatedReservation,
       conflictTime: conflictTime
     });
 
   } catch (error) {
-    console.error("❌ Error requesting continuous extension:", error);
+    console.error("❌ Error requesting extension:", error);
     res.status(500).json({ 
       error: "Internal server error",
       details: error.message 
@@ -1389,7 +1439,7 @@ export const requestExtension = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ HANDLE EXTENSION REQUEST
+   ✅ HANDLE EXTENSION REQUEST - UPDATED
 ------------------------------------------------ */
 export const handleExtension = async (req, res) => {
   try {
@@ -1428,7 +1478,6 @@ export const handleExtension = async (req, res) => {
       
     } else if (action === "reject") {
       // Reject the extension - reset extension fields but KEEP extensionRequested as true
-      // This allows frontend to detect rejected extensions with hasRejectedExtension
       updateData = {
         extensionStatus: "Rejected",
         extensionRequested: true, // Keep as true to show rejection status
@@ -1486,7 +1535,10 @@ export const handleExtension = async (req, res) => {
             type: "extension",
             status: action === "approve" ? "approved" : "rejected",
             targetRole: "user",
-            roomName: updatedReservation.roomName
+            roomName: updatedReservation.roomName,
+            message: `Your extension request has been ${action === "approve" ? "approved" : "rejected"}. ${
+              action === "approve" ? "The reservation end time has been updated." : ""
+            }`
           },
           req.app.get("io")
         );
@@ -1509,7 +1561,6 @@ export const handleExtension = async (req, res) => {
     });
   }
 };
-
 /* ------------------------------------------------
    ✅ ARCHIVE / RESTORE
 ------------------------------------------------ */

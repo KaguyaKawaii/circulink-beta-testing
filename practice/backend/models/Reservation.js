@@ -64,14 +64,16 @@ const reservationSchema = new mongoose.Schema({
   },
   extensionType: {
     type: String,
-    enum: ["fixed", "continuous"],
-    default: "continuous",
+    enum: ["fixed", "continuous", "custom"],
+    default: "fixed",
   },
   extensionMinutes: {
     type: Number,
+    default: 0,
   },
   extensionHours: {
     type: Number,
+    default: 0,
   },
   extendedEndDatetime: {
     type: Date,
