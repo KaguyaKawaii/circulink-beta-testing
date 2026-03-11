@@ -1493,10 +1493,10 @@ function AnalyticsOverview({ setView, admin }) {
     }
 
     return (
-      <div>
+      <div className="w-full">
         <div className="flex justify-between text-sm mb-1">
-          <span className="text-gray-600">{label}</span>
-          {showValue && <span className="text-gray-800 font-medium">{value.toLocaleString()}</span>}
+          <span className="text-gray-600 truncate pr-2" title={label}>{label}</span>
+          {showValue && <span className="text-gray-800 font-medium whitespace-nowrap">{value.toLocaleString()}</span>}
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
           <div 
@@ -1999,13 +1999,22 @@ function AnalyticsOverview({ setView, admin }) {
               <h3 className="text-sm font-medium text-gray-600 mb-3">Most Popular Rooms</h3>
               <div className="space-y-3">
                 {(analyticsData.reservations?.popularRooms || []).slice(0, 3).map((room, idx) => (
-                  <ProgressBar 
-                    key={idx}
-                    label={room.name} 
-                    value={room.bookings} 
-                    total={analyticsData.reservations?.total || 1} 
-                    color={idx === 0 ? "blue" : idx === 1 ? "green" : "purple"}
-                  />
+                  <div key={idx} className="w-full">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600 truncate pr-2 max-w-[70%]" title={room.name}>
+                        {room.name}
+                      </span>
+                      <span className="text-gray-800 font-medium whitespace-nowrap">
+                        {room.bookings.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-2">
+                      <div 
+                        className={`${idx === 0 ? "bg-blue-500" : idx === 1 ? "bg-green-500" : "bg-purple-500"} rounded-full h-2 transition-all duration-300`}
+                        style={{ width: `${Math.min(100, Math.round((room.bookings / (analyticsData.reservations?.total || 1)) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
