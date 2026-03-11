@@ -20,8 +20,11 @@ import {
 const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [actionTaken, setActionTaken] = useState("");
 
   // Fixed API endpoints - using environment variable
   const API_URL = `${import.meta.env.VITE_API_URL}/api/reports`;
@@ -82,6 +85,51 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
     fetchReport();
   }, [reportId]);
 
+  // 🔹 Resolve Report
+  const handleResolveReport = async () => {
+    if (!report) return;
+
+    // Validate action taken
+    if (!actionTaken || actionTaken.trim() === "") {
+      alert("Please describe the action taken to resolve this report.");
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      
+      const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+      const resolvedBy = currentUser._id || "admin";
+      
+      const response = await axios.put(`${API_URL}/${report._id}/resolve`, {
+        actionTaken: actionTaken.trim(),
+        resolvedBy: resolvedBy
+      });
+      
+      if (response.data.success || response.data.message) {
+        alert("Report resolved successfully!");
+        onReportUpdated?.();
+        setShowConfirmModal(false);
+        setActionTaken(""); // Clear the input
+        
+        // Refresh report data
+        const updatedReport = await axios.get(`${API_URL}/${report._id}`);
+        if (updatedReport.data.success && updatedReport.data.report) {
+          setReport(updatedReport.data.report);
+        } else {
+          setReport(updatedReport.data);
+        }
+      } else {
+        alert("Failed to resolve report: " + (response.data.message || "Unknown error"));
+      }
+    } catch (err) {
+      console.error("Error resolving report:", err);
+      alert("Failed to resolve report: " + (err.response?.data?.message || err.message));
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const formatPHDateTime = (iso) => {
     if (!iso) return "N/A";
     return new Date(iso).toLocaleString("en-PH", {
@@ -131,6 +179,43 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
       </div>
     </div>
   );
+
+  const renderActionButtons = () => {
+    if (!report) return null;
+
+    switch (report.status) {
+      case "Pending":
+      case "In Progress":
+        return (
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowConfirmModal(true)}
+              disabled={actionLoading}
+              className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium text-sm flex items-center gap-2 cursor-pointer"
+            >
+              <CheckCircle size={16} />
+              Resolve Report
+            </button>
+            <button
+              onClick={onClose}
+              className="px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 font-medium text-sm cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        );
+
+      default:
+        return (
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 font-medium text-sm cursor-pointer"
+          >
+            Close
+          </button>
+        );
+    }
+  };
 
   if (!reportId) return null;
 
@@ -407,7 +492,7 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
             )}
           </div>
 
-          {/* Footer - Only Close Button */}
+          {/* Footer */}
           <div className="border-t border-gray-200 bg-gray-50 p-6">
             <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
               <div className="text-sm text-gray-600">
@@ -415,17 +500,76 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
                 <span className="font-mono text-gray-800">{report?._id?.slice(-8)}</span>
               </div>
               <div className="flex flex-wrap gap-2 justify-center sm:justify-end">
-                <button
-                  onClick={onClose}
-                  className="px-6 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 font-medium text-sm cursor-pointer"
-                >
-                  Close
-                </button>
+                {renderActionButtons()}
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Resolve Confirmation Modal */}
+      {showConfirmModal && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200">
+            <div className="bg-white p-6 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="text-emerald-600" size={24} />
+                <h3 className="text-xl font-bold text-gray-900">Resolve Report</h3>
+              </div>
+            </div>
+            
+            <div className="p-6">
+              <p className="text-gray-700 mb-4">
+                Please describe the action taken to resolve this report:
+              </p>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Action Taken *
+                </label>
+                <textarea
+                  value={actionTaken}
+                  onChange={(e) => setActionTaken(e.target.value)}
+                  placeholder="Describe what was done to resolve this issue..."
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent resize-none"
+                  rows="3"
+                  disabled={actionLoading}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  This description will be recorded and visible to the reporter.
+                </p>
+              </div>
+              
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowConfirmModal(false);
+                    setActionTaken("");
+                  }}
+                  className="px-4 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200 hover:bg-gray-100 rounded-lg"
+                  disabled={actionLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleResolveReport}
+                  disabled={actionLoading || !actionTaken.trim()}
+                  className="px-6 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium transition-colors duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {actionLoading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    "Resolve Report"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };
