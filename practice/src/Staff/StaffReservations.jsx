@@ -48,6 +48,7 @@ const normalizeFloorName = (floorName) => {
   if (!floorName) return "";
   const normalized = floorName.toLowerCase().trim();
   
+  if (normalized.includes("ground")) return "Ground Floor";
   if (normalized.includes("2nd") || normalized.includes("second")) return "2nd Floor";
   if (normalized.includes("3rd") || normalized.includes("third")) return "3rd Floor";
   if (normalized.includes("4th") || normalized.includes("fourth")) return "4th Floor";
@@ -63,6 +64,7 @@ const STATUS_COLORS = {
   Rejected: "bg-red-100 text-red-800",
   Cancelled: "bg-gray-100 text-gray-800",
   Expired: "bg-orange-100 text-orange-800",
+  Completed: "bg-purple-100 text-purple-800",
 };
 
 const getStatusColor = (status) => {
@@ -155,6 +157,7 @@ function StaffReservations({ staff }) {
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [apiError, setApiError] = useState(null);
 
   // Debounce search input
   useEffect(() => {
@@ -172,15 +175,51 @@ function StaffReservations({ staff }) {
 
     try {
       setIsLoading(true);
-      const url = `${import.meta.env.VITE_API_URL}/api/reservations`;
-      const response = await axios.get(url);
-
+      setApiError(null);
+      
+      // Try the staff-specific endpoint first
+      const staffUrl = `${import.meta.env.VITE_API_URL}/api/reservations/staff/${staff._id}`;
+      console.log("Fetching from staff endpoint:", staffUrl);
+      
+      let response;
+      try {
+        response = await axios.get(staffUrl);
+        console.log("Staff endpoint response:", response.data);
+        
+        if (response.data.success) {
+          setReservations(response.data.reservations || []);
+          console.log(`Loaded ${response.data.reservations.length} reservations for ${response.data.staff.name}`);
+          return;
+        }
+      } catch (staffErr) {
+        console.log("Staff endpoint failed, falling back to regular endpoint");
+      }
+      
+      // Fallback to regular endpoint with userId parameter
+      const url = `${import.meta.env.VITE_API_URL}/api/reservations?userId=${staff._id}`;
+      console.log("Fetching from fallback URL:", url);
+      
+      response = await axios.get(url);
+      console.log("All reservations fetched:", response.data.length);
+      
+      // Filter reservations based on staff's assigned floor
       if (staff?.floor && staff.floor !== "N/A") {
         const normalizedStaffFloor = normalizeFloorName(staff.floor);
+        console.log("Staff floor (normalized):", normalizedStaffFloor);
+        
         const filteredReservations = response.data.filter(reservation => {
           const normalizedReservationFloor = normalizeFloorName(reservation.location);
-          return normalizedReservationFloor === normalizedStaffFloor;
+          const matchesFloor = normalizedReservationFloor === normalizedStaffFloor;
+          
+          // Log for debugging
+          if (reservation.status === "Approved") {
+            console.log(`Approved reservation for ${reservation.roomName} at ${reservation.location} (normalized: ${normalizedReservationFloor}) - matches: ${matchesFloor}`);
+          }
+          
+          return matchesFloor;
         });
+        
+        console.log(`Filtered to ${filteredReservations.length} reservations for floor ${normalizedStaffFloor}`);
         
         const sorted = filteredReservations.sort((a, b) => {
           const aTime = a.createdAt ? new Date(a.createdAt) : 0;
@@ -190,6 +229,8 @@ function StaffReservations({ staff }) {
         
         setReservations(sorted);
       } else {
+        // If staff has no floor assigned, show all reservations
+        console.log("No floor assigned, showing all reservations");
         const sorted = response.data.sort((a, b) => {
           const aTime = a.createdAt ? new Date(a.createdAt) : 0;
           const bTime = b.createdAt ? new Date(b.createdAt) : 0;
@@ -199,6 +240,7 @@ function StaffReservations({ staff }) {
       }
     } catch (err) {
       console.error("Error fetching reservations:", err);
+      setApiError(err.response?.data?.message || err.message);
       setReservations([]);
     } finally {
       setIsLoading(false);
@@ -259,7 +301,7 @@ function StaffReservations({ staff }) {
     fetchReservations();
   };
 
-  // Memoized filtered reservations
+  // Memoized filtered reservations (for status and search)
   const filteredReservations = useMemo(() => {
     return reservations.filter((res) => {
       const reserver = res.userId?.name || "";
@@ -279,6 +321,12 @@ function StaffReservations({ staff }) {
     }
   }, [staff?._id, staff?.floor, fetchReservations]);
 
+  // Count reservations by status
+  const pendingCount = reservations.filter(r => r.status === "Pending").length;
+  const approvedCount = reservations.filter(r => r.status === "Approved").length;
+  const ongoingCount = reservations.filter(r => r.status === "Ongoing").length;
+  const completedCount = reservations.filter(r => r.status === "Completed").length;
+
   return (
     <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
       {/* Header */}
@@ -291,7 +339,7 @@ function StaffReservations({ staff }) {
             <p className="text-gray-600">
               {staff?.floor && staff.floor !== "N/A" 
                 ? `Managing reservations for ${staff.floor}`
-                : "No floor assigned"
+                : "No floor assigned - showing all reservations"
               }
             </p>
           </div>
@@ -349,6 +397,7 @@ function StaffReservations({ staff }) {
                 <option value="Ongoing">Ongoing</option>
                 <option value="Cancelled">Cancelled</option>
                 <option value="Expired">Expired</option>
+                <option value="Completed">Completed</option>
               </select>
               <ChevronDown
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -367,6 +416,39 @@ function StaffReservations({ staff }) {
             </button>
           </div>
         </div>
+
+        {/* Status summary */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <p className="text-sm text-gray-600 mb-1">Total Reservations</p>
+            <p className="text-2xl font-bold text-gray-900">{reservations.length}</p>
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <p className="text-sm text-gray-600 mb-1">Pending</p>
+            <p className="text-2xl font-bold text-yellow-600">{pendingCount}</p>
+            {pendingCount > 0 && (
+              <p className="text-xs text-yellow-600 mt-1">Waiting for approval</p>
+            )}
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <p className="text-sm text-gray-600 mb-1">Approved</p>
+            <p className="text-2xl font-bold text-green-600">{approvedCount}</p>
+            {approvedCount > 0 && (
+              <p className="text-xs text-green-600 mt-1">Ready to start</p>
+            )}
+          </div>
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+            <p className="text-sm text-gray-600 mb-1">Ongoing</p>
+            <p className="text-2xl font-bold text-blue-600">{ongoingCount}</p>
+          </div>
+        </div>
+
+        {/* API Error Message */}
+        {apiError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+            <p className="text-red-700 text-sm">Error loading reservations: {apiError}</p>
+          </div>
+        )}
 
         {/* Reservations Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
@@ -391,7 +473,10 @@ function StaffReservations({ staff }) {
                       colSpan={8}
                       className="px-6 py-4 text-center text-gray-500"
                     >
-                      Loading reservations...
+                      <div className="flex items-center justify-center py-8">
+                        <RefreshCw size={24} className="animate-spin text-blue-600 mr-3" />
+                        <span>Loading reservations...</span>
+                      </div>
                     </td>
                   </tr>
                 ) : filteredReservations.length === 0 ? (
@@ -400,17 +485,24 @@ function StaffReservations({ staff }) {
                       colSpan={8}
                       className="px-6 py-4 text-center text-gray-500"
                     >
-                      <div className="text-center py-8">
+                      <div className="text-center py-12">
                         <Search className="mx-auto h-12 w-12 text-gray-400 mb-4" />
                         <h3 className="text-lg font-medium text-gray-900 mb-2">
-                          {reservations.length === 0 ? "No reservations yet" : "No matching reservations"}
+                          {reservations.length === 0 ? "No reservations found" : "No matching reservations"}
                         </h3>
                         <p className="text-gray-500 max-w-md mx-auto">
                           {reservations.length === 0 
-                            ? "Reservations for your floor will appear here."
+                            ? staff?.floor && staff.floor !== "N/A"
+                              ? `No reservations have been made for ${staff.floor} yet.`
+                              : "No reservations have been made yet."
                             : "Try adjusting your search or filter criteria."
                           }
                         </p>
+                        {reservations.length === 0 && staff?.floor && staff.floor !== "N/A" && (
+                          <p className="text-sm text-gray-400 mt-4">
+                            Note: Reservations must be approved by admin before appearing here.
+                          </p>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -429,6 +521,15 @@ function StaffReservations({ staff }) {
               </tbody>
             </table>
           </div>
+          
+          {/* Pagination info */}
+          {filteredReservations.length > 0 && (
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+              <p className="text-sm text-gray-600">
+                Showing {filteredReservations.length} of {reservations.length} total reservations
+              </p>
+            </div>
+          )}
         </div>
       </div>
 

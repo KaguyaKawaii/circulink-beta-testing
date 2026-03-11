@@ -318,7 +318,7 @@ export const validateFloorAccessController = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ GET RESERVATIONS
+   ✅ GET RESERVATIONS - FIXED FOR STAFF FLOOR FILTERING
 ------------------------------------------------ */
 export const getAllReservations = async (req, res) => {
   try {
@@ -332,33 +332,46 @@ export const getAllReservations = async (req, res) => {
         return res.status(404).json({ message: "User not found" });
       }
 
+      // If user is Staff and has a floor assignment, filter by that floor
       if (user.role === "Staff" && user.floor && user.floor !== "N/A") {
         const normalizeFloor = (floorName) => {
           if (!floorName) return "";
           const normalized = floorName.toLowerCase().trim();
           
+          if (normalized.includes("ground")) return "Ground Floor";
           if (normalized.includes("2nd") || normalized.includes("second")) return "2nd Floor";
           if (normalized.includes("3rd") || normalized.includes("third")) return "3rd Floor";
           if (normalized.includes("4th") || normalized.includes("fourth")) return "4th Floor";
           if (normalized.includes("5th") || normalized.includes("fifth")) return "5th Floor";
           
-          return floorName;
+          // Return the original if no match, but capitalize first letter
+          return floorName.charAt(0).toUpperCase() + floorName.slice(1).toLowerCase();
         };
 
         const normalizedStaffFloor = normalizeFloor(user.floor);
         
+        // Use regex for flexible matching
         query.location = { 
-          $regex: normalizedStaffFloor.replace(" Floor", "").trim(), 
-          $options: "i" 
+          $regex: new RegExp(normalizedStaffFloor.replace(" Floor", ""), 'i')
         };
+        
+        console.log(`Staff ${user.name} (${user._id}) filtering by floor:`, {
+          originalFloor: user.floor,
+          normalizedFloor: normalizedStaffFloor,
+          query: query.location
+        });
       }
+      
+      // For regular users, we don't add any floor filter - they see all reservations
     }
 
     // FIXED: Only populate fields that exist in the schema
     const reservations = await Reservation.find(query)
-      .populate("userId")
+      .populate("userId", "name email id_number course year_level department role floor")
       .sort({ datetime: -1 });
 
+    console.log(`Found ${reservations.length} reservations for query:`, query);
+    
     res.json(reservations);
   } catch (err) {
     console.error("Error fetching reservations:", err);
@@ -3350,6 +3363,86 @@ export const bulkRestoreArchivedReservations = async (req, res) => {
       success: false,
       message: "Failed to bulk restore archived reservations",
       error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+};
+
+/* ------------------------------------------------
+   ✅ GET RESERVATIONS BY STAFF FLOOR - NEW
+------------------------------------------------ */
+export const getReservationsByStaffFloor = async (req, res) => {
+  try {
+    const { staffId } = req.params;
+    
+    if (!staffId) {
+      return res.status(400).json({ message: "Staff ID is required" });
+    }
+
+    // Get the staff member's details
+    const staff = await User.findById(staffId);
+    
+    if (!staff) {
+      return res.status(404).json({ message: "Staff not found" });
+    }
+
+    if (staff.role !== "Staff") {
+      return res.status(403).json({ message: "User is not a staff member" });
+    }
+
+    let query = {};
+    
+    // If staff has a floor assigned, filter by that floor
+    if (staff.floor && staff.floor !== "N/A") {
+      const normalizeFloor = (floorName) => {
+        if (!floorName) return "";
+        const normalized = floorName.toLowerCase().trim();
+        
+        if (normalized.includes("ground")) return "Ground Floor";
+        if (normalized.includes("2nd") || normalized.includes("second")) return "2nd Floor";
+        if (normalized.includes("3rd") || normalized.includes("third")) return "3rd Floor";
+        if (normalized.includes("4th") || normalized.includes("fourth")) return "4th Floor";
+        if (normalized.includes("5th") || normalized.includes("fifth")) return "5th Floor";
+        
+        return floorName;
+      };
+
+      const normalizedStaffFloor = normalizeFloor(staff.floor);
+      
+      query.location = { 
+        $regex: new RegExp(normalizedStaffFloor.replace(" Floor", ""), 'i')
+      };
+      
+      console.log(`Staff ${staff.name} (${staff._id}) fetching reservations for floor:`, {
+        originalFloor: staff.floor,
+        normalizedFloor: normalizedStaffFloor,
+        query: query.location
+      });
+    }
+
+    // Get all reservations for this floor (including all statuses)
+    const reservations = await Reservation.find(query)
+      .populate("userId", "name email id_number course year_level department role")
+      .sort({ createdAt: -1, datetime: -1 });
+
+    console.log(`Found ${reservations.length} reservations for staff ${staff.name}`);
+
+    res.json({
+      success: true,
+      staff: {
+        id: staff._id,
+        name: staff.name,
+        floor: staff.floor
+      },
+      count: reservations.length,
+      reservations
+    });
+
+  } catch (err) {
+    console.error("Error fetching reservations by staff floor:", err);
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to fetch reservations",
+      error: err.message 
     });
   }
 };

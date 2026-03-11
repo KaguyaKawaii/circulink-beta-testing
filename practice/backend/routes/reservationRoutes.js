@@ -11,6 +11,9 @@ router.get('/', reservationController.getAllReservations);
 router.get('/user/:userId', reservationController.getUserReservations);
 router.get('/active/:userId', reservationController.getActiveReservation);
 
+// NEW: Staff-specific endpoint
+router.get('/staff/:staffId', reservationController.getReservationsByStaffFloor);
+
 // Availability route
 router.get('/availability', reservationController.getAvailability);
 
