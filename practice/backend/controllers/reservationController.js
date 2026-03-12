@@ -318,7 +318,7 @@ export const validateFloorAccessController = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ GET RESERVATIONS - FIXED FOR STAFF FLOOR FILTERING
+   ✅ GET RESERVATIONS - FIXED FOR DELETED USERS
 ------------------------------------------------ */
 export const getAllReservations = async (req, res) => {
   try {
@@ -365,14 +365,41 @@ export const getAllReservations = async (req, res) => {
       // For regular users, we don't add any floor filter - they see all reservations
     }
 
-    // FIXED: Only populate fields that exist in the schema
+    // FIXED: Get reservations and handle missing users gracefully
     const reservations = await Reservation.find(query)
-      .populate("userId", "name email id_number course year_level department role floor")
+      .populate({
+        path: "userId",
+        select: "name email id_number course year_level department role floor",
+        // Don't throw error if user doesn't exist
+        options: { strictPopulate: false }
+      })
       .sort({ datetime: -1 });
 
-    console.log(`Found ${reservations.length} reservations for query:`, query);
+    // Process reservations to handle missing users
+    const processedReservations = reservations.map(reservation => {
+      const reservationObj = reservation.toObject();
+      
+      // If userId is null or undefined, provide default values
+      if (!reservationObj.userId) {
+        reservationObj.userId = {
+          name: "Deleted User",
+          email: null,
+          id_number: "N/A",
+          course: "N/A",
+          year_level: "N/A",
+          department: "N/A",
+          role: "Unknown",
+          floor: "N/A",
+          _deleted: true // Flag to indicate user was deleted
+        };
+      }
+      
+      return reservationObj;
+    });
+
+    console.log(`Found ${processedReservations.length} reservations for query:`, query);
     
-    res.json(reservations);
+    res.json(processedReservations);
   } catch (err) {
     console.error("Error fetching reservations:", err);
     res.status(500).json({ message: "Failed to fetch reservations" });
@@ -1639,27 +1666,104 @@ export const handleExtension = async (req, res) => {
   }
 };
 /* ------------------------------------------------
-   ✅ ARCHIVE / RESTORE
+   ✅ ARCHIVE RESERVATION - FIXED FOR DELETED USERS
 ------------------------------------------------ */
 export const archiveReservation = async (req, res) => {
   try {
-    const reservation = await Reservation.findById(req.params.id).populate("userId");
-    if (!reservation) return res.status(404).json({ message: "Reservation not found" });
+    console.log("📦 Archiving reservation:", req.params.id);
+    
+    // Find the reservation WITHOUT populating userId first to avoid null issues
+    const reservation = await Reservation.findById(req.params.id);
+    
+    if (!reservation) {
+      return res.status(404).json({ 
+        success: false,
+        message: "Reservation not found" 
+      });
+    }
 
-    await ArchivedReservation.create({ ...reservation.toObject(), archivedAt: new Date() });
+    console.log("✅ Found reservation:", reservation._id);
+    console.log("👤 User ID reference:", reservation.userId);
+
+    // Try to get user info for logging, but don't fail if user doesn't exist
+    let userInfo = {
+      id: null,
+      id_number: "DELETED_USER",
+      name: "Deleted User"
+    };
+
+    // Only try to populate if userId exists and is valid
+    if (reservation.userId) {
+      try {
+        const user = await User.findById(reservation.userId).select("name id_number");
+        if (user) {
+          userInfo = {
+            id: user._id,
+            id_number: user.id_number || "N/A",
+            name: user.name || "Unknown"
+          };
+          console.log("✅ Found user for reservation:", userInfo);
+        } else {
+          console.log("⚠️ User not found in database (was deleted):", reservation.userId);
+        }
+      } catch (userErr) {
+        console.warn("⚠️ Error fetching user:", userErr.message);
+        // Continue with default userInfo
+      }
+    } else {
+      console.log("⚠️ Reservation has no userId reference");
+    }
+
+    // Prepare data for archive
+    const reservationObject = reservation.toObject();
+    
+    // Add user info to the archived document even if user is deleted
+    const archivedData = {
+      ...reservationObject,
+      archivedAt: new Date(),
+      // Store the user information we have
+      _deletedUserInfo: userInfo, // Add this field to track deleted user info
+      // If userId was a reference to a deleted user, keep the ID but mark as deleted
+      userId: reservation.userId || null
+    };
+
+    // Create archived copy
+    await ArchivedReservation.create(archivedData);
+    console.log("✅ Created archived copy");
+
+    // Delete from main collection
     await Reservation.findByIdAndDelete(req.params.id);
+    console.log("✅ Deleted from main reservations");
 
-    await logAction(
-      reservation.userId._id,
-      reservation.userId.id_number,
-      reservation.userId.name,
-      "Reservation Archived",
-      `Archived reservation for ${reservation.roomName}`
-    );
+    // Try to log the action (don't fail if logging fails)
+    try {
+      await logAction(
+        userInfo.id, // This might be null for deleted users
+        userInfo.id_number,
+        userInfo.name,
+        "Reservation Archived",
+        `Archived reservation for ${reservation.roomName || "Unknown room"} (User: ${userInfo.name})`
+      );
+      console.log("✅ Action logged");
+    } catch (logError) {
+      console.warn("⚠️ Failed to log action:", logError.message);
+    }
 
-    res.json({ message: "Reservation archived successfully" });
+    res.json({ 
+      success: true,
+      message: "Reservation archived successfully",
+      userDeleted: !userInfo.id // Indicate if the user was deleted
+    });
+
   } catch (err) {
-    res.status(500).json({ message: "Failed to archive reservation" });
+    console.error("❌ Archive error:", err);
+    console.error("Error stack:", err.stack);
+    
+    res.status(500).json({ 
+      success: false,
+      message: "Failed to archive reservation",
+      error: err.message 
+    });
   }
 };
 

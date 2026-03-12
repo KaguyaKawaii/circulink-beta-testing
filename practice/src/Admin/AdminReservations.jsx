@@ -474,13 +474,16 @@ function AdminReservations({ setView, onLogout }) {
     </div>
   );
 
-  // Safe user name display
-  const getUserName = (userId) => {
-    if (!userId) return "Unknown User";
-    if (typeof userId === 'object' && userId.name) return userId.name;
-    if (typeof userId === 'string') return "User";
-    return "Unknown";
-  };
+const getUserName = (userId) => {
+  if (!userId) return "Deleted User";
+  if (typeof userId === 'object') {
+    if (userId._deleted) return "Deleted User";
+    if (userId.name) return userId.name;
+  }
+  if (typeof userId === 'string') return "User";
+  return "Unknown";
+};
+
 
   return (
     <>
@@ -923,14 +926,15 @@ function AdminReservations({ setView, onLogout }) {
                               <div className="font-medium">{r.roomName || "Unknown Room"}</div>
                               <div className="text-gray-500 text-xs">{r.location || "Unknown Location"}</div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                {getUserName(r.userId)}
-                                {!r.userId && (
-                                  <UserX size={14} className="ml-1 text-gray-400" />
-                                )}
-                              </div>
-                            </td>
+                            // In the table rendering part, update the reserved by column:
+<td className="px-6 py-4 whitespace-nowrap">
+  <div className="flex items-center">
+    {getUserName(r.userId)}
+    {(!r.userId || r.userId._deleted) && (
+      <UserX size={14} className="ml-1 text-gray-400" title="User account deleted" />
+    )}
+  </div>
+</td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span
                                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
