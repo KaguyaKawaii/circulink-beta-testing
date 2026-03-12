@@ -9,16 +9,13 @@ import {
   MessageSquare,
   Bell,
   User,
-  FileText,
   LogOut,
-  AlertTriangle,
 } from "lucide-react";
 
 function StaffNavigation({ staff, setView, currentView, onLogout }) {
   const [unreadCounts, setUnreadCounts] = useState({
     notifications: 0,
     messages: 0,
-    reports: 0,
     reservations: 0
   });
 
@@ -102,7 +99,6 @@ function StaffNavigation({ staff, setView, currentView, onLogout }) {
       setUnreadCounts({
         notifications: notificationsCount,
         messages: messagesCount,
-        reports: 0,
         reservations: 0
       });
 
@@ -194,7 +190,6 @@ function StaffNavigation({ staff, setView, currentView, onLogout }) {
   const navButtons = [
     { id: "staffDashboard", label: "Dashboard", icon: LayoutDashboard, badge: 0 },
     { id: "staffReservation", label: "Reservations", icon: CalendarDays, badge: unreadCounts.reservations },
-    { id: "staffReports", label: "Reports", icon: FileText, badge: unreadCounts.reports },
     { id: "staffUsers", label: "Users", icon: Users, badge: 0 },
     { id: "staffMessages", label: "Messages", icon: MessageSquare, badge: unreadCounts.messages },
     { id: "staffNotification", label: "Notifications", icon: Bell, badge: unreadCounts.notifications },
