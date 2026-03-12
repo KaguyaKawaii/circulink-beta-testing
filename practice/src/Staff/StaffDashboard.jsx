@@ -19,20 +19,30 @@ import {
   ChevronUp,
 } from "lucide-react";
 
-// API service module
+// API service module with fixed endpoint for users
 const apiService = {
   baseURL: `${import.meta.env.VITE_API_URL}/api`,
   
   async get(url) {
     try {
       console.log(`Fetching from: ${this.baseURL}${url}`);
-      const response = await axios.get(`${this.baseURL}${url}`);
-      console.log(`Response from ${url}:`, response.data);
+      
+      // FIX: Redirect /users to the correct backend endpoint
+      let finalUrl = url;
+      if (url === '/users') {
+        finalUrl = '/users/all'; // Using the working endpoint from your backend
+        console.log(`Redirecting users request to: ${finalUrl}`);
+      }
+      
+      const response = await axios.get(`${this.baseURL}${finalUrl}`);
+      console.log(`Response from ${finalUrl}:`, response.data);
       return response.data;
     } catch (error) {
       console.error(`API Error (GET ${this.baseURL}${url}):`, error.response?.data || error.message);
+      
+      // Return appropriate fallback based on the URL
       if (url.includes('/reservations')) return [];
-      if (url.includes('/users')) return [];
+      if (url.includes('/users')) return []; // Return empty array for users
       if (url.includes('/rooms')) return [];
       if (url.includes('/messages')) return { count: 0 };
       if (url.includes('/notifications')) return { count: 0 };
@@ -127,7 +137,7 @@ const useDashboardData = (staff) => {
         { key: 'reservations', url: `/reservations` },
         { key: 'messages', url: `/messages/staff-total-unread/${staff._id}` },
         { key: 'notifications', url: `/notifications/unread-count/${staff._id}` },
-        { key: 'users', url: '/users' },
+        { key: 'users', url: '/users' }, // This will be redirected to /users/all
         { key: 'rooms', url: '/rooms' }
       ];
 
@@ -268,13 +278,22 @@ function StaffDashboard({ staff, setView, unreadCounts, onRefreshCounts }) {
       return normalizedRoomFloor === normalizedStaffFloor && room.isActive !== false;
     });
 
+    // FIX: Better handling of users data structure
     let allUsers = [];
-    if (Array.isArray(data.users)) {
-      allUsers = data.users;
-    } else if (data.users && Array.isArray(data.users.users)) {
-      allUsers = data.users.users;
-    } else if (data.users && typeof data.users === 'object') {
-      allUsers = Object.values(data.users).find(Array.isArray) || [];
+    if (data.users) {
+      if (Array.isArray(data.users)) {
+        allUsers = data.users;
+      } else if (data.users.users && Array.isArray(data.users.users)) {
+        allUsers = data.users.users;
+      } else if (data.users.data && Array.isArray(data.users.data)) {
+        allUsers = data.users.data;
+      } else if (typeof data.users === 'object') {
+        // Try to find any array property in the response
+        const possibleArrays = Object.values(data.users).find(val => Array.isArray(val));
+        if (possibleArrays) {
+          allUsers = possibleArrays;
+        }
+      }
     }
     
     const regularUsers = allUsers.filter(user => 
