@@ -926,7 +926,6 @@ const getUserName = (userId) => {
                               <div className="font-medium">{r.roomName || "Unknown Room"}</div>
                               <div className="text-gray-500 text-xs">{r.location || "Unknown Location"}</div>
                             </td>
-                            // In the table rendering part, update the reserved by column:
 <td className="px-6 py-4 whitespace-nowrap">
   <div className="flex items-center">
     {getUserName(r.userId)}
