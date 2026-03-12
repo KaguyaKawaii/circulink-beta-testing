@@ -21,7 +21,8 @@ import {
   Edit,
   CheckSquare,
   Square,
-  AlertTriangle
+  AlertTriangle,
+  UserX
 } from "lucide-react";
 import AdminReservationModal from "./Modals/AdminReservationModal";
 import AdminCreateReservationModal from "./Modals/AdminCreateReservationModal";
@@ -30,6 +31,7 @@ import AdminEditReservationModal from "./Modals/AdminEditReservationModal";
 function AdminReservations({ setView, onLogout }) {
   const [reservations, setReservations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
   const [filter, setFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [selectedReservation, setSelectedReservation] = useState(null);
@@ -65,28 +67,36 @@ function AdminReservations({ setView, onLogout }) {
   // Date Filter State
   const [dateFilter, setDateFilter] = useState("all"); // "today" or "all"
 
-  const formatPHDateTime = (date) =>
-    date
-      ? new Date(date).toLocaleString("en-PH", {
-          timeZone: "Asia/Manila",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        })
-      : "—";
+  const formatPHDateTime = (date) => {
+    if (!date) return "—";
+    try {
+      return new Date(date).toLocaleString("en-PH", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch (error) {
+      return "—";
+    }
+  };
 
-  const formatPHDate = (date) =>
-    date
-      ? new Date(date).toLocaleDateString("en-PH", {
-          timeZone: "Asia/Manila",
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        })
-      : "—";
+  const formatPHDate = (date) => {
+    if (!date) return "—";
+    try {
+      return new Date(date).toLocaleDateString("en-PH", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch (error) {
+      return "—";
+    }
+  };
 
   useEffect(() => {
     fetchReservations();
@@ -98,76 +108,104 @@ function AdminReservations({ setView, onLogout }) {
     }
   }, [reservations, selectedDate, viewMode]);
 
-  const fetchReservations = () => {
+  const fetchReservations = async () => {
     setIsLoading(true);
-    axios
-      .get(`${import.meta.env.VITE_API_URL}/api/reservations`)
-      .then((res) => {
-        const sorted = res.data.sort((a, b) => {
-          const aTime = a.createdAt ? new Date(a.createdAt) : 0;
-          const bTime = b.createdAt ? new Date(b.createdAt) : 0;
-          return bTime - aTime;
-        });
-        setReservations(sorted);
-        // Clear selections when fetching new data
-        setSelectedReservations([]);
-        setSelectAll(false);
-      })
-      .catch((err) => console.error("Fetch reservations error:", err))
-      .finally(() => setIsLoading(false));
+    setFetchError(null);
+    
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations`);
+      
+      // Safely process reservations with error handling for missing user data
+      const processedReservations = res.data.map(reservation => {
+        // Ensure userId exists and has required fields
+        if (!reservation.userId) {
+          console.warn(`Reservation ${reservation._id} has no userId`);
+          return {
+            ...reservation,
+            userId: {
+              name: "Unknown User",
+              _id: null,
+              email: null
+            }
+          };
+        }
+        return reservation;
+      });
+
+      const sorted = processedReservations.sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt) : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt) : 0;
+        return bTime - aTime;
+      });
+      
+      setReservations(sorted);
+      // Clear selections when fetching new data
+      setSelectedReservations([]);
+      setSelectAll(false);
+    } catch (err) {
+      console.error("Fetch reservations error:", err);
+      setFetchError(err.response?.data?.message || err.message || "Failed to fetch reservations");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const calculateDailyStats = () => {
-    const selectedDateStart = new Date(selectedDate);
-    selectedDateStart.setHours(0, 0, 0, 0);
-    const selectedDateEnd = new Date(selectedDate);
-    selectedDateEnd.setHours(23, 59, 59, 999);
+    try {
+      const selectedDateStart = new Date(selectedDate);
+      selectedDateStart.setHours(0, 0, 0, 0);
+      const selectedDateEnd = new Date(selectedDate);
+      selectedDateEnd.setHours(23, 59, 59, 999);
 
-    const dailyReservations = reservations.filter(reservation => {
-      const reservationDate = new Date(reservation.datetime);
-      return reservationDate >= selectedDateStart && reservationDate <= selectedDateEnd;
-    });
+      const dailyReservations = reservations.filter(reservation => {
+        if (!reservation.datetime) return false;
+        const reservationDate = new Date(reservation.datetime);
+        return reservationDate >= selectedDateStart && reservationDate <= selectedDateEnd;
+      });
 
-    const stats = {
-      total: dailyReservations.length,
-      approved: dailyReservations.filter(r => r.status === "Approved").length,
-      pending: dailyReservations.filter(r => r.status === "Pending").length,
-      ongoing: dailyReservations.filter(r => r.status === "Ongoing").length,
-      completed: dailyReservations.filter(r => r.status === "Completed").length,
-      expired: dailyReservations.filter(r => r.status === "Expired").length,
-      cancelled: dailyReservations.filter(r => r.status === "Cancelled").length
-    };
-    setDailyStats(stats);
+      const stats = {
+        total: dailyReservations.length,
+        approved: dailyReservations.filter(r => r.status === "Approved").length,
+        pending: dailyReservations.filter(r => r.status === "Pending").length,
+        ongoing: dailyReservations.filter(r => r.status === "Ongoing").length,
+        completed: dailyReservations.filter(r => r.status === "Completed").length,
+        expired: dailyReservations.filter(r => r.status === "Expired").length,
+        cancelled: dailyReservations.filter(r => r.status === "Cancelled").length
+      };
+      setDailyStats(stats);
 
-    const usage = {};
-    dailyReservations.forEach(reservation => {
-      const roomKey = `${reservation.location} - ${reservation.roomName}`;
-      if (!usage[roomKey]) {
-        usage[roomKey] = {
-          total: 0,
-          byStatus: {}
-        };
-      }
-      usage[roomKey].total++;
-      usage[roomKey].byStatus[reservation.status] = (usage[roomKey].byStatus[reservation.status] || 0) + 1;
-    });
-    setRoomUsage(usage);
+      const usage = {};
+      dailyReservations.forEach(reservation => {
+        const roomKey = `${reservation.location || 'Unknown'} - ${reservation.roomName || 'Unknown'}`;
+        if (!usage[roomKey]) {
+          usage[roomKey] = {
+            total: 0,
+            byStatus: {}
+          };
+        }
+        usage[roomKey].total++;
+        usage[roomKey].byStatus[reservation.status] = (usage[roomKey].byStatus[reservation.status] || 0) + 1;
+      });
+      setRoomUsage(usage);
 
-    const activities = dailyReservations
-      .sort((a, b) => new Date(b.datetime) - new Date(a.datetime))
-      .slice(0, 10)
-      .map(reservation => ({
-        id: reservation._id,
-        time: new Date(reservation.datetime).toLocaleTimeString('en-PH', { 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        user: reservation.userId?.name || 'Unknown',
-        action: getActivityAction(reservation),
-        room: reservation.roomName,
-        status: reservation.status
-      }));
-    setDailyActivities(activities);
+      const activities = dailyReservations
+        .sort((a, b) => new Date(b.datetime || 0) - new Date(a.datetime || 0))
+        .slice(0, 10)
+        .map(reservation => ({
+          id: reservation._id,
+          time: reservation.datetime ? new Date(reservation.datetime).toLocaleTimeString('en-PH', { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          }) : '--:--',
+          user: reservation.userId?.name || 'Unknown',
+          action: getActivityAction(reservation),
+          room: reservation.roomName || 'Unknown',
+          status: reservation.status
+        }));
+      setDailyActivities(activities);
+    } catch (error) {
+      console.error("Error calculating daily stats:", error);
+    }
   };
 
   const getActivityAction = (reservation) => {
@@ -367,7 +405,7 @@ function AdminReservations({ setView, onLogout }) {
 
   // Filter reservations based on status, search, and date
   const filteredReservations = reservations.filter((res) => {
-    const reserver = res.userId?.name || "";
+    const reserver = res.userId?.name || "Unknown";
     const matchesStatus = filter === "All" || res.status === filter;
     const matchesSearch =
       reserver.toLowerCase().includes(search.toLowerCase()) ||
@@ -382,8 +420,8 @@ function AdminReservations({ setView, onLogout }) {
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       
-      const reservationDate = new Date(res.datetime);
-      matchesDate = reservationDate >= today && reservationDate < tomorrow;
+      const reservationDate = res.datetime ? new Date(res.datetime) : null;
+      matchesDate = reservationDate && reservationDate >= today && reservationDate < tomorrow;
     }
     
     return matchesStatus && matchesSearch && matchesDate;
@@ -436,6 +474,14 @@ function AdminReservations({ setView, onLogout }) {
     </div>
   );
 
+  // Safe user name display
+  const getUserName = (userId) => {
+    if (!userId) return "Unknown User";
+    if (typeof userId === 'object' && userId.name) return userId.name;
+    if (typeof userId === 'string') return "User";
+    return "Unknown";
+  };
+
   return (
     <>
       <AdminNavigation setView={setView} currentView="adminReservation" onLogout={onLogout} />
@@ -465,6 +511,22 @@ function AdminReservations({ setView, onLogout }) {
 
         {/* Main Content */}
         <div className="p-6">
+          {/* Error Display */}
+          {fetchError && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <AlertTriangle className="text-red-500 mr-2" size={20} />
+                <p className="text-red-700">Error loading reservations: {fetchError}</p>
+              </div>
+              <button
+                onClick={fetchReservations}
+                className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+              >
+                Try Again
+              </button>
+            </div>
+          )}
+
           {/* View Mode Toggle */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
             <div className="flex flex-col md:flex-row md:items-center gap-4">
@@ -814,29 +876,29 @@ function AdminReservations({ setView, onLogout }) {
                     ) : (
                       filteredReservations.map((r, i) => {
                         const createdAt = r.createdAt ? new Date(r.createdAt) : null;
-                        const startDate = new Date(r.datetime);
-                        const endDate = new Date(r.endDatetime);
+                        const startDate = r.datetime ? new Date(r.datetime) : null;
+                        const endDate = r.endDatetime ? new Date(r.endDatetime) : null;
 
-                        const dateOnly = startDate.toLocaleDateString("en-PH", {
+                        const dateOnly = startDate ? startDate.toLocaleDateString("en-PH", {
                           timeZone: "Asia/Manila",
                           year: "numeric",
                           month: "long",
                           day: "numeric",
-                        });
+                        }) : "—";
 
-                        const startTime = startDate.toLocaleTimeString("en-PH", {
+                        const startTime = startDate ? startDate.toLocaleTimeString("en-PH", {
                           timeZone: "Asia/Manila",
                           hour: "2-digit",
                           minute: "2-digit",
                           hour12: true,
-                        });
+                        }) : "--:--";
 
-                        const endTime = endDate.toLocaleTimeString("en-PH", {
+                        const endTime = endDate ? endDate.toLocaleTimeString("en-PH", {
                           timeZone: "Asia/Manila",
                           hour: "2-digit",
                           minute: "2-digit",
                           hour12: true,
-                        });
+                        }) : "--:--";
 
                         return (
                           <tr key={r._id} className="hover:bg-gray-50">
@@ -858,10 +920,17 @@ function AdminReservations({ setView, onLogout }) {
                               {startTime} — {endTime}
                             </td>
                             <td className="px-6 py-4">
-                              <div className="font-medium">{r.roomName}</div>
-                              <div className="text-gray-500 text-xs">{r.location}</div>
+                              <div className="font-medium">{r.roomName || "Unknown Room"}</div>
+                              <div className="text-gray-500 text-xs">{r.location || "Unknown Location"}</div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">{r.userId?.name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                {getUserName(r.userId)}
+                                {!r.userId && (
+                                  <UserX size={14} className="ml-1 text-gray-400" />
+                                )}
+                              </div>
+                            </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span
                                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
