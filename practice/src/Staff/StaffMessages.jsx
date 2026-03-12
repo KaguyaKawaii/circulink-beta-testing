@@ -639,7 +639,7 @@ function StaffMessages({ setView, staff, onLogout }) {
                       : "text-gray-600 hover:text-gray-800 hover:bg-white"
                   }`}
                 >
-                  Floor Users
+                  Users
                 </button>
                 <button
                   onClick={() => handleTabChange("admin")}
