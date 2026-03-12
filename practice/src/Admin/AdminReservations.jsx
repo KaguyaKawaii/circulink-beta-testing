@@ -930,7 +930,7 @@ const getUserName = (userId) => {
   <div className="flex items-center">
     {getUserName(r.userId)}
     {(!r.userId || r.userId._deleted) && (
-      <UserX size={14} className="ml-1 text-gray-400" title="User account deleted" />
+      <UserX size={14} className="ml-1 text-red-400" title="User account deleted" />
     )}
   </div>
 </td>
