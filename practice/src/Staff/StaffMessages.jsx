@@ -14,8 +14,13 @@ function StaffMessages({ setView, staff, onLogout }) {
   const [activeTab, setActiveTab] = useState("floor");
   const [searchTerm, setSearchTerm] = useState("");
   const [totalUnread, setTotalUnread] = useState(0);
+  const [error, setError] = useState(null);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
+  const searchRef = useRef(null);
+  const messageInputRef = useRef(null);
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -53,6 +58,7 @@ function StaffMessages({ setView, staff, onLogout }) {
   // Fetch conversations with proper unread counts
   const fetchConversations = async () => {
     try {
+      setError(null);
       const { data } = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/messages/floor-users/${staff.floor}`
       );
@@ -74,6 +80,8 @@ function StaffMessages({ setView, staff, onLogout }) {
       setConversations(conversationsWithUnread);
     } catch (err) {
       console.error("Failed to fetch conversations:", err);
+      setError("Failed to load conversations. Please try again.");
+      setConversations([]);
     }
   };
 
@@ -305,12 +313,6 @@ function StaffMessages({ setView, staff, onLogout }) {
       }
     };
 
-    // Enhanced socket event listeners with error handling
-    socket.on("newMessage", handleNewMessage);
-    socket.on("unreadCountUpdate", handleUnreadCountUpdate);
-    socket.on("conversationUnreadUpdate", handleConversationUnreadUpdate);
-    socket.on("conversationRead", handleConversationRead);
-    
     // Handle message sent confirmation
     const handleMessageSent = (msg) => {
       console.log("✅ Message sent confirmation:", msg);
@@ -326,10 +328,21 @@ function StaffMessages({ setView, staff, onLogout }) {
       }
     };
     
+    const handleClickOutside = (event) => {
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSearchDropdown(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    socket.on("newMessage", handleNewMessage);
+    socket.on("unreadCountUpdate", handleUnreadCountUpdate);
+    socket.on("conversationUnreadUpdate", handleConversationUnreadUpdate);
+    socket.on("conversationRead", handleConversationRead);
     socket.on("messageSent", handleMessageSent);
     
     return () => {
-      // Clean up all event listeners
+      document.removeEventListener("mousedown", handleClickOutside);
       socket.off("newMessage", handleNewMessage);
       socket.off("unreadCountUpdate", handleUnreadCountUpdate);
       socket.off("conversationUnreadUpdate", handleConversationUnreadUpdate);
@@ -340,6 +353,7 @@ function StaffMessages({ setView, staff, onLogout }) {
 
   const fetchAdminConversation = async () => {
     try {
+      setError(null);
       const { data } = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/messages/staff-admin-conversation/${staff._id}`
       );
@@ -353,11 +367,14 @@ function StaffMessages({ setView, staff, onLogout }) {
       }, 100);
     } catch (err) {
       console.error("Failed to fetch admin conversation:", err);
+      setError("Failed to load admin conversation. Please try again.");
+      setMessages([]);
     }
   };
 
   const fetchUserConversation = async (user) => {
     try {
+      setError(null);
       const { data } = await axios.get(
         `${import.meta.env.VITE_API_URL}/api/messages/staff-user-conversation/${staff._id}/${user._id}`
       );
@@ -371,6 +388,8 @@ function StaffMessages({ setView, staff, onLogout }) {
       }, 100);
     } catch (err) {
       console.error("Failed to fetch user conversation:", err);
+      setError("Failed to load conversation. Please try again.");
+      setMessages([]);
     }
   };
 
@@ -392,6 +411,7 @@ function StaffMessages({ setView, staff, onLogout }) {
     setSelectedUser(null);
     setMessages([]);
     setNewMessage("");
+    setError(null);
     
     if (tab === "admin") {
       fetchAdminConversation();
@@ -416,6 +436,7 @@ function StaffMessages({ setView, staff, onLogout }) {
     if (activeTab === "floor" && selectedUser) {
       tempMsg = {
         _id: "temp-" + Date.now(),
+        localId: Date.now(),
         sender: staff._id,
         receiver: selectedUser._id,
         content: newMessage,
@@ -430,6 +451,7 @@ function StaffMessages({ setView, staff, onLogout }) {
       setNewMessage("");
 
       try {
+        setError(null);
         const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/staff-reply`, {
           staffId: staff._id,
           userId: selectedUser._id,
@@ -444,20 +466,22 @@ function StaffMessages({ setView, staff, onLogout }) {
         
         // Update the temporary message with the real one
         setMessages(prev => prev.map(msg => 
-          msg._id === tempMsg._id 
+          msg.localId === tempMsg.localId 
             ? { ...response.data, status: "sent" }
             : msg
         ));
         
       } catch (err) {
         console.error("Failed to send message:", err);
+        setError("Failed to send message. Please try again.");
         setMessages(prev => prev.map(msg => 
-          msg._id === tempMsg._id ? { ...msg, status: "failed" } : msg
+          msg.localId === tempMsg.localId ? { ...msg, status: "failed" } : msg
         ));
       }
     } else if (activeTab === "admin") {
       tempMsg = {
         _id: "temp-" + Date.now(),
+        localId: Date.now(),
         sender: staff._id,
         receiver: "admin",
         content: newMessage,
@@ -471,6 +495,7 @@ function StaffMessages({ setView, staff, onLogout }) {
       setNewMessage("");
 
       try {
+        setError(null);
         const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/messages/staff-to-admin`, {
           staffId: staff._id,
           content: newMessage
@@ -482,36 +507,71 @@ function StaffMessages({ setView, staff, onLogout }) {
         
         // Update the temporary message with the real one
         setMessages(prev => prev.map(msg => 
-          msg._id === tempMsg._id 
+          msg.localId === tempMsg.localId 
             ? { ...response.data, status: "sent" }
             : msg
         ));
         
       } catch (err) {
         console.error("Failed to send message to admin:", err);
+        setError("Failed to send message. Please try again.");
         setMessages(prev => prev.map(msg => 
-          msg._id === tempMsg._id ? { ...msg, status: "failed" } : msg
+          msg.localId === tempMsg.localId ? { ...msg, status: "failed" } : msg
         ));
       }
     }
   };
 
   const formatTime = (iso) => {
-    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (!iso) return "";
+    try {
+      const d = new Date(iso);
+      const now = new Date();
+      const isToday = d.toDateString() === now.toDateString();
+      
+      if (isToday) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } else {
+        return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+      }
+    } catch (error) {
+      return "";
+    }
   };
 
-  const formatDate = (iso) => {
-    return new Date(iso).toLocaleDateString();
+  const formatMessageDate = (iso) => {
+    if (!iso) return "";
+    try {
+      const d = new Date(iso);
+      const now = new Date();
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      
+      if (d.toDateString() === now.toDateString()) {
+        return "Today";
+      } else if (d.toDateString() === yesterday.toDateString()) {
+        return "Yesterday";
+      } else {
+        return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+      }
+    } catch (error) {
+      return "";
+    }
   };
 
-  const filteredConversations = conversations.filter(conv =>
-    conv.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const getAvatar = (name, size = "md") => {
+    const sizeClasses = size === "sm" ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm";
+    return (
+      <div className={`${sizeClasses} bg-gradient-to-r from-[#CC0000] to-red-600 rounded-full flex items-center justify-center text-white font-bold shadow-md flex-shrink-0`}>
+        {name ? name.charAt(0).toUpperCase() : "U"}
+      </div>
+    );
+  };
 
   const groupMessagesByDate = () => {
     const groups = {};
     messages.forEach(msg => {
-      const date = formatDate(msg.createdAt);
+      const date = formatMessageDate(msg.createdAt);
       if (!groups[date]) groups[date] = [];
       
       const messageExists = groups[date].some(m => m._id === msg._id);
@@ -524,51 +584,43 @@ function StaffMessages({ setView, staff, onLogout }) {
 
   const messageGroups = groupMessagesByDate();
 
-  // Enhanced Loading States - Skeleton Component
-  const ConversationSkeleton = () => (
-    <div className="w-full p-3 rounded-lg mb-1 bg-gray-100 animate-pulse">
-      <div className="flex items-center space-x-3">
-        <div className="w-10 h-10 bg-gray-300 rounded-full"></div>
-        <div className="flex-1">
-          <div className="h-4 bg-gray-300 rounded w-1/3 mb-2"></div>
-          <div className="h-3 bg-gray-300 rounded w-2/3"></div>
-        </div>
-      </div>
-    </div>
+  const filteredConversations = conversations.filter(conv =>
+    conv.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <>
       <StaffNavigation setView={setView} currentView="staffMessages" staff={staff} onLogout={onLogout} />
       
-      <div className="ml-[250px] w-[calc(100%-250px)] h-screen flex flex-col bg-gray-50">
-        {/* ENHANCED HEADER with Visual Improvements */}
-        <header className="bg-white px-6 py-4 border-b border-gray-200 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-[#CC0000]">Message Center</h1>
-              <p className="text-gray-600">Communicate with residents and administration</p>
+      <div className="ml-[250px] h-screen flex flex-col bg-gray-100">
+        {/* Header */}
+        <header className="bg-white px-6 py-4 border-b border-gray-200">
+          <h1 className="text-2xl font-bold text-[#CC0000]">Messages</h1>
+          <p className="text-gray-600">Communicate with residents and administration</p>
+          {error && (
+            <div className="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
+              {error}
             </div>
-            
-          </div>
+          )}
         </header>
 
         <div className="flex flex-1 overflow-hidden">
           {/* Conversations Sidebar */}
-          <div className="w-80 bg-white border-r border-gray-200 shadow-sm flex flex-col">
-            <div className="p-4 border-b border-gray-200">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-gray-600">Conversations</h2>
-              </div>
-              
+          <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+            {/* Search and Tabs */}
+            <div className="p-3 border-b border-gray-200" ref={searchRef}>
               {/* Search Bar */}
               <div className="relative mb-3">
                 <input
                   type="text"
                   placeholder="Search conversations..."
-                  className="w-full bg-gray-100 border border-gray-300 rounded-lg pl-9 pr-3 py-2 text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:border-transparent text-sm shadow-sm transition-all duration-200"
+                  className="w-full bg-gray-100 rounded-full pl-10 pr-4 py-2 text-sm text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:bg-white transition-all"
                   value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setShowSearchDropdown(true);
+                  }}
+                  onFocus={() => searchTerm && setShowSearchDropdown(true)}
                 />
                 <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -583,7 +635,7 @@ function StaffMessages({ setView, staff, onLogout }) {
                   onClick={() => handleTabChange("floor")}
                   className={`flex-1 py-2 rounded-md text-xs font-semibold transition-all duration-200 cursor-pointer ${
                     activeTab === "floor" 
-                      ? "bg-gradient-to-r from-[#CC0000] to-red-600 text-white shadow transform scale-105" 
+                      ? "bg-[#CC0000] text-white shadow" 
                       : "text-gray-600 hover:text-gray-800 hover:bg-white"
                   }`}
                 >
@@ -593,7 +645,7 @@ function StaffMessages({ setView, staff, onLogout }) {
                   onClick={() => handleTabChange("admin")}
                   className={`flex-1 py-2 rounded-md text-xs font-semibold transition-all duration-200 cursor-pointer ${
                     activeTab === "admin" 
-                      ? "bg-gradient-to-r from-[#CC0000] to-red-600 text-white shadow transform scale-105" 
+                      ? "bg-[#CC0000] text-white shadow" 
                       : "text-gray-600 hover:text-gray-800 hover:bg-white"
                   }`}
                 >
@@ -602,59 +654,61 @@ function StaffMessages({ setView, staff, onLogout }) {
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-2">
+            {/* Conversations List */}
+            <div className="flex-1 overflow-y-auto">
               {activeTab === "floor" ? (
                 loading ? (
-                  // Show skeleton loading states
-                  <>
-                    <ConversationSkeleton />
-                    <ConversationSkeleton />
-                    <ConversationSkeleton />
-                  </>
+                  // Loading skeletons
+                  <div className="p-4 space-y-3">
+                    {[1,2,3].map(i => (
+                      <div key={i} className="animate-pulse flex items-center space-x-3">
+                        <div className="w-10 h-10 bg-gray-200 rounded-full"></div>
+                        <div className="flex-1">
+                          <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
+                          <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 ) : filteredConversations.length === 0 ? (
-                  <div className="text-center p-6 text-gray-500">
-                    <svg className="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="text-center p-8 text-gray-500">
+                    <svg className="w-16 h-16 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
-                    <p className="font-medium text-sm">No conversations found</p>
-                    <p className="text-xs mt-1">{searchTerm ? "Try different search terms" : "Users will appear here"}</p>
+                    <p className="font-medium">No conversations found</p>
+                    <p className="text-xs mt-2">{searchTerm ? "Try different search terms" : "Users will appear here"}</p>
                   </div>
                 ) : (
                   filteredConversations.map(conv => (
                     <button
                       key={conv._id}
                       onClick={() => selectUser(conv)}
-                      className={`w-full text-left p-3 rounded-lg mb-1 transition-all duration-200 cursor-pointer group ${
+                      className={`w-full text-left p-3 transition-all duration-200 cursor-pointer hover:bg-gray-50 ${
                         selectedUser?._id === conv._id 
-                          ? 'bg-gradient-to-r from-red-50 to-yellow-50 border-2 border-red-200 shadow-lg transform scale-[1.02]' 
-                          : 'bg-white hover:bg-gray-50 border border-gray-200 hover:border-gray-300 hover:shadow-md'
+                          ? 'bg-[#CC0000]/5 border-l-4 border-[#CC0000]' 
+                          : 'border-l-4 border-transparent'
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3 flex-1 min-w-0">
-                          {/* Enhanced Unread badge - FIXED: Now disappears when staff replies */}
-                          {conv.unreadCount > 0 && (
-                            <div className="flex-shrink-0">
-                              <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full shadow-lg">
+                      <div className="flex items-center space-x-3">
+                        {getAvatar(conv.name)}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-gray-800 text-sm truncate">
+                              {conv.name}
+                            </span>
+                            <span className="text-xs text-gray-400 ml-2">
+                              {conv.latestMessageAt ? formatTime(conv.latestMessageAt) : ''}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between mt-0.5">
+                            <div className="text-xs text-gray-600 truncate max-w-[180px]">
+                              {conv.latestMessage || "No messages yet"}
+                            </div>
+                            {conv.unreadCount > 0 && (
+                              <span className="bg-[#CC0000] text-white text-xs px-2 py-0.5 rounded-full ml-2">
                                 {conv.unreadCount}
                               </span>
-                            </div>
-                          )}
-                          <div className="w-10 h-10 bg-gradient-to-r from-[#CC0000] to-red-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-110 transition-transform duration-200 flex-shrink-0">
-                            {conv.name.charAt(0).toUpperCase()}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <span className="font-semibold text-gray-800 text-sm truncate">
-                                {conv.name}
-                              </span>
-                            </div>
-                            <div className="text-xs text-gray-600 truncate mt-1">
-                              {conv.latestMessage || "Start a conversation..."}
-                            </div>
-                            <div className="text-xs text-gray-500 mt-1">
-                              {conv.latestMessageAt ? formatTime(conv.latestMessageAt) : 'No messages'}
-                            </div>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -662,28 +716,26 @@ function StaffMessages({ setView, staff, onLogout }) {
                   ))
                 )
               ) : (
+                // Admin conversation option
                 <div className="p-3">
                   <div 
                     onClick={() => handleTabChange("admin")}
-                    className={`bg-gradient-to-r from-red-50 to-yellow-50 border border-red-200 rounded-lg p-3 cursor-pointer transition-all duration-200 group ${
-                      activeTab === "admin" && !selectedUser ? 'ring-2 ring-red-300 shadow-lg transform scale-[1.02]' : 'hover:shadow-lg hover:scale-[1.01]'
+                    className={`bg-white border rounded-lg p-3 cursor-pointer transition-all duration-200 hover:bg-gray-50 ${
+                      activeTab === "admin" && !selectedUser ? 'border-[#CC0000] border-2' : 'border-gray-200'
                     }`}
                   >
-                    <div className="flex items-center mb-2">
-                      <div className="w-8 h-8 bg-gradient-to-r from-[#CC0000] to-red-600 rounded-lg flex items-center justify-center text-white mr-2 shadow-lg group-hover:scale-110 transition-transform duration-200">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-[#CC0000] rounded-lg flex items-center justify-center text-white mr-3">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         </svg>
                       </div>
                       <div>
-                        <span className="font-bold text-red-800 text-sm">Admin Support</span>
-                        <p className="text-xs text-red-600">Always available to help</p>
+                        <span className="font-bold text-gray-800 text-sm">Admin Support</span>
+                        <p className="text-xs text-gray-500 mt-1">Contact administration for assistance</p>
                       </div>
                     </div>
-                    <p className="text-xs text-red-700 leading-relaxed">
-                      Contact system administrators for technical support, questions, or any assistance you need.
-                    </p>
                   </div>
                 </div>
               )}
@@ -691,288 +743,259 @@ function StaffMessages({ setView, staff, onLogout }) {
           </div>
 
           {/* Chat Area */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col bg-gray-100">
             {activeTab === "floor" && selectedUser ? (
               <>
-                <div className="bg-white p-4 border-b border-gray-200 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-r from-[#CC0000] to-red-600 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-lg">
-                        {selectedUser.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-lg text-gray-800">{selectedUser.name}</h3>
-                      </div>
+                {/* Chat Header */}
+                <div className="bg-white px-4 py-3 border-b border-gray-200 shadow-sm flex items-center">
+                  <div className="flex items-center space-x-3">
+                    {getAvatar(selectedUser.name)}
+                    <div>
+                      <h3 className="font-semibold text-gray-800">{selectedUser.name}</h3>
+                      <p className="text-xs text-gray-500">User • Active now</p>
                     </div>
-                    {/* FIXED: Unread badge disappears when staff replies */}
-                    {selectedUser.unreadCount > 0 && (
-                      <span className="bg-red-500 text-white text-sm px-3 py-1 rounded-full shadow-lg">
-                        {selectedUser.unreadCount}
-                      </span>
-                    )}
                   </div>
+                  {selectedUser.unreadCount > 0 && (
+                    <span className="ml-auto bg-[#CC0000] text-white text-xs px-2 py-1 rounded-full">
+                      {selectedUser.unreadCount} new
+                    </span>
+                  )}
                 </div>
                 
+                {/* Messages Container */}
                 <div 
                   ref={chatContainerRef}
-                  className="flex-1 overflow-y-auto bg-gradient-to-b from-red-50/30 to-yellow-50/20"
+                  className="flex-1 overflow-y-auto px-4 py-6"
                 >
-                  <div className="p-4">
-                    {loading ? (
-                      <div className="flex justify-center items-center">
-                        <div className="text-center">
-                          <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#CC0000] border-t-transparent mx-auto mb-3"></div>
-                          <p className="text-gray-600 font-medium text-sm">Loading conversation...</p>
+                  {loading ? (
+                    <div className="flex justify-center items-center h-full">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#CC0000]"></div>
+                    </div>
+                  ) : messages.length === 0 ? (
+                    <div className="flex justify-center items-center h-full">
+                      <div className="text-center text-gray-500">
+                        <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
                         </div>
+                        <p className="text-sm">No messages yet</p>
+                        <p className="text-xs text-gray-400 mt-1">Say hello to {selectedUser.name}</p>
                       </div>
-                    ) : messages.length === 0 ? (
-                      <div className="flex justify-center items-center h-full">
-                        <div className="text-center text-gray-500">
-                          <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-r from-red-100 to-yellow-100 rounded-full flex items-center justify-center">
-                            <svg className="w-12 h-12 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {Object.entries(messageGroups).map(([date, dateMessages]) => (
+                        <div key={date}>
+                          <div className="flex justify-center mb-4">
+                            <span className="text-xs bg-gray-200/80 text-gray-600 px-3 py-1 rounded-full">
+                              {date}
+                            </span>
                           </div>
-                          <h3 className="text-xl font-semibold text-gray-700 mb-2">No messages yet</h3>
-                          <p className="text-gray-500 mb-4">Start the conversation by sending a message below</p>
-                          <button 
-                            onClick={() => document.querySelector('textarea')?.focus()}
-                            className="bg-gradient-to-r from-[#CC0000] to-red-600 text-white px-6 py-2 rounded-lg hover:shadow-lg transition-all duration-200 transform hover:scale-105"
-                          >
-                            Write your first message
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="max-w-full mx-auto space-y-4">
-                        {Object.entries(messageGroups).map(([date, dateMessages]) => (
-                          <div key={date}>
-                            <div className="flex justify-center mb-3">
-                              <div className="bg-gray-200 text-gray-600 px-3 py-1 rounded-full text-xs font-medium shadow-sm">
-                                {date}
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              {dateMessages.map(msg => (
-                                <div key={msg._id} className={`flex ${msg.sender === staff._id ? 'justify-end' : 'justify-start'}`}>
-                                  <div className={`max-w-[75%] rounded-2xl p-4 shadow-sm transition-all duration-200 hover:shadow-md ${
-                                    msg.sender === staff._id 
-                                      ? 'bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-br-none' 
-                                      : 'bg-white border border-gray-100 rounded-bl-none shadow'
-                                  }`}>
-                                    <div className="flex items-center justify-between mb-1">
-                                      <div className="text-xs font-semibold">
-                                        {msg.sender === staff._id ? `${staff.floor} Staff` : `${msg.senderName}`}
+                          <div className="space-y-2">
+                            {dateMessages.map((msg, idx) => {
+                              const isStaff = msg.sender === staff._id;
+                              const showAvatar = !isStaff && (
+                                idx === 0 || 
+                                dateMessages[idx - 1]?.sender !== msg.sender
+                              );
+                              
+                              return (
+                                <div key={msg._id || msg.localId} className={`flex ${isStaff ? 'justify-end' : 'justify-start'}`}>
+                                  <div className={`flex items-end space-x-2 max-w-[65%] ${isStaff ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                                    {!isStaff && showAvatar ? (
+                                      getAvatar(selectedUser.name, "sm")
+                                    ) : !isStaff ? (
+                                      <div className="w-8"></div>
+                                    ) : null}
+                                    
+                                    <div className="flex flex-col">
+                                      <div className={`px-3 py-2 rounded-2xl ${
+                                        isStaff 
+                                          ? 'bg-[#CC0000] text-white rounded-br-none' 
+                                          : 'bg-white border border-gray-200 rounded-bl-none shadow-sm'
+                                      }`}>
+                                        <div className="text-sm whitespace-pre-wrap break-words">
+                                          {msg.content}
+                                        </div>
                                       </div>
-                                      {msg.status === "sending" && (
-                                        <div className="text-xs opacity-80 animate-pulse flex items-center">
-                                          <svg className="w-3 h-3 animate-spin mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v4m0 12v4m8-10h-4M6 12H2m15.364-7.364l-2.828 2.828M7.464 17.536l-2.828 2.828m12.728 0l-2.828-2.828M7.464 6.464L4.636 3.636" />
-                                          </svg>
-                                          Sending...
-                                        </div>
-                                      )}
-                                      {msg.status === "sent" && (
-                                        <div className="text-xs opacity-80 flex items-center text-green-300">
-                                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                          </svg>
-                                          Sent
-                                        </div>
-                                      )}
-                                      {msg.status === "failed" && (
-                                        <div className="text-xs opacity-80 text-red-200 flex items-center">
-                                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                          </svg>
-                                          Failed
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</div>
-                                    <div className={`text-xs mt-1 text-right ${
-                                      msg.sender === staff._id ? 'text-red-100' : 'text-gray-500'
-                                    }`}>
-                                      {formatTime(msg.createdAt)}
+                                      <div className={`text-[10px] text-gray-400 mt-1 ${isStaff ? 'text-right' : 'text-left'}`}>
+                                        {formatTime(msg.createdAt)}
+                                        {msg.status === "sending" && " • Sending"}
+                                        {msg.status === "failed" && " • Failed"}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-                              ))}
-                            </div>
+                              );
+                            })}
                           </div>
-                        ))}
-                        <div ref={messagesEndRef} />
-                      </div>
-                    )}
-                  </div>
+                        </div>
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
                 </div>
 
-                <div className="bg-white p-4 border-t border-gray-200 shadow-lg">
-                  <div className="max-w-full mx-auto">
-                    <div className="flex space-x-2">
+                {/* Message Input */}
+                <div className="bg-white px-4 py-3 border-t border-gray-200">
+                  <div className="flex items-end space-x-2">
+                    <div className="flex-1 bg-gray-100 rounded-3xl px-4 py-2">
                       <textarea
-                        placeholder={`Send a Message to ${selectedUser.name}...`}
-                        className="flex-1 bg-white border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:border-transparent text-sm shadow-sm resize-none transition-all duration-200"
+                        ref={messageInputRef}
+                        placeholder={`Message ${selectedUser.name}`}
+                        className="w-full bg-transparent border-0 focus:ring-0 text-sm resize-none outline-none max-h-32"
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         onKeyDown={handleKeyPress}
                         rows={1}
-                        style={{ minHeight: '50px', maxHeight: '120px' }}
+                        style={{ minHeight: '20px' }}
                       />
-                      <button
-                        onClick={sendMessage}
-                        disabled={!newMessage.trim()}
-                        className="bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-lg px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-lg font-semibold shadow flex items-center space-x-1 text-sm"
-                      >
-                        <span>Send</span>
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                        </svg>
-                      </button>
                     </div>
+                    <button
+                      onClick={sendMessage}
+                      disabled={!newMessage.trim()}
+                      className="bg-[#CC0000] text-white rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-[#CC0000]/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#CC0000] cursor-pointer flex-shrink-0"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </>
             ) : activeTab === "admin" ? (
               <>
-                <div className="bg-white p-4 border-b border-gray-200 shadow-sm">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 bg-gradient-to-r from-[#CC0000] to-red-600 rounded-lg flex items-center justify-center text-white text-sm shadow-lg">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-lg text-gray-800">Administration</h3>
-                      </div>
+                {/* Admin Chat Header */}
+                <div className="bg-white px-4 py-3 border-b border-gray-200 shadow-sm flex items-center">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-[#CC0000] rounded-lg flex items-center justify-center text-white">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-gray-800">Administration</h3>
+                      <p className="text-xs text-gray-500">Support team • Usually replies within an hour</p>
                     </div>
                   </div>
                 </div>
                 
+                {/* Messages Container */}
                 <div 
                   ref={chatContainerRef}
-                  className="flex-1 overflow-y-auto bg-gradient-to-b from-red-50/30 to-yellow-50/20"
+                  className="flex-1 overflow-y-auto px-4 py-6"
                 >
-                  <div className="p-4">
-                    {messages.length === 0 ? (
-                      <div className="flex justify-center items-center h-full">
-                        <div className="text-center text-gray-500">
-                          <div className="w-24 h-24 mx-auto mb-4 bg-gradient-to-r from-red-100 to-yellow-100 rounded-full flex items-center justify-center">
-                            <svg className="w-12 h-12 text-red-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                            </svg>
-                          </div>
-                          <h3 className="text-xl font-semibold text-gray-700 mb-2">No messages yet</h3>
-                          <p className="text-gray-500 mb-4">Start a conversation with the administration team</p>
-                          <button 
-                            onClick={() => document.querySelector('textarea')?.focus()}
-                            className="bg-gradient-to-r from-[#CC0000] to-red-600 text-white px-6 py-2 rounded-lg hover:shadow-lg transition-all duration-200 transform hover:scale-105"
-                          >
-                            Write your first message
-                          </button>
+                  {messages.length === 0 ? (
+                    <div className="flex justify-center items-center h-full">
+                      <div className="text-center text-gray-500">
+                        <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
                         </div>
+                        <p className="text-sm">No messages yet</p>
+                        <p className="text-xs text-gray-400 mt-1">Start a conversation with administration</p>
                       </div>
-                    ) : (
-                      <div className="max-w-full mx-auto space-y-4">
-                        {Object.entries(messageGroups).map(([date, dateMessages]) => (
-                          <div key={date}>
-                            <div className="flex justify-center mb-3">
-                              <div className="bg-red-200 text-red-600 px-3 py-1 rounded-full text-xs font-medium shadow-sm">
-                                {date}
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              {dateMessages.map(msg => (
-                                <div key={msg._id} className={`flex ${msg.sender === staff._id ? 'justify-end' : 'justify-start'}`}>
-                                  <div className={`max-w-[75%] rounded-2xl p-4 shadow-sm transition-all duration-200 hover:shadow-md ${
-                                    msg.sender === staff._id 
-                                      ? 'bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-br-none' 
-                                      : 'bg-white border border-gray-100 rounded-bl-none shadow'
-                                  }`}>
-                                    <div className="flex items-center justify-between mb-1">
-                                      <div className="text-xs font-semibold">
-                                        {msg.sender === staff._id ? `${staff.name}` : "Administration"}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {Object.entries(messageGroups).map(([date, dateMessages]) => (
+                        <div key={date}>
+                          <div className="flex justify-center mb-4">
+                            <span className="text-xs bg-gray-200/80 text-gray-600 px-3 py-1 rounded-full">
+                              {date}
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {dateMessages.map((msg, idx) => {
+                              const isStaff = msg.sender === staff._id;
+                              const showAvatar = !isStaff && (
+                                idx === 0 || 
+                                dateMessages[idx - 1]?.sender !== msg.sender
+                              );
+                              
+                              return (
+                                <div key={msg._id || msg.localId} className={`flex ${isStaff ? 'justify-end' : 'justify-start'}`}>
+                                  <div className={`flex items-end space-x-2 max-w-[65%] ${isStaff ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                                    {!isStaff && showAvatar ? (
+                                      <div className="w-8 h-8 bg-[#CC0000] rounded-lg flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                                        </svg>
                                       </div>
-                                      {msg.status === "sending" && (
-                                        <div className="text-xs opacity-80 animate-pulse flex items-center">
-                                          <svg className="w-3 h-3 animate-spin mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2v4m0 12v4m8-10h-4M6 12H2m15.364-7.364l-2.828 2.828M7.464 17.536l-2.828 2.828m12.728 0l-2.828-2.828M7.464 6.464L4.636 3.636" />
-                                          </svg>
-                                          Sending...
+                                    ) : !isStaff ? (
+                                      <div className="w-8"></div>
+                                    ) : null}
+                                    
+                                    <div className="flex flex-col">
+                                      <div className={`px-3 py-2 rounded-2xl ${
+                                        isStaff 
+                                          ? 'bg-[#CC0000] text-white rounded-br-none' 
+                                          : 'bg-white border border-gray-200 rounded-bl-none shadow-sm'
+                                      }`}>
+                                        <div className="text-sm whitespace-pre-wrap break-words">
+                                          {msg.content}
                                         </div>
-                                      )}
-                                      {msg.status === "sent" && (
-                                        <div className="text-xs opacity-80 flex items-center text-green-300">
-                                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                          </svg>
-                                          Sent
-                                        </div>
-                                      )}
-                                      {msg.status === "failed" && (
-                                        <div className="text-xs opacity-80 text-red-200 flex items-center">
-                                          <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                          </svg>
-                                          Failed
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.content}</div>
-                                    <div className={`text-xs mt-1 text-right ${
-                                      msg.sender === staff._id ? 'text-red-100' : 'text-gray-500'
-                                    }`}>
-                                      {formatTime(msg.createdAt)}
+                                      </div>
+                                      <div className={`text-[10px] text-gray-400 mt-1 ${isStaff ? 'text-right' : 'text-left'}`}>
+                                        {formatTime(msg.createdAt)}
+                                        {msg.status === "sending" && " • Sending"}
+                                        {msg.status === "failed" && " • Failed"}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
-                              ))}
-                            </div>
+                              );
+                            })}
                           </div>
-                        ))}
-                        <div ref={messagesEndRef} />
-                      </div>
-                    )}
-                  </div>
+                        </div>
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
                 </div>
 
-                <div className="bg-white p-4 border-t border-gray-200 shadow-lg">
-                  <div className="max-w-full mx-auto">
-                    <div className="flex space-x-2">
+                {/* Message Input */}
+                <div className="bg-white px-4 py-3 border-t border-gray-200">
+                  <div className="flex items-end space-x-2">
+                    <div className="flex-1 bg-gray-100 rounded-3xl px-4 py-2">
                       <textarea
-                        placeholder="Message Administration... "
-                        className="flex-1 bg-white border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:border-transparent text-sm shadow-sm resize-none transition-all duration-200"
+                        ref={messageInputRef}
+                        placeholder="Message Administration..."
+                        className="w-full bg-transparent border-0 focus:ring-0 text-sm resize-none outline-none max-h-32"
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         onKeyDown={handleKeyPress}
                         rows={1}
-                        style={{ minHeight: '50px', maxHeight: '120px' }}
+                        style={{ minHeight: '20px' }}
                       />
-                      <button
-                        onClick={sendMessage}
-                        disabled={!newMessage.trim()}
-                        className="bg-gradient-to-r from-[#CC0000] to-red-600 text-white rounded-lg px-6 py-3 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 transform hover:scale-105 hover:shadow-lg font-semibold shadow flex items-center space-x-1 text-sm"
-                      >
-                        <span>Send</span>
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                        </svg>
-                      </button>
                     </div>
+                    <button
+                      onClick={sendMessage}
+                      disabled={!newMessage.trim()}
+                      className="bg-[#CC0000] text-white rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-[#CC0000]/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#CC0000] cursor-pointer flex-shrink-0"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-red-50/50 to-yellow-50/50">
+              /* Empty State */
+              <div className="flex-1 flex items-center justify-center bg-gray-100">
                 <div className="text-center text-gray-500">
-                  <svg className="w-24 h-24 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                  </svg>
-                  <h3 className="text-xl font-semibold mb-2">Select a Conversation</h3>
-                  <p className="text-gray-600 max-w-md mx-auto">
-                    Choose a resident from the list to start messaging, or contact administration for support.
+                  <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2 text-gray-700">Your Messages</h3>
+                  <p className="text-gray-500 max-w-sm">
+                    Select a conversation from the sidebar or choose a tab to start messaging
                   </p>
                 </div>
               </div>
@@ -980,6 +1003,16 @@ function StaffMessages({ setView, staff, onLogout }) {
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(-5px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fadeIn {
+          animation: fadeIn 0.15s ease-out;
+        }
+      `}</style>
     </>
   );
 }
