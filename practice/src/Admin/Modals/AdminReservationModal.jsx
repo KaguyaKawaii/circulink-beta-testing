@@ -1200,7 +1200,7 @@ const AdminReservationModal = ({
                 ) : (
                   <>
                     <CheckCircle size={16} />
-                    Request Extension
+                    Request Extension.
                   </>
                 )}
               </button>
