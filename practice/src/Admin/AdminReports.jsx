@@ -726,7 +726,7 @@ function AdminReports({ setView, onLogout }) {
                         </td>
                         <td className="px-6 py-4">
                           <div className="max-w-[200px]">
-                            <div className="text-gray-900 mb-1">
+                            <div className="text-gray-900 mb-1 break-words">
                               {truncateText(report.details, 60)}
                             </div>
                             {report.details && report.details.length > 60 && (

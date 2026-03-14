@@ -23,7 +23,6 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
   const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState("");
   const [resolveError, setResolveError] = useState("");
-  const [activeTab, setActiveTab] = useState("overview");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [actionTaken, setActionTaken] = useState("");
 
@@ -254,23 +253,6 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
                 </button>
               </div>
             </div>
-
-            {/* Tabs */}
-            <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-              {["overview", "details"].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 flex-1 cursor-pointer ${
-                    activeTab === tab
-                      ? "bg-white text-gray-900 shadow-sm cursor-pointer hover:bg-gray-50"
-                      : "text-gray-600 hover:text-gray-900 cursor-pointer hover:bg-gray-50"
-                  }`}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Error Message */}
@@ -283,7 +265,7 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
             </div>
           )}
 
-          {/* Main Content */}
+          {/* Main Content - Always showing full details */}
           <div className="p-6 overflow-y-auto max-h-[60vh]">
             {loading ? (
               <div className="flex justify-center items-center py-8">
@@ -300,180 +282,132 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
                 </button>
               </div>
             ) : report ? (
-              <>
-                {activeTab === "overview" && (
-                  <div className="space-y-6">
-                    {/* Quick Stats */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <InfoCard
-                        title="Category"
-                        value={report.category || "N/A"}
-                        icon={<FileText size={20} />}
-                        subtitle="Issue type"
-                      />
-                      <InfoCard
-                        title="Reported By"
-                        value={report.reportedBy || "N/A"}
-                        icon={<User size={20} />}
-                        subtitle="Reporter"
-                      />
-                      <InfoCard
-                        title="Assigned To"
-                        value={report.assignedTo?.name || "Unassigned"}
-                        icon={<Wrench size={20} />}
-                        subtitle="Staff member"
-                      />
-                    </div>
+              <div className="space-y-6">
+                {/* Quick Stats */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <InfoCard
+                    title="Category"
+                    value={report.category || "N/A"}
+                    icon={<FileText size={20} />}
+                    subtitle="Issue type"
+                  />
+                  <InfoCard
+                    title="Reported By"
+                    value={report.reportedBy || "N/A"}
+                    icon={<User size={20} />}
+                    subtitle="Reporter"
+                  />
+                  <InfoCard
+                    title="Assigned To"
+                    value={report.assignedTo?.name || "Unassigned"}
+                    icon={<Wrench size={20} />}
+                    subtitle="Staff member"
+                  />
+                </div>
 
-                    {/* Location & Details */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                      {/* Location Card */}
-                      <div className="bg-white border border-gray-200 rounded-xl p-5">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="p-2 bg-gray-100 rounded-lg">
-                            <MapPin size={20} className="text-gray-600" />
-                          </div>
-                          <h3 className="text-lg font-semibold text-gray-900">Location Details</h3>
-                        </div>
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between py-2">
-                            <span className="text-gray-600">Floor</span>
-                            <span className="font-semibold text-gray-900">{report.floor || "N/A"}</span>
-                          </div>
-                          <div className="flex items-center justify-between py-2">
-                            <span className="text-gray-600">Room</span>
-                            <span className="font-semibold text-gray-900">{report.room || "N/A"}</span>
-                          </div>
-                          <div className="flex items-center justify-between py-2">
-                            <span className="text-gray-600">Date Reported</span>
-                            <span className="font-semibold text-gray-900">{formatPHDateTime(report.createdAt)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Issue Details Card */}
-                      <div className="bg-white border border-gray-200 rounded-xl p-5">
-                        <div className="flex items-center gap-3 mb-4">
-                          <div className="p-2 bg-gray-100 rounded-lg">
-                            <AlertTriangle size={20} className="text-gray-600" />
-                          </div>
-                          <h3 className="text-lg font-semibold text-gray-900">Issue Details</h3>
-                        </div>
-                        <p className="text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-lg">
-                          {report.details || "No details provided"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === "details" && (
-                  <div className="space-y-6">
-                    {/* Complete Report Information */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-5">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Complete Report Information</h3>
-                      
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-500 mb-3">Basic Information</h4>
-                          <div className="space-y-3">
-                            <div className="flex justify-between py-2 border-b border-gray-100">
-                              <span className="text-gray-600">Report ID</span>
-                              <span className="font-mono text-sm text-gray-900">{report._id}</span>
-                            </div>
-                            <div className="flex justify-between py-2 border-b border-gray-100">
-                              <span className="text-gray-600">Category</span>
-                              <span className="font-medium text-gray-900">{report.category}</span>
-                            </div>
-                            <div className="flex justify-between py-2 border-b border-gray-100">
-                              <span className="text-gray-600">Status</span>
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusConfig(report.status).color}`}>
-                                {report.status}
-                              </span>
-                            </div>
-                            <div className="flex justify-between py-2 border-b border-gray-100">
-                              <span className="text-gray-600">Reported By</span>
-                              <span className="font-medium text-gray-900">{report.reportedBy}</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h4 className="text-sm font-medium text-gray-500 mb-3">Location & Assignment</h4>
-                          <div className="space-y-3">
-                            <div className="flex justify-between py-2 border-b border-gray-100">
-                              <span className="text-gray-600">Floor</span>
-                              <span className="font-medium text-gray-900">{report.floor}</span>
-                            </div>
-                            <div className="flex justify-between py-2 border-b border-gray-100">
-                              <span className="text-gray-600">Room</span>
-                              <span className="font-medium text-gray-900">{report.room}</span>
-                            </div>
-                            <div className="flex justify-between py-2 border-b border-gray-100">
-                              <span className="text-gray-600">Assigned To</span>
-                              <span className="font-medium text-gray-900">
-                                {report.assignedTo?.name || "Unassigned"}
-                              </span>
-                            </div>
-                            {report.assignedBy && (
-                              <div className="flex justify-between py-2 border-b border-gray-100">
-                                <span className="text-gray-600">Assigned By</span>
-                                <span className="font-medium text-gray-900">{report.assignedBy.name}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Full Description */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-5">
-                      <h4 className="text-sm font-medium text-gray-500 mb-3">Full Description</h4>
-                      <p className="text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-lg whitespace-pre-wrap">
-                        {report.details}
-                      </p>
-                    </div>
-
-                    {/* Action Taken (if resolved) */}
-                    {report.actionTaken && (
-                      <div className="bg-white border border-gray-200 rounded-xl p-5">
-                        <h4 className="text-sm font-medium text-gray-500 mb-3">Action Taken</h4>
-                        <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-                          <p className="text-emerald-800 leading-relaxed whitespace-pre-wrap">
-                            {report.actionTaken}
-                          </p>
-                          {report.resolvedAt && (
-                            <p className="text-sm text-emerald-600 mt-2">
-                              Resolved on: {formatPHDateTime(report.resolvedAt)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Timestamps */}
-                    <div className="bg-white border border-gray-200 rounded-xl p-5">
-                      <h4 className="text-sm font-medium text-gray-500 mb-3">Timeline</h4>
+                {/* Complete Report Information */}
+                <div className="bg-white border border-gray-200 rounded-xl p-5">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Complete Report Information</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-3">Basic Information</h4>
                       <div className="space-y-3">
                         <div className="flex justify-between py-2 border-b border-gray-100">
-                          <span className="text-gray-600">Created</span>
-                          <span className="font-medium text-gray-900">{formatPHDateTime(report.createdAt)}</span>
+                          <span className="text-gray-600">Report ID</span>
+                          <span className="font-mono text-sm text-gray-900">{report._id}</span>
                         </div>
                         <div className="flex justify-between py-2 border-b border-gray-100">
-                          <span className="text-gray-600">Last Updated</span>
-                          <span className="font-medium text-gray-900">{formatPHDateTime(report.updatedAt)}</span>
+                          <span className="text-gray-600">Category</span>
+                          <span className="font-medium text-gray-900">{report.category}</span>
                         </div>
-                        {report.resolvedAt && (
+                        <div className="flex justify-between py-2 border-b border-gray-100">
+                          <span className="text-gray-600">Status</span>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusConfig(report.status).color}`}>
+                            {report.status}
+                          </span>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-gray-100">
+                          <span className="text-gray-600">Reported By</span>
+                          <span className="font-medium text-gray-900">{report.reportedBy}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-3">Location & Assignment</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between py-2 border-b border-gray-100">
+                          <span className="text-gray-600">Floor</span>
+                          <span className="font-medium text-gray-900">{report.floor}</span>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-gray-100">
+                          <span className="text-gray-600">Room</span>
+                          <span className="font-medium text-gray-900">{report.room}</span>
+                        </div>
+                        <div className="flex justify-between py-2 border-b border-gray-100">
+                          <span className="text-gray-600">Assigned To</span>
+                          <span className="font-medium text-gray-900">
+                            {report.assignedTo?.name || "Unassigned"}
+                          </span>
+                        </div>
+                        {report.assignedBy && (
                           <div className="flex justify-between py-2 border-b border-gray-100">
-                            <span className="text-gray-600">Resolved</span>
-                            <span className="font-medium text-gray-900">{formatPHDateTime(report.resolvedAt)}</span>
+                            <span className="text-gray-600">Assigned By</span>
+                            <span className="font-medium text-gray-900">{report.assignedBy.name}</span>
                           </div>
                         )}
                       </div>
                     </div>
                   </div>
+                </div>
+
+                {/* Issue Details - Full Description */}
+                <div className="bg-white border border-gray-200 rounded-xl p-5">
+                  <h4 className="text-sm font-medium text-gray-500 mb-3">Issue Details</h4>
+                  <p className="text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-lg whitespace-pre-wrap">
+                    {report.details}
+                  </p>
+                </div>
+
+                {/* Action Taken (if resolved) */}
+                {report.actionTaken && (
+                  <div className="bg-white border border-gray-200 rounded-xl p-5">
+                    <h4 className="text-sm font-medium text-gray-500 mb-3">Action Taken</h4>
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
+                      <p className="text-emerald-800 leading-relaxed whitespace-pre-wrap">
+                        {report.actionTaken}
+                      </p>
+                      {report.resolvedAt && (
+                        <p className="text-sm text-emerald-600 mt-2">
+                          Resolved on: {formatPHDateTime(report.resolvedAt)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 )}
-              </>
+
+                {/* Timestamps */}
+                <div className="bg-white border border-gray-200 rounded-xl p-5">
+                  <h4 className="text-sm font-medium text-gray-500 mb-3">Timeline</h4>
+                  <div className="space-y-3">
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-600">Created</span>
+                      <span className="font-medium text-gray-900">{formatPHDateTime(report.createdAt)}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-gray-100">
+                      <span className="text-gray-600">Last Updated</span>
+                      <span className="font-medium text-gray-900">{formatPHDateTime(report.updatedAt)}</span>
+                    </div>
+                    {report.resolvedAt && (
+                      <div className="flex justify-between py-2 border-b border-gray-100">
+                        <span className="text-gray-600">Resolved</span>
+                        <span className="font-medium text-gray-900">{formatPHDateTime(report.resolvedAt)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
             ) : (
               <div className="text-center py-8">
                 <p className="text-gray-500">Report not found.</p>
