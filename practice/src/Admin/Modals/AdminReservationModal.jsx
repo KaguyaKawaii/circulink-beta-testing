@@ -22,9 +22,10 @@ import {
   IdCard,
   BookOpen,
   GraduationCap,
-  Eye
+  Eye,
+  Mail,
+  Layers
 } from "lucide-react";
-import UserViewModal from "./UserViewModal";
 
 const AdminReservationModal = ({ 
   reservation, 
@@ -260,37 +261,26 @@ const AdminReservationModal = ({
     setShowUserModal(true);
   };
 
-  const handleUserUpdated = (updatedUser) => {
-    // Update the participant in the participants list if needed
-    if (reservation.participants) {
-      const updatedParticipants = reservation.participants.map(p => 
-        p._id === updatedUser._id ? updatedUser : p
-      );
-      reservation.participants = updatedParticipants;
-    }
+  const formatDate = (dateString) => {
+    if (!dateString) return "—";
+    const date = new Date(dateString);
+    return date.toLocaleString("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
   };
 
-  const handleToggleVerified = async (user) => {
-    try {
-      const response = await axios.patch(
-        `${import.meta.env.VITE_API_URL}/api/users/${user._id}/verify`,
-        { verified: !user.verified }
-      );
-      
-      if (response.data.success) {
-        const updatedUser = response.data.user;
-        setSelectedUser(updatedUser);
-        
-        if (reservation.participants) {
-          const updatedParticipants = reservation.participants.map(p => 
-            p._id === updatedUser._id ? updatedUser : p
-          );
-          reservation.participants = updatedParticipants;
-        }
-      }
-    } catch (error) {
-      console.error("Failed to toggle verification:", error);
-      alert("Failed to update verification status.");
+  const getProfilePictureUrl = (user) => {
+    if (!user.profilePicture) return null;
+    if (user.profilePicture.startsWith("http")) {
+      return `${user.profilePicture}?t=${Date.now()}`;
+    } else {
+      return `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${Date.now()}`;
     }
   };
 
@@ -502,6 +492,183 @@ const AdminReservationModal = ({
       </div>
     </div>
   );
+
+  // Simple View User Modal Component
+  const ViewUserModal = ({ user, onClose }) => {
+    return (
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+        <div className="bg-white w-full max-w-4xl rounded-xl shadow-lg overflow-hidden max-h-[90vh] overflow-y-auto">
+          {/* Modal Header */}
+          <header className="flex justify-between items-center bg-gray-50 border-b border-gray-200 px-6 py-4 sticky top-0 z-10">
+            <h2 className="text-xl font-semibold text-gray-800">User Profile</h2>
+            <button 
+              onClick={onClose}
+              className="p-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition cursor-pointer"
+              aria-label="Close modal"
+            >
+              <X size={20} />
+            </button>
+          </header>
+
+          {/* Modal Content */}
+          <div className="p-6">
+            <div className="flex flex-col lg:flex-row gap-6">
+              {/* Profile Picture */}
+              <div className="flex flex-col items-center w-full lg:w-1/3">
+                <div className="relative w-40 h-40 rounded-full bg-gray-100 border-2 border-gray-200 overflow-hidden mb-4">
+                  {user.profilePicture ? (
+                    <img
+                      src={getProfilePictureUrl(user)}
+                      alt={`${user.name}'s profile`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = "/default-avatar.png";
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <User size={64} className="text-gray-400" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Status Badges */}
+                <div className="flex flex-col gap-2 mb-4 items-center">
+                  <span className={`px-3 py-0.5 rounded-full text-xs font-medium ${
+                    user.verified 
+                      ? "bg-green-50 text-green-700 border border-green-100" 
+                      : "bg-gray-50 text-gray-600 border border-gray-200"
+                  }`}>
+                    {user.verified ? "Verified" : "Unverified"}
+                  </span>
+
+                  {user.suspended && (
+                    <span className="px-3 py-0.5 rounded-full text-xs font-medium bg-red-50 text-red-700 border border-red-100">
+                      Suspended
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* User Details */}
+              <div className="w-full lg:w-2/3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {/* Basic Information */}
+                  <div className="space-y-4">
+                    <h3 className="text-base font-medium text-gray-700 flex items-center gap-2">
+                      <User size={18} className="text-gray-500" /> Basic Info
+                    </h3>
+                    <DetailItem icon={<User size={16} />} label="Full Name" value={user.name || "—"} />
+                    <DetailItem icon={<Mail size={16} />} label="Email" value={user.email || "—"} />
+                    <DetailItem icon={<IdCard size={16} />} label="ID Number" value={user.id_number || "—"} />
+                    <DetailItem 
+                      icon={<Shield size={16} />} 
+                      label="Role" 
+                      value={user.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : "—"} 
+                    />
+                  </div>
+
+                  {/* Role-Specific Info */}
+                  <div className="space-y-4">
+                    <h3 className="text-base font-medium text-gray-700 flex items-center gap-2">
+                      <Building size={18} className="text-gray-500" /> Institution
+                    </h3>
+                    {(user.role === "Student" || user.role === "Faculty") && (
+                      <DetailItem icon={<Building size={16} />} label="Department" value={user.department || "—"} />
+                    )}
+                    {user.role === "Staff" && (
+                      <DetailItem icon={<Layers size={16} />} label="Assigned Floor" value={user.floor || "—"} />
+                    )}
+                    {user.role === "Student" && (
+                      <>
+                        <DetailItem icon={<GraduationCap size={16} />} label="Course" value={user.course || "—"} />
+                        <DetailItem icon={<GraduationCap size={16} />} label="Year Level" value={user.year_level || user.yearLevel || "—"} />
+                      </>
+                    )}
+                  </div>
+
+                  {/* System Info */}
+                  <div className="md:col-span-2 space-y-4 pt-2">
+                    <h3 className="text-base font-medium text-gray-700 flex items-center gap-2">
+                      <Clock size={18} className="text-gray-500" /> System Info
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                      <DetailItem icon={<Calendar size={16} />} label="Account Created" value={formatDate(user.createdAt || user.created_at)} />
+                      <DetailItem icon={<Clock size={16} />} label="Last Updated" value={formatDate(user.updatedAt || user.updated_at)} />
+                    </div>
+                  </div>
+
+                  {/* Additional Participants Section */}
+                  {user.additionalParticipants && user.additionalParticipants.length > 0 && (
+                    <div className="md:col-span-2 space-y-4 pt-2">
+                      <h3 className="text-base font-medium text-gray-700 flex items-center gap-2">
+                        <Users size={18} className="text-gray-500" /> Additional Participants ({user.additionalParticipants.length})
+                      </h3>
+                      <div className="col-span-2 bg-gray-50 rounded-lg p-4">
+                        <div className="space-y-3">
+                          {user.additionalParticipants.map((participant, index) => (
+                            <div 
+                              key={index} 
+                              className="grid grid-cols-3 gap-4 pb-3 border-b border-gray-200 last:border-0 last:pb-0"
+                            >
+                              <DetailItem 
+                                icon={<User size={16} />} 
+                                label="Name" 
+                                value={participant.name || "—"} 
+                                className="col-span-1"
+                              />
+                              <DetailItem 
+                                icon={<IdCard size={16} />} 
+                                label="ID Number" 
+                                value={participant.id_number || "—"} 
+                                className="col-span-1"
+                              />
+                              <DetailItem 
+                                icon={<Mail size={16} />} 
+                                label="Email" 
+                                value={participant.email || "—"} 
+                                className="col-span-1"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Modal Footer */}
+          <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end sticky bottom-0">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 text-sm font-medium hover:bg-gray-50 transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Reusable detail component
+  const DetailItem = ({ icon, label, value, className = "" }) => {
+    return (
+      <div className={`flex items-start gap-3 ${className}`}>
+        <div className="p-1.5 bg-gray-100 rounded-full text-gray-600 flex-shrink-0">
+          {icon}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-normal text-gray-500">{label}</p>
+          <p className="text-gray-700 font-medium text-sm truncate" title={value}>{value || "—"}</p>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
@@ -976,16 +1143,14 @@ const AdminReservationModal = ({
         </div>
       )}
 
-      {/* User View Modal */}
+      {/* View User Modal */}
       {showUserModal && selectedUser && (
-        <UserViewModal
+        <ViewUserModal
           user={selectedUser}
           onClose={() => {
             setShowUserModal(false);
             setSelectedUser(null);
           }}
-          onToggleVerified={handleToggleVerified}
-          onUserUpdated={handleUserUpdated}
         />
       )}
     </div>
