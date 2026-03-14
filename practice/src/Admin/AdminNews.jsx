@@ -395,7 +395,7 @@ function AdminNews({ setView, admin, onLogout }) {
               <input
                 type="text"
                 placeholder="News Title"
-                className="border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-[#CC0000] outline-0 focus:border-transparent transition-all"
+                className="border border-gray-300 p-3 rounded-lg focus:ring-2 focus:ring-[#CC0000] outline-0 focus:border-transparent transition-all max-w-2xl"
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 disabled={isPosting}
@@ -1025,7 +1025,7 @@ function AdminNews({ setView, admin, onLogout }) {
                           </button>
                         </td>
                         <td className="p-3 text-gray-700">{(page - 1) * itemsPerPage + index + 1}</td>
-                        <td className="p-3 font-medium text-gray-900">{item.title}</td>
+                        <td className="p-3 font-medium text-gray-900 max-w-xs truncate">{item.title}</td>
                         <td className="p-3">
                           {item.images && item.images.length > 0 ? (
                             <div className="flex gap-1">
