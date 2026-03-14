@@ -39,7 +39,8 @@ import {
   Percent,
   ChevronDown,
   ChevronUp,
-  Building2
+  Building2,
+  Maximize2
 } from "lucide-react";
 
 // API service module with correct endpoints
@@ -110,6 +111,11 @@ function AdminDashboard({ setView }) {
   const [availLoading, setAvailLoading] = useState(false);
   const [availError, setAvailError] = useState(null);
   const [expandedFloors, setExpandedFloors] = useState({});
+
+  // Modal States
+  const [showRoomAvailabilityModal, setShowRoomAvailabilityModal] = useState(false);
+  const [selectedNews, setSelectedNews] = useState(null);
+  const [showNewsModal, setShowNewsModal] = useState(false);
 
   // Admin user ID from localStorage - using id_number
   const getAdminId = () => {
@@ -691,6 +697,12 @@ const fetchAllData = useCallback(async () => {
     return doc.body.textContent || '';
   };
 
+  // Handle news click
+  const handleNewsClick = (news) => {
+    setSelectedNews(news);
+    setShowNewsModal(true);
+  };
+
   return (
     <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
       {/* Header */}
@@ -1089,7 +1101,11 @@ const fetchAllData = useCallback(async () => {
                     const plainTextContent = stripHtmlTags(news.content).substring(0, 100) + (stripHtmlTags(news.content).length > 100 ? '...' : '');
                     
                     return (
-                      <div key={news._id} className="p-4 rounded-lg border border-gray-200 hover:shadow-md transition-shadow duration-200">
+                      <div 
+                        key={news._id} 
+                        className="p-4 rounded-lg border border-gray-200 hover:shadow-md transition-shadow duration-200 cursor-pointer"
+                        onClick={() => handleNewsClick(news)}
+                      >
                         <div className="flex flex-col sm:flex-row gap-4">
                           {/* Image */}
                           {firstImage ? (
@@ -1148,7 +1164,17 @@ const fetchAllData = useCallback(async () => {
           <div className="xl:col-span-1 space-y-6">
             {/* Calendar */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Calendar</h2>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-semibold text-gray-900">Calendar</h2>
+                <button
+                  onClick={() => setShowRoomAvailabilityModal(true)}
+                  className="flex items-center px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors duration-200"
+                  title="View all room availability"
+                >
+                  <Maximize2 size={16} className="mr-1" />
+                  Expand
+                </button>
+              </div>
               <Calendar
                 onClickDay={handleDateClick}
                 value={selectedDate}
@@ -1449,6 +1475,307 @@ const fetchAllData = useCallback(async () => {
           </div>
         </div>
       </div>
+
+      {/* Room Availability Modal */}
+      {showRoomAvailabilityModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl w-full max-w-6xl max-h-[90vh] overflow-hidden border border-gray-200">
+            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 flex justify-between items-center">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Building2 size={24} className="text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Room Availability Overview</h2>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {selectedDate.toLocaleDateString('en-US', { 
+                      weekday: 'long', 
+                      month: 'long', 
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRoomAvailabilityModal(false)}
+                className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+              >
+                <X size={24} className="text-gray-600" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              {/* Legend */}
+              <div className="flex flex-wrap gap-4 mb-6 pb-3 border-b border-gray-200">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-sm text-gray-600">Available</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <span className="text-sm text-gray-600">Occupied</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
+                  <span className="text-sm text-gray-600">Pending</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                  <span className="text-sm text-gray-600">Inactive</span>
+                </div>
+              </div>
+
+              {/* Room Status Content */}
+              {availLoading ? (
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                  <p className="text-gray-600">Loading room availability...</p>
+                </div>
+              ) : availError ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+                  <AlertCircle size={40} className="mx-auto mb-3 text-red-500" />
+                  <p className="text-red-700 mb-4">{availError}</p>
+                  <button
+                    onClick={() => {
+                      fetchRoomAvailabilityForDate(selectedDate);
+                    }}
+                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : roomStatuses.length === 0 ? (
+                <div className="text-center py-12">
+                  <Building2 className="mx-auto mb-3 text-gray-400" size={48} />
+                  <p className="text-gray-500">No rooms available for selected date</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {allFloors.map((floorName) => {
+                    const rooms = groupedByFloor[floorName] || [];
+                    const floorStats = rooms.reduce((acc, room) => {
+                      const { status } = getRoomStatus(room);
+                      if (status === 'available') acc.available++;
+                      else if (status === 'occupied') acc.occupied++;
+                      else if (status === 'pending') acc.pending++;
+                      else if (status === 'inactive') acc.inactive++;
+                      return acc;
+                    }, { available: 0, occupied: 0, pending: 0, inactive: 0 });
+
+                    return (
+                      <div key={floorName} className="border border-gray-200 rounded-lg overflow-hidden">
+                        {/* Floor Header */}
+                        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <h3 className="font-semibold text-gray-800 text-lg">{floorName}</h3>
+                              <span className="text-sm text-gray-500 bg-white px-3 py-1 rounded-full">
+                                {rooms.length} rooms
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-3 text-sm">
+                              {floorStats.available > 0 && (
+                                <span className="text-green-600 bg-green-50 px-3 py-1 rounded-full">
+                                  {floorStats.available} Available
+                                </span>
+                              )}
+                              {floorStats.occupied > 0 && (
+                                <span className="text-red-600 bg-red-50 px-3 py-1 rounded-full">
+                                  {floorStats.occupied} Occupied
+                                </span>
+                              )}
+                              {floorStats.pending > 0 && (
+                                <span className="text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
+                                  {floorStats.pending} Pending
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Room List */}
+                        <div className="divide-y divide-gray-100">
+                          {rooms.map((room) => {
+                            const { status, label } = getRoomStatus(room);
+                            const isRoomActive = room.isActive !== false;
+
+                            return (
+                              <div key={room._id} className="p-6 hover:bg-gray-50 transition-colors">
+                                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                                  {/* Room Info */}
+                                  <div className="flex items-center gap-4 min-w-0 flex-1">
+                                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                                      status === 'inactive' ? "bg-gray-400" :
+                                      status === 'occupied' ? "bg-red-500" :
+                                      status === 'pending' ? "bg-amber-500" : "bg-green-500"
+                                    }`} />
+                                    <div>
+                                      <p className={`font-semibold text-base ${
+                                        !isRoomActive ? "text-gray-500" : "text-gray-900"
+                                      }`}>
+                                        {room.room}
+                                        {!isRoomActive && (
+                                          <span className="ml-2 text-sm text-gray-500 font-normal">(Inactive)</span>
+                                        )}
+                                      </p>
+                                      <p className="text-sm text-gray-500 mt-1">
+                                        Floor {room.floor}
+                                      </p>
+                                    </div>
+                                  </div>
+
+                                  {/* Status Badge */}
+                                  <div className={`text-sm font-medium px-4 py-2 rounded-full inline-flex items-center justify-center ${
+                                    status === 'inactive' ? "bg-gray-100 text-gray-600" :
+                                    status === 'occupied' ? "bg-red-100 text-red-700" :
+                                    status === 'pending' ? "bg-amber-100 text-amber-700" : 
+                                    "bg-green-100 text-green-700"
+                                  }`}>
+                                    {label}
+                                  </div>
+                                </div>
+
+                                {/* Booking Details */}
+                                {(room.occupied?.length > 0 || room.pending?.length > 0) && (
+                                  <div className="mt-4 pt-4 border-t border-gray-100">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                      {room.occupied?.length > 0 && (
+                                        <div>
+                                          <p className="text-sm font-semibold text-red-600 mb-2 flex items-center">
+                                            <CheckCircle size={14} className="mr-1" />
+                                            Approved Bookings ({room.occupied.length})
+                                          </p>
+                                          <div className="space-y-2">
+                                            {room.occupied.map((booking, i) => (
+                                              <div key={i} className="flex items-center justify-between text-sm bg-red-50 p-3 rounded">
+                                                <div>
+                                                  <span className="text-gray-700 font-medium">
+                                                    {formatTime(booking.start)} - {formatTime(booking.end)}
+                                                  </span>
+                                                  {booking.userName && (
+                                                    <p className="text-gray-500 text-xs mt-1">by {booking.userName}</p>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {room.pending?.length > 0 && (
+                                        <div>
+                                          <p className="text-sm font-semibold text-amber-600 mb-2 flex items-center">
+                                            <Clock3 size={14} className="mr-1" />
+                                            Pending Approvals ({room.pending.length})
+                                          </p>
+                                          <div className="space-y-2">
+                                            {room.pending.map((booking, i) => (
+                                              <div key={i} className="flex items-center justify-between text-sm bg-amber-50 p-3 rounded">
+                                                <div>
+                                                  <span className="text-gray-700 font-medium">
+                                                    {formatTime(booking.start)} - {formatTime(booking.end)}
+                                                  </span>
+                                                  {booking.userName && (
+                                                    <p className="text-gray-500 text-xs mt-1">by {booking.userName}</p>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowRoomAvailabilityModal(false)}
+                className="px-6 py-2.5 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* News Modal */}
+      {showNewsModal && selectedNews && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-gray-200">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900">News Details</h2>
+              <button
+                onClick={() => {
+                  setShowNewsModal(false);
+                  setSelectedNews(null);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X size={24} className="text-gray-600" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+              <div className="mb-6">
+                <h3 className="text-3xl font-bold text-gray-900 mb-3">{selectedNews.title}</h3>
+                <p className="text-sm text-gray-500">
+                  Posted on: {new Date(selectedNews.createdAt).toLocaleString()}
+                </p>
+              </div>
+              
+              {selectedNews.images && selectedNews.images.length > 0 && (
+                <div className="mb-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {selectedNews.images.map((img, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={img}
+                          alt={`News image ${index + 1}`}
+                          className="w-full h-64 object-cover rounded-xl"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors rounded-xl"></div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-sm text-gray-500 text-center mt-4">
+                    {selectedNews.images.length} image{selectedNews.images.length > 1 ? 's' : ''}
+                  </p>
+                </div>
+              )}
+              
+              <div
+                className="prose max-w-none text-gray-700 leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: selectedNews.content }}
+              />
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => {
+                  setShowNewsModal(false);
+                  setSelectedNews(null);
+                }}
+                className="px-6 py-2.5 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
