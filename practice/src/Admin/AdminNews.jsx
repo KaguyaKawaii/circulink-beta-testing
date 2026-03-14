@@ -1201,10 +1201,9 @@ function AdminNews({ setView, admin, onLogout }) {
                   </div>
                 )}
                 
-                <div
-                  className="prose max-w-3xl mb-6"
-                  dangerouslySetInnerHTML={{ __html: viewNews.content }}
-                />
+                <div className="mb-6 max-h-96 overflow-y-auto prose max-w-none">
+                  <div dangerouslySetInnerHTML={{ __html: viewNews.content }} />
+                </div>
                 
                 <div className="flex justify-end">
                   <button
