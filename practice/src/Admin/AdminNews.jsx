@@ -863,7 +863,7 @@ function AdminNews({ setView, admin, onLogout }) {
                   )}
                   
                   <div className="border-b border-gray-200 mb-3" />
-                  <h3 className="text-xl font-bold text-gray-800 mb-3 max-w-3xl break-words">{preview.title}</h3>
+                  <h3 className="text-xl font-bold text-gray-800 mb-3 max-w-2xl break-words">{preview.title}</h3>
                   <div 
                     className="prose max-w-none text-gray-600"
                     dangerouslySetInnerHTML={{ __html: preview.content }}
@@ -1177,7 +1177,7 @@ function AdminNews({ setView, admin, onLogout }) {
                 </div>
                 
                 <div className="mb-6">
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2 max-w-3xl break-words">{viewNews.title}</h3>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2 max-w-2xl break-words">{viewNews.title}</h3>
                   <p className="text-sm text-gray-500">
                     Posted on: {new Date(viewNews.createdAt).toLocaleString()}
                   </p>
@@ -1202,7 +1202,7 @@ function AdminNews({ setView, admin, onLogout }) {
                 )}
                 
                 <div
-                  className="prose max-w-3xl mb-6"
+                  className="prose max-w-none mb-6"
                   dangerouslySetInnerHTML={{ __html: viewNews.content }}
                 />
                 
