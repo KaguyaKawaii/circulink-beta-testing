@@ -100,7 +100,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
     // Analytics
     { 
       id: "analyticsOverview", 
-      label: "Analytics", 
+      label: "Overview", 
       category: "analytics",
       svg: <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
     },
@@ -189,18 +189,18 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
   return (
     <>
       <aside>
-        <div className="fixed top-0 left-0 h-screen w-[230px] bg-[#030303] p-0 flex flex-col border-r border-gray-800 z-[99999]">
-          {/* Logo + Title - Compact */}
-          <div className="flex items-center gap-2 p-3 border-b border-gray-800 bg-[#0a0a0a] z-[9999] w-full">
-            <img src={Logo} alt="Logo" className="h-[32px] w-[32px] flex-shrink-0" />
-            <h1 className="text-[13px] font-medium text-gray-200 leading-tight truncate">
+        <div className="fixed top-0 left-0 h-screen w-[250px] bg-[#030303] p-0 flex flex-col border-r border-gray-800 z-[99999]">
+          {/* Logo + Title - Original width but compact height */}
+          <div className="flex items-center gap-3 p-3 border-b border-gray-800 bg-[#0a0a0a] z-[9999] w-full">
+            <img src={Logo} alt="Logo" className="h-[36px] w-[36px] flex-shrink-0" />
+            <h1 className="text-[14px] font-medium text-gray-200 leading-tight truncate">
               USA | CircuLink
             </h1>
           </div>
 
-          {/* Navigation - Compact layout */}
+          {/* Navigation - Ultra compact layout */}
           <div className="flex flex-col h-full bg-[#030303] pointer-events-auto w-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
-            <div className="flex flex-col flex-grow pointer-events-auto w-full py-1">
+            <div className="flex flex-col flex-grow pointer-events-auto w-full py-0.5">
               
               {/* Main Items - Most Used */}
               <div className="grid grid-cols-1 gap-0">
@@ -209,7 +209,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                     key={id}
                     ref={(el) => (navRefs.current[id] = el)}
                     onClick={() => handleNavClick(id)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-all duration-200 focus:outline-none border-l-3 cursor-pointer ${
+                    className={`w-full flex items-center gap-2 px-4 py-1.5 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
                       currentView === id
                         ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
                         : "text-gray-400 border-transparent hover:bg-gray-800 hover:text-gray-200 hover:border-gray-600"
@@ -226,7 +226,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
               </div>
 
               {/* Section Divider - Analytics */}
-              <div className="px-3 py-1 mt-1">
+              <div className="px-4 py-1 mt-0.5">
                 <h3 className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider">
                   Analytics
                 </h3>
@@ -239,7 +239,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                     key={id}
                     ref={(el) => (navRefs.current[id] = el)}
                     onClick={() => handleNavClick(id)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-all duration-200 focus:outline-none border-l-3 cursor-pointer ${
+                    className={`w-full flex items-center gap-2 px-4 py-1.5 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
                       currentView === id
                         ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
                         : "text-gray-400 border-transparent hover:bg-gray-800 hover:text-gray-200 hover:border-gray-600"
@@ -256,7 +256,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
               </div>
 
               {/* Section Divider - Archive */}
-              <div className="px-3 py-1 mt-1">
+              <div className="px-4 py-1 mt-0.5">
                 <h3 className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider">
                   Archive
                 </h3>
@@ -269,7 +269,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                     key={id}
                     ref={(el) => (navRefs.current[id] = el)}
                     onClick={() => handleNavClick(id)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-all duration-200 focus:outline-none border-l-3 cursor-pointer ${
+                    className={`w-full flex items-center gap-2 px-4 py-1.5 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
                       currentView === id
                         ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
                         : "text-gray-400 border-transparent hover:bg-gray-800 hover:text-gray-200 hover:border-gray-600"
@@ -286,7 +286,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
               </div>
 
               {/* Section Divider - Settings */}
-              <div className="px-3 py-1 mt-1">
+              <div className="px-4 py-1 mt-0.5">
                 <h3 className="text-[10px] font-semibold text-gray-600 uppercase tracking-wider">
                   Settings
                 </h3>
@@ -299,7 +299,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                     key={id}
                     ref={(el) => (navRefs.current[id] = el)}
                     onClick={() => handleNavClick(id)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-left transition-all duration-200 focus:outline-none border-l-3 cursor-pointer ${
+                    className={`w-full flex items-center gap-2 px-4 py-1.5 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
                       currentView === id
                         ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
                         : "text-gray-400 border-transparent hover:bg-gray-800 hover:text-gray-200 hover:border-gray-600"
@@ -324,7 +324,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                     window.dispatchEvent(new CustomEvent('showLogoutModal'));
                   }
                 }}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs text-gray-400 hover:bg-red-900/20 hover:text-red-300 transition-all duration-200 hover:border-l-3 hover:border-red-500 cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 text-xs text-gray-400 hover:bg-red-900/20 hover:text-red-300 transition-all duration-200 hover:border-l-4 hover:border-red-500 cursor-pointer"
               >
                 <div className="text-gray-400 flex-shrink-0">
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16,17 21,12 16,7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
