@@ -668,9 +668,9 @@ function AdminNews({ setView, admin, onLogout }) {
             <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
               <div className="bg-white p-6 rounded-xl w-full max-w-md border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-800">Confirm Archive</h2>
+                  <h2 className="text-xl font-bold text-gray-800 max-w-md break-words">Confirm Archive</h2>
                   <button
-                    className="text-gray-500 hover:text-gray-700 cursor-pointer p-1"
+                    className="text-gray-500 hover:text-gray-700 cursor-pointer p-1 flex-shrink-0"
                     onClick={() => setArchiveConfirm(null)}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -679,7 +679,7 @@ function AdminNews({ setView, admin, onLogout }) {
                   </button>
                 </div>
                 <p className="text-gray-600 mb-6">
-                  Are you sure you want to archive "<span className="font-semibold">{archiveConfirm.title}</span>"? This action cannot be undone.
+                  Are you sure you want to archive "<span className="font-semibold break-words">{archiveConfirm.title}</span>"? This action cannot be undone.
                 </p>
                 <div className="flex gap-3 justify-end">
                   <button
@@ -707,10 +707,10 @@ function AdminNews({ setView, admin, onLogout }) {
             <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
               <div className="bg-white p-6 rounded-xl w-full max-w-md border border-gray-200">
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-orange-100 rounded-full">
+                  <div className="p-2 bg-orange-100 rounded-full flex-shrink-0">
                     <Archive size={24} className="text-orange-600" />
                   </div>
-                  <h2 className="text-xl font-bold text-gray-800">Archive Multiple News</h2>
+                  <h2 className="text-xl font-bold text-gray-800 max-w-sm break-words">Archive Multiple News</h2>
                 </div>
                 <p className="text-gray-600 mb-6">
                   Are you sure you want to archive {selectedNews.length} selected news item{selectedNews.length !== 1 ? 's' : ''}? This action cannot be undone.
@@ -750,9 +750,9 @@ function AdminNews({ setView, admin, onLogout }) {
             <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
               <div className="bg-white p-6 rounded-xl w-full max-w-md border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-800">Confirm {editNews ? "Update" : "Post"}</h2>
+                  <h2 className="text-xl font-bold text-gray-800 max-w-md break-words">Confirm {editNews ? "Update" : "Post"}</h2>
                   <button 
-                    className="text-gray-500 hover:text-gray-700 p-1 cursor-pointer" 
+                    className="text-gray-500 hover:text-gray-700 p-1 cursor-pointer flex-shrink-0" 
                     onClick={() => setPostConfirm(false)}
                     disabled={isPosting}
                   >
@@ -817,9 +817,9 @@ function AdminNews({ setView, admin, onLogout }) {
             <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
               <div className="bg-white p-6 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-800">Preview News</h2>
+                  <h2 className="text-xl font-bold text-gray-800 max-w-3xl break-words">Preview News</h2>
                   <button 
-                    className="text-gray-500 hover:text-gray-700 cursor-pointer p-1" 
+                    className="text-gray-500 hover:text-gray-700 cursor-pointer p-1 flex-shrink-0" 
                     onClick={() => setPreview(null)}
                     disabled={isPosting}
                   >
@@ -831,7 +831,7 @@ function AdminNews({ setView, admin, onLogout }) {
                 
                 <div className="mb-6 p-4 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3 mb-4">
-                    <div className="flex items-center justify-center border border-gray-500 rounded-full w-12 h-12 bg-yellow-300">
+                    <div className="flex items-center justify-center border border-gray-500 rounded-full w-12 h-12 bg-yellow-300 flex-shrink-0">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M5.121 17.804A9.003 9.003 0 0112 15c2.21 0 4.21.804 5.879 2.137M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
@@ -969,8 +969,8 @@ function AdminNews({ setView, admin, onLogout }) {
           {/* News List */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-gray-800">News List</h2>
-              <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+              <h2 className="text-xl font-semibold text-gray-800 max-w-lg break-words">News List</h2>
+              <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full flex-shrink-0">
                 {filteredNews.length} {filteredNews.length === 1 ? 'item' : 'items'}
               </span>
             </div>
@@ -985,8 +985,8 @@ function AdminNews({ setView, admin, onLogout }) {
                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900">No news found</h3>
-                <p className="mt-1 text-sm text-gray-500">Try adjusting your search or add a new news item.</p>
+                <h3 className="mt-2 text-sm font-medium text-gray-900 max-w-md break-words">No news found</h3>
+                <p className="mt-1 text-sm text-gray-500 max-w-md break-words">Try adjusting your search or add a new news item.</p>
               </div>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-gray-200">
@@ -1103,7 +1103,7 @@ function AdminNews({ setView, admin, onLogout }) {
             {/* Pagination */}
             {filteredNews.length > 0 && (
               <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-200">
-                <div className="text-sm text-gray-500">
+                <div className="text-sm text-gray-500 max-w-md break-words">
                   Showing {(page - 1) * itemsPerPage + 1} to {Math.min(page * itemsPerPage, filteredNews.length)} of {filteredNews.length} entries
                 </div>
                 <div className="flex gap-2">
@@ -1165,9 +1165,9 @@ function AdminNews({ setView, admin, onLogout }) {
             <div className="fixed inset-0 bg-black/25 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
               <div className="bg-white p-6 rounded-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold text-gray-800">News Details</h2>
+                  <h2 className="text-xl font-bold text-gray-800 max-w-3xl break-words">News Details</h2>
                   <button
-                    className="text-gray-500 hover:text-gray-700 cursor-pointer p-1"
+                    className="text-gray-500 hover:text-gray-700 cursor-pointer p-1 flex-shrink-0"
                     onClick={() => setViewNews(null)}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1236,10 +1236,10 @@ function AdminNews({ setView, admin, onLogout }) {
           <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
             <div className="flex flex-col items-center justify-center">
               <div className="w-12 h-12 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mb-4"></div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              <h3 className="text-lg font-semibold text-gray-900 mb-2 max-w-xs break-words text-center">
                 Processing
               </h3>
-              <p className="text-gray-600 text-center">
+              <p className="text-gray-600 text-center max-w-xs break-words">
                 Please wait while we archive the selected items...
               </p>
             </div>
@@ -1299,14 +1299,14 @@ function AlertModal({ title, message, type = "info", onClose }) {
       <div className={`bg-white rounded-2xl shadow-xl w-full max-w-md border ${getBackgroundColor()}`}>
         <div className="p-6">
           <div className="flex items-center gap-4">
-            <div className="p-2 bg-white rounded-lg shadow-sm">
+            <div className="p-2 bg-white rounded-lg shadow-sm flex-shrink-0">
               {getIcon()}
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900">
+              <h3 className="text-lg font-semibold text-gray-900 max-w-sm break-words">
                 {title}
               </h3>
-              <p className="text-gray-600 mt-1">
+              <p className="text-gray-600 mt-1 max-w-sm break-words">
                 {message}
               </p>
             </div>
