@@ -1202,7 +1202,7 @@ function AdminNews({ setView, admin, onLogout }) {
                 )}
                 
                 <div
-                  className="prose max-w-none mb-6"
+                  className="prose max-w-3xl mb-6"
                   dangerouslySetInnerHTML={{ __html: viewNews.content }}
                 />
                 
