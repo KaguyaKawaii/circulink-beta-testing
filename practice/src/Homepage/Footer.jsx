@@ -49,14 +49,13 @@ function Footer() {
 
   return (
     <>
-      <footer className="relative bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white overflow-hidden">
+      <footer className="relative bg-[#0A0A0A] text-white overflow-hidden">
         {/* Background Elements */}
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-400/5 via-transparent to-transparent"></div>
         <div className="absolute top-0 left-0 w-64 h-64 sm:w-80 sm:h-80 bg-[#CC0000]/5 rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl"></div>
         <div className="absolute bottom-0 right-0 w-72 h-72 sm:w-96 sm:h-96 bg-amber-400/5 rounded-full translate-x-1/2 translate-y-1/2 blur-3xl"></div>
         
         {/* Grid Pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:3rem_3rem] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_50%,black,transparent)]"></div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16 lg:py-20">
           {/* Main Footer Content */}
@@ -186,17 +185,17 @@ function Footer() {
               </div>
               
               <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-6 text-center">
-                <p className="text-gray-400 text-sm sm:text-base">
+                {/* <p className="text-gray-400 text-sm sm:text-base">
                   Designed with ♥ for the Augustinian community
-                </p>
-                <div className="hidden sm:block w-px h-4 bg-gray-600"></div>
+                </p> */}
+                {/* <div className="hidden sm:block w-px h-4 bg-gray-600"></div> */}
                 <a
   href="/developers"
   target="_blank"
   rel="noopener noreferrer"
   className="text-gray-400 text-sm sm:text-base hover:text-amber-400 transition-colors duration-300 cursor-pointer"
 >
-  Developed by <span className="text-amber-400 font-medium hover:underline">BSIT 4A - Group 4</span>
+  Developed by <span className="text-amber-400 font-medium hover:underline">BSIT 4 A - Group 4</span>
 </a>
               </div>
             </div>
