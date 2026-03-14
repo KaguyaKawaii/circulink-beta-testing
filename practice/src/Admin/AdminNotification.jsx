@@ -148,20 +148,6 @@ function AdminNotification({ setView, onLogout }) {
     }
   };
 
-  // Mark all as read
-  const markAllAsRead = async () => {
-    const unreadIds = notifications.filter(n => !n.isRead).map(n => n._id);
-    
-    try {
-      await Promise.all(unreadIds.map(id => 
-        axios.put(`${API_URL}/${id}/read`)
-      ));
-      setNotifications(notifications.map(n => ({ ...n, isRead: true })));
-    } catch (err) {
-      console.error("Failed to mark all as read", err);
-    }
-  };
-
   // Handle notification click
   const handleNotificationClick = (notification) => {
     // Mark as read first
@@ -312,94 +298,16 @@ function AdminNotification({ setView, onLogout }) {
     <>
       <AdminNavigation setView={setView} currentView="adminNotifications" onLogout={onLogout}/>
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
-        {/* Header - Unchanged */}
+        {/* Header - Simplified */}
         <header className="bg-white px-6 py-4 border-b border-gray-200 sticky top-0 z-10">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-[#CC0000]">Admin Notifications</h1>
-              <p className="text-gray-600">System overview and administrative alerts</p>
-            </div>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllAsRead}
-                className="px-4 py-2 text-sm font-medium text-[#CC0000] hover:text-[#990000] hover:bg-red-50 rounded-lg transition-all duration-200 flex items-center gap-2 group"
-              >
-                <svg className="w-4 h-4 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Mark all as read
-              </button>
-            )}
+          <div>
+            <h1 className="text-2xl font-bold text-[#CC0000]">Admin Notifications</h1>
+            <p className="text-gray-600">System overview and administrative alerts</p>
           </div>
         </header>
 
         {/* Main Content */}
         <div className="p-6">
-          {/* Stats Overview - Enhanced with hover effects */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all duration-200 hover:border-gray-200 group">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-500">Total</p>
-                  <p className="text-lg font-bold text-gray-900 group-hover:text-[#CC0000] transition-colors">{notifications.length}</p>
-                </div>
-                <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center group-hover:bg-blue-100 transition-colors">
-                  <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all duration-200 hover:border-gray-200 group">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-500">Unread</p>
-                  <p className="text-lg font-bold text-gray-900 group-hover:text-[#CC0000] transition-colors">
-                    {unreadCount}
-                  </p>
-                </div>
-                <div className="w-8 h-8 bg-red-50 rounded-lg flex items-center justify-center group-hover:bg-red-100 transition-colors">
-                  <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all duration-200 hover:border-gray-200 group">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-500">Reports</p>
-                  <p className="text-lg font-bold text-gray-900 group-hover:text-[#CC0000] transition-colors">
-                    {notifications.filter(n => n.type === "report").length}
-                  </p>
-                </div>
-                <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center group-hover:bg-orange-100 transition-colors">
-                  <svg className="w-4 h-4 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 hover:shadow-md transition-all duration-200 hover:border-gray-200 group">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium text-gray-500">Reservations</p>
-                  <p className="text-lg font-bold text-gray-900 group-hover:text-[#CC0000] transition-colors">
-                    {notifications.filter(n => n.type === "reservation").length}
-                  </p>
-                </div>
-                <div className="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center group-hover:bg-green-100 transition-colors">
-                  <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Notifications Panel - Enhanced */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             {/* Filters - Enhanced with better visual feedback */}
