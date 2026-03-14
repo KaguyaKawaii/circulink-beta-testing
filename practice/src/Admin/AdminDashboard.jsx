@@ -40,7 +40,10 @@ import {
   ChevronDown,
   ChevronUp,
   Building2,
-  Maximize2
+  Maximize2,
+  ChevronLeft,
+  ChevronRight,
+  Calendar as CalendarPicker
 } from "lucide-react";
 
 // API service module with correct endpoints
@@ -93,6 +96,7 @@ function AdminDashboard({ setView }) {
   });
   const [newsList, setNewsList] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [modalSelectedDate, setModalSelectedDate] = useState(new Date());
   const [recentActivity, setRecentActivity] = useState([]);
   const [logs, setLogs] = useState([]);
   const [reports, setReports] = useState([]);
@@ -114,6 +118,7 @@ function AdminDashboard({ setView }) {
 
   // Modal States
   const [showRoomAvailabilityModal, setShowRoomAvailabilityModal] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Admin user ID from localStorage - using id_number
   const getAdminId = () => {
@@ -638,6 +643,33 @@ const fetchAllData = useCallback(async () => {
     return (floorOrder[a] || 999) - (floorOrder[b] || 999);
   });
 
+  // Modal date navigation functions
+  const handleModalPreviousDay = () => {
+    const newDate = new Date(modalSelectedDate);
+    newDate.setDate(newDate.getDate() - 1);
+    setModalSelectedDate(newDate);
+    fetchRoomAvailabilityForDate(newDate);
+  };
+
+  const handleModalNextDay = () => {
+    const newDate = new Date(modalSelectedDate);
+    newDate.setDate(newDate.getDate() + 1);
+    setModalSelectedDate(newDate);
+    fetchRoomAvailabilityForDate(newDate);
+  };
+
+  const handleModalDateSelect = (date) => {
+    setModalSelectedDate(date);
+    fetchRoomAvailabilityForDate(date);
+    setShowDatePicker(false);
+  };
+
+  const openModal = () => {
+    setModalSelectedDate(selectedDate);
+    fetchRoomAvailabilityForDate(selectedDate);
+    setShowRoomAvailabilityModal(true);
+  };
+
   // Render different views
   if (currentSubView === "news") {
     return <AdminNews setView={setView} admin={{}} />;
@@ -1155,7 +1187,7 @@ const fetchAllData = useCallback(async () => {
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-900">Calendar</h2>
                 <button
-                  onClick={() => setShowRoomAvailabilityModal(true)}
+                  onClick={openModal}
                   className="flex items-center px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors duration-200"
                   title="View all room availability"
                 >
@@ -1464,36 +1496,90 @@ const fetchAllData = useCallback(async () => {
         </div>
       </div>
 
-      {/* Room Availability Modal */}
+      {/* Room Availability Modal with Date Navigation */}
       {showRoomAvailabilityModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
           <div className="bg-white rounded-xl w-full max-w-6xl max-h-[90vh] overflow-hidden border border-gray-200">
-            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 flex justify-between items-center">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-blue-100 rounded-lg">
-                  <Building2 size={24} className="text-blue-600" />
+            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex justify-between items-center mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Building2 size={24} className="text-blue-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Room Availability Overview</h2>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">Room Availability Overview</h2>
-                  <p className="text-sm text-gray-600 mt-1">
-                    {selectedDate.toLocaleDateString('en-US', { 
-                      weekday: 'long', 
-                      month: 'long', 
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
-                  </p>
-                </div>
+                <button
+                  onClick={() => setShowRoomAvailabilityModal(false)}
+                  className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+                >
+                  <X size={24} className="text-gray-600" />
+                </button>
               </div>
-              <button
-                onClick={() => setShowRoomAvailabilityModal(false)}
-                className="p-2 hover:bg-gray-200 rounded-full transition-colors"
-              >
-                <X size={24} className="text-gray-600" />
-              </button>
+              
+              {/* Date Navigation */}
+              <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200">
+                <button
+                  onClick={handleModalPreviousDay}
+                  className="flex items-center px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  <ChevronLeft size={18} className="mr-1" />
+                  Previous Day
+                </button>
+                
+                <div className="flex items-center space-x-4">
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowDatePicker(!showDatePicker)}
+                      className="flex items-center px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                    >
+                      <CalendarPicker size={18} className="mr-2" />
+                      {modalSelectedDate.toLocaleDateString('en-US', { 
+                        weekday: 'long', 
+                        month: 'long', 
+                        day: 'numeric',
+                        year: 'numeric'
+                      })}
+                    </button>
+                    
+                    {/* Mini Calendar Date Picker */}
+                    {showDatePicker && (
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 z-10 bg-white rounded-lg shadow-xl border border-gray-200 p-2">
+                        <Calendar
+                          onChange={handleModalDateSelect}
+                          value={modalSelectedDate}
+                          className="border-0"
+                          tileClassName={({ date, view }) => {
+                            if (view !== "month") return "";
+                            return "hover:bg-gray-100 rounded-lg p-1";
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                <button
+                  onClick={handleModalNextDay}
+                  className="flex items-center px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Next Day
+                  <ChevronRight size={18} className="ml-1" />
+                </button>
+              </div>
+              
+              <p className="text-sm text-gray-600 mt-2 text-center">
+                {modalSelectedDate.toLocaleDateString('en-US', { 
+                  weekday: 'long', 
+                  month: 'long', 
+                  day: 'numeric',
+                  year: 'numeric'
+                })}
+              </p>
             </div>
             
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
               {/* Legend */}
               <div className="flex flex-wrap gap-4 mb-6 pb-3 border-b border-gray-200">
                 <div className="flex items-center gap-1.5">
@@ -1525,9 +1611,7 @@ const fetchAllData = useCallback(async () => {
                   <AlertCircle size={40} className="mx-auto mb-3 text-red-500" />
                   <p className="text-red-700 mb-4">{availError}</p>
                   <button
-                    onClick={() => {
-                      fetchRoomAvailabilityForDate(selectedDate);
-                    }}
+                    onClick={() => fetchRoomAvailabilityForDate(modalSelectedDate)}
                     className="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
                   >
                     Retry
@@ -1687,7 +1771,13 @@ const fetchAllData = useCallback(async () => {
               )}
             </div>
             
-            <div className="p-6 border-t border-gray-200 bg-gray-50">
+            <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
+              <div className="text-sm text-gray-600">
+                Total Rooms: {roomStatuses.length} | 
+                Available: {roomStatuses.filter(r => getRoomStatus(r).status === 'available').length} |
+                Occupied: {roomStatuses.filter(r => getRoomStatus(r).status === 'occupied').length} |
+                Pending: {roomStatuses.filter(r => getRoomStatus(r).status === 'pending').length}
+              </div>
               <button
                 onClick={() => setShowRoomAvailabilityModal(false)}
                 className="px-6 py-2.5 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
