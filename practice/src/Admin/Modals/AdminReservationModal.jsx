@@ -21,8 +21,10 @@ import {
   Shield,
   IdCard,
   BookOpen,
-  GraduationCap
+  GraduationCap,
+  Eye
 } from "lucide-react";
+import UserViewModal from "./UserViewModal";
 
 const AdminReservationModal = ({ 
   reservation, 
@@ -38,9 +40,11 @@ const AdminReservationModal = ({
   const [extensionMinutes, setExtensionMinutes] = useState(30);
   const [extensionHours, setExtensionHours] = useState(0);
   const [customEndTime, setCustomEndTime] = useState("");
-  const [extensionType, setExtensionType] = useState("fixed"); // "fixed" or "continuous"
+  const [extensionType, setExtensionType] = useState("fixed");
   const [conflictInfo, setConflictInfo] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showUserModal, setShowUserModal] = useState(false);
 
   if (!reservation) return null;
 
@@ -192,7 +196,6 @@ const AdminReservationModal = ({
   const handleRejectExtension = () => handleAction("reject-extension");
 
   const handleRequestExtension = async () => {
-    // Calculate total minutes for fixed extension
     const totalMinutes = (parseInt(extensionHours) * 60) + parseInt(extensionMinutes);
     
     let requestData = {
@@ -237,21 +240,58 @@ const AdminReservationModal = ({
   const originalEndTime = new Date(reservation.endDatetime);
   const currentEndTime = extendedEndTime || originalEndTime;
 
-  // Get only the additional participants (excluding main reserver)
   const allParticipants = reservation.participants || [];
   const totalParticipants = allParticipants.length;
 
   const statusConfig = getStatusConfig(reservation.status);
 
-  // Calculate min and max for extension
   const now = new Date();
   const minExtensionTime = new Date(currentEndTime);
   const maxExtensionTime = reservation.maxExtendedEndDatetime 
     ? new Date(reservation.maxExtendedEndDatetime)
-    : new Date(currentEndTime.getTime() + 4 * 60 * 60 * 1000); // 4 hours max by default
+    : new Date(currentEndTime.getTime() + 4 * 60 * 60 * 1000);
 
   const formatDateTimeForInput = (date) => {
     return moment(date).tz("Asia/Manila").format("YYYY-MM-DDTHH:mm");
+  };
+
+  const handleUserClick = (participant) => {
+    setSelectedUser(participant);
+    setShowUserModal(true);
+  };
+
+  const handleUserUpdated = (updatedUser) => {
+    // Update the participant in the participants list if needed
+    if (reservation.participants) {
+      const updatedParticipants = reservation.participants.map(p => 
+        p._id === updatedUser._id ? updatedUser : p
+      );
+      reservation.participants = updatedParticipants;
+    }
+  };
+
+  const handleToggleVerified = async (user) => {
+    try {
+      const response = await axios.patch(
+        `${import.meta.env.VITE_API_URL}/api/users/${user._id}/verify`,
+        { verified: !user.verified }
+      );
+      
+      if (response.data.success) {
+        const updatedUser = response.data.user;
+        setSelectedUser(updatedUser);
+        
+        if (reservation.participants) {
+          const updatedParticipants = reservation.participants.map(p => 
+            p._id === updatedUser._id ? updatedUser : p
+          );
+          reservation.participants = updatedParticipants;
+        }
+      }
+    } catch (error) {
+      console.error("Failed to toggle verification:", error);
+      alert("Failed to update verification status.");
+    }
   };
 
   const renderActionButtons = () => {
@@ -418,7 +458,10 @@ const AdminReservationModal = ({
   );
 
   const ParticipantCard = ({ participant }) => (
-    <div className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-150">
+    <div 
+      onClick={() => handleUserClick(participant)}
+      className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-150 cursor-pointer group"
+    >
       <div className="flex items-center gap-4 flex-1 min-w-0">
         <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm bg-gradient-to-br from-yellow-400 to-yellow-500 flex-shrink-0">
           {participant.name?.charAt(0) || "U"}
@@ -451,7 +494,12 @@ const AdminReservationModal = ({
           </div>
         </div>
       </div>
-      <ChevronRight size={16} className="text-gray-400 flex-shrink-0 ml-2" />
+      <div className="flex items-center gap-2">
+        <span className="text-xs text-gray-400 group-hover:text-blue-500 transition-colors duration-200">
+          View Profile
+        </span>
+        <Eye size={16} className="text-gray-400 group-hover:text-blue-500 transition-colors duration-200 flex-shrink-0" />
+      </div>
     </div>
   );
 
@@ -556,7 +604,7 @@ const AdminReservationModal = ({
 
               {/* Purpose & User Info */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Purpose Card - Added max-width and text wrapping */}
+                {/* Purpose Card */}
                 <div className="bg-white border border-gray-200 rounded-xl p-5 max-w-full">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="p-2 bg-gray-100 rounded-lg">
@@ -926,6 +974,19 @@ const AdminReservationModal = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* User View Modal */}
+      {showUserModal && selectedUser && (
+        <UserViewModal
+          user={selectedUser}
+          onClose={() => {
+            setShowUserModal(false);
+            setSelectedUser(null);
+          }}
+          onToggleVerified={handleToggleVerified}
+          onUserUpdated={handleUserUpdated}
+        />
       )}
     </div>
   );
