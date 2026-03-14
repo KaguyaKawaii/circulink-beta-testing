@@ -362,20 +362,22 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
                   </div>
                 </div>
 
-                {/* Issue Details - Full Description */}
+                {/* Issue Details - Full Description with max-width and wrapping */}
                 <div className="bg-white border border-gray-200 rounded-xl p-5">
                   <h4 className="text-sm font-medium text-gray-500 mb-3">Issue Details</h4>
-                  <p className="text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-lg whitespace-pre-wrap">
-                    {report.details}
-                  </p>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <p className="text-gray-700 leading-relaxed whitespace-pre-wrap break-words max-w-full">
+                      {report.details}
+                    </p>
+                  </div>
                 </div>
 
-                {/* Action Taken (if resolved) */}
+                {/* Action Taken (if resolved) - with max-width and wrapping */}
                 {report.actionTaken && (
                   <div className="bg-white border border-gray-200 rounded-xl p-5">
                     <h4 className="text-sm font-medium text-gray-500 mb-3">Action Taken</h4>
                     <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4">
-                      <p className="text-emerald-800 leading-relaxed whitespace-pre-wrap">
+                      <p className="text-emerald-800 leading-relaxed whitespace-pre-wrap break-words max-w-full">
                         {report.actionTaken}
                       </p>
                       {report.resolvedAt && (
