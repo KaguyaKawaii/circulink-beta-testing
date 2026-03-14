@@ -684,6 +684,13 @@ const fetchAllData = useCallback(async () => {
   const completedCount = reservations.filter(r => r.status === 'Completed').length;
   const cancelledCount = reservations.filter(r => r.status === 'Cancelled' || r.status === 'Rejected').length;
 
+  // Strip HTML tags from content
+  const stripHtmlTags = (html) => {
+    if (!html) return '';
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || '';
+  };
+
   return (
     <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
       {/* Header */}
@@ -1055,7 +1062,7 @@ const fetchAllData = useCallback(async () => {
               </div>
             )}
 
-            {/* Recent News */}
+            {/* Recent News - Updated with images, title and description */}
             <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl font-semibold text-gray-900">Recent News</h2>
@@ -1075,19 +1082,55 @@ const fetchAllData = useCallback(async () => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {newsList.slice(0, 3).map((news) => (
-                    <div key={news._id} className="p-4 rounded-lg border border-gray-200 hover:shadow-md transition-shadow duration-200">
-                      <div className="flex justify-between items-start mb-3">
-                        <h3 className="font-semibold text-gray-900 text-base leading-tight">{news.title}</h3>
-                        <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-lg font-medium">
-                          {new Date(news.createdAt).toLocaleDateString()}
-                        </span>
+                  {newsList.slice(0, 3).map((news) => {
+                    // Get first image if available
+                    const firstImage = news.images && news.images.length > 0 ? news.images[0] : null;
+                    // Strip HTML tags for description
+                    const plainTextContent = stripHtmlTags(news.content).substring(0, 100) + (stripHtmlTags(news.content).length > 100 ? '...' : '');
+                    
+                    return (
+                      <div key={news._id} className="p-4 rounded-lg border border-gray-200 hover:shadow-md transition-shadow duration-200">
+                        <div className="flex flex-col sm:flex-row gap-4">
+                          {/* Image */}
+                          {firstImage ? (
+                            <div className="sm:w-24 sm:h-24 w-full h-40 flex-shrink-0">
+                              <img 
+                                src={firstImage} 
+                                alt={news.title}
+                                className="w-full h-full object-cover rounded-lg"
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = 'https://via.placeholder.com/96x96?text=No+Image';
+                                }}
+                              />
+                            </div>
+                          ) : (
+                            <div className="sm:w-24 sm:h-24 w-full h-40 flex-shrink-0 bg-gray-100 rounded-lg flex items-center justify-center">
+                              <FileText size={32} className="text-gray-400" />
+                            </div>
+                          )}
+                          
+                          {/* Content */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start mb-2">
+                              <h3 className="font-semibold text-gray-900 text-base leading-tight line-clamp-2 max-w-[250px]">{news.title}</h3>
+                              <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-lg font-medium whitespace-nowrap ml-2">
+                                {new Date(news.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <p className="text-gray-600 text-sm leading-relaxed line-clamp-2">
+                              {plainTextContent}
+                            </p>
+                            {news.images && news.images.length > 1 && (
+                              <p className="text-xs text-gray-500 mt-2">
+                                +{news.images.length - 1} more image{news.images.length - 1 > 1 ? 's' : ''}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <p className="text-gray-600 text-sm leading-relaxed line-clamp-2">
-                        {news.content?.replace(/<[^>]*>/g, '') || news.content}
-                      </p>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {newsList.length > 3 && (
                     <button 
                       onClick={() => setCurrentSubView("news")}
