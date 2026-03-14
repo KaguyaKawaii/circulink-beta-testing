@@ -1,17 +1,13 @@
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import AdminNavigation from "./AdminNavigation";
+
+// 📦 Import libraries
+import { saveAs } from "file-saver";
 
 function AdminLogs({ setView, onLogout }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(1);
-  
-  // Observer for infinite scroll
-  const observerRef = useRef();
-  const lastLogElementRef = useRef();
 
   // 🔎 Filters & Sorting
   const [search, setSearch] = useState("");
@@ -25,75 +21,74 @@ function AdminLogs({ setView, onLogout }) {
     setView("login");
   };
 
-  const fetchLogs = async (pageNum = 1, isNewSearch = false) => {
+  const fetchLogs = async () => {
     try {
-      if (pageNum === 1) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-
-      // Build query parameters
-      const params = new URLSearchParams({
-        page: pageNum,
-        limit: 20,
-        sort: sortOrder
-      });
-      
-      if (search) params.append("search", search);
-      if (startDate) params.append("startDate", startDate);
-      if (endDate) params.append("endDate", endDate);
-
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/logs?${params}`);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/logs`);
       if (!res.ok) throw new Error("Failed to fetch logs");
-      
       const data = await res.json();
-      
-      if (isNewSearch || pageNum === 1) {
-        setLogs(data.logs || []);
-      } else {
-        setLogs(prev => [...prev, ...(data.logs || [])]);
-      }
-      
-      setHasMore(data.hasMore || false);
-      setPage(pageNum);
+      setLogs(data);
       setError(null);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   };
 
-  // Initial load and filter changes
   useEffect(() => {
-    fetchLogs(1, true);
-  }, [search, startDate, endDate, sortOrder]);
+    fetchLogs(); // initial load
+    const interval = setInterval(fetchLogs, 5000); // 🔄 refresh every 5s
+    return () => clearInterval(interval);
+  }, []);
 
-  // Set up intersection observer for infinite scroll
-  useEffect(() => {
-    if (loading || loadingMore || !hasMore) return;
+  // 📌 Apply filters
+  const filteredLogs = logs
+    .filter((log) => {
+      const logDate = new Date(log.createdAt);
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore) {
-          fetchLogs(page + 1, false);
-        }
-      },
-      { threshold: 0.5 }
+      const matchesSearch =
+        log.userName?.toLowerCase().includes(search.toLowerCase()) ||
+        log.action?.toLowerCase().includes(search.toLowerCase()) ||
+        log.details?.toLowerCase().includes(search.toLowerCase());
+
+      const matchesStart = startDate ? logDate >= new Date(startDate) : true;
+      const matchesEnd = endDate ? logDate <= new Date(endDate + "T23:59:59") : true;
+
+      return matchesSearch && matchesStart && matchesEnd;
+    })
+    .sort((a, b) =>
+      sortOrder === "desc"
+        ? new Date(b.createdAt) - new Date(a.createdAt)
+        : new Date(a.createdAt) - new Date(b.createdAt)
     );
 
-    if (lastLogElementRef.current) {
-      observer.observe(lastLogElementRef.current);
-    }
+  // 📥 Export as CSV only
+  const exportCSV = () => {
+    try {
+      const headers = ["User", "ID Number", "Action", "Details", "Date"];
+      const rows = filteredLogs.map((log) => [
+        log.userName || "System",
+        log.id_number || "—",
+        log.action,
+        log.details || "—",
+        new Date(log.createdAt).toLocaleString("en-PH", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }),
+      ]);
 
-    return () => {
-      if (lastLogElementRef.current) {
-        observer.unobserve(lastLogElementRef.current);
-      }
-    };
-  }, [loading, loadingMore, hasMore, page]);
+      let csvContent =
+        "data:text/csv;charset=utf-8," +
+        [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+
+      const blob = new Blob([decodeURIComponent(encodeURI(csvContent))], {
+        type: "text/csv;charset=utf-8;",
+      });
+      saveAs(blob, `activity_logs_${Date.now()}.csv`);
+    } catch (err) {
+      setError("Failed to export CSV: " + err.message);
+    }
+  };
 
   // Clear all filters
   const clearFilters = () => {
@@ -101,7 +96,6 @@ function AdminLogs({ setView, onLogout }) {
     setStartDate("");
     setEndDate("");
     setSortOrder("desc");
-    setPage(1);
   };
 
   // Apply date filter and close modal
@@ -111,7 +105,6 @@ function AdminLogs({ setView, onLogout }) {
       setError("Start date cannot be after end date");
       return;
     }
-    setPage(1);
   };
 
   // Clear date filters
@@ -135,7 +128,7 @@ function AdminLogs({ setView, onLogout }) {
       <AdminNavigation setView={setView} currentView="adminLogs" onLogout={onLogout} />
       <main className="ml-[250px] min-h-screen bg-gray-50">
         {/* Header */}
-        <header className="bg-white px-6 py-4 border-b border-gray-200 sticky top-0 z-10">
+        <header className="bg-white px-6 py-4 border-b border-gray-200">
           <h1 className="text-2xl font-bold text-[#CC0000]">Activity Logs</h1>
           <p className="text-gray-600">Review user and system activities</p>
           {error && (
@@ -147,7 +140,7 @@ function AdminLogs({ setView, onLogout }) {
 
         {/* Controls Section */}
         <div className="p-6">
-          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6 sticky top-[88px] z-10">
+          <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
             <div className="flex flex-wrap items-center gap-3">
               {/* Search Input */}
               <div className="relative flex-1 min-w-[300px]">
@@ -190,6 +183,17 @@ function AdminLogs({ setView, onLogout }) {
                 {sortOrder === "desc" ? "Newest" : "Oldest"}
               </button>
 
+              {/* Export CSV */}
+              <button
+                onClick={exportCSV}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
+              >
+                <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                CSV
+              </button>
+
               {/* Clear Filters */}
               {getActiveFilterCount() > 0 && (
                 <button
@@ -222,7 +226,7 @@ function AdminLogs({ setView, onLogout }) {
             <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
               <h2 className="font-semibold text-gray-700">Activity Logs</h2>
               <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">
-                {logs.length} log{logs.length !== 1 ? 's' : ''}
+                {filteredLogs.length} log{filteredLogs.length !== 1 ? 's' : ''}
               </span>
             </div>
 
@@ -236,7 +240,7 @@ function AdminLogs({ setView, onLogout }) {
               </div>
             ) : error ? (
               <div className="p-4 text-center text-red-600 text-sm">{error}</div>
-            ) : logs.length === 0 ? (
+            ) : filteredLogs.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <p className="mb-2">No logs found</p>
                 {getActiveFilterCount() > 0 && (
@@ -249,70 +253,49 @@ function AdminLogs({ setView, onLogout }) {
                 )}
               </div>
             ) : (
-              <>
-                <div className="overflow-x-auto max-h-[calc(100vh-320px)] overflow-y-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-gray-600 text-xs sticky top-0 z-10">
-                      <tr>
-                        <th className="px-4 py-3 text-left font-medium">User</th>
-                        <th className="px-4 py-3 text-left font-medium">Action</th>
-                        <th className="px-4 py-3 text-left font-medium">Details</th>
-                        <th className="px-4 py-3 text-left font-medium">Date & Time</th>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-600 text-xs">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium">User</th>
+                      <th className="px-4 py-3 text-left font-medium">Action</th>
+                      <th className="px-4 py-3 text-left font-medium">Details</th>
+                      <th className="px-4 py-3 text-left font-medium">Date & Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredLogs.map((log) => (
+                      <tr key={log._id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3">
+                          <div className="font-medium text-gray-900">
+                            {log.userName || "System"}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {log.id_number || "—"}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="inline-flex px-2 py-1 rounded text-xs bg-blue-50 text-blue-700">
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 max-w-md">
+                          {log.details || "—"}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                          <div>{new Date(log.createdAt).toLocaleDateString("en-PH")}</div>
+                          <div className="text-xs">
+                            {new Date(log.createdAt).toLocaleTimeString("en-PH", {
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </div>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {logs.map((log, index) => (
-                        <tr 
-                          key={log._id} 
-                          ref={index === logs.length - 1 ? lastLogElementRef : null}
-                          className="hover:bg-gray-50"
-                        >
-                          <td className="px-4 py-3">
-                            <div className="font-medium text-gray-900">
-                              {log.userName || "System"}
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {log.id_number || "—"}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className="inline-flex px-2 py-1 rounded text-xs bg-blue-50 text-blue-700">
-                              {log.action}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-gray-600 max-w-md">
-                            {log.details || "—"}
-                          </td>
-                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                            <div>{new Date(log.createdAt).toLocaleDateString("en-PH")}</div>
-                            <div className="text-xs">
-                              {new Date(log.createdAt).toLocaleTimeString("en-PH", {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                
-                {/* Loading More Indicator */}
-                {loadingMore && (
-                  <div className="flex justify-center items-center py-4 border-t border-gray-100">
-                    <div className="inline-block animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-[#CC0000] mr-2"></div>
-                    <span className="text-sm text-gray-500">Loading more logs...</span>
-                  </div>
-                )}
-                
-                {/* End of List Message */}
-                {!hasMore && logs.length > 0 && (
-                  <div className="text-center py-4 border-t border-gray-100">
-                    <p className="text-sm text-gray-400">No more logs to load</p>
-                  </div>
-                )}
-              </>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
