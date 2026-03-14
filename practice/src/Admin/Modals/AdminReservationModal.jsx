@@ -330,11 +330,20 @@ const AdminReservationModal = ({
   };
 
   const getProfilePictureUrl = (user) => {
-    if (!user.profilePicture) return null;
-    if (user.profilePicture.startsWith("http")) {
-      return `${user.profilePicture}?t=${Date.now()}`;
-    } else {
-      return `${import.meta.env.VITE_API_URL}${user.profilePicture}?t=${Date.now()}`;
+    if (!user || !user.profilePicture) return null;
+    
+    try {
+      if (user.profilePicture.startsWith("http")) {
+        return `${user.profilePicture}?t=${Date.now()}`;
+      } else {
+        const baseUrl = import.meta.env.VITE_API_URL || '';
+        // Make sure the path starts with a slash if it doesn't already
+        const imagePath = user.profilePicture.startsWith('/') ? user.profilePicture : `/${user.profilePicture}`;
+        return `${baseUrl}${imagePath}?t=${Date.now()}`;
+      }
+    } catch (error) {
+      console.error("Error formatting profile picture URL:", error);
+      return null;
     }
   };
 
@@ -547,8 +556,12 @@ const AdminReservationModal = ({
     </div>
   );
 
-  // Updated View User Modal Component - with Profile Picture and without System Info
+  // Updated View User Modal Component - with working profile picture and without System Info
   const ViewUserModal = ({ user, onClose }) => {
+    const [imageError, setImageError] = useState(false);
+    
+    const profilePictureUrl = getProfilePictureUrl(user);
+    
     return (
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
         <div className="bg-white w-full max-w-4xl rounded-xl shadow-lg overflow-hidden max-h-[90vh] overflow-y-auto">
@@ -579,22 +592,21 @@ const AdminReservationModal = ({
             ) : null}
             
             <div className="flex flex-col lg:flex-row gap-6">
-              {/* Profile Picture - Now Always Visible */}
+              {/* Profile Picture Section - Now with better error handling */}
               <div className="flex flex-col items-center w-full lg:w-1/3">
                 <div className="relative w-40 h-40 rounded-full bg-gray-100 border-2 border-gray-200 overflow-hidden mb-4">
-                  {user.profilePicture ? (
+                  {!imageError && profilePictureUrl ? (
                     <img
-                      src={getProfilePictureUrl(user)}
-                      alt={`${user.name}'s profile`}
+                      src={profilePictureUrl}
+                      alt={`${user.name || 'User'}'s profile`}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = "/default-avatar.png";
-                      }}
+                      onError={() => setImageError(true)}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gray-100">
-                      <User size={64} className="text-gray-400" />
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600">
+                      <span className="text-white text-4xl font-bold">
+                        {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                      </span>
                     </div>
                   )}
                 </div>
@@ -654,7 +666,7 @@ const AdminReservationModal = ({
                     )}
                   </div>
 
-                  {/* Additional Participants Section */}
+                  {/* Additional Participants Section - Only if they exist */}
                   {user.additionalParticipants && user.additionalParticipants.length > 0 && (
                     <div className="md:col-span-2 space-y-4 pt-2">
                       <h3 className="text-base font-medium text-gray-700 flex items-center gap-2">
