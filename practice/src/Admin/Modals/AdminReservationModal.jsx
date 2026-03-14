@@ -556,7 +556,7 @@ const AdminReservationModal = ({
     </div>
   );
 
-  // Updated View User Modal Component - with working profile picture and without System Info
+  // Updated View User Modal Component - with neutral profile picture fallback (no blue gradient)
   const ViewUserModal = ({ user, onClose }) => {
     const [imageError, setImageError] = useState(false);
     
@@ -592,7 +592,7 @@ const AdminReservationModal = ({
             ) : null}
             
             <div className="flex flex-col lg:flex-row gap-6">
-              {/* Profile Picture Section - Now with better error handling */}
+              {/* Profile Picture Section - Neutral fallback (no blue) */}
               <div className="flex flex-col items-center w-full lg:w-1/3">
                 <div className="relative w-40 h-40 rounded-full bg-gray-100 border-2 border-gray-200 overflow-hidden mb-4">
                   {!imageError && profilePictureUrl ? (
@@ -603,10 +603,8 @@ const AdminReservationModal = ({
                       onError={() => setImageError(true)}
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600">
-                      <span className="text-white text-4xl font-bold">
-                        {user.name ? user.name.charAt(0).toUpperCase() : 'U'}
-                      </span>
+                    <div className="w-full h-full flex items-center justify-center bg-gray-200">
+                      <User size={48} className="text-gray-500" />
                     </div>
                   )}
                 </div>
