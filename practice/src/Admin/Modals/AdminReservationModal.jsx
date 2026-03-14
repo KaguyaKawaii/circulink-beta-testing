@@ -419,40 +419,39 @@ const AdminReservationModal = ({
 
   const ParticipantCard = ({ participant }) => (
     <div className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors duration-150">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm bg-gradient-to-br from-yellow-400 to-yellow-500">
+      <div className="flex items-center gap-4 flex-1 min-w-0">
+        <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm bg-gradient-to-br from-yellow-400 to-yellow-500 flex-shrink-0">
           {participant.name?.charAt(0) || "U"}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
             <p className="font-semibold text-gray-900 truncate">{participant.name}</p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-gray-600">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-600">
             <div className="flex items-center gap-1">
-              <IdCard size={12} />
+              <IdCard size={12} className="flex-shrink-0" />
               <span className="font-mono truncate">{participant.id_number}</span>
             </div>
             <div className="flex items-center gap-1">
-              <Building size={12} />
+              <Building size={12} className="flex-shrink-0" />
               <span className="truncate">{participant.department}</span>
             </div>
             {(participant.course && participant.course !== "N/A") && (
               <div className="flex items-center gap-1">
-                <BookOpen size={12} />
+                <BookOpen size={12} className="flex-shrink-0" />
                 <span className="truncate">{participant.course}</span>
               </div>
-            )
-            }
+            )}
             {(participant.year_level && participant.year_level !== "N/A") && (
               <div className="flex items-center gap-1">
-                <GraduationCap size={12} />
+                <GraduationCap size={12} className="flex-shrink-0" />
                 <span className="truncate">{participant.year_level}</span>
               </div>
             )}
           </div>
         </div>
       </div>
-      <ChevronRight size={16} className="text-gray-400 flex-shrink-0" />
+      <ChevronRight size={16} className="text-gray-400 flex-shrink-0 ml-2" />
     </div>
   );
 
@@ -678,7 +677,7 @@ const AdminReservationModal = ({
                       {reservation.extensionReason && (
                         <div className="flex flex-col gap-1 py-2">
                           <span className="text-amber-700">Reason</span>
-                          <span className="text-amber-900 bg-amber-100/50 p-2 rounded-lg text-sm">
+                          <span className="text-amber-900 bg-amber-100/50 p-2 rounded-lg text-sm break-words whitespace-normal">
                             {reservation.extensionReason}
                           </span>
                         </div>
