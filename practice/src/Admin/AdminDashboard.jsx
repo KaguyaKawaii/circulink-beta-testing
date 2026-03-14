@@ -114,8 +114,6 @@ function AdminDashboard({ setView }) {
 
   // Modal States
   const [showRoomAvailabilityModal, setShowRoomAvailabilityModal] = useState(false);
-  const [selectedNews, setSelectedNews] = useState(null);
-  const [showNewsModal, setShowNewsModal] = useState(false);
 
   // Admin user ID from localStorage - using id_number
   const getAdminId = () => {
@@ -697,12 +695,6 @@ const fetchAllData = useCallback(async () => {
     return doc.body.textContent || '';
   };
 
-  // Handle news click
-  const handleNewsClick = (news) => {
-    setSelectedNews(news);
-    setShowNewsModal(true);
-  };
-
   return (
     <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
       {/* Header */}
@@ -1101,11 +1093,7 @@ const fetchAllData = useCallback(async () => {
                     const plainTextContent = stripHtmlTags(news.content).substring(0, 100) + (stripHtmlTags(news.content).length > 100 ? '...' : '');
                     
                     return (
-                      <div 
-                        key={news._id} 
-                        className="p-4 rounded-lg border border-gray-200 hover:shadow-md transition-shadow duration-200 cursor-pointer"
-                        onClick={() => handleNewsClick(news)}
-                      >
+                      <div key={news._id} className="p-4 rounded-lg border border-gray-200 hover:shadow-md transition-shadow duration-200">
                         <div className="flex flex-col sm:flex-row gap-4">
                           {/* Image */}
                           {firstImage ? (
@@ -1705,72 +1693,6 @@ const fetchAllData = useCallback(async () => {
                 className="px-6 py-2.5 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
               >
                 Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* News Modal */}
-      {showNewsModal && selectedNews && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl w-full max-w-4xl max-h-[90vh] overflow-hidden border border-gray-200">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-gray-900">News Details</h2>
-              <button
-                onClick={() => {
-                  setShowNewsModal(false);
-                  setSelectedNews(null);
-                }}
-                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <X size={24} className="text-gray-600" />
-              </button>
-            </div>
-            
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
-              <div className="mb-6">
-                <h3 className="text-3xl font-bold text-gray-900 mb-3">{selectedNews.title}</h3>
-                <p className="text-sm text-gray-500">
-                  Posted on: {new Date(selectedNews.createdAt).toLocaleString()}
-                </p>
-              </div>
-              
-              {selectedNews.images && selectedNews.images.length > 0 && (
-                <div className="mb-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {selectedNews.images.map((img, index) => (
-                      <div key={index} className="relative group">
-                        <img
-                          src={img}
-                          alt={`News image ${index + 1}`}
-                          className="w-full h-64 object-cover rounded-xl"
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors rounded-xl"></div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-sm text-gray-500 text-center mt-4">
-                    {selectedNews.images.length} image{selectedNews.images.length > 1 ? 's' : ''}
-                  </p>
-                </div>
-              )}
-              
-              <div
-                className="prose max-w-none text-gray-700 leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: selectedNews.content }}
-              />
-            </div>
-            
-            <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end">
-              <button
-                onClick={() => {
-                  setShowNewsModal(false);
-                  setSelectedNews(null);
-                }}
-                className="px-6 py-2.5 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
-              >
-                Close!
               </button>
             </div>
           </div>
