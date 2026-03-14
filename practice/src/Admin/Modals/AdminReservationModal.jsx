@@ -557,15 +557,17 @@ const AdminReservationModal = ({
 
               {/* Purpose & User Info */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Purpose Card */}
-                <div className="bg-white border border-gray-200 rounded-xl p-5">
+                {/* Purpose Card - Added max-width and text wrapping */}
+                <div className="bg-white border border-gray-200 rounded-xl p-5 max-w-full">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="p-2 bg-gray-100 rounded-lg">
                       <FileText size={20} className="text-gray-600" />
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900">Reservation Purpose</h3>
                   </div>
-                  <p className="text-gray-700 leading-relaxed">{reservation.purpose}</p>
+                  <p className="text-gray-700 leading-relaxed break-words whitespace-normal max-w-full">
+                    {reservation.purpose}
+                  </p>
                 </div>
 
                 {/* Timeline Card */}
