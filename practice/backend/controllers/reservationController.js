@@ -11,8 +11,9 @@ import logAction from "../utils/logAction.js";
 import generateReservationEmail from "../utils/generateReservationEmail.js";
 import * as availabilityService from "../services/availabilityService.js";
 import notificationService from "../services/notificationService.js";
+
 /* ------------------------------------------------
-   ✅ CHECK USER RESERVATION LIMIT
+   ✅ CHECK USER RESERVATION LIMIT (UPDATED)
 ------------------------------------------------ */
 export const checkUserReservationLimit = async (req, res) => {
   try {
@@ -26,20 +27,34 @@ export const checkUserReservationLimit = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ blocked: true, reason: "User not found." });
 
-    // Calculate selected range - UPDATED to 2 hours (120 minutes)
+    // Calculate selected range - 2 hours (120 minutes)
     const selectedStart = new Date(`${date}T${time}:00.000Z`);
-    const selectedEnd = new Date(selectedStart.getTime() + 120 * 60 * 1000); // 2 hours in milliseconds
+    const selectedEnd = new Date(selectedStart.getTime() + 120 * 60 * 1000);
 
-    // Check conflicts (main + participant)
+    console.log(`🔍 Checking conflicts for user: ${user.name} (ID: ${user.id_number})`);
+    console.log(`📅 Time range: ${selectedStart} to ${selectedEnd}`);
+
+    // Check conflicts (as main OR participant)
     const conflictingReservations = await Reservation.find({
-      status: { $in: ["Approved", "Pending"] },
-      $or: [{ userId }, { "participants.id_number": user.id_number }],
+      status: { $in: ["Approved", "Pending", "Ongoing"] },
+      $or: [
+        { userId }, 
+        { "participants.id_number": user.id_number }
+      ],
       datetime: { $lt: selectedEnd },
       endDatetime: { $gt: selectedStart }
     });
 
     if (conflictingReservations.length > 0) {
-      return res.json({ blocked: true, reason: "You already have a conflicting reservation during this time." });
+      const conflictDetails = conflictingReservations.map(r => {
+        const role = r.userId.toString() === userId ? "main reserver" : "participant";
+        return `${r.roomName} (as ${role})`;
+      }).join(', ');
+      
+      return res.json({ 
+        blocked: true, 
+        reason: `You already have a conflicting reservation during this time: ${conflictDetails}` 
+      });
     }
 
     // Weekly limit check (only for main user)
@@ -453,7 +468,7 @@ export const getActiveReservation = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ CREATE RESERVATION (WITH SUSPENDED USER CHECK) - UPDATED TO 2 HOURS
+   ✅ CREATE RESERVATION (WITH PROPER ROOM CONFLICT CHECK)
 ------------------------------------------------ */
 export const createReservation = async (req, res) => {
   try {
@@ -477,6 +492,13 @@ export const createReservation = async (req, res) => {
     // UPDATED: Changed from 60 minutes to 120 minutes (2 hours)
     const endDatetime = new Date(parsedDatetime.getTime() + 120 * 60 * 1000); // 2 hours in milliseconds
 
+    console.log("=".repeat(50));
+    console.log("📝 CREATING RESERVATION");
+    console.log("=".repeat(50));
+    console.log(`Room: ${roomName} (${location})`);
+    console.log(`Time: ${parsedDatetime} to ${endDatetime}`);
+    console.log(`Requested by User ID: ${userId}`);
+
     // ✅ RULE: Reservation must be booked at least 1 day in advance
     const now = new Date();
     const minAllowed = new Date();
@@ -492,7 +514,7 @@ export const createReservation = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found." });
     
-    // ✅ NEW: Check if main user is suspended
+    // ✅ Check if main user is suspended
     if (user.suspended) {
       return res.status(403).json({ 
         message: "Your account is suspended. You cannot make reservations while suspended. Please contact the administrator for assistance." 
@@ -558,21 +580,122 @@ export const createReservation = async (req, res) => {
       });
     }
 
-    // ✅ Check overlapping reservations for room
-    const conflictingReservation = await Reservation.findOne({
-      roomName,
-      location,
-      status: { $in: ["Approved", "Ongoing"] },
+    // ✅ CHECK MAIN USER CONFLICTS (AS MAIN OR PARTICIPANT)
+    const mainUserConflicts = await Reservation.find({
+      status: { $in: ["Pending", "Approved", "Ongoing"] },
+      $or: [
+        { userId: user._id },
+        { "participants.id_number": user.id_number }
+      ],
       datetime: { $lt: endDatetime },
       endDatetime: { $gt: parsedDatetime }
     });
-    if (conflictingReservation)
-      return res.status(400).json({ message: "This room is already booked for this time." });
 
-    // ✅ Daily limit: 2 reservations per day (no weekly limit)
+    if (mainUserConflicts.length > 0) {
+      const conflictDetails = mainUserConflicts.map(r => {
+        if (r.userId.toString() === userId) {
+          return `${r.roomName} (as main reserver)`;
+        } else {
+          return `${r.roomName} (as participant)`;
+        }
+      }).join(', ');
+      
+      console.log(`❌ Main user has conflicts: ${conflictDetails}`);
+      return res.status(400).json({ 
+        message: `You have a conflicting reservation during this time: ${conflictDetails}` 
+      });
+    }
+
+    console.log(`✅ Main user has no conflicts`);
+
+    // ✅ CRITICAL FIX: CHECK ROOM AVAILABILITY - PREVENT DOUBLE-BOOKING
+    // Check for ANY conflicting reservations for this room (including Pending)
+    const roomConflicts = await Reservation.find({
+      roomName,
+      location,
+      status: { $in: ["Approved", "Ongoing", "Pending"] }, // Include Pending!
+      $or: [
+        // Case 1: New reservation starts during existing reservation
+        {
+          datetime: { $lte: parsedDatetime },
+          endDatetime: { $gt: parsedDatetime }
+        },
+        // Case 2: New reservation ends during existing reservation
+        {
+          datetime: { $lt: endDatetime },
+          endDatetime: { $gte: endDatetime }
+        },
+        // Case 3: New reservation completely contains existing reservation
+        {
+          datetime: { $gte: parsedDatetime },
+          endDatetime: { $lte: endDatetime }
+        },
+        // Case 4: Existing reservation completely contains new reservation
+        {
+          datetime: { $lte: parsedDatetime },
+          endDatetime: { $gte: endDatetime }
+        }
+      ]
+    }).sort({ createdAt: 1 }); // Sort by creation time (oldest first)
+
+    if (roomConflicts.length > 0) {
+      // Get the first (oldest) conflicting reservation
+      const firstConflict = roomConflicts[0];
+      const conflictingUser = await User.findById(firstConflict.userId);
+      
+      console.log("❌ ROOM CONFLICT DETECTED!", {
+        room: roomName,
+        requestedTime: `${parsedDatetime} to ${endDatetime}`,
+        conflictingTime: `${firstConflict.datetime} to ${firstConflict.endDatetime}`,
+        bookedBy: conflictingUser?.name || 'Unknown user',
+        status: firstConflict.status,
+        submittedAt: firstConflict.createdAt
+      });
+
+      // Check if the current user is the one who made the first reservation
+      const isCurrentUserFirst = firstConflict.userId.toString() === userId;
+
+      if (isCurrentUserFirst) {
+        // Current user made the first reservation - they can proceed
+        console.log("✅ Current user has priority (made first reservation)");
+        
+        if (firstConflict.status === "Pending") {
+          // Update the existing pending reservation instead of creating new one
+          return res.status(400).json({
+            message: "You already have a pending reservation for this room at this time. Please check your reservations.",
+            existingReservation: firstConflict
+          });
+        }
+      } else {
+        // Another user made the first reservation
+        const timeDiff = Date.now() - new Date(firstConflict.createdAt).getTime();
+        const minutesAgo = Math.floor(timeDiff / (60 * 1000));
+        const hoursAgo = Math.floor(timeDiff / (60 * 60 * 1000));
+        
+        let timeAgoText = minutesAgo < 60 
+          ? `${minutesAgo} minutes ago` 
+          : `${hoursAgo} hours ago`;
+
+        return res.status(400).json({
+          message: `This room is already booked for this time.`,
+          conflictDetails: {
+            bookedBy: conflictingUser?.name || 'Another user',
+            bookedAt: firstConflict.createdAt,
+            timeAgo: timeAgoText,
+            status: firstConflict.status,
+            timeRange: `${new Date(firstConflict.datetime).toLocaleTimeString()} - ${new Date(firstConflict.endDatetime).toLocaleTimeString()}`
+          },
+          suggestion: "Please choose a different time or room."
+        });
+      }
+    }
+
+    console.log(`✅ Room is available, proceeding with reservation...`);
+
+    // ✅ Daily limit: 2 reservations per day
     const reservationsToday = await Reservation.countDocuments({
       userId,
-      date: date, // This comes from req.body.date
+      date: date,
       status: { $in: ["Pending", "Approved", "Ongoing"] }
     });
 
@@ -599,7 +722,7 @@ export const createReservation = async (req, res) => {
         return res.status(400).json({ message: `Participant ${participant.name} not found.` });
       }
       
-      // ✅ NEW: Check if participant is suspended
+      // ✅ Check if participant is suspended
       if (participantUser.suspended) {
         invalidParticipants.push({
           name: participantUser.name,
@@ -608,7 +731,7 @@ export const createReservation = async (req, res) => {
           course: participantUser.course,
           reason: "User account is suspended"
         });
-        continue; // Continue to check all participants for comprehensive error reporting
+        continue;
       }
       
       if (!participantUser.verified) {
@@ -623,12 +746,12 @@ export const createReservation = async (req, res) => {
           department: participantUser.department,
           course: participantUser.course
         });
-        continue; // Continue to check all participants for comprehensive error reporting
+        continue;
       }
 
-      // ✅ FIXED: Skip conflict check for main reserver (they're already checked above)
+      // ✅ Check participant conflicts (skip main user as they're already checked)
       if (participantUser.id_number !== user.id_number) {
-        const conflicts = await Reservation.find({
+        const participantConflicts = await Reservation.find({
           $or: [
             { userId: participantUser._id },
             { "participants.id_number": participantUser.id_number }
@@ -637,8 +760,16 @@ export const createReservation = async (req, res) => {
           endDatetime: { $gt: parsedDatetime },
           status: { $in: ["Pending", "Approved", "Ongoing"] }
         });
-        if (conflicts.length > 0)
-          return res.status(400).json({ message: `Participant ${participantUser.name} has a conflicting reservation.` });
+
+        if (participantConflicts.length > 0) {
+          const conflictDetails = participantConflicts.map(c => 
+            `${c.roomName} on ${new Date(c.datetime).toLocaleString()}`
+          ).join(', ');
+          
+          return res.status(400).json({ 
+            message: `Participant ${participantUser.name} has a conflicting reservation during this time: ${conflictDetails}` 
+          });
+        }
       }
 
       enrichedParticipants.push({
@@ -711,7 +842,7 @@ export const createReservation = async (req, res) => {
       );
     }
 
-    // ✅ Send email to main reserver - FIXED: Make sure this runs
+    // ✅ Send email to main reserver
     try {
       console.log(`📧 Sending email to main reserver: ${user.email}`);
       const emailResult = await sendEmail({
@@ -731,7 +862,7 @@ export const createReservation = async (req, res) => {
       console.error(`❌ Failed to send email to main reserver:`, emailError);
     }
 
-    // ✅ NOTIFY PARTICIPANTS AND SEND EMAILS - FIXED VERSION
+    // ✅ NOTIFY PARTICIPANTS AND SEND EMAILS
     console.log('🔔 Creating notifications for participants:', enrichedParticipants.length);
     
     for (const participant of enrichedParticipants) {
@@ -784,7 +915,7 @@ export const createReservation = async (req, res) => {
           console.error('❌ Failed to create notification for participant:', participantUser.name, notifError);
         }
 
-        // ✅ FIXED: Send email to participant - separate try-catch block
+        // Send email to participant
         try {
           console.log(`📧 Sending email to participant: ${participantUser.email}`);
           const emailResult = await sendEmail({
@@ -830,7 +961,11 @@ export const createReservation = async (req, res) => {
       );
     }
 
-    console.log('✅ Reservation created successfully with all emails sent');
+    console.log("=".repeat(50));
+    console.log("✅ RESERVATION CREATED SUCCESSFULLY");
+    console.log(`Reservation ID: ${reservation._id}`);
+    console.log("=".repeat(50));
+    
     res.status(201).json(reservation);
     
   } catch (err) {
