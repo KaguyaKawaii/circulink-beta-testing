@@ -44,7 +44,6 @@ const isSameManilaDate = (date1, date2) => {
   return getManilaDateString(date1) === getManilaDateString(date2);
 };
 
-
 // Filter reservations to hide expired, canceled, and completed after 24 hours
 const filterReservations = (reservations) => {
   const now = new Date();
@@ -474,12 +473,25 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
   // Change page
   const paginate = (pageNumber) => setCurrentReservationPage(pageNumber);
 
+  // Function to get page numbers to display (max 5)
+  const getPageNumbers = () => {
+    const maxPagesToShow = 5;
+    let startPage = Math.max(1, currentReservationPage - 2);
+    let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+    
+    // Adjust start page if we're near the end
+    if (endPage - startPage + 1 < maxPagesToShow) {
+      startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+    
+    return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
+  };
+
   return (
     <main className="w-full min-h-screen flex flex-col bg-[#FFFCFB] lg:pl-[250px]">
       {/* HEADER */}
       <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm bg-white sticky top-0 z-10 lg:static">
         <h1 className="text-xl md:text-2xl font-bold tracking-wide">Dashboard</h1>
-
       </header>
 
       {/* BODY */}
@@ -557,7 +569,8 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                     </svg>
                   </button>
 
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((number) => (
+                  {/* Page numbers - limited to 5 max */}
+                  {getPageNumbers().map((number) => (
                     <button
                       key={number}
                       onClick={() => paginate(number)}
@@ -622,7 +635,6 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                   >
                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-3 gap-2">
                       <h3 className="text-base sm:text-lg font-bold text-gray-800 flex items-center gap-2">
-                        
                         {reservation.roomName}
                       </h3>
                       <span
