@@ -37,6 +37,7 @@ const AdminReservationModal = ({
   const [processingAction, setProcessingAction] = useState("");
   const [error, setError] = useState("");
   const [showExtensionModal, setShowExtensionModal] = useState(false);
+  const [showApproveExtensionModal, setShowApproveExtensionModal] = useState(false);
   const [extensionReason, setExtensionReason] = useState("");
   const [extensionMinutes, setExtensionMinutes] = useState(30);
   const [extensionHours, setExtensionHours] = useState(0);
@@ -151,7 +152,14 @@ const AdminReservationModal = ({
         case "approve-extension":
           endpoint = `${import.meta.env.VITE_API_URL}/api/reservations/${reservation._id}/handle-extension`;
           method = "put";
-          requestData = { action: "approve" };
+          requestData = { 
+            action: "approve",
+            extensionType: data.extensionType,
+            extensionMinutes: data.extensionMinutes,
+            extensionHours: data.extensionHours,
+            customEndTime: data.customEndTime,
+            extensionReason: data.extensionReason
+          };
           break;
 
         case "reject-extension":
@@ -195,8 +203,43 @@ const AdminReservationModal = ({
   const handleStart = () => handleAction("start");
   const handleEndEarly = () => handleAction("end-early");
   const handleCancel = () => handleAction("cancel");
-  const handleApproveExtension = () => handleAction("approve-extension");
   const handleRejectExtension = () => handleAction("reject-extension");
+
+  const handleApproveExtension = async () => {
+    const totalMinutes = (parseInt(extensionHours) * 60) + parseInt(extensionMinutes);
+    
+    let requestData = {
+      extensionType: extensionType,
+      extensionReason: extensionReason
+    };
+
+    if (extensionType === "fixed") {
+      requestData = {
+        ...requestData,
+        extensionMinutes: totalMinutes,
+        extensionHours: parseInt(extensionHours)
+      };
+    } else if (extensionType === "continuous") {
+      requestData = {
+        ...requestData,
+        extensionType: "continuous"
+      };
+    } else if (extensionType === "custom" && customEndTime) {
+      requestData = {
+        ...requestData,
+        extensionType: "custom",
+        customEndTime: customEndTime
+      };
+    }
+
+    await handleAction("approve-extension", requestData);
+    setShowApproveExtensionModal(false);
+    setExtensionReason("");
+    setExtensionMinutes(30);
+    setExtensionHours(0);
+    setCustomEndTime("");
+    setExtensionType("fixed");
+  };
 
   const handleRequestExtension = async () => {
     const totalMinutes = (parseInt(extensionHours) * 60) + parseInt(extensionMinutes);
@@ -447,6 +490,7 @@ const AdminReservationModal = ({
           );
         }
 
+        // FIXED: Staff/Admin can approve extension with time selection
         if (reservation.extensionRequested && reservation.extensionStatus === "Pending" && isStaffOrAdmin) {
           ongoingActions.push(
             <div key="extension-actions" className="flex gap-2">
@@ -459,7 +503,7 @@ const AdminReservationModal = ({
                 Reject
               </button>
               <button
-                onClick={handleApproveExtension}
+                onClick={() => setShowApproveExtensionModal(true)}
                 disabled={isProcessing}
                 className="px-3 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium text-xs flex items-center gap-1 cursor-pointer"
               >
@@ -1001,7 +1045,7 @@ const AdminReservationModal = ({
         </div>
       </div>
 
-      {/* Extension Request Modal */}
+      {/* Extension Request Modal (for user requesting extension) */}
       {showExtensionModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200">
@@ -1199,7 +1243,220 @@ const AdminReservationModal = ({
                 ) : (
                   <>
                     <CheckCircle size={16} />
-                    Request Extension.
+                    Request Extension
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Extension Approval Modal (for staff/admin approving extension) */}
+      {showApproveExtensionModal && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200">
+            <div className="bg-white p-6 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <CheckCircle size={24} className="text-emerald-600" />
+                <h3 className="text-xl font-bold text-gray-900">Approve Extension Request</h3>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+              {/* Current Schedule */}
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <p className="text-xs font-medium text-gray-500 mb-1">Current End Time</p>
+                <p className="text-sm font-semibold text-gray-900">{formatTime(currentEndTime)}</p>
+              </div>
+
+              {/* User's Reason */}
+              {reservation.extensionReason && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  <p className="text-xs font-medium text-amber-700 mb-1">User's Reason:</p>
+                  <p className="text-sm text-amber-800">{reservation.extensionReason}</p>
+                </div>
+              )}
+
+              {/* Extension Type Selection */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Extension Type
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setExtensionType("fixed")}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
+                      extensionType === "fixed"
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    Fixed
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExtensionType("continuous")}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
+                      extensionType === "continuous"
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    Continuous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setExtensionType("custom")}
+                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
+                      extensionType === "custom"
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    Custom
+                  </button>
+                </div>
+              </div>
+
+              {/* Fixed Extension Controls */}
+              {extensionType === "fixed" && (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Hours
+                    </label>
+                    <select
+                      value={extensionHours}
+                      onChange={(e) => setExtensionHours(parseInt(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {[0, 1, 2, 3, 4].map(hours => (
+                        <option key={hours} value={hours}>{hours} hour{hours !== 1 ? 's' : ''}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Minutes
+                    </label>
+                    <select
+                      value={extensionMinutes}
+                      onChange={(e) => setExtensionMinutes(parseInt(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {[0, 15, 30, 45].map(minutes => (
+                        <option key={minutes} value={minutes}>{minutes} minutes</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-3">
+                    <p className="text-sm text-indigo-700">
+                      Total extension: <span className="font-bold">{extensionHours} hour{extensionHours !== 1 ? 's' : ''} {extensionMinutes > 0 ? `${extensionMinutes} minutes` : ''}</span>
+                    </p>
+                    <p className="text-xs text-indigo-600 mt-1">
+                      New end time: {formatTime(new Date(currentEndTime.getTime() + (extensionHours * 60 + extensionMinutes) * 60000))}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Continuous Extension Info */}
+              {extensionType === "continuous" && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle size={18} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-blue-800 mb-1">Continuous Extension</p>
+                      <p className="text-xs text-blue-700">
+                        The reservation will continue automatically until manually ended, until the next scheduled reservation, or until the maximum extension limit is reached.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Custom End Time */}
+              {extensionType === "custom" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select New End Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={customEndTime}
+                    onChange={(e) => setCustomEndTime(e.target.value)}
+                    min={formatDateTimeForInput(minExtensionTime)}
+                    max={formatDateTimeForInput(maxExtensionTime)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  {maxExtensionTime && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Maximum extension until: {formatTime(maxExtensionTime)}
+                      {reservation.maxExtendedEndDatetime && " (due to next reservation)"}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Reason/Notes */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Notes (Optional)
+                </label>
+                <textarea
+                  value={extensionReason}
+                  onChange={(e) => setExtensionReason(e.target.value)}
+                  placeholder="Add any notes about this extension approval..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-colors duration-200"
+                  rows={3}
+                />
+              </div>
+              
+              {/* Conflict Warning Banner */}
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle size={18} className="text-yellow-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-yellow-700">
+                    The system will check for conflicts when you approve. If there's a scheduling conflict, you'll be notified and the extension will be limited to the next available slot.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+              <button
+                onClick={() => {
+                  setShowApproveExtensionModal(false);
+                  setExtensionReason("");
+                  setExtensionMinutes(30);
+                  setExtensionHours(0);
+                  setCustomEndTime("");
+                  setExtensionType("fixed");
+                }}
+                className="px-4 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200 hover:bg-white rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleApproveExtension}
+                disabled={
+                  isProcessing || 
+                  (extensionType === "fixed" && extensionHours === 0 && extensionMinutes === 0) ||
+                  (extensionType === "custom" && !customEndTime)
+                }
+                className="px-6 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors duration-200 flex items-center gap-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Approving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle size={16} />
+                    Approve Extension
                   </>
                 )}
               </button>

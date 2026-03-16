@@ -1442,21 +1442,49 @@ export const endReservationEarly = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ REQUEST TIME EXTENSION - SIMPLIFIED (ONLY REASON)
+   ✅ REQUEST TIME EXTENSION - UPDATED TO HANDLE EXTENSION TYPES
 ------------------------------------------------ */
 export const requestExtension = async (req, res) => {
   try {
     const { id } = req.params;
-    const { extensionReason } = req.body;
+    const { 
+      extensionReason,
+      extensionType = "fixed",
+      extensionMinutes = 0,
+      extensionHours = 0,
+      customEndTime = null
+    } = req.body;
 
     console.log('🔄 Requesting extension for reservation:', id);
-    console.log('📦 Request data:', { extensionReason });
+    console.log('📦 Request data:', { 
+      extensionReason, 
+      extensionType, 
+      extensionMinutes, 
+      extensionHours, 
+      customEndTime 
+    });
 
     // Validate reason
     if (!extensionReason || !extensionReason.trim()) {
       return res.status(400).json({ 
         error: "Extension reason is required" 
       });
+    }
+
+    // Validate based on extension type
+    if (extensionType === "fixed") {
+      const totalMinutes = (parseInt(extensionHours || 0) * 60) + parseInt(extensionMinutes || 0);
+      if (totalMinutes === 0) {
+        return res.status(400).json({ 
+          error: "Extension duration must be greater than 0 minutes for fixed extensions" 
+        });
+      }
+    } else if (extensionType === "custom") {
+      if (!customEndTime) {
+        return res.status(400).json({ 
+          error: "Custom end time is required for custom extensions" 
+        });
+      }
     }
 
     // Find the reservation
@@ -1511,15 +1539,26 @@ export const requestExtension = async (req, res) => {
       console.log('✅ No conflicts, max extension until:', maxExtendedEndDatetime);
     }
 
-    // Prepare update data - only reason, no time selection
+    // Prepare update data
     const updateData = {
       extensionRequested: true,
       extensionStatus: "Pending",
-      extensionType: "fixed", // Default type
-      maxExtendedEndDatetime: maxExtendedEndDatetime,
+      extensionType: extensionType,
       extensionReason: extensionReason,
-      // No extensionMinutes or extensionHours - these will be set by admin when approving
+      maxExtendedEndDatetime: maxExtendedEndDatetime
     };
+
+    // Add extension-specific fields
+    if (extensionType === "fixed") {
+      updateData.extensionMinutes = parseInt(extensionMinutes) || 0;
+      updateData.extensionHours = parseInt(extensionHours) || 0;
+    } else if (extensionType === "custom" && customEndTime) {
+      // For custom, we store the requested end time
+      updateData.extendedEndDatetime = new Date(customEndTime);
+    } else if (extensionType === "continuous") {
+      // For continuous, we use the max allowed end time
+      updateData.extendedEndDatetime = maxExtendedEndDatetime;
+    }
 
     console.log('📝 Update data:', updateData);
 
@@ -1551,14 +1590,29 @@ export const requestExtension = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ HANDLE EXTENSION REQUEST - FIXED TIME ADDITION
+   ✅ HANDLE EXTENSION REQUEST - UPDATED TO ACCEPT EXTENSION PARAMETERS
 ------------------------------------------------ */
 export const handleExtension = async (req, res) => {
   try {
     const { id } = req.params;
-    const { action } = req.body; // "approve" or "reject"
+    const { 
+      action, // "approve" or "reject"
+      extensionType, 
+      extensionMinutes, 
+      extensionHours, 
+      customEndTime,
+      extensionReason 
+    } = req.body;
 
     console.log(`🔄 Handling extension ${action} for reservation:`, id);
+    console.log('📦 Request data:', { 
+      action, 
+      extensionType, 
+      extensionMinutes, 
+      extensionHours, 
+      customEndTime,
+      extensionReason 
+    });
 
     // Find the reservation
     const reservation = await Reservation.findById(id);
@@ -1583,30 +1637,91 @@ export const handleExtension = async (req, res) => {
       let newEndTime;
       const currentEndTime = new Date(reservation.endDatetime);
       
-      if (reservation.extensionType === "fixed") {
+      if (extensionType === "fixed") {
         // Add the requested minutes/hours to the current end time
-        const totalMinutes = (reservation.extensionHours * 60) + reservation.extensionMinutes;
+        const totalMinutes = (parseInt(extensionHours || 0) * 60) + parseInt(extensionMinutes || 0);
+        
+        if (totalMinutes === 0) {
+          return res.status(400).json({ 
+            error: "Extension duration must be greater than 0 minutes" 
+          });
+        }
+        
         newEndTime = new Date(currentEndTime.getTime() + totalMinutes * 60000);
         console.log(`📊 Fixed extension: Adding ${totalMinutes} minutes to end time`);
       } 
-      else if (reservation.extensionType === "custom" && reservation.extendedEndDatetime) {
+      else if (extensionType === "custom" && customEndTime) {
         // Use the custom end time directly
-        newEndTime = new Date(reservation.extendedEndDatetime);
+        newEndTime = new Date(customEndTime);
+        
+        // Validate custom end time is after current end time
+        if (newEndTime <= currentEndTime) {
+          return res.status(400).json({ 
+            error: "Custom end time must be after the current end time" 
+          });
+        }
+        
         console.log(`📊 Custom extension: Setting end time to ${newEndTime}`);
       } 
-      else if (reservation.extensionType === "continuous") {
-        // For continuous, use the previously calculated extended end time
-        newEndTime = reservation.extendedEndDatetime || 
-                    new Date(currentEndTime.getTime() + 2 * 60 * 60 * 1000); // Default 2 hours if not set
+      else if (extensionType === "continuous") {
+        // For continuous, use the previously calculated extended end time from request-extension
+        // or default to 2 hours if not available
+        newEndTime = reservation.maxExtendedEndDatetime 
+          ? new Date(reservation.maxExtendedEndDatetime)
+          : new Date(currentEndTime.getTime() + 2 * 60 * 60 * 1000);
+        
         console.log(`📊 Continuous extension: Setting end time to ${newEndTime}`);
       } 
       else {
-        // Default fallback
-        newEndTime = reservation.extendedEndDatetime || 
-                    new Date(currentEndTime.getTime() + 60 * 60 * 1000); // Default 1 hour
+        // Default fallback - use maxExtendedEndDatetime or add 1 hour
+        newEndTime = reservation.maxExtendedEndDatetime 
+          ? new Date(reservation.maxExtendedEndDatetime)
+          : new Date(currentEndTime.getTime() + 60 * 60 * 1000);
       }
 
-      // Ensure we don't exceed maximum allowed time
+      // Check for conflicts with other reservations
+      const conflictingReservation = await Reservation.findOne({
+        _id: { $ne: reservation._id },
+        roomId: reservation.roomId,
+        roomName: reservation.roomName,
+        location: reservation.location,
+        status: { $in: ["Approved", "Ongoing"] },
+        $or: [
+          {
+            datetime: { $lt: newEndTime },
+            endDatetime: { $gt: currentEndTime }
+          },
+          {
+            datetime: { $gte: currentEndTime, $lt: newEndTime }
+          }
+        ]
+      });
+
+      if (conflictingReservation) {
+        // Calculate the maximum allowed extension (15 minutes before next reservation)
+        const maxAllowedEndTime = new Date(conflictingReservation.datetime.getTime() - 15 * 60 * 1000);
+        
+        // If we can still extend up to the max allowed time
+        if (maxAllowedEndTime > currentEndTime) {
+          newEndTime = maxAllowedEndTime;
+          console.log(`⚠️ Extension limited due to conflict. New end time: ${newEndTime}`);
+          
+          // Add a note about the conflict
+          updateData.extensionConflictNote = `Limited extension due to conflict with reservation at ${conflictingReservation.datetime}`;
+        } else {
+          return res.status(409).json({
+            error: "Cannot extend due to scheduling conflict with another reservation",
+            conflictTime: conflictingReservation.datetime,
+            conflictDetails: {
+              room: conflictingReservation.roomName,
+              start: conflictingReservation.datetime,
+              end: conflictingReservation.endDatetime
+            }
+          });
+        }
+      }
+
+      // Ensure we don't exceed maximum allowed time from request-extension
       if (reservation.maxExtendedEndDatetime && newEndTime > new Date(reservation.maxExtendedEndDatetime)) {
         newEndTime = new Date(reservation.maxExtendedEndDatetime);
         console.log(`⚠️ Extension capped to max allowed: ${newEndTime}`);
@@ -1614,9 +1729,14 @@ export const handleExtension = async (req, res) => {
 
       // Approve the extension and update the end time
       updateData = {
+        ...updateData,
         extensionStatus: "Approved",
+        extensionApprovedAt: new Date(),
         endDatetime: newEndTime, // ✅ THIS IS KEY - actually update the reservation end time
-        extensionApprovedAt: new Date()
+        extensionMinutes: extensionMinutes || reservation.extensionMinutes || 0,
+        extensionHours: extensionHours || reservation.extensionHours || 0,
+        extensionType: extensionType || reservation.extensionType || "fixed",
+        extendedEndDatetime: newEndTime // Also set this field for tracking
       };
       
       console.log('✅ Extension approved for reservation:', reservation._id);
@@ -1629,9 +1749,9 @@ export const handleExtension = async (req, res) => {
         extensionRequested: true, // Keep as true to show rejection status
         extendedEndDatetime: null,
         maxExtendedEndDatetime: null,
-        extensionReason: "",
         extensionMinutes: 0,
-        extensionHours: 0
+        extensionHours: 0,
+        extensionType: null
       };
       
       console.log('❌ Extension rejected for reservation:', reservation._id);
@@ -1650,7 +1770,7 @@ export const handleExtension = async (req, res) => {
         new: true,
         runValidators: true // Enable validation to ensure dates are valid
       }
-    );
+    ).populate("userId");
 
     if (!updatedReservation) {
       return res.status(404).json({ 
@@ -1660,10 +1780,11 @@ export const handleExtension = async (req, res) => {
 
     // ✅ Log the extension action
     try {
+      const user = await User.findById(updatedReservation.userId);
       await logAction(
         updatedReservation.userId,
-        updatedReservation.userId?.id_number || "N/A",
-        updatedReservation.userId?.name || "N/A",
+        user?.id_number || "N/A",
+        user?.name || "N/A",
         `Extension ${action === "approve" ? "Approved" : "Rejected"}`,
         `Extension ${action === "approve" ? "approved" : "rejected"} for reservation in ${updatedReservation.roomName}. ${
           action === "approve" ? `New end time: ${new Date(updatedReservation.endDatetime).toLocaleString()}` : ""
@@ -1688,6 +1809,8 @@ export const handleExtension = async (req, res) => {
             day: "numeric"
           });
           notificationMessage = `Your extension request has been approved. New end time: ${formattedTime}`;
+        } else {
+          notificationMessage = `Your extension request has been rejected.`;
         }
         
         await notificationService.createNotification(
@@ -1712,19 +1835,27 @@ export const handleExtension = async (req, res) => {
       const user = await User.findById(updatedReservation.userId);
       if (user?.email) {
         const subject = `Extension Request ${action === "approve" ? "Approved" : "Rejected"}`;
-        const html = `
+        
+        let html = `
           <h2>Extension Request ${action === "approve" ? "Approved" : "Rejected"}</h2>
           <p>Dear ${user.name},</p>
           <p>Your request to extend the reservation for <strong>${updatedReservation.roomName}</strong> has been <strong>${action === "approve" ? "approved" : "rejected"}</strong>.</p>
-          ${action === "approve" ? `
+        `;
+        
+        if (action === "approve") {
+          html += `
             <p><strong>New End Time:</strong> ${new Date(updatedReservation.endDatetime).toLocaleString("en-PH", {
               timeZone: "Asia/Manila",
               dateStyle: "full",
               timeStyle: "short"
             })}</p>
-          ` : ''}
-          <p>Thank you for using our reservation system.</p>
-        `;
+            ${extensionReason ? `<p><strong>Staff Notes:</strong> ${extensionReason}</p>` : ''}
+          `;
+        } else if (extensionReason) {
+          html += `<p><strong>Reason:</strong> ${extensionReason}</p>`;
+        }
+        
+        html += `<p>Thank you for using our reservation system.</p>`;
         
         await sendEmail({
           to: user.email,
