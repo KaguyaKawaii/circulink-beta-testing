@@ -155,7 +155,8 @@ const ReservationModal = ({
             extensionType: data.extensionType,
             extensionMinutes: data.extensionMinutes,
             extensionHours: data.extensionHours,
-            customEndTime: data.customEndTime
+            customEndTime: data.customEndTime,
+            extensionReason: data.extensionReason
           };
           break;
 
@@ -255,7 +256,7 @@ const ReservationModal = ({
   const originalEndTime = new Date(reservation.endDatetime);
   const currentEndTime = extendedEndTime || originalEndTime;
 
-  // Get only the additional participants (excluding main reserver)
+  // Get all participants
   const allParticipants = reservation.participants || [];
   const totalParticipants = allParticipants.length;
 
@@ -272,8 +273,8 @@ const ReservationModal = ({
   };
 
   const renderActionButtons = () => {
-    // If user is not admin and not main reserver, only show close button
-    if (!isAdmin && !isMainReserver) {
+    // If user is not admin/staff and not main reserver, only show close button
+    if (!isAdmin && !isStaff && !isMainReserver) {
       return (
         <button
           onClick={onClose}
@@ -309,7 +310,23 @@ const ReservationModal = ({
             </div>
           );
         }
-        // Main reserver can only cancel pending reservations
+        // Staff can only view pending reservations
+        if (isStaff) {
+          return (
+            <div className="flex gap-2">
+              <div className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-lg text-sm">
+                Monitoring Mode - Pending Reservation
+              </div>
+              <button
+                onClick={onClose}
+                className="px-4 py-2.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all duration-200 font-medium text-sm"
+              >
+                Close
+              </button>
+            </div>
+          );
+        }
+        // Main reserver can cancel pending reservations
         if (isMainReserver) {
           return (
             <button
@@ -384,7 +401,7 @@ const ReservationModal = ({
           );
         }
 
-        // FIXED: Both admin AND staff can handle extension requests with time selection
+        // Both admin AND staff can handle extension requests with time selection
         if (reservation.extensionRequested && reservation.extensionStatus === "Pending" && (isAdmin || isStaff)) {
           ongoingActions.push(
             <div key="extension-actions" className="flex gap-2">

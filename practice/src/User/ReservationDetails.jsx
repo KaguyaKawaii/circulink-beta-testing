@@ -38,7 +38,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   const [participantToRemove, setParticipantToRemove] = useState(null);
   const [showAddParticipantModal, setShowAddParticipantModal] = useState(false);
 
-  // Extension states - REMOVED time selection, only reason remains
+  // Extension states - ONLY reason for user
   const [extensionReason, setExtensionReason] = useState("");
 
   // Helper function to get participant ID consistently
