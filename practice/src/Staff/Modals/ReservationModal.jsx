@@ -753,7 +753,7 @@ const ReservationModal = ({
       {/* End Early Confirmation Modal */}
       {showEndEarlyModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200 overflow-hidden">
             <div className="bg-white p-6 border-b border-gray-200">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-orange-100 rounded-lg">
@@ -795,12 +795,6 @@ const ReservationModal = ({
                     <span className="text-sm text-gray-600">Scheduled End</span>
                     <span className="text-sm font-semibold text-gray-900">{formatTime(currentEndTime)}</span>
                   </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-gray-200 mt-2">
-                    <span className="text-sm font-medium text-gray-700">Time Remaining</span>
-                    <span className="text-sm font-bold text-orange-600">
-                      {Math.max(0, Math.round((currentEndTime - new Date()) / (1000 * 60)))} minutes
-                    </span>
-                  </div>
                 </div>
               </div>
 
@@ -813,7 +807,7 @@ const ReservationModal = ({
               </div>
             </div>
             
-            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={() => setShowEndEarlyModal(false)}
                 className="px-4 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200 hover:bg-white rounded-lg"
@@ -845,7 +839,7 @@ const ReservationModal = ({
       {/* Extension Request Modal (for user requesting extension) */}
       {showExtensionModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200 overflow-hidden">
             <div className="bg-white p-6 border-b border-gray-200">
               <div className="flex items-center gap-3">
                 <Plus size={24} className="text-gray-600" />
@@ -886,7 +880,7 @@ const ReservationModal = ({
               </div>
             </div>
             
-            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={() => {
                   setShowExtensionModal(false);
@@ -921,7 +915,7 @@ const ReservationModal = ({
       {/* Extension Approval Modal (for staff/admin approving extension) */}
       {showApproveExtensionModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200 overflow-hidden">
             <div className="bg-white p-6 border-b border-gray-200">
               <div className="flex items-center gap-3">
                 <CheckCircle size={24} className="text-emerald-600" />
@@ -1043,7 +1037,7 @@ const ReservationModal = ({
               </div>
             </div>
             
-            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={() => {
                   setShowApproveExtensionModal(false);

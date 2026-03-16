@@ -38,6 +38,7 @@ const AdminReservationModal = ({
   const [error, setError] = useState("");
   const [showExtensionModal, setShowExtensionModal] = useState(false);
   const [showApproveExtensionModal, setShowApproveExtensionModal] = useState(false);
+  const [showEndEarlyModal, setShowEndEarlyModal] = useState(false);
   const [extensionReason, setExtensionReason] = useState("");
   const [extensionMinutes, setExtensionMinutes] = useState(30);
   const [extensionHours, setExtensionHours] = useState(0);
@@ -201,7 +202,16 @@ const AdminReservationModal = ({
   const handleApprove = () => handleAction("approve");
   const handleReject = () => handleAction("reject");
   const handleStart = () => handleAction("start");
-  const handleEndEarly = () => handleAction("end-early");
+  
+  const handleEndEarly = () => {
+    setShowEndEarlyModal(true);
+  };
+  
+  const confirmEndEarly = () => {
+    handleAction("end-early");
+    setShowEndEarlyModal(false);
+  };
+  
   const handleCancel = () => handleAction("cancel");
   const handleRejectExtension = () => handleAction("reject-extension");
 
@@ -1045,10 +1055,96 @@ const AdminReservationModal = ({
         </div>
       </div>
 
+      {/* End Early Confirmation Modal */}
+      {showEndEarlyModal && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200 overflow-hidden">
+            <div className="bg-white p-6 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-orange-100 rounded-lg">
+                  <Square size={24} className="text-orange-600" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900">End Session Early</h3>
+              </div>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle size={20} className="text-orange-600 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-orange-800 mb-2">
+                      Are you sure you want to end this session early?
+                    </p>
+                    <p className="text-sm text-orange-700">
+                      This action will immediately terminate the current reservation. 
+                      The room will become available for other users. This cannot be undone.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Session Details */}
+              <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <p className="text-xs font-medium text-gray-500 mb-3">SESSION DETAILS</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Room</span>
+                    <span className="text-sm font-semibold text-gray-900">{reservation.roomName}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Started</span>
+                    <span className="text-sm font-semibold text-gray-900">{formatTime(reservation.actualStartDatetime || reservation.datetime)}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-gray-600">Scheduled End</span>
+                    <span className="text-sm font-semibold text-gray-900">{formatTime(currentEndTime)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning */}
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                <p className="text-xs text-red-700 flex items-center gap-1">
+                  <XCircle size={14} />
+                  This action cannot be reversed. The session will be marked as completed early.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50">
+              <button
+                onClick={() => setShowEndEarlyModal(false)}
+                className="px-4 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200 hover:bg-white rounded-lg"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmEndEarly}
+                disabled={isProcessing}
+                className="px-6 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors duration-200 flex items-center gap-2"
+              >
+                {isProcessing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Ending...
+                  </>
+                ) : (
+                  <>
+                    <Square size={16} />
+                    Yes, End Session
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Extension Request Modal (for user requesting extension) */}
       {showExtensionModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200 overflow-hidden">
             <div className="bg-white p-6 border-b border-gray-200">
               <div className="flex items-center gap-3">
                 <Plus size={24} className="text-gray-600" />
@@ -1211,7 +1307,7 @@ const AdminReservationModal = ({
               </div>
             </div>
             
-            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={() => {
                   setShowExtensionModal(false);
@@ -1255,7 +1351,7 @@ const AdminReservationModal = ({
       {/* Extension Approval Modal (for staff/admin approving extension) */}
       {showApproveExtensionModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200 overflow-hidden">
             <div className="bg-white p-6 border-b border-gray-200">
               <div className="flex items-center gap-3">
                 <CheckCircle size={24} className="text-emerald-600" />
@@ -1425,7 +1521,7 @@ const AdminReservationModal = ({
               </div>
             </div>
             
-            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+            <div className="flex gap-3 justify-end p-6 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={() => {
                   setShowApproveExtensionModal(false);
