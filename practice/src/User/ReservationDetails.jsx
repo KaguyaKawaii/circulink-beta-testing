@@ -201,7 +201,13 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
 
   const reservationUserId = getReservationUserId();
   const isMainReserver = user && reservationUserId === user._id;
-  const isStaffOrAdmin = user && (user.role === "Staff" || user.role === "Admin");
+  const isAdmin = user?.role === "Admin";
+  const isStaff = user?.role === "Staff";
+
+  // Staff can handle operations (start, end, extensions) but NOT approve reservations
+  const canHandleOperations = isAdmin || isStaff;
+  // Only admin can approve/reject reservations
+  const canHandleReservations = isAdmin;
 
   // Calculate min and max for extension
   const getExtendedEndTime = () => {
@@ -919,8 +925,8 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
 
         {/* Action Buttons */}
         <div className="flex flex-col xs:flex-row flex-wrap justify-center gap-2 sm:gap-3 lg:gap-4 pt-4">
-          {/* Staff/Admin Actions */}
-          {isStaffOrAdmin && (
+          {/* ADMIN ONLY: Approve/Reject Reservations */}
+          {isAdmin && (
             <>
               {localReservation.status === "Pending" && (
                 <>
@@ -946,7 +952,12 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                   </button>
                 </>
               )}
+            </>
+          )}
 
+          {/* ADMIN & STAFF: Can start/end reservations and handle extensions */}
+          {(isAdmin || isStaff) && (
+            <>
               {localReservation.status === "Approved" && (
                 <button
                   onClick={() => setShowStartConfirm(true)}
@@ -973,7 +984,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                     {processingAction === "end-early" ? "Ending..." : "End Early"}
                   </button>
 
-                  {/* Extension Request Handling */}
+                  {/* Extension Request Handling - Both Admin AND Staff can handle */}
                   {hasPendingExtension && (
                     <>
                       <button
@@ -1049,6 +1060,13 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                 </button>
               )}
             </>
+          )}
+
+          {/* Staff Monitoring View - No actions but visible for reference */}
+          {isStaff && !isAdmin && localReservation.status === "Pending" && (
+            <div className="text-center text-gray-500 py-2 px-4 bg-gray-100 rounded-lg">
+              <p className="text-sm">Monitoring Mode - Only Admin can approve/reject reservations</p>
+            </div>
           )}
         </div>
       </div>
