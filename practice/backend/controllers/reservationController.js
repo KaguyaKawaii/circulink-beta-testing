@@ -468,7 +468,38 @@ export const getActiveReservation = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ CREATE RESERVATION (WITH PROPER ROOM CONFLICT CHECK)
+   ✅ HELPER FUNCTION: GET STAFF BY FLOOR
+------------------------------------------------ */
+const getStaffByFloor = async (floor) => {
+  try {
+    if (!floor) return [];
+    
+    const normalizedFloor = floor.toString().toLowerCase().trim();
+    let floorPattern = normalizedFloor;
+    
+    // Normalize floor name for matching
+    if (normalizedFloor.includes('ground')) floorPattern = 'Ground Floor';
+    else if (normalizedFloor.includes('2nd') || normalizedFloor.includes('second')) floorPattern = '2nd Floor';
+    else if (normalizedFloor.includes('3rd') || normalizedFloor.includes('third')) floorPattern = '3rd Floor';
+    else if (normalizedFloor.includes('4th') || normalizedFloor.includes('fourth')) floorPattern = '4th Floor';
+    else if (normalizedFloor.includes('5th') || normalizedFloor.includes('fifth')) floorPattern = '5th Floor';
+    
+    // Find staff members assigned to this floor
+    const staffMembers = await User.find({
+      role: "Staff",
+      floor: { $regex: new RegExp(floorPattern.replace(" Floor", ""), 'i') }
+    });
+    
+    console.log(`✅ Found ${staffMembers.length} staff members for floor ${floorPattern}`);
+    return staffMembers;
+  } catch (error) {
+    console.error("❌ Error getting staff by floor:", error);
+    return [];
+  }
+};
+
+/* ------------------------------------------------
+   ✅ CREATE RESERVATION (WITH PROPER ROOM CONFLICT CHECK AND STAFF NOTIFICATIONS)
 ------------------------------------------------ */
 export const createReservation = async (req, res) => {
   try {
@@ -961,6 +992,42 @@ export const createReservation = async (req, res) => {
       );
     }
 
+    // ✅ NEW: NOTIFY STAFF ASSIGNED TO THIS FLOOR
+    console.log(`🔔 Checking for staff assigned to floor: ${location}`);
+    const staffMembers = await getStaffByFloor(location);
+    
+    if (staffMembers.length > 0) {
+      console.log(`✅ Found ${staffMembers.length} staff members to notify for floor ${location}`);
+      
+      for (const staff of staffMembers) {
+        try {
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: staff._id,
+                reservationId: reservation._id,
+                type: "reservation",
+                status: "new",
+                targetRole: "staff",
+                roomName,
+                date,
+                startTime: time,
+                endTime: new Date(endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                userName: user.name,
+                message: `New reservation request for ${roomName} on ${date} at ${time} by ${user.name}`
+              },
+              req.app.get("io")
+            );
+          }
+          console.log(`✅ Staff notification created for: ${staff.name}`);
+        } catch (staffNotifError) {
+          console.error(`❌ Failed to create staff notification for ${staff.name}:`, staffNotifError);
+        }
+      }
+    } else {
+      console.log(`⚠️ No staff members found for floor: ${location}`);
+    }
+
     console.log("=".repeat(50));
     console.log("✅ RESERVATION CREATED SUCCESSFULLY");
     console.log(`Reservation ID: ${reservation._id}`);
@@ -1014,7 +1081,7 @@ export const updateReservationStatus = async (req, res) => {
       `Reservation for ${reservation.roomName} changed to ${status}`
     );
 
-    // ✅ CREATE NOTIFICATION
+    // ✅ CREATE NOTIFICATION for main user
     if (typeof notificationService.createNotification === 'function') {
       await notificationService.createNotification(
         {
@@ -1030,6 +1097,38 @@ export const updateReservationStatus = async (req, res) => {
         },
         req.app.get("io")
       );
+    }
+
+    // ✅ NEW: NOTIFY STAFF ABOUT STATUS UPDATE
+    const staffMembers = await getStaffByFloor(reservation.location);
+    
+    if (staffMembers.length > 0) {
+      console.log(`✅ Notifying ${staffMembers.length} staff members about status update to ${status}`);
+      
+      for (const staff of staffMembers) {
+        try {
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: staff._id,
+                reservationId: reservation._id,
+                type: "reservation",
+                status: status.toLowerCase(),
+                targetRole: "staff",
+                roomName: reservation.roomName,
+                date: reservation.date,
+                startTime: new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                endTime: new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                userName: reservation.userId.name,
+                message: `Reservation for ${reservation.roomName} has been ${status.toLowerCase()}`
+              },
+              req.app.get("io")
+            );
+          }
+        } catch (staffNotifError) {
+          console.error(`❌ Failed to notify staff ${staff.name}:`, staffNotifError);
+        }
+      }
     }
 
     // ✅ Send emails
@@ -1109,7 +1208,7 @@ export const cancelReservation = async (req, res) => {
       `Cancelled reservation for ${reservation.roomName}`
     );
 
-    // ✅ CREATE NOTIFICATION
+    // ✅ CREATE NOTIFICATION for main user
     if (typeof notificationService.createNotification === 'function') {
       await notificationService.createNotification(
         {
@@ -1122,6 +1221,38 @@ export const cancelReservation = async (req, res) => {
         },
         req.app.get("io")
       );
+    }
+
+    // ✅ NEW: NOTIFY STAFF ABOUT CANCELLATION
+    const staffMembers = await getStaffByFloor(reservation.location);
+    
+    if (staffMembers.length > 0) {
+      console.log(`✅ Notifying ${staffMembers.length} staff members about cancellation`);
+      
+      for (const staff of staffMembers) {
+        try {
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: staff._id,
+                reservationId: reservation._id,
+                type: "reservation",
+                status: "cancelled",
+                targetRole: "staff",
+                roomName: reservation.roomName,
+                date: reservation.date,
+                startTime: new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                endTime: new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                userName: reservation.userId.name,
+                message: `Reservation for ${reservation.roomName} has been cancelled by ${reservation.userId.name}`
+              },
+              req.app.get("io")
+            );
+          }
+        } catch (staffNotifError) {
+          console.error(`❌ Failed to notify staff ${staff.name}:`, staffNotifError);
+        }
+      }
     }
 
     // ✅ Send email to main user
@@ -1304,7 +1435,7 @@ export const startReservation = async (req, res) => {
       console.warn("⚠️ Failed to log action:", logError.message);
     }
 
-    // ✅ CREATE NOTIFICATION
+    // ✅ CREATE NOTIFICATION for main user
     try {
       if (typeof notificationService.createNotification === 'function') {
         await notificationService.createNotification(
@@ -1322,6 +1453,38 @@ export const startReservation = async (req, res) => {
       console.log(`🔔 Notification created`);
     } catch (notifError) {
       console.warn("⚠️ Failed to create notification:", notifError.message);
+    }
+
+    // ✅ NEW: NOTIFY STAFF ABOUT STARTED RESERVATION
+    const staffMembers = await getStaffByFloor(updatedReservation.location);
+    
+    if (staffMembers.length > 0) {
+      console.log(`✅ Notifying ${staffMembers.length} staff members about started reservation`);
+      
+      for (const staff of staffMembers) {
+        try {
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: staff._id,
+                reservationId: updatedReservation._id,
+                type: "reservation",
+                status: "ongoing",
+                targetRole: "staff",
+                roomName: updatedReservation.roomName,
+                date: updatedReservation.date,
+                startTime: new Date(updatedReservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                endTime: new Date(updatedReservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                userName: updatedReservation.userId.name,
+                message: `Reservation for ${updatedReservation.roomName} has started`
+              },
+              req.app.get("io")
+            );
+          }
+        } catch (staffNotifError) {
+          console.error(`❌ Failed to notify staff ${staff.name}:`, staffNotifError);
+        }
+      }
     }
 
     console.log(`🎉 Reservation started successfully!`);
@@ -1402,7 +1565,7 @@ export const endReservationEarly = async (req, res) => {
       console.warn("⚠️ Failed to log action:", logError.message);
     }
 
-    // ✅ CREATE NOTIFICATION
+    // ✅ CREATE NOTIFICATION for main user
     try {
       if (typeof notificationService.createNotification === 'function') {
         await notificationService.createNotification(
@@ -1420,6 +1583,38 @@ export const endReservationEarly = async (req, res) => {
       console.log(`🔔 Notification created`);
     } catch (notifError) {
       console.warn("⚠️ Failed to create notification:", notifError.message);
+    }
+
+    // ✅ NEW: NOTIFY STAFF ABOUT COMPLETED RESERVATION
+    const staffMembers = await getStaffByFloor(updatedReservation.location);
+    
+    if (staffMembers.length > 0) {
+      console.log(`✅ Notifying ${staffMembers.length} staff members about completed reservation`);
+      
+      for (const staff of staffMembers) {
+        try {
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: staff._id,
+                reservationId: updatedReservation._id,
+                type: "reservation",
+                status: "completed",
+                targetRole: "staff",
+                roomName: updatedReservation.roomName,
+                date: updatedReservation.date,
+                startTime: new Date(updatedReservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                endTime: new Date(updatedReservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                userName: updatedReservation.userId.name,
+                message: `Reservation for ${updatedReservation.roomName} has been completed`
+              },
+              req.app.get("io")
+            );
+          }
+        } catch (staffNotifError) {
+          console.error(`❌ Failed to notify staff ${staff.name}:`, staffNotifError);
+        }
+      }
     }
 
     console.log(`🎉 Reservation ended early successfully!`);
@@ -1537,6 +1732,38 @@ export const requestExtension = async (req, res) => {
     );
 
     console.log('✅ Extension requested successfully:', updatedReservation._id);
+    
+    // ✅ NEW: NOTIFY STAFF ABOUT EXTENSION REQUEST
+    const staffMembers = await getStaffByFloor(updatedReservation.location);
+    
+    if (staffMembers.length > 0) {
+      console.log(`✅ Notifying ${staffMembers.length} staff members about extension request`);
+      
+      for (const staff of staffMembers) {
+        try {
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: staff._id,
+                reservationId: updatedReservation._id,
+                type: "extension",
+                status: "pending",
+                targetRole: "staff",
+                roomName: updatedReservation.roomName,
+                date: updatedReservation.date,
+                startTime: new Date(updatedReservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                endTime: new Date(updatedReservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                userName: (await User.findById(updatedReservation.userId))?.name || "User",
+                message: `Extension request for ${updatedReservation.roomName}. Reason: ${extensionReason}`
+              },
+              req.app.get("io")
+            );
+          }
+        } catch (staffNotifError) {
+          console.error(`❌ Failed to notify staff ${staff.name}:`, staffNotifError);
+        }
+      }
+    }
     
     res.json({
       success: true,
@@ -1759,7 +1986,7 @@ export const handleExtension = async (req, res) => {
       console.warn("⚠️ Failed to log extension action:", logError.message);
     }
 
-    // ✅ CREATE NOTIFICATION
+    // ✅ CREATE NOTIFICATION for main user
     try {
       if (typeof notificationService.createNotification === 'function') {
         let notificationMessage = `Your extension request has been ${action === "approve" ? "approved" : "rejected"}.`;
@@ -1793,6 +2020,38 @@ export const handleExtension = async (req, res) => {
       }
     } catch (notifError) {
       console.warn("⚠️ Failed to create notification:", notifError.message);
+    }
+
+    // ✅ NEW: NOTIFY STAFF ABOUT EXTENSION RESULT
+    const staffMembers = await getStaffByFloor(updatedReservation.location);
+    
+    if (staffMembers.length > 0) {
+      console.log(`✅ Notifying ${staffMembers.length} staff members about extension ${action}`);
+      
+      for (const staff of staffMembers) {
+        try {
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: staff._id,
+                reservationId: updatedReservation._id,
+                type: "extension",
+                status: action === "approve" ? "approved" : "rejected",
+                targetRole: "staff",
+                roomName: updatedReservation.roomName,
+                date: updatedReservation.date,
+                startTime: new Date(updatedReservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                endTime: new Date(updatedReservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                userName: updatedReservation.userId?.name || "User",
+                message: `Extension request for ${updatedReservation.roomName} has been ${action}ed`
+              },
+              req.app.get("io")
+            );
+          }
+        } catch (staffNotifError) {
+          console.error(`❌ Failed to notify staff ${staff.name}:`, staffNotifError);
+        }
+      }
     }
 
     // ✅ Send email notification
@@ -2167,7 +2426,7 @@ export const checkExpiredReservations = async (req, res) => {
         console.warn("⚠️ Failed to log action:", logError.message);
       }
 
-      // ✅ CREATE NOTIFICATION
+      // ✅ CREATE NOTIFICATION for main user
       try {
         if (typeof notificationService.createNotification === 'function') {
           await notificationService.createNotification(
@@ -2186,6 +2445,38 @@ export const checkExpiredReservations = async (req, res) => {
         console.log(`🔔 Created notification for ${reservation.userId.name}`);
       } catch (notifError) {
         console.warn("⚠️ Failed to create notification:", notifError.message);
+      }
+
+      // ✅ NEW: NOTIFY STAFF ABOUT EXPIRED RESERVATION
+      const staffMembers = await getStaffByFloor(reservation.location);
+      
+      if (staffMembers.length > 0) {
+        console.log(`✅ Notifying ${staffMembers.length} staff members about expired reservation`);
+        
+        for (const staff of staffMembers) {
+          try {
+            if (typeof notificationService.createNotification === 'function') {
+              await notificationService.createNotification(
+                {
+                  userId: staff._id,
+                  reservationId: reservation._id,
+                  type: "reservation",
+                  status: "expired",
+                  targetRole: "staff",
+                  roomName: reservation.roomName,
+                  date: reservation.date,
+                  startTime: new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  endTime: new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  userName: reservation.userId.name,
+                  message: `Reservation for ${reservation.roomName} has expired: ${reason}`
+                },
+                io
+              );
+            }
+          } catch (staffNotifError) {
+            console.error(`❌ Failed to notify staff ${staff.name}:`, staffNotifError);
+          }
+        }
       }
 
       // ✅ Send email to main reserver
@@ -2506,6 +2797,39 @@ export const removeParticipant = async (req, res) => {
       console.warn(`⚠️ Removed participant user not found with ID: ${participantIdNumber}`);
     }
 
+    // ✅ NEW: NOTIFY STAFF ABOUT PARTICIPANT REMOVAL
+    const staffMembers = await getStaffByFloor(reservation.location);
+    
+    if (staffMembers.length > 0) {
+      console.log(`✅ Notifying ${staffMembers.length} staff members about participant removal`);
+      
+      for (const staff of staffMembers) {
+        try {
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: staff._id,
+                reservationId: reservation._id,
+                type: "participant",
+                status: "removed",
+                targetRole: "staff",
+                roomName: reservation.roomName,
+                date: reservation.date,
+                startTime: new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                endTime: new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                userName: reservation.userId.name,
+                participantName: removedParticipant.name,
+                message: `Participant ${removedParticipant.name} has been removed from reservation for ${reservation.roomName}`
+              },
+              req.app.get("io")
+            );
+          }
+        } catch (staffNotifError) {
+          console.error(`❌ Failed to notify staff ${staff.name}:`, staffNotifError);
+        }
+      }
+    }
+
     res.json({
       success: true,
       message: "Participant removed successfully",
@@ -2635,6 +2959,39 @@ export const addParticipant = async (req, res) => {
         },
         req.app.get("io")
       );
+    }
+
+    // ✅ NEW: NOTIFY STAFF ABOUT PARTICIPANT ADDITION
+    const staffMembers = await getStaffByFloor(reservation.location);
+    
+    if (staffMembers.length > 0) {
+      console.log(`✅ Notifying ${staffMembers.length} staff members about participant addition`);
+      
+      for (const staff of staffMembers) {
+        try {
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: staff._id,
+                reservationId: reservation._id,
+                type: "participant",
+                status: "added",
+                targetRole: "staff",
+                roomName: reservation.roomName,
+                date: reservation.date,
+                startTime: new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                endTime: new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                userName: reservation.userId.name,
+                participantName: newParticipantUser.name,
+                message: `Participant ${newParticipantUser.name} has been added to reservation for ${reservation.roomName}`
+              },
+              req.app.get("io")
+            );
+          }
+        } catch (staffNotifError) {
+          console.error(`❌ Failed to notify staff ${staff.name}:`, staffNotifError);
+        }
+      }
     }
 
     // Send email to new participant
@@ -3038,6 +3395,42 @@ export const adminCreateReservation = async (req, res) => {
       }
     }
 
+    // ✅ NEW: NOTIFY STAFF ABOUT ADMIN-CREATED RESERVATION
+    console.log(`🔔 Checking for staff assigned to floor: ${location}`);
+    const staffMembers = await getStaffByFloor(location);
+    
+    if (staffMembers.length > 0) {
+      console.log(`✅ Found ${staffMembers.length} staff members to notify for floor ${location}`);
+      
+      for (const staff of staffMembers) {
+        try {
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: staff._id,
+                reservationId: reservation._id,
+                type: "reservation",
+                status: "new",
+                targetRole: "staff",
+                roomName,
+                date,
+                startTime: time,
+                endTime: new Date(parsedEndDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                userName: "Admin",
+                message: `Admin created a new reservation for ${roomName} on ${date} at ${time}`
+              },
+              req.app.get("io")
+            );
+          }
+          console.log(`✅ Staff notification created for: ${staff.name}`);
+        } catch (staffNotifError) {
+          console.error(`❌ Failed to create staff notification for ${staff.name}:`, staffNotifError);
+        }
+      }
+    } else {
+      console.log(`⚠️ No staff members found for floor: ${location}`);
+    }
+
     console.log("=".repeat(50));
     console.log("✅ RESERVATION CREATED SUCCESSFULLY");
     console.log("=".repeat(50));
@@ -3238,6 +3631,38 @@ export const editReservation = async (req, res) => {
       }
     } catch (notifError) {
       console.warn("⚠️ Failed to create notification:", notifError.message);
+    }
+
+    // ✅ NEW: NOTIFY STAFF ABOUT EDITED RESERVATION
+    const staffMembers = await getStaffByFloor(reservation.location);
+    
+    if (staffMembers.length > 0) {
+      console.log(`✅ Notifying ${staffMembers.length} staff members about edited reservation`);
+      
+      for (const staff of staffMembers) {
+        try {
+          if (typeof notificationService.createNotification === 'function') {
+            await notificationService.createNotification(
+              {
+                userId: staff._id,
+                reservationId: reservation._id,
+                type: "reservation",
+                status: "updated",
+                targetRole: "staff",
+                roomName: reservation.roomName,
+                date: reservation.date,
+                startTime: new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                endTime: new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                userName: reservation.userId?.name || "User",
+                message: `Reservation for ${reservation.roomName} has been updated by an admin`
+              },
+              req.app.get("io")
+            );
+          }
+        } catch (staffNotifError) {
+          console.error(`❌ Failed to notify staff ${staff.name}:`, staffNotifError);
+        }
+      }
     }
 
     // Notify participants about changes
