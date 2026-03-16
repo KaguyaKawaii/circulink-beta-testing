@@ -138,7 +138,7 @@ const handleAction = async (action, data = {}) => {
         endpoint = `${import.meta.env.VITE_API_URL}/api/reservations/${reservation._id}/request-extension`;
         method = "put";
         requestData = { 
-          reason: data.reason || "Need more time"
+          extensionReason: data.extensionReason || ""
         };
         break;
 
@@ -194,7 +194,6 @@ const handleAction = async (action, data = {}) => {
 
   const handleRequestExtension = async () => {
     await handleAction("request-extension", {
-      extensionType: "continuous",
       extensionReason: extensionReason
     });
     setShowExtensionModal(false);
@@ -649,14 +648,18 @@ const handleAction = async (action, data = {}) => {
                         <span className="text-amber-700">Status</span>
                         <span className="font-semibold text-amber-900">{reservation.extensionStatus || "Pending"}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-amber-700">Type</span>
-                        <span className="font-semibold text-amber-900">Continuous</span>
-                      </div>
                       {reservation.extendedEndDatetime && (
                         <div className="flex justify-between items-center">
                           <span className="text-amber-700">Extended Until</span>
                           <span className="font-semibold text-amber-900">{formatPHDateTime(reservation.extendedEndDatetime)}</span>
+                        </div>
+                      )}
+                      {reservation.extensionReason && (
+                        <div className="flex flex-col gap-1 py-2">
+                          <span className="text-amber-700">Reason</span>
+                          <span className="text-amber-900 bg-amber-100/50 p-2 rounded-lg text-sm break-words whitespace-normal">
+                            {reservation.extensionReason}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -686,7 +689,7 @@ const handleAction = async (action, data = {}) => {
         </div>
       </div>
 
-      {/* Extension Request Modal */}
+      {/* Extension Request Modal - SIMPLIFIED */}
       {showExtensionModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md border border-gray-200">
@@ -697,25 +700,34 @@ const handleAction = async (action, data = {}) => {
               </div>
             </div>
             
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+              {/* Current Schedule - For information only */}
+              <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                <p className="text-xs font-medium text-gray-500 mb-1">Current End Time</p>
+                <p className="text-sm font-semibold text-gray-900">{formatTime(currentEndTime)}</p>
+              </div>
+
+              {/* Reason/Notes - ONLY FIELD */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Reason for extension
+                  Reason for Extension <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={extensionReason}
                   onChange={(e) => setExtensionReason(e.target.value)}
-                  placeholder="Please explain why you need additional time for your reservation..."
+                  placeholder="Please explain why you need additional time for your reservation. The staff will determine the extension duration."
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-colors duration-200"
                   rows={4}
+                  required
                 />
               </div>
               
+              {/* Info Banner */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <AlertCircle size={18} className="text-blue-600 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-blue-700">
-                    Your extension request will be reviewed by staff. You'll receive a notification once it's processed.
+                    Your extension request will be reviewed by staff. They will determine the appropriate extension duration based on availability and your reason.
                   </p>
                 </div>
               </div>

@@ -38,12 +38,8 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   const [participantToRemove, setParticipantToRemove] = useState(null);
   const [showAddParticipantModal, setShowAddParticipantModal] = useState(false);
 
-  // Extension states
+  // Extension states - REMOVED time selection, only reason remains
   const [extensionReason, setExtensionReason] = useState("");
-  const [extensionMinutes, setExtensionMinutes] = useState(30);
-  const [extensionHours, setExtensionHours] = useState(0);
-  const [customEndTime, setCustomEndTime] = useState("");
-  const [extensionType, setExtensionType] = useState("fixed");
 
   // Helper function to get participant ID consistently
   const getParticipantId = (participant) => {
@@ -217,11 +213,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   const originalEndTime = localReservation ? new Date(localReservation.endDatetime) : null;
   const currentEndTime = extendedEndTime || originalEndTime;
 
-  const minExtensionTime = currentEndTime ? new Date(currentEndTime) : null;
-  const maxExtensionTime = localReservation?.maxExtendedEndDatetime 
-    ? new Date(localReservation.maxExtendedEndDatetime)
-    : (currentEndTime ? new Date(currentEndTime.getTime() + 4 * 60 * 60 * 1000) : null); // 4 hours max by default
-
   // Participant management functions
   const fetchAvailableUsers = async (search = "") => {
     if (!localReservation) return;
@@ -392,11 +383,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
           endpoint = `${import.meta.env.VITE_API_URL}/api/reservations/${localReservation._id}/request-extension`;
           method = "put";
           requestData = { 
-            extensionType: data.extensionType || "fixed",
-            extensionReason: data.extensionReason || "",
-            extensionMinutes: data.extensionMinutes || 0,
-            extensionHours: data.extensionHours || 0,
-            customEndTime: data.customEndTime || null
+            extensionReason: data.extensionReason || ""
           };
           break;
 
@@ -464,43 +451,12 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
 
   const handleShowExtendModal = () => {
     setShowExtendModal(true);
-    // Reset extension form
+    // Reset extension form - only reason
     setExtensionReason("");
-    setExtensionMinutes(30);
-    setExtensionHours(0);
-    setCustomEndTime("");
-    setExtensionType("fixed");
   };
 
   const handleExtendSubmit = async () => {
-    // Calculate total minutes for fixed extension
-    const totalMinutes = (parseInt(extensionHours) * 60) + parseInt(extensionMinutes);
-    
-    let requestData = {
-      extensionType: extensionType,
-      extensionReason: extensionReason
-    };
-
-    if (extensionType === "fixed") {
-      requestData = {
-        ...requestData,
-        extensionMinutes: totalMinutes,
-        extensionHours: parseInt(extensionHours)
-      };
-    } else if (extensionType === "continuous") {
-      requestData = {
-        ...requestData,
-        extensionType: "continuous"
-      };
-    } else if (extensionType === "custom" && customEndTime) {
-      requestData = {
-        ...requestData,
-        extensionType: "custom",
-        customEndTime: customEndTime
-      };
-    }
-
-    await handleAction("request-extension", requestData);
+    await handleAction("request-extension", { extensionReason });
     setShowExtendModal(false);
   };
 
@@ -1482,7 +1438,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         </div>
       )}
 
-      {/* Extend Modal - Updated with manual time selection */}
+      {/* Extend Modal - SIMPLIFIED: Only reason field remains */}
       {showExtendModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[90] p-2 sm:p-4">
           <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 mx-2">
@@ -1496,151 +1452,13 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
             </div>
             
             <div className="space-y-4 mb-6 max-h-[60vh] overflow-y-auto pr-1">
-              {/* Current Schedule */}
+              {/* Current Schedule - For information only */}
               <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                 <p className="text-xs font-medium text-gray-500 mb-1">Current End Time</p>
                 <p className="text-sm font-semibold text-gray-900">{formatTimeOnly(currentEndTime)}</p>
               </div>
 
-              {/* Extension Type Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Extension Type
-                </label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setExtensionType("fixed");
-                      setExtensionMinutes(30);
-                      setExtensionHours(0);
-                      setCustomEndTime("");
-                    }}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
-                      extensionType === "fixed"
-                        ? "bg-purple-600 text-white border-purple-600"
-                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    Fixed
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setExtensionType("continuous");
-                      setExtensionMinutes(0);
-                      setExtensionHours(0);
-                      setCustomEndTime("");
-                    }}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
-                      extensionType === "continuous"
-                        ? "bg-purple-600 text-white border-purple-600"
-                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    Continuous
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setExtensionType("custom");
-                      setExtensionMinutes(0);
-                      setExtensionHours(0);
-                    }}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
-                      extensionType === "custom"
-                        ? "bg-purple-600 text-white border-purple-600"
-                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    Custom
-                  </button>
-                </div>
-              </div>
-
-              {/* Fixed Extension Controls */}
-              {extensionType === "fixed" && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Hours
-                    </label>
-                    <select
-                      value={extensionHours}
-                      onChange={(e) => setExtensionHours(parseInt(e.target.value))}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    >
-                      {[0, 1, 2, 3, 4].map(hours => (
-                        <option key={hours} value={hours}>{hours} hour{hours !== 1 ? 's' : ''}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Minutes
-                    </label>
-                    <select
-                      value={extensionMinutes}
-                      onChange={(e) => setExtensionMinutes(parseInt(e.target.value))}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                    >
-                      {[0, 15, 30, 45].map(minutes => (
-                        <option key={minutes} value={minutes}>{minutes} minutes</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
-                    <p className="text-sm text-purple-700">
-                      Total extension: <span className="font-bold">{extensionHours} hour{extensionHours !== 1 ? 's' : ''} {extensionMinutes > 0 ? `${extensionMinutes} minutes` : ''}</span>
-                    </p>
-                    <p className="text-xs text-purple-600 mt-1">
-                      New end time: {currentEndTime ? formatTimeOnly(new Date(currentEndTime.getTime() + (extensionHours * 60 + extensionMinutes) * 60000)) : "N/A"}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Continuous Extension Info */}
-              {extensionType === "continuous" && (
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-start gap-3">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                    <div>
-                      <p className="text-sm font-medium text-blue-800 mb-1">Continuous Extension</p>
-                      <p className="text-xs text-blue-700">
-                        Your reservation will continue automatically until you end it, staff ends it, or until the next reservation starts.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Custom End Time */}
-              {extensionType === "custom" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select New End Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={customEndTime}
-                    onChange={(e) => setCustomEndTime(e.target.value)}
-                    min={minExtensionTime ? formatDateTimeForInput(minExtensionTime) : ""}
-                    max={maxExtensionTime ? formatDateTimeForInput(maxExtensionTime) : ""}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                  />
-                  {maxExtensionTime && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Maximum extension until: {formatTimeOnly(maxExtensionTime)}
-                      {localReservation.maxExtendedEndDatetime && " (due to next reservation)"}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Reason/Notes */}
+              {/* Reason/Notes - ONLY FIELD REMAINING */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Reason for Extension <span className="text-red-500">*</span>
@@ -1648,21 +1466,21 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                 <textarea
                   value={extensionReason}
                   onChange={(e) => setExtensionReason(e.target.value)}
-                  placeholder="Please explain why you need additional time for your reservation..."
+                  placeholder="Please explain why you need additional time for your reservation. The staff will determine the extension duration."
                   rows="4"
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
                   required
                 />
               </div>
 
-              {/* Info Banner */}
+              {/* Info Banner - Updated message */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                   </svg>
                   <p className="text-sm text-blue-700">
-                    Your extension request will be reviewed by staff. You'll receive a notification once it's processed.
+                    Your extension request will be reviewed by staff. They will determine the appropriate extension duration based on availability and your reason.
                   </p>
                 </div>
               </div>
@@ -1673,10 +1491,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                 onClick={() => {
                   setShowExtendModal(false);
                   setExtensionReason("");
-                  setExtensionMinutes(30);
-                  setExtensionHours(0);
-                  setCustomEndTime("");
-                  setExtensionType("fixed");
                 }}
                 className="w-full sm:w-auto px-6 py-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer font-medium min-h-[44px]"
               >
@@ -1684,12 +1498,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
               </button>
               <button
                 onClick={handleExtendSubmit}
-                disabled={
-                  !extensionReason.trim() || 
-                  processingAction === "request-extension" || 
-                  (extensionType === "fixed" && extensionHours === 0 && extensionMinutes === 0) ||
-                  (extensionType === "custom" && !customEndTime)
-                }
+                disabled={!extensionReason.trim() || processingAction === "request-extension"}
                 className="w-full sm:w-auto px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors flex items-center justify-center cursor-pointer font-medium min-h-[44px]"
               >
                 {processingAction === "request-extension" ? (

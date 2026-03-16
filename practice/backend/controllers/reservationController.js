@@ -1442,21 +1442,15 @@ export const endReservationEarly = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ REQUEST TIME EXTENSION - UPDATED WITH MANUAL TIME SELECTION
+   ✅ REQUEST TIME EXTENSION - SIMPLIFIED (ONLY REASON)
 ------------------------------------------------ */
 export const requestExtension = async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      extensionReason, 
-      extensionType = "fixed",
-      extensionMinutes = 0,
-      extensionHours = 0,
-      customEndTime = null
-    } = req.body;
+    const { extensionReason } = req.body;
 
     console.log('🔄 Requesting extension for reservation:', id);
-    console.log('📦 Request data:', req.body);
+    console.log('📦 Request data:', { extensionReason });
 
     // Validate reason
     if (!extensionReason || !extensionReason.trim()) {
@@ -1504,7 +1498,6 @@ export const requestExtension = async (req, res) => {
 
     let maxExtendedEndDatetime = null;
     let conflictTime = null;
-    let calculatedExtendedEndDatetime = null;
 
     // Calculate maximum allowed extension
     if (nextReservation) {
@@ -1518,57 +1511,14 @@ export const requestExtension = async (req, res) => {
       console.log('✅ No conflicts, max extension until:', maxExtendedEndDatetime);
     }
 
-    // Calculate new end time based on extension type
-    const currentEndTime = new Date(reservation.endDatetime);
-    
-    if (extensionType === "fixed") {
-      const totalMinutes = (parseInt(extensionHours) * 60) + parseInt(extensionMinutes);
-      
-      if (totalMinutes <= 0) {
-        return res.status(400).json({ 
-          error: "Extension time must be greater than 0 minutes" 
-        });
-      }
-      
-      calculatedExtendedEndDatetime = new Date(currentEndTime.getTime() + totalMinutes * 60000);
-      
-    } else if (extensionType === "custom" && customEndTime) {
-      calculatedExtendedEndDatetime = new Date(customEndTime);
-      
-      // Validate custom end time is after current end time
-      if (calculatedExtendedEndDatetime <= currentEndTime) {
-        return res.status(400).json({ 
-          error: "Custom end time must be after the current end time" 
-        });
-      }
-      
-    } else if (extensionType === "continuous") {
-      // For continuous, set to maximum allowed
-      calculatedExtendedEndDatetime = maxExtendedEndDatetime;
-    } else {
-      return res.status(400).json({ 
-        error: "Invalid extension type" 
-      });
-    }
-
-    // Validate against maximum allowed time
-    if (calculatedExtendedEndDatetime > maxExtendedEndDatetime) {
-      return res.status(400).json({ 
-        error: `Requested extension exceeds maximum allowed time. Maximum extension until: ${maxExtendedEndDatetime}`,
-        maxAllowedTime: maxExtendedEndDatetime
-      });
-    }
-
-    // Prepare update data
+    // Prepare update data - only reason, no time selection
     const updateData = {
       extensionRequested: true,
       extensionStatus: "Pending",
-      extensionType: extensionType,
-      extendedEndDatetime: calculatedExtendedEndDatetime,
+      extensionType: "fixed", // Default type
       maxExtendedEndDatetime: maxExtendedEndDatetime,
       extensionReason: extensionReason,
-      extensionMinutes: extensionMinutes,
-      extensionHours: extensionHours
+      // No extensionMinutes or extensionHours - these will be set by admin when approving
     };
 
     console.log('📝 Update data:', updateData);
