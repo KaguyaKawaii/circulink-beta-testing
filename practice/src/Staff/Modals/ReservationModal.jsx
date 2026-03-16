@@ -328,8 +328,8 @@ const handleAction = async (action, data = {}) => {
           );
         }
 
-        // Admin can handle extension requests
-        if (reservation.extensionRequested && reservation.extensionStatus === "Pending" && isAdmin) {
+        // FIXED: Both admin AND staff can handle extension requests
+        if (reservation.extensionRequested && reservation.extensionStatus === "Pending" && (isAdmin || isStaff)) {
           ongoingActions.push(
             <div key="extension-actions" className="flex gap-2">
               <button
