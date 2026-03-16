@@ -39,7 +39,6 @@ const ReservationModal = ({
   const [extensionReason, setExtensionReason] = useState("");
   const [extensionMinutes, setExtensionMinutes] = useState(30);
   const [extensionHours, setExtensionHours] = useState(0);
-  const [customEndTime, setCustomEndTime] = useState("");
   const [extensionType, setExtensionType] = useState("fixed");
   const [conflictInfo, setConflictInfo] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -154,9 +153,7 @@ const ReservationModal = ({
             action: "approve",
             extensionType: data.extensionType,
             extensionMinutes: data.extensionMinutes,
-            extensionHours: data.extensionHours,
-            customEndTime: data.customEndTime,
-            extensionReason: data.extensionReason
+            extensionHours: data.extensionHours
           };
           break;
 
@@ -206,36 +203,17 @@ const ReservationModal = ({
   const handleApproveExtension = async () => {
     const totalMinutes = (parseInt(extensionHours) * 60) + parseInt(extensionMinutes);
     
-    let requestData = {
+    const requestData = {
       extensionType: extensionType,
-      extensionReason: extensionReason
+      extensionMinutes: totalMinutes,
+      extensionHours: parseInt(extensionHours)
     };
-
-    if (extensionType === "fixed") {
-      requestData = {
-        ...requestData,
-        extensionMinutes: totalMinutes,
-        extensionHours: parseInt(extensionHours)
-      };
-    } else if (extensionType === "continuous") {
-      requestData = {
-        ...requestData,
-        extensionType: "continuous"
-      };
-    } else if (extensionType === "custom" && customEndTime) {
-      requestData = {
-        ...requestData,
-        extensionType: "custom",
-        customEndTime: customEndTime
-      };
-    }
 
     await handleAction("approve-extension", requestData);
     setShowApproveExtensionModal(false);
     setExtensionReason("");
     setExtensionMinutes(30);
     setExtensionHours(0);
-    setCustomEndTime("");
     setExtensionType("fixed");
   };
 
@@ -869,7 +847,7 @@ const ReservationModal = ({
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Extension Type
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setExtensionType("fixed")}
@@ -891,17 +869,6 @@ const ReservationModal = ({
                     }`}
                   >
                     Continuous
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setExtensionType("custom")}
-                    className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all duration-200 ${
-                      extensionType === "custom"
-                        ? "bg-indigo-600 text-white border-indigo-600"
-                        : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    Custom
                   </button>
                 </div>
               </div>
@@ -963,49 +930,12 @@ const ReservationModal = ({
                 </div>
               )}
 
-              {/* Custom End Time */}
-              {extensionType === "custom" && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select New End Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={customEndTime}
-                    onChange={(e) => setCustomEndTime(e.target.value)}
-                    min={formatDateTimeForInput(minExtensionTime)}
-                    max={formatDateTimeForInput(maxExtensionTime)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  {maxExtensionTime && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Maximum extension until: {formatTime(maxExtensionTime)}
-                      {reservation.maxExtendedEndDatetime && " (due to next reservation)"}
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Reason/Notes */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Notes (Optional)
-                </label>
-                <textarea
-                  value={extensionReason}
-                  onChange={(e) => setExtensionReason(e.target.value)}
-                  placeholder="Add any notes about this extension approval..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none transition-colors duration-200"
-                  rows={3}
-                />
-              </div>
-              
               {/* Conflict Warning Banner */}
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <AlertCircle size={18} className="text-yellow-600 mt-0.5 flex-shrink-0" />
                   <p className="text-sm text-yellow-700">
-                    The system will check for conflicts when you approve. If there's a scheduling conflict, you'll be notified and the extension will be limited to the next available slot.
+                    The system will check for conflicts when you approve. If there's a scheduling conflict, the extension will be limited to the next available slot.
                   </p>
                 </div>
               </div>
@@ -1018,7 +948,6 @@ const ReservationModal = ({
                   setExtensionReason("");
                   setExtensionMinutes(30);
                   setExtensionHours(0);
-                  setCustomEndTime("");
                   setExtensionType("fixed");
                 }}
                 className="px-4 py-2.5 text-gray-600 hover:text-gray-800 font-medium transition-colors duration-200 hover:bg-white rounded-lg"
@@ -1029,8 +958,7 @@ const ReservationModal = ({
                 onClick={handleApproveExtension}
                 disabled={
                   isProcessing || 
-                  (extensionType === "fixed" && extensionHours === 0 && extensionMinutes === 0) ||
-                  (extensionType === "custom" && !customEndTime)
+                  (extensionType === "fixed" && extensionHours === 0 && extensionMinutes === 0)
                 }
                 className="px-6 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors duration-200 flex items-center gap-2"
               >
