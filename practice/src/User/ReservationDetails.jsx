@@ -743,15 +743,17 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
               </div>
             </div>
             
-            <div className="sm:col-span-2 lg:col-span-1 space-y-1">
+            <div className="space-y-1 lg:col-span-1">
               <p className="text-sm font-medium text-gray-500 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 Purpose
               </p>
-              <div className="p-3 rounded-lg bg-gray-50 border border-gray-200">
-                <p className="font-medium text-gray-800 text-sm sm:text-base">{localReservation.purpose}</p>
+              <div className="p-3 rounded-lg bg-gray-50 border border-gray-200 overflow-hidden">
+                <p className="font-medium text-gray-800 text-sm sm:text-base break-words whitespace-normal max-w-full">
+                  {localReservation.purpose}
+                </p>
               </div>
             </div>
             
