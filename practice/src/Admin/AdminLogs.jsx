@@ -535,13 +535,7 @@ function AdminLogs({ setView, onLogout }) {
               <p className="text-gray-600">Review user and system activities</p>
             </div>
             
-            {/* Connection Status - Removed "Live" text */}
-            <div className="flex items-center gap-2">
-              <div className={`h-2 w-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
-              <span className="text-xs text-gray-500">
-                {wsConnected ? 'Connected' : 'Reconnecting...'}
-              </span>
-            </div>
+            
           </div>
           
           {error && (
