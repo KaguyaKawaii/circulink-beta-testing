@@ -854,13 +854,13 @@ const getUserName = (userId) => {
                         </button>
                       </th>
                       <th className="px-6 py-3 text-left font-medium">#</th>
-                      <th className="px-6 py-3 text-left font-medium">Date</th>
+                      <th className="px-6 py-3 text-left font-medium">Reservation Date</th>
                       <th className="px-6 py-3 text-left font-medium">Time</th>
                       <th className="px-6 py-3 text-left font-medium">Room</th>
                       <th className="px-6 py-3 text-left font-medium">Reserved By</th>
                       <th className="px-6 py-3 text-left font-medium">Status</th>
                       <th className="px-6 py-3 text-left font-medium">Created At</th>
-                      <th className="px-6 py-3 text-right font-medium">Actions</th>
+                      <th className="px-6 py-3 text-center font-medium">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
