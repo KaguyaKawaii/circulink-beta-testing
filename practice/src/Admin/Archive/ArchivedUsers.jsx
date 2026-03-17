@@ -493,16 +493,18 @@ const departmentOptions = [
               </Table>
             ) : paginatedUsers.length === 0 ? (
               <EmptyState
-                type="users"
-                icon={User}
-                title="No archived users found"
-                message="Users you archive will appear here for future reference."
-                action={
-                  <Button variant="primary" onClick={fetchArchivedUsers}>
-                    Refresh
-                  </Button>
-                }
-              />
+  type="users"
+  icon={User}
+  title="No archived users found"
+  message="Users you archive will appear here for future reference."
+  action={
+    <div className="flex justify-center">
+      <Button variant="primary" onClick={fetchArchivedUsers}>
+        Refresh
+      </Button>
+    </div>
+  }
+/>
             ) : (
               <>
                 <Table>

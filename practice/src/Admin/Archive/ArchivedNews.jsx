@@ -379,16 +379,18 @@ function ArchivedNews({ setView, admin }) {
               </Table>
             ) : paginatedNews.length === 0 ? (
               <EmptyState
-                type="news"
-                icon={Newspaper}
-                title="No archived news found"
-                message="News items you archive will appear here for future reference."
-                action={
-                  <Button variant="primary" onClick={fetchArchivedNews}>
-                    Refresh
-                  </Button>
-                }
-              />
+  type="news"
+  icon={Newspaper}
+  title="No archived news found"
+  message="News items you archive will appear here for future reference."
+  action={
+    <div className="flex justify-center">
+      <Button variant="primary" onClick={fetchArchivedNews}>
+        Refresh
+      </Button>
+    </div>
+  }
+/>
             ) : (
               <>
                 <Table>

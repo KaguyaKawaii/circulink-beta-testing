@@ -474,16 +474,18 @@ const floorOptions = [
               </Table>
             ) : paginatedReports.length === 0 ? (
               <EmptyState
-                type="reports"
-                icon={FileText}
-                title="No archived reports found"
-                message="Reports you archive will appear here for future reference."
-                action={
-                  <Button variant="primary" onClick={fetchArchivedReports}>
-                    Refresh
-                  </Button>
-                }
-              />
+  type="reports"
+  icon={FileText}
+  title="No archived reports found"
+  message="Reports you archive will appear here for future reference."
+  action={
+    <div className="flex justify-center">
+      <Button variant="primary" onClick={fetchArchivedReports}>
+        Refresh
+      </Button>
+    </div>
+  }
+/>
             ) : (
               <>
                 <Table>

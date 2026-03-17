@@ -469,16 +469,18 @@ const statusOptions = [
               </Table>
             ) : paginatedReservations.length === 0 ? (
               <EmptyState
-                type="reservations"
-                icon={Calendar}
-                title="No archived reservations found"
-                message="Reservations you archive will appear here for future reference."
-                action={
-                  <Button variant="primary" onClick={fetchArchivedReservations}>
-                    Refresh
-                  </Button>
-                }
-              />
+  type="reservations"
+  icon={Calendar}
+  title="No archived reservations found"
+  message="Reservations you archive will appear here for future reference."
+  action={
+    <div className="flex justify-center">
+      <Button variant="primary" onClick={fetchArchivedReservations}>
+        Refresh
+      </Button>
+    </div>
+  }
+/>
             ) : (
               <>
                 <Table>
