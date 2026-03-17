@@ -28,7 +28,7 @@ import {
   Home,
   LayoutGrid,
   Thermometer,
-  Tool,
+  Wrench,
   Clock3,
   Flame,
   Award,
@@ -1045,7 +1045,7 @@ function AnalyticsRooms({ setView, admin }) {
               <StatCard 
                 title="Maintenance" 
                 value={roomData.maintenance} 
-                icon={Tool} 
+                icon={Wrench} 
                 color="red" 
                 subtext="Under maintenance"
                 isLoading={loading}
