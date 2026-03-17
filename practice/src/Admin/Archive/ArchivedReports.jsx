@@ -324,7 +324,7 @@ function ArchivedReports({ setView, admin }) {
     page * itemsPerPage
   );
 
-  const categoryOptions = [
+const categoryOptions = [
   { value: "all", label: "All Categories" },
   ...Array.from(new Set(archivedReports.map(r => r.category))).map(cat => ({ 
     value: cat, 
@@ -332,10 +332,13 @@ function ArchivedReports({ setView, admin }) {
   }))
 ];
   
-  const floorOptions = [
-    { value: "all", label: "All Floors" },
-    ...new Set(archivedReports.map(r => r.floor).filter(Boolean)).map(floor => ({ value: floor, label: floor }))
-  ];
+const floorOptions = [
+  { value: "all", label: "All Floors" },
+  ...Array.from(new Set(archivedReports.map(r => r.floor).filter(Boolean))).map(floor => ({ 
+    value: floor, 
+    label: floor 
+  }))
+];
 
   // Sort options
   const sortOptions = [
