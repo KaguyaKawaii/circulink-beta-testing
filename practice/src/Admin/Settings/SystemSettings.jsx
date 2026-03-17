@@ -84,23 +84,24 @@ function SystemSettings({ setView, admin, onLogout }) {
     }
   };
 
-  const fetchAnnouncements = async () => {
-    setIsLoadingAnnouncements(true);
-    try {
-      const response = await api.get('/announcements/management');
-      if (response.data.success) {
-        setAnnouncements(response.data.announcements || []);
-      }
-    } catch (error) {
-      console.error('Error fetching announcements:', error);
-      setMessage({ 
-        type: 'error', 
-        text: 'Failed to load announcements' 
-      });
-    } finally {
-      setIsLoadingAnnouncements(false);
+const fetchAnnouncements = async () => {
+  setIsLoadingAnnouncements(true);
+  try {
+    // Change this line - remove '/management' from the endpoint
+    const response = await api.get('/announcements');
+    if (response.data.success) {
+      setAnnouncements(response.data.announcements || []);
     }
-  };
+  } catch (error) {
+    console.error('Error fetching announcements:', error);
+    setMessage({ 
+      type: 'error', 
+      text: 'Failed to load announcements' 
+    });
+  } finally {
+    setIsLoadingAnnouncements(false);
+  }
+};
 
   const handleDeleteAnnouncement = async (announcementId) => {
     if (window.confirm('Are you sure you want to delete this announcement? This action cannot be undone.')) {
