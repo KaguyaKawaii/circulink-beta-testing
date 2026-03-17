@@ -22,7 +22,9 @@ import {
   CheckSquare,
   Square,
   AlertTriangle,
-  UserX
+  UserX,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 import AdminReservationModal from "./Modals/AdminReservationModal";
 import AdminCreateReservationModal from "./Modals/AdminCreateReservationModal";
@@ -48,6 +50,10 @@ function AdminReservations({ setView, onLogout }) {
   const [selectAll, setSelectAll] = useState(false);
   const [showBulkArchiveConfirm, setShowBulkArchiveConfirm] = useState(false);
   const [isBulkArchiving, setIsBulkArchiving] = useState(false);
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
   
   // Daily Logs State
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -108,6 +114,11 @@ function AdminReservations({ setView, onLogout }) {
     }
   }, [reservations, selectedDate, viewMode]);
 
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, search, dateFilter]);
+
   const fetchReservations = async () => {
     setIsLoading(true);
     setFetchError(null);
@@ -142,6 +153,7 @@ function AdminReservations({ setView, onLogout }) {
       // Clear selections when fetching new data
       setSelectedReservations([]);
       setSelectAll(false);
+      setCurrentPage(1); // Reset to first page on new data
     } catch (err) {
       console.error("Fetch reservations error:", err);
       setFetchError(err.response?.data?.message || err.message || "Failed to fetch reservations");
@@ -225,7 +237,7 @@ function AdminReservations({ setView, onLogout }) {
     if (selectAll) {
       setSelectedReservations([]);
     } else {
-      const filteredIds = filteredReservations.map(res => res._id);
+      const filteredIds = paginatedReservations.map(res => res._id);
       setSelectedReservations(filteredIds);
     }
     setSelectAll(!selectAll);
@@ -239,8 +251,8 @@ function AdminReservations({ setView, onLogout }) {
         return newSelected;
       } else {
         const newSelected = [...prev, reservationId];
-        // Check if all filtered reservations are selected
-        if (newSelected.length === filteredReservations.length) {
+        // Check if all paginated reservations are selected
+        if (newSelected.length === paginatedReservations.length) {
           setSelectAll(true);
         }
         return newSelected;
@@ -287,6 +299,7 @@ function AdminReservations({ setView, onLogout }) {
         // Clear selections
         setSelectedReservations([]);
         setSelectAll(false);
+        setCurrentPage(1); // Reset to first page after bulk archive
         
         // Refresh data to ensure consistency
         fetchReservations();
@@ -403,6 +416,30 @@ function AdminReservations({ setView, onLogout }) {
     setSelectedReservation(null);
   };
 
+  // Pagination Handlers
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    // Clear selections when changing page
+    setSelectedReservations([]);
+    setSelectAll(false);
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+      setSelectedReservations([]);
+      setSelectAll(false);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+      setSelectedReservations([]);
+      setSelectAll(false);
+    }
+  };
+
   // Filter reservations based on status, search, and date
   const filteredReservations = reservations.filter((res) => {
     const reserver = res.userId?.name || "Unknown";
@@ -426,6 +463,12 @@ function AdminReservations({ setView, onLogout }) {
     
     return matchesStatus && matchesSearch && matchesDate;
   });
+
+  // Pagination logic
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const paginatedReservations = filteredReservations.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredReservations.length / itemsPerPage);
 
   const StatCard = ({ title, value, icon, color, subtitle }) => (
     <div className={`bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 ${color}`}>
@@ -474,16 +517,121 @@ function AdminReservations({ setView, onLogout }) {
     </div>
   );
 
-const getUserName = (userId) => {
-  if (!userId) return "Deleted User";
-  if (typeof userId === 'object') {
-    if (userId._deleted) return "Deleted User";
-    if (userId.name) return userId.name;
-  }
-  if (typeof userId === 'string') return "User";
-  return "Unknown";
-};
+  const getUserName = (userId) => {
+    if (!userId) return "Deleted User";
+    if (typeof userId === 'object') {
+      if (userId._deleted) return "Deleted User";
+      if (userId.name) return userId.name;
+    }
+    if (typeof userId === 'string') return "User";
+    return "Unknown";
+  };
 
+  // Pagination Component
+  const Pagination = () => {
+    if (totalPages <= 1) return null;
+
+    const pageNumbers = [];
+    for (let i = 1; i <= totalPages; i++) {
+      pageNumbers.push(i);
+    }
+
+    // Show limited page numbers with ellipsis
+    const getVisiblePages = () => {
+      const delta = 2; // Number of pages to show on each side of current page
+      const range = [];
+      const rangeWithDots = [];
+      let l;
+
+      for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - delta && i <= currentPage + delta)) {
+          range.push(i);
+        }
+      }
+
+      range.forEach((i) => {
+        if (l) {
+          if (i - l === 2) {
+            rangeWithDots.push(l + 1);
+          } else if (i - l !== 1) {
+            rangeWithDots.push('...');
+          }
+        }
+        rangeWithDots.push(i);
+        l = i;
+      });
+
+      return rangeWithDots;
+    };
+
+    const visiblePages = getVisiblePages();
+
+    return (
+      <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
+        <div className="flex flex-1 justify-between sm:hidden">
+          <button
+            onClick={handlePreviousPage}
+            disabled={currentPage === 1}
+            className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+          <button
+            onClick={handleNextPage}
+            disabled={currentPage === totalPages}
+            className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+        <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm text-gray-700">
+              Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to{' '}
+              <span className="font-medium">
+                {Math.min(indexOfLastItem, filteredReservations.length)}
+              </span>{' '}
+              of <span className="font-medium">{filteredReservations.length}</span> results
+            </p>
+          </div>
+          <div>
+            <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+              <button
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="sr-only">Previous</span>
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </button>
+              {visiblePages.map((page, index) => (
+                <button
+                  key={index}
+                  onClick={() => page !== '...' && handlePageChange(page)}
+                  disabled={page === '...'}
+                  className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                    page === currentPage
+                      ? 'z-10 bg-[#CC0000] text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#CC0000]'
+                      : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                  } ${page === '...' ? 'cursor-default' : 'cursor-pointer'}`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+                className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="sr-only">Next</span>
+                <ChevronRight className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </nav>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <>
@@ -870,14 +1018,14 @@ const getUserName = (userId) => {
                           Loading reservations...
                         </td>
                       </tr>
-                    ) : filteredReservations.length === 0 ? (
+                    ) : paginatedReservations.length === 0 ? (
                       <tr>
                         <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
                           No reservations found
                         </td>
                       </tr>
                     ) : (
-                      filteredReservations.map((r, i) => {
+                      paginatedReservations.map((r, i) => {
                         const createdAt = r.createdAt ? new Date(r.createdAt) : null;
                         const startDate = r.datetime ? new Date(r.datetime) : null;
                         const endDate = r.endDatetime ? new Date(r.endDatetime) : null;
@@ -917,7 +1065,7 @@ const getUserName = (userId) => {
                                 )}
                               </button>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">{i + 1}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{indexOfFirstItem + i + 1}</td>
                             <td className="px-6 py-4 whitespace-nowrap">{dateOnly}</td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               {startTime} — {endTime}
@@ -926,14 +1074,14 @@ const getUserName = (userId) => {
                               <div className="font-medium">{r.roomName || "Unknown Room"}</div>
                               <div className="text-gray-500 text-xs">{r.location || "Unknown Location"}</div>
                             </td>
-<td className="px-6 py-4 whitespace-nowrap">
-  <div className="flex items-center">
-    {getUserName(r.userId)}
-    {(!r.userId || r.userId._deleted) && (
-      <UserX size={14} className="ml-1 text-red-400" title="User account deleted" />
-    )}
-  </div>
-</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                                {getUserName(r.userId)}
+                                {(!r.userId || r.userId._deleted) && (
+                                  <UserX size={14} className="ml-1 text-red-400" title="User account deleted" />
+                                )}
+                              </div>
+                            </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <span
                                 className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -995,6 +1143,9 @@ const getUserName = (userId) => {
                   </tbody>
                 </table>
               </div>
+              
+              {/* Pagination */}
+              {filteredReservations.length > 0 && <Pagination />}
             </div>
           )}
         </div>
