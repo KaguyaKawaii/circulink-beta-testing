@@ -324,11 +324,13 @@ function ArchivedReports({ setView, admin }) {
     page * itemsPerPage
   );
 
-  // Get unique values for filters
   const categoryOptions = [
-    { value: "all", label: "All Categories" },
-    ...new Set(archivedReports.map(r => r.category)).map(cat => ({ value: cat, label: cat }))
-  ];
+  { value: "all", label: "All Categories" },
+  ...Array.from(new Set(archivedReports.map(r => r.category))).map(cat => ({ 
+    value: cat, 
+    label: cat 
+  }))
+];
   
   const floorOptions = [
     { value: "all", label: "All Floors" },

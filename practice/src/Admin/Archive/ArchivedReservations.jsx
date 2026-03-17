@@ -332,11 +332,13 @@ function ArchivedReservations({ setView, admin }) {
     page * itemsPerPage
   );
 
-  // Get unique statuses for filter
-  const statusOptions = [
-    { value: "all", label: "All Statuses" },
-    ...new Set(archivedReservations.map(r => r.status)).map(status => ({ value: status, label: status }))
-  ];
+const statusOptions = [
+  { value: "all", label: "All Statuses" },
+  ...Array.from(new Set(archivedReservations.map(r => r.status))).map(status => ({ 
+    value: status, 
+    label: status 
+  }))
+];
 
   // Sort options
   const sortOptions = [

@@ -340,16 +340,21 @@ function ArchivedUsers({ setView, admin }) {
     page * itemsPerPage
   );
 
-  // Get unique values for filters
-  const roleOptions = [
-    { value: "all", label: "All Roles" },
-    ...new Set(archivedUsers.map(u => u.role)).map(role => ({ value: role, label: role }))
-  ];
-  
-  const departmentOptions = [
-    { value: "all", label: "All Departments" },
-    ...new Set(archivedUsers.map(u => u.department).filter(Boolean)).map(dept => ({ value: dept, label: dept }))
-  ];
+const roleOptions = [
+  { value: "all", label: "All Roles" },
+  ...Array.from(new Set(archivedUsers.map(u => u.role))).map(role => ({ 
+    value: role, 
+    label: role 
+  }))
+];
+
+const departmentOptions = [
+  { value: "all", label: "All Departments" },
+  ...Array.from(new Set(archivedUsers.map(u => u.department).filter(Boolean))).map(dept => ({ 
+    value: dept, 
+    label: dept 
+  }))
+];
 
   // Sort options
   const sortOptions = [
