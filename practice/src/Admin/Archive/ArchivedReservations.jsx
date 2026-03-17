@@ -392,28 +392,28 @@ const statusOptions = [
             />
           </div>
 
-          {/* Filter Bar */}
-          <FilterBar
-            search={search}
-            onSearchChange={setSearch}
-            searchPlaceholder="Search by room, location, user name, ID number..."
-            filters={filters}
-            sortOptions={sortOptions}
-            sortBy={sortBy}
-            onSortChange={setSortBy}
-          >
-            <div className="flex justify-end gap-2">
-              <ExportMenu onExport={handleExport} />
-              <Button
-                variant="outline"
-                size="sm"
-                icon={RefreshCw}
-                onClick={fetchArchivedReservations}
-              >
-                Refresh
-              </Button>
-            </div>
-          </FilterBar>
+{/* Filter Bar */}
+<FilterBar
+  search={search}
+  onSearchChange={setSearch}
+  searchPlaceholder="Search by room, location, user name, ID number..."
+  filters={filters}
+  sortOptions={sortOptions}
+  sortBy={sortBy}
+  onSortChange={setSortBy}
+>
+  <div className="flex justify-center gap-2">
+    <ExportMenu onExport={handleExport} />
+    <Button
+      variant="outline"
+      size="sm"
+      icon={RefreshCw}
+      onClick={fetchArchivedReservations}
+    >
+      Refresh
+    </Button>
+  </div>
+</FilterBar>
 
           {/* Bulk Action Bar */}
           <BulkActionBar

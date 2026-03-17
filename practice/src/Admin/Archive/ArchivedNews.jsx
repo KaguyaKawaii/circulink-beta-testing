@@ -305,27 +305,27 @@ function ArchivedNews({ setView, admin }) {
             />
           </div>
 
-          {/* Filter Bar */}
-          <FilterBar
-            search={search}
-            onSearchChange={setSearch}
-            searchPlaceholder="Search by title or content..."
-            sortOptions={sortOptions}
-            sortBy={sortBy}
-            onSortChange={setSortBy}
-          >
-            <div className="flex justify-end gap-2">
-              <ExportMenu onExport={handleExport} />
-              <Button
-                variant="outline"
-                size="sm"
-                icon={RefreshCw}
-                onClick={fetchArchivedNews}
-              >
-                Refresh
-              </Button>
-            </div>
-          </FilterBar>
+{/* Filter Bar */}
+<FilterBar
+  search={search}
+  onSearchChange={setSearch}
+  searchPlaceholder="Search by title or content..."
+  sortOptions={sortOptions}
+  sortBy={sortBy}
+  onSortChange={setSortBy}
+>
+  <div className="flex justify-center gap-2">
+    <ExportMenu onExport={handleExport} />
+    <Button
+      variant="outline"
+      size="sm"
+      icon={RefreshCw}
+      onClick={fetchArchivedNews}
+    >
+      Refresh
+    </Button>
+  </div>
+</FilterBar>
 
           {/* Bulk Action Bar */}
           <BulkActionBar

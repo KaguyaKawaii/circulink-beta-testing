@@ -398,28 +398,28 @@ const floorOptions = [
             />
           </div>
 
-          {/* Filter Bar */}
-          <FilterBar
-            search={search}
-            onSearchChange={setSearch}
-            searchPlaceholder="Search by reporter, category, details, floor, room..."
-            filters={filters}
-            sortOptions={sortOptions}
-            sortBy={sortBy}
-            onSortChange={setSortBy}
-          >
-            <div className="flex justify-center gap-2">
-              <ExportMenu onExport={handleExport} />
-              <Button
-                variant="outline"
-                size="sm"
-                icon={RefreshCw}
-                onClick={fetchArchivedReports}
-              >
-                Refresh
-              </Button>
-            </div>
-          </FilterBar>
+{/* Filter Bar */}
+<FilterBar
+  search={search}
+  onSearchChange={setSearch}
+  searchPlaceholder="Search by reporter, category, details, floor, room..."
+  filters={filters}
+  sortOptions={sortOptions}
+  sortBy={sortBy}
+  onSortChange={setSortBy}
+>
+  <div className="flex justify-center gap-2">
+    <ExportMenu onExport={handleExport} />
+    <Button
+      variant="outline"
+      size="sm"
+      icon={RefreshCw}
+      onClick={fetchArchivedReports}
+    >
+      Refresh
+    </Button>
+  </div>
+</FilterBar>
 
           {/* Bulk Action Bar */}
           <BulkActionBar
