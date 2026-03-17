@@ -236,39 +236,7 @@ function AdminLogs({ setView, onLogout }) {
     }
   };
 
-  // 📥 Export as CSV
-  const exportCSV = () => {
-    try {
-      const filteredData = getFilteredAndSortedLogs();
-      
-      const headers = ["User", "ID Number", "Action", "Details", "Date", "Time"];
-      const rows = filteredData.map((log) => {
-        const date = new Date(log.createdAt);
-        return [
-          getUserName(log),
-          getUserIdNumber(log),
-          log.action || '—',
-          log.details || '—',
-          date.toLocaleDateString("en-PH"),
-          date.toLocaleTimeString("en-PH", { hour: '2-digit', minute: '2-digit' })
-        ];
-      });
-
-      let csvContent = 
-        "data:text/csv;charset=utf-8," + 
-        [headers.join(","), ...rows.map(r => r.map(cell => `"${cell}"`).join(","))].join("\n");
-
-      const blob = new Blob([decodeURIComponent(encodeURI(csvContent))], { 
-        type: "text/csv;charset=utf-8;" 
-      });
-      saveAs(blob, `activity_logs_${new Date().toISOString().split('T')[0]}.csv`);
-      setShowExportMenu(false);
-    } catch (err) {
-      setError("Failed to export CSV: " + err.message);
-    }
-  };
-
-  // 📥 Export as Excel
+  // 📥 Export as Excel (CSV export removed)
   const exportExcel = () => {
     try {
       const filteredData = getFilteredAndSortedLogs();
@@ -466,7 +434,7 @@ function AdminLogs({ setView, onLogout }) {
                 {sortOrder === "desc" ? "Newest" : "Oldest"}
               </button>
 
-              {/* Export Dropdown */}
+              {/* Export Dropdown - Now only showing Excel export */}
               <div className="relative" ref={exportMenuRef}>
                 <button
                   onClick={() => setShowExportMenu(!showExportMenu)}
@@ -483,15 +451,7 @@ function AdminLogs({ setView, onLogout }) {
 
                 {showExportMenu && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-                    <button
-                      onClick={exportCSV}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
-                    >
-                      <svg className="h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      Export as CSV
-                    </button>
+                    {/* CSV export option removed - only Excel remains */}
                     <button
                       onClick={exportExcel}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
