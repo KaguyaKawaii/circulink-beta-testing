@@ -36,6 +36,7 @@ function AdminLogs({ setView, onLogout }) {
   const lastLogElementRef = useRef();
   const tableContainerRef = useRef(null);
   const notificationTimeoutRef = useRef(null);
+  const sortButtonRef = useRef(null);
 
   // Date presets
   const datePresets = [
@@ -74,6 +75,28 @@ function AdminLogs({ setView, onLogout }) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Manual refresh function
+  const handleRefresh = async () => {
+    await fetchLogs();
+    // Reset display count to initial value
+    setDisplayCount(LOGS_PER_BATCH);
+    // Scroll to top of table
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTop = 0;
+    }
+  };
+
+  // Handle sort change without moving page
+  const handleSortChange = () => {
+    setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"));
+    // Reset to first page when sorting changes
+    setDisplayCount(LOGS_PER_BATCH);
+    // Scroll to top of table
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTop = 0;
     }
   };
 
@@ -317,6 +340,11 @@ function AdminLogs({ setView, onLogout }) {
       if (e.key === 'Escape' && showExportMenu) {
         setShowExportMenu(false);
       }
+      // Ctrl/Cmd + R for refresh
+      if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
+        e.preventDefault();
+        handleRefresh();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -507,11 +535,11 @@ function AdminLogs({ setView, onLogout }) {
               <p className="text-gray-600">Review user and system activities</p>
             </div>
             
-            {/* Connection Status */}
+            {/* Connection Status - Removed "Live" text */}
             <div className="flex items-center gap-2">
               <div className={`h-2 w-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
               <span className="text-xs text-gray-500">
-                {wsConnected ? 'Live' : 'Reconnecting...'}
+                {wsConnected ? 'Connected' : 'Reconnecting...'}
               </span>
             </div>
           </div>
@@ -576,15 +604,35 @@ function AdminLogs({ setView, onLogout }) {
                 )}
               </button>
 
-              {/* Sort Order */}
+              {/* Sort Order - Fixed to prevent page movement */}
               <button
-                onClick={() => setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
+                ref={sortButtonRef}
+                onClick={handleSortChange}
                 className="border border-gray-300 rounded-lg px-4 py-2 text-sm flex items-center gap-2 bg-white hover:bg-gray-50"
               >
                 <svg className="h-4 w-4 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
                 </svg>
                 {sortOrder === "desc" ? "Newest" : "Oldest"}
+              </button>
+
+              {/* Refresh Button */}
+              <button
+                onClick={handleRefresh}
+                disabled={loading}
+                className="border border-gray-300 rounded-lg px-4 py-2 text-sm flex items-center gap-2 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Refresh logs (⌘R)"
+              >
+                <svg 
+                  className={`h-4 w-4 text-gray-600 ${loading ? 'animate-spin' : ''}`} 
+                  xmlns="http://www.w3.org/2000/svg" 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
               </button>
 
               {/* Export Dropdown */}
