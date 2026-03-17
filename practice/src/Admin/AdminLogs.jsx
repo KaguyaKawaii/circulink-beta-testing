@@ -10,9 +10,11 @@ function AdminLogs({ setView, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
-  const [hasMore, setHasMore] = useState(true);
-  const [page, setPage] = useState(1);
-  const [totalLogs, setTotalLogs] = useState(0);
+  
+  // For client-side pagination (since backend might not support server-side)
+  const [displayCount, setDisplayCount] = useState(50);
+  const [allLogs, setAllLogs] = useState([]);
+  const LOGS_PER_BATCH = 50;
 
   // 🔎 Filters & Sorting
   const [search, setSearch] = useState("");
@@ -27,6 +29,7 @@ function AdminLogs({ setView, onLogout }) {
   const searchInputRef = useRef(null);
   const observerRef = useRef();
   const lastLogElementRef = useRef();
+  const tableContainerRef = useRef(null);
 
   // Date presets
   const datePresets = [
@@ -38,87 +41,116 @@ function AdminLogs({ setView, onLogout }) {
 
   const handleLogout = () => {
     localStorage.removeItem("admin");
-    setView("login");
-  };
-
-  // Fetch logs with pagination
-  const fetchLogs = async (pageNum = 1, append = false) => {
-    try {
-      if (pageNum === 1) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-
-      // Build query parameters
-      const params = new URLSearchParams({
-        page: pageNum,
-        limit: 50,
-        sort: sortOrder,
-        ...(search && { search }),
-        ...(startDate && { startDate }),
-        ...(endDate && { endDate })
-      });
-
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/logs?${params}`);
-      if (!res.ok) throw new Error("Failed to fetch logs");
-      
-      const data = await res.json();
-      
-      if (append) {
-        setLogs(prev => [...prev, ...data.logs]);
-      } else {
-        setLogs(data.logs);
-      }
-      
-      setTotalLogs(data.total);
-      setHasMore(data.hasMore);
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-      setLoadingMore(false);
+    if (onLogout) {
+      onLogout();
+    } else {
+      setView("login");
     }
   };
 
-  // Initial load and refresh
+  // Fetch logs
+  const fetchLogs = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/logs`);
+      if (!res.ok) throw new Error("Failed to fetch logs");
+      const data = await res.json();
+      
+      // Handle different response formats
+      const logsArray = Array.isArray(data) ? data : data.logs || data.data || [];
+      setAllLogs(logsArray);
+      setLogs(logsArray.slice(0, LOGS_PER_BATCH));
+      setError(null);
+    } catch (err) {
+      console.error("Fetch logs error:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    setPage(1);
-    fetchLogs(1, false);
+    fetchLogs(); // initial load
     
-    const interval = setInterval(() => {
-      // Refresh only first page when there are new logs
-      fetchLogs(1, false);
-    }, 5000);
-    
+    // Refresh every 30 seconds instead of 5 to reduce server load
+    const interval = setInterval(fetchLogs, 30000);
     return () => clearInterval(interval);
-  }, [search, startDate, endDate, sortOrder]); // Re-fetch when filters change
+  }, []);
+
+  // Filter and sort logs
+  const getFilteredAndSortedLogs = useCallback(() => {
+    let filtered = [...allLogs];
+
+    // Apply search filter
+    if (search) {
+      filtered = filtered.filter((log) => {
+        const searchLower = search.toLowerCase();
+        return (
+          (log.userName?.toLowerCase() || '').includes(searchLower) ||
+          (log.userId?.name?.toLowerCase() || '').includes(searchLower) ||
+          (log.userId?.email?.toLowerCase() || '').includes(searchLower) ||
+          (log.id_number?.toLowerCase() || '').includes(searchLower) ||
+          (log.action?.toLowerCase() || '').includes(searchLower) ||
+          (log.details?.toLowerCase() || '').includes(searchLower)
+        );
+      });
+    }
+
+    // Apply date filters
+    if (startDate) {
+      filtered = filtered.filter(log => 
+        new Date(log.createdAt) >= new Date(startDate)
+      );
+    }
+
+    if (endDate) {
+      filtered = filtered.filter(log => 
+        new Date(log.createdAt) <= new Date(endDate + "T23:59:59")
+      );
+    }
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return sortOrder === "desc" ? dateB - dateA : dateA - dateB;
+    });
+
+    return filtered;
+  }, [allLogs, search, startDate, endDate, sortOrder]);
+
+  // Get displayed logs (paginated)
+  const displayedLogs = getFilteredAndSortedLogs().slice(0, displayCount);
+  const hasMoreLogs = displayedLogs.length < getFilteredAndSortedLogs().length;
 
   // Load more logs when scrolling
   const loadMoreLogs = useCallback(() => {
-    if (loadingMore || !hasMore) return;
-    const nextPage = page + 1;
-    setPage(nextPage);
-    fetchLogs(nextPage, true);
-  }, [loadingMore, hasMore, page]);
+    if (loadingMore || !hasMoreLogs) return;
+    
+    setLoadingMore(true);
+    
+    // Simulate network delay for smoother UX
+    setTimeout(() => {
+      setDisplayCount(prev => prev + LOGS_PER_BATCH);
+      setLoadingMore(false);
+    }, 300);
+  }, [loadingMore, hasMoreLogs]);
 
   // Intersection Observer for infinite scroll
   useEffect(() => {
     if (loading) return;
 
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-    }
+    const options = {
+      root: tableContainerRef.current,
+      rootMargin: "20px",
+      threshold: 0.1
+    };
 
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingMore) {
-          loadMoreLogs();
-        }
-      },
-      { threshold: 0.5 }
-    );
+    observerRef.current = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMoreLogs && !loadingMore) {
+        loadMoreLogs();
+      }
+    }, options);
 
     if (lastLogElementRef.current) {
       observerRef.current.observe(lastLogElementRef.current);
@@ -129,21 +161,45 @@ function AdminLogs({ setView, onLogout }) {
         observerRef.current.disconnect();
       }
     };
-  }, [loading, hasMore, loadingMore, loadMoreLogs]);
+  }, [loading, hasMoreLogs, loadingMore, loadMoreLogs, displayedLogs.length]);
+
+  // Get user name from different possible structures
+  const getUserName = (log) => {
+    if (log.userName) return log.userName;
+    if (log.userId) {
+      if (typeof log.userId === 'object') {
+        return log.userId.name || log.userId.email || 'User';
+      }
+    }
+    if (log.user) {
+      if (typeof log.user === 'object') {
+        return log.user.name || log.user.email || 'User';
+      }
+    }
+    return 'System';
+  };
+
+  // Get user ID number
+  const getUserIdNumber = (log) => {
+    if (log.id_number) return log.id_number;
+    if (log.userId) {
+      if (typeof log.userId === 'object') {
+        return log.userId.id_number || log.userId.studentId || log.userId.employeeId || '—';
+      }
+    }
+    return '—';
+  };
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Cmd/Ctrl + F for search
       if ((e.metaKey || e.ctrlKey) && e.key === 'f') {
         e.preventDefault();
         searchInputRef.current?.focus();
       }
-      // Esc to close modal
       if (e.key === 'Escape' && showDateModal) {
         setShowDateModal(false);
       }
-      // Esc to close export menu
       if (e.key === 'Escape' && showExportMenu) {
         setShowExportMenu(false);
       }
@@ -165,56 +221,34 @@ function AdminLogs({ setView, onLogout }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 📌 Apply filters (client-side for existing logs, but we also have server-side filtering)
-  const filteredLogs = logs; // Now using server-side filtering
-
-  // Get most active user
-  const getMostActiveUser = () => {
-    const userCounts = {};
-    logs.forEach(log => {
-      if (log.userName) {
-        userCounts[log.userName] = (userCounts[log.userName] || 0) + 1;
-      }
-    });
-    const mostActive = Object.entries(userCounts).sort((a, b) => b[1] - a[1])[0];
-    return mostActive ? mostActive[0] : "N/A";
-  };
-
   // Highlight search text
   const highlightText = (text, searchTerm) => {
     if (!searchTerm || !text) return text;
-    const parts = text.toString().split(new RegExp(`(${searchTerm})`, 'gi'));
-    return parts.map((part, i) => 
-      part.toLowerCase() === searchTerm.toLowerCase() 
-        ? <mark key={i} className="bg-yellow-200 px-0.5 rounded">{part}</mark>
-        : part
-    );
+    try {
+      const parts = text.toString().split(new RegExp(`(${searchTerm})`, 'gi'));
+      return parts.map((part, i) => 
+        part.toLowerCase() === searchTerm.toLowerCase() 
+          ? <mark key={i} className="bg-yellow-200 px-0.5 rounded">{part}</mark>
+          : part
+      );
+    } catch (e) {
+      return text;
+    }
   };
 
   // 📥 Export as CSV
-  const exportCSV = async () => {
+  const exportCSV = () => {
     try {
-      // Fetch all logs for export (bypass pagination)
-      const params = new URLSearchParams({
-        limit: 10000,
-        sort: sortOrder,
-        ...(search && { search }),
-        ...(startDate && { startDate }),
-        ...(endDate && { endDate })
-      });
-
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/logs?${params}`);
-      const data = await res.json();
-      const allLogs = data.logs;
-
+      const filteredData = getFilteredAndSortedLogs();
+      
       const headers = ["User", "ID Number", "Action", "Details", "Date", "Time"];
-      const rows = allLogs.map((log) => {
+      const rows = filteredData.map((log) => {
         const date = new Date(log.createdAt);
         return [
-          log.userName || "System",
-          log.id_number || "—",
-          log.action,
-          log.details || "—",
+          getUserName(log),
+          getUserIdNumber(log),
+          log.action || '—',
+          log.details || '—',
           date.toLocaleDateString("en-PH"),
           date.toLocaleTimeString("en-PH", { hour: '2-digit', minute: '2-digit' })
         ];
@@ -234,31 +268,18 @@ function AdminLogs({ setView, onLogout }) {
     }
   };
 
-  // 📥 Export as Excel with detailed formatting
-  const exportExcel = async () => {
+  // 📥 Export as Excel
+  const exportExcel = () => {
     try {
-      // Fetch all logs for export
-      const params = new URLSearchParams({
-        limit: 10000,
-        sort: sortOrder,
-        ...(search && { search }),
-        ...(startDate && { startDate }),
-        ...(endDate && { endDate })
-      });
-
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/logs?${params}`);
-      const data = await res.json();
-      const allLogs = data.logs;
-
-      // Create workbook
+      const filteredData = getFilteredAndSortedLogs();
+      
       const wb = XLSX.utils.book_new();
       
-      // Prepare data with formatting
-      const exportData = allLogs.map((log) => ({
-        'User': log.userName || "System",
-        'ID Number': log.id_number || "—",
-        'Action': log.action,
-        'Details': log.details || "—",
+      const exportData = filteredData.map((log) => ({
+        'User': getUserName(log),
+        'ID Number': getUserIdNumber(log),
+        'Action': log.action || '—',
+        'Details': log.details || '—',
         'Date': new Date(log.createdAt).toLocaleDateString("en-PH"),
         'Time': new Date(log.createdAt).toLocaleTimeString("en-PH", { 
           hour: '2-digit', 
@@ -269,64 +290,24 @@ function AdminLogs({ setView, onLogout }) {
         'Day of Week': new Date(log.createdAt).toLocaleDateString("en-PH", { weekday: 'long' })
       }));
 
-      // Create worksheet
       const ws = XLSX.utils.json_to_sheet(exportData);
-
-      // Set column widths
+      
       const colWidths = [
-        { wch: 20 }, // User
-        { wch: 15 }, // ID Number
-        { wch: 15 }, // Action
-        { wch: 50 }, // Details
-        { wch: 12 }, // Date
-        { wch: 10 }, // Time
-        { wch: 25 }, // Full Timestamp
-        { wch: 12 }  // Day of Week
+        { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 50 }, 
+        { wch: 12 }, { wch: 10 }, { wch: 25 }, { wch: 12 }
       ];
       ws['!cols'] = colWidths;
 
-      // Add title and metadata
-      const titleRow = [{
-        'User': 'ACTIVITY LOGS EXPORT',
-        'ID Number': '',
-        'Action': '',
-        'Details': '',
-        'Date': '',
-        'Time': '',
-        'Full Timestamp': '',
-        'Day of Week': ''
-      }];
-      
-      const metadataRow = [{
-        'User': `Export Date: ${new Date().toLocaleString("en-PH")}`,
-        'ID Number': '',
-        'Action': `Total Logs: ${allLogs.length}`,
-        'Details': `Date Range: ${startDate || 'All'} to ${endDate || 'All'}`,
-        'Date': '',
-        'Time': '',
-        'Full Timestamp': '',
-        'Day of Week': ''
-      }];
-
-      // Combine all rows
-      const allData = [...titleRow, ...metadataRow, {}, ...exportData];
-      const finalWs = XLSX.utils.json_to_sheet(allData, { skipHeader: true });
-      
-      // Copy column widths
-      finalWs['!cols'] = colWidths;
-
-      // Add the worksheet to workbook
-      XLSX.utils.book_append_sheet(wb, finalWs, "Activity Logs");
+      XLSX.utils.book_append_sheet(wb, ws, "Activity Logs");
 
       // Add summary sheet
       const summaryData = [
-        { 'Metric': 'Total Logs', 'Value': allLogs.length },
-        { 'Metric': 'Unique Users', 'Value': new Set(allLogs.map(l => l.userName)).size },
+        { 'Metric': 'Total Logs', 'Value': filteredData.length },
+        { 'Metric': 'Unique Users', 'Value': new Set(filteredData.map(l => getUserName(l))).size },
         { 'Metric': 'Date Range Start', 'Value': startDate || 'All' },
         { 'Metric': 'Date Range End', 'Value': endDate || 'All' },
         { 'Metric': 'Sort Order', 'Value': sortOrder === 'desc' ? 'Newest First' : 'Oldest First' },
         { 'Metric': 'Search Term', 'Value': search || 'None' },
-        { 'Metric': 'Most Active User', 'Value': getMostActiveUser() },
         { 'Metric': 'Export Time', 'Value': new Date().toLocaleString("en-PH") }
       ];
 
@@ -334,7 +315,6 @@ function AdminLogs({ setView, onLogout }) {
       summaryWs['!cols'] = [{ wch: 20 }, { wch: 30 }];
       XLSX.utils.book_append_sheet(wb, summaryWs, "Summary");
 
-      // Generate Excel file
       XLSX.writeFile(wb, `activity_logs_${new Date().toISOString().split('T')[0]}.xlsx`);
       setShowExportMenu(false);
     } catch (err) {
@@ -345,20 +325,16 @@ function AdminLogs({ setView, onLogout }) {
   // Apply date preset
   const applyDatePreset = (preset) => {
     const today = new Date();
-    const end = new Date(today);
     
     if (preset.days === 0) {
-      // Today
       setStartDate(today.toISOString().split('T')[0]);
       setEndDate(today.toISOString().split('T')[0]);
     } else if (preset.days) {
-      // Last X days
       const start = new Date(today);
       start.setDate(today.getDate() - preset.days);
       setStartDate(start.toISOString().split('T')[0]);
       setEndDate(today.toISOString().split('T')[0]);
     } else if (preset.custom === "month") {
-      // This month
       const start = new Date(today.getFullYear(), today.getMonth(), 1);
       setStartDate(start.toISOString().split('T')[0]);
       setEndDate(today.toISOString().split('T')[0]);
@@ -369,9 +345,8 @@ function AdminLogs({ setView, onLogout }) {
 
   // Copy log to clipboard
   const copyToClipboard = (log) => {
-    const text = `${log.userName || 'System'} - ${log.action} - ${log.details || 'No details'} - ${new Date(log.createdAt).toLocaleString()}`;
+    const text = `${getUserName(log)} - ${log.action || 'Unknown'} - ${log.details || 'No details'} - ${new Date(log.createdAt).toLocaleString()}`;
     navigator.clipboard.writeText(text);
-    // You could add a toast notification here
   };
 
   // Clear all filters
@@ -380,17 +355,17 @@ function AdminLogs({ setView, onLogout }) {
     setStartDate("");
     setEndDate("");
     setSortOrder("desc");
-    setPage(1);
+    setDisplayCount(LOGS_PER_BATCH);
   };
 
-  // Apply date filter and close modal
+  // Apply date filter
   const applyDateFilter = () => {
     setShowDateModal(false);
     if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
       setError("Start date cannot be after end date");
       return;
     }
-    setPage(1);
+    setDisplayCount(LOGS_PER_BATCH);
   };
 
   // Clear date filters
@@ -409,8 +384,8 @@ function AdminLogs({ setView, onLogout }) {
     return count;
   };
 
-  // Loading skeleton for initial load
-  const InitialLogSkeleton = () => (
+  // Loading skeleton
+  const LogSkeleton = () => (
     <div className="animate-pulse">
       {[1, 2, 3, 4, 5].map(i => (
         <div key={i} className="p-4 border-b border-gray-100">
@@ -430,36 +405,11 @@ function AdminLogs({ setView, onLogout }) {
     </div>
   );
 
-  // Loading skeleton for infinite scroll
-  const MoreLogsSkeleton = () => (
-    <div className="animate-pulse">
-      {[1, 2, 3].map(i => (
-        <div key={`more-${i}`} className="p-4 border-b border-gray-100 bg-gray-50/50">
-          <div className="flex items-start space-x-4">
-            <div className="flex-1">
-              <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
-              <div className="h-3 bg-gray-100 rounded w-1/2 mb-2"></div>
-              <div className="h-3 bg-gray-100 rounded w-2/3"></div>
-            </div>
-            <div className="w-24">
-              <div className="h-3 bg-gray-100 rounded w-full mb-1"></div>
-              <div className="h-3 bg-gray-100 rounded w-2/3"></div>
-            </div>
-          </div>
-          <div className="mt-2 flex items-center gap-2">
-            <div className="h-5 bg-gray-200 rounded w-16"></div>
-            <div className="h-5 bg-gray-200 rounded w-24"></div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-
   return (
     <>
-      <AdminNavigation setView={setView} currentView="adminLogs" onLogout={onLogout} />
+      <AdminNavigation setView={setView} currentView="adminLogs" onLogout={handleLogout} />
       <main className="ml-[250px] h-screen flex flex-col bg-gray-50 overflow-hidden">
-        {/* Header - Fixed */}
+        {/* Header */}
         <header className="bg-white px-6 py-4 border-b border-gray-200 flex-shrink-0">
           <h1 className="text-2xl font-bold text-[#CC0000]">Activity Logs</h1>
           <p className="text-gray-600">Review user and system activities</p>
@@ -470,7 +420,7 @@ function AdminLogs({ setView, onLogout }) {
           )}
         </header>
 
-        {/* Controls Section - Fixed */}
+        {/* Controls */}
         <div className="p-6 flex-shrink-0">
           <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200">
             <div className="flex flex-wrap items-center gap-3">
@@ -488,31 +438,27 @@ function AdminLogs({ setView, onLogout }) {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="border border-gray-300 rounded-lg pl-10 pr-4 py-2 text-sm w-full focus:ring-1 focus:ring-[#CC0000] focus:border-[#CC0000] outline-none"
-                  aria-label="Search logs"
                 />
               </div>
 
               {/* Date Range Button */}
               <button
                 onClick={() => setShowDateModal(true)}
-                className="border border-gray-300 rounded-lg px-4 py-2 text-sm flex items-center gap-2 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:ring-opacity-50"
-                aria-label="Select date range"
-                aria-haspopup="dialog"
+                className="border border-gray-300 rounded-lg px-4 py-2 text-sm flex items-center gap-2 bg-white hover:bg-gray-50"
               >
                 <svg className="h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <span>Date</span>
                 {(startDate || endDate) && (
-                  <span className="bg-[#CC0000] text-white text-xs px-1.5 py-0.5 rounded-full" aria-label="Date filter active">●</span>
+                  <span className="bg-[#CC0000] text-white text-xs px-1.5 py-0.5 rounded-full">●</span>
                 )}
               </button>
 
               {/* Sort Order */}
               <button
                 onClick={() => setSortOrder((prev) => (prev === "desc" ? "asc" : "desc"))}
-                className="border border-gray-300 rounded-lg px-4 py-2 text-sm flex items-center gap-2 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:ring-opacity-50"
-                aria-label={`Sort by ${sortOrder === "desc" ? "oldest" : "newest"} first`}
+                className="border border-gray-300 rounded-lg px-4 py-2 text-sm flex items-center gap-2 bg-white hover:bg-gray-50"
               >
                 <svg className="h-4 w-4 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h9m5-4v12m0 0l-4-4m4 4l4-4" />
@@ -524,10 +470,7 @@ function AdminLogs({ setView, onLogout }) {
               <div className="relative" ref={exportMenuRef}>
                 <button
                   onClick={() => setShowExportMenu(!showExportMenu)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50"
-                  aria-label="Export options"
-                  aria-haspopup="true"
-                  aria-expanded={showExportMenu}
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm flex items-center gap-2"
                 >
                   <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -566,8 +509,7 @@ function AdminLogs({ setView, onLogout }) {
               {getActiveFilterCount() > 0 && (
                 <button
                   onClick={clearFilters}
-                  className="border border-gray-300 rounded-lg px-4 py-2 text-sm flex items-center gap-2 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:ring-opacity-50"
-                  aria-label="Clear all filters"
+                  className="border border-gray-300 rounded-lg px-4 py-2 text-sm flex items-center gap-2 bg-white hover:bg-gray-50"
                 >
                   <svg className="h-4 w-4 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -590,26 +532,29 @@ function AdminLogs({ setView, onLogout }) {
           </div>
         </div>
 
-        {/* Logs Table - Scrollable */}
+        {/* Logs Table */}
         <div className="flex-1 px-6 pb-6 overflow-hidden">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden">
+          <div 
+            ref={tableContainerRef}
+            className="bg-white rounded-lg shadow-sm border border-gray-200 h-full flex flex-col overflow-hidden"
+          >
             {/* Header with Count */}
             <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center flex-shrink-0">
               <h2 className="font-semibold text-gray-700">Activity Logs</h2>
               <div className="flex items-center gap-2">
-                <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded" aria-label={`${logs.length} logs loaded`}>
-                  Showing {logs.length} of {totalLogs} logs
+                <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded">
+                  Showing {displayedLogs.length} of {getFilteredAndSortedLogs().length} logs
                 </span>
               </div>
             </div>
 
-            {/* Logs Content - Scrollable */}
+            {/* Logs Content */}
             <div className="flex-1 overflow-y-auto">
               {loading ? (
-                <InitialLogSkeleton />
+                <LogSkeleton />
               ) : error ? (
                 <div className="p-4 text-center text-red-600 text-sm">{error}</div>
-              ) : logs.length === 0 ? (
+              ) : displayedLogs.length === 0 ? (
                 <div className="p-12 text-center">
                   <div className="text-6xl mb-4">📭</div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No logs found</h3>
@@ -621,7 +566,7 @@ function AdminLogs({ setView, onLogout }) {
                   {getActiveFilterCount() > 0 && (
                     <button
                       onClick={clearFilters}
-                      className="text-[#CC0000] text-sm hover:underline focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:ring-opacity-50 rounded px-2 py-1"
+                      className="text-[#CC0000] text-sm hover:underline"
                     >
                       Clear all filters
                     </button>
@@ -640,23 +585,23 @@ function AdminLogs({ setView, onLogout }) {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {logs.map((log, index) => (
+                      {displayedLogs.map((log, index) => (
                         <tr 
-                          key={log._id} 
-                          ref={index === logs.length - 1 ? lastLogElementRef : null}
+                          key={log._id || index} 
+                          ref={index === displayedLogs.length - 1 ? lastLogElementRef : null}
                           className="hover:bg-gray-50 group"
                         >
                           <td className="px-4 py-3">
                             <div className="font-medium text-gray-900">
-                              {highlightText(log.userName || "System", search)}
+                              {highlightText(getUserName(log), search)}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {log.id_number ? highlightText(log.id_number, search) : "—"}
+                              {highlightText(getUserIdNumber(log), search)}
                             </div>
                           </td>
                           <td className="px-4 py-3">
                             <span className="inline-flex px-2 py-1 rounded text-xs bg-blue-50 text-blue-700">
-                              {highlightText(log.action, search)}
+                              {highlightText(log.action || '—', search)}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-gray-600 max-w-md truncate" title={log.details}>
@@ -674,8 +619,7 @@ function AdminLogs({ setView, onLogout }) {
                           <td className="px-4 py-3">
                             <button
                               onClick={() => copyToClipboard(log)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600 focus:opacity-100"
-                              aria-label="Copy log to clipboard"
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600"
                               title="Copy to clipboard"
                             >
                               <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -688,19 +632,18 @@ function AdminLogs({ setView, onLogout }) {
                     </tbody>
                   </table>
                   
-                  {/* Loading more indicator with skeleton */}
+                  {/* Loading more indicator */}
                   {loadingMore && (
-                    <div className="border-t border-gray-100">
-                      <MoreLogsSkeleton />
+                    <div className="p-4 text-center">
+                      <div className="inline-block animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-[#CC0000]"></div>
+                      <p className="text-sm text-gray-500 mt-2">Loading more logs...</p>
                     </div>
                   )}
                   
-                  {/* End of results message */}
-                  {!hasMore && logs.length > 0 && (
+                  {/* End of results */}
+                  {!hasMoreLogs && displayedLogs.length > 0 && (
                     <div className="p-4 text-center text-gray-500 text-sm border-t border-gray-100">
-                      <div className="text-2xl mb-2">🏁</div>
                       <p>You've reached the end of the logs</p>
-                      <p className="text-xs mt-1">Total logs loaded: {logs.length}</p>
                     </div>
                   )}
                 </>
@@ -715,9 +658,6 @@ function AdminLogs({ setView, onLogout }) {
         <div 
           className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4"
           onClick={() => setShowDateModal(false)}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Select date range"
         >
           <div 
             className="bg-white rounded-lg shadow-xl w-full max-w-sm"
@@ -728,8 +668,7 @@ function AdminLogs({ setView, onLogout }) {
                 <h3 className="font-semibold">Select Date Range</h3>
                 <button 
                   onClick={() => setShowDateModal(false)}
-                  className="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:ring-opacity-50 rounded p-1"
-                  aria-label="Close modal"
+                  className="text-gray-400 hover:text-gray-600"
                 >
                   ✕
                 </button>
@@ -744,7 +683,7 @@ function AdminLogs({ setView, onLogout }) {
                   <button
                     key={index}
                     onClick={() => applyDatePreset(preset)}
-                    className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:ring-opacity-50"
+                    className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded text-xs"
                   >
                     {preset.label}
                   </button>
@@ -760,8 +699,7 @@ function AdminLogs({ setView, onLogout }) {
                     type="date"
                     value={startDate}
                     onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-[#CC0000] focus:border-[#CC0000] outline-none"
-                    aria-label="Start date"
+                    className="w-full p-2 border border-gray-300 rounded text-sm"
                   />
                 </div>
                 <div>
@@ -770,8 +708,7 @@ function AdminLogs({ setView, onLogout }) {
                     type="date"
                     value={endDate}
                     onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-[#CC0000] focus:border-[#CC0000] outline-none"
-                    aria-label="End date"
+                    className="w-full p-2 border border-gray-300 rounded text-sm"
                   />
                 </div>
               </div>
@@ -780,13 +717,13 @@ function AdminLogs({ setView, onLogout }) {
             <div className="flex gap-2 p-4 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={clearDateFilters}
-                className="flex-1 px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-opacity-50"
+                className="flex-1 px-3 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
               >
                 Clear
               </button>
               <button
                 onClick={applyDateFilter}
-                className="flex-1 px-3 py-2 bg-[#CC0000] text-white rounded hover:bg-red-700 text-sm focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:ring-opacity-50"
+                className="flex-1 px-3 py-2 bg-[#CC0000] text-white rounded hover:bg-red-700 text-sm"
               >
                 Apply
               </button>
