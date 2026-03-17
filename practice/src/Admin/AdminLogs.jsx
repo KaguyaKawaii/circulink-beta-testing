@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import AdminNavigation from "./AdminNavigation";
+import socket from "../socket"; // Adjust path as needed
 
 // 📦 Import libraries
 import { saveAs } from "file-saver";
@@ -10,6 +11,10 @@ function AdminLogs({ setView, onLogout }) {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
+  
+  // WebSocket states
+  const [wsConnected, setWsConnected] = useState(socket.connected);
+  const [newLogNotification, setNewLogNotification] = useState(null);
   
   // For client-side pagination (since backend might not support server-side)
   const [displayCount, setDisplayCount] = useState(50);
@@ -30,6 +35,7 @@ function AdminLogs({ setView, onLogout }) {
   const observerRef = useRef();
   const lastLogElementRef = useRef();
   const tableContainerRef = useRef(null);
+  const notificationTimeoutRef = useRef(null);
 
   // Date presets
   const datePresets = [
@@ -41,6 +47,8 @@ function AdminLogs({ setView, onLogout }) {
 
   const handleLogout = () => {
     localStorage.removeItem("admin");
+    // Disconnect socket on logout
+    socket.disconnect();
     if (onLogout) {
       onLogout();
     } else {
@@ -69,13 +77,102 @@ function AdminLogs({ setView, onLogout }) {
     }
   };
 
+  // WebSocket setup
   useEffect(() => {
-    fetchLogs(); // initial load
-    
-    // Refresh every 30 seconds instead of 5 to reduce server load
-    const interval = setInterval(fetchLogs, 30000);
-    return () => clearInterval(interval);
+    // Socket connection event handlers
+    const handleConnect = () => {
+      console.log('Socket connected for logs');
+      setWsConnected(true);
+      setError(null);
+    };
+
+    const handleDisconnect = (reason) => {
+      console.log('Socket disconnected:', reason);
+      setWsConnected(false);
+      if (reason === 'io server disconnect' || reason === 'transport close') {
+        setError('Disconnected from real-time updates. Reconnecting...');
+      }
+    };
+
+    const handleConnectError = (err) => {
+      console.error('Socket connection error:', err);
+      setWsConnected(false);
+      setError('Connection error. Real-time updates may be delayed.');
+    };
+
+    // Handle new log events
+    const handleNewLog = (newLog) => {
+      console.log('New log received:', newLog);
+      
+      // Add to allLogs
+      setAllLogs(prevLogs => {
+        // Check if log already exists to prevent duplicates
+        const exists = prevLogs.some(log => log._id === newLog._id);
+        if (exists) return prevLogs;
+        
+        // Add new log at the beginning or end based on sort order
+        if (sortOrder === 'desc') {
+          return [newLog, ...prevLogs];
+        } else {
+          return [...prevLogs, newLog];
+        }
+      });
+
+      // Show notification
+      setNewLogNotification({
+        message: `New activity: ${getUserName(newLog)} - ${newLog.action || 'Unknown action'}`,
+        log: newLog
+      });
+
+      // Auto-hide notification after 5 seconds
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
+      notificationTimeoutRef.current = setTimeout(() => {
+        setNewLogNotification(null);
+      }, 5000);
+    };
+
+    // Register socket event listeners
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+    socket.on('connect_error', handleConnectError);
+    socket.on('new_log', handleNewLog); // Listen for new log events
+
+    // Connect if not already connected
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    // Cleanup
+    return () => {
+      socket.off('connect', handleConnect);
+      socket.off('disconnect', handleDisconnect);
+      socket.off('connect_error', handleConnectError);
+      socket.off('new_log', handleNewLog);
+      
+      if (notificationTimeoutRef.current) {
+        clearTimeout(notificationTimeoutRef.current);
+      }
+    };
+  }, [sortOrder]); // Re-run if sortOrder changes to handle new log positioning
+
+  // Initial fetch
+  useEffect(() => {
+    fetchLogs();
   }, []);
+
+  // Optional: Join admin room for logs (if your backend supports rooms)
+  useEffect(() => {
+    if (wsConnected) {
+      // Join a specific room for admin logs
+      socket.emit('join_admin_logs');
+      
+      return () => {
+        socket.emit('leave_admin_logs');
+      };
+    }
+  }, [wsConnected]);
 
   // Filter and sort logs
   const getFilteredAndSortedLogs = useCallback(() => {
@@ -236,7 +333,7 @@ function AdminLogs({ setView, onLogout }) {
     }
   };
 
-  // 📥 Export as Excel (CSV export removed)
+  // 📥 Export as Excel
   const exportExcel = () => {
     try {
       const filteredData = getFilteredAndSortedLogs();
@@ -352,6 +449,14 @@ function AdminLogs({ setView, onLogout }) {
     return count;
   };
 
+  // Dismiss notification
+  const dismissNotification = () => {
+    setNewLogNotification(null);
+    if (notificationTimeoutRef.current) {
+      clearTimeout(notificationTimeoutRef.current);
+    }
+  };
+
   // Loading skeleton
   const LogSkeleton = () => (
     <div className="animate-pulse">
@@ -379,14 +484,45 @@ function AdminLogs({ setView, onLogout }) {
       <main className="ml-[250px] h-screen flex flex-col bg-gray-50 overflow-hidden">
         {/* Header */}
         <header className="bg-white px-6 py-4 border-b border-gray-200 flex-shrink-0">
-          <h1 className="text-2xl font-bold text-[#CC0000]">Activity Logs</h1>
-          <p className="text-gray-600">Review user and system activities</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-[#CC0000]">Activity Logs</h1>
+              <p className="text-gray-600">Review user and system activities</p>
+            </div>
+            
+            {/* Connection Status */}
+            <div className="flex items-center gap-2">
+              <div className={`h-2 w-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+              <span className="text-xs text-gray-500">
+                {wsConnected ? 'Live' : 'Reconnecting...'}
+              </span>
+            </div>
+          </div>
+          
           {error && (
             <div className="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
               {error}
             </div>
           )}
         </header>
+
+        {/* New Log Notification */}
+        {newLogNotification && (
+          <div className="px-6 pt-2">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center justify-between shadow-sm animate-slideDown">
+              <div className="flex items-center gap-2">
+                <div className="h-2 w-2 bg-blue-500 rounded-full animate-pulse" />
+                <span className="text-sm text-blue-700">{newLogNotification.message}</span>
+              </div>
+              <button
+                onClick={dismissNotification}
+                className="text-blue-500 hover:text-blue-700"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Controls */}
         <div className="p-6 flex-shrink-0">
@@ -434,7 +570,7 @@ function AdminLogs({ setView, onLogout }) {
                 {sortOrder === "desc" ? "Newest" : "Oldest"}
               </button>
 
-              {/* Export Dropdown - Now only showing Excel export */}
+              {/* Export Dropdown */}
               <div className="relative" ref={exportMenuRef}>
                 <button
                   onClick={() => setShowExportMenu(!showExportMenu)}
@@ -451,7 +587,6 @@ function AdminLogs({ setView, onLogout }) {
 
                 {showExportMenu && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10">
-                    {/* CSV export option removed - only Excel remains */}
                     <button
                       onClick={exportExcel}
                       className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2"
@@ -549,7 +684,9 @@ function AdminLogs({ setView, onLogout }) {
                         <tr 
                           key={log._id || index} 
                           ref={index === displayedLogs.length - 1 ? lastLogElementRef : null}
-                          className="hover:bg-gray-50 group"
+                          className={`hover:bg-gray-50 group ${
+                            newLogNotification?.log?._id === log._id ? 'bg-blue-50 animate-pulse' : ''
+                          }`}
                         >
                           <td className="px-4 py-3">
                             <div className="font-medium text-gray-900">
