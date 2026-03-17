@@ -1,11 +1,25 @@
 import { useEffect, useRef, useState } from "react";
 import Logo from "../assets/logo.png";
 import {
-  BarChart3,
-  ChevronDown,
-  ChevronRight,
+  LogOut,
+  LayoutDashboard,
+  CalendarCheck,
+  DoorOpen,
+  Users,
   MessageSquare,
-  Bell
+  FileText,
+  Bell,
+  Newspaper,
+  ListOrdered,
+  User,
+  Shield,
+  Cog,
+  BarChart3,
+  TrendingUp,
+  PieChart,
+  Activity,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 
 function AdminNavigation({ admin, setView, currentView, onLogout }) {
