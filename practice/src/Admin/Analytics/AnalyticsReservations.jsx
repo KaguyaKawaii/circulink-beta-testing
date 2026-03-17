@@ -580,7 +580,7 @@ function AnalyticsReservations({ setView, admin }) {
   const totalReservations = reservationData.total || 0;
   const totalDays = Object.values(reservationData.byDayOfWeek || {}).reduce((a, b) => a + b, 0) || 1;
   const maxDayValue = Math.max(...Object.values(reservationData.byDayOfWeek || {}), 1);
-  const chartHeight = 200;
+  const chartHeight = 250;
 
   // ==================== RENDER ====================
 
