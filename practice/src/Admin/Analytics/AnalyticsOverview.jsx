@@ -10,7 +10,29 @@ import {
   BarChart,
   Calendar,
   X,
-  Target
+  Target,
+  TrendingUp,
+  Clock,
+  CheckCircle,
+  Award,
+  PieChart,
+  LayoutGrid,
+  Wifi,
+  Wind,
+  Video,
+  Monitor,
+  GraduationCap,
+  UserCog,
+  Briefcase,
+  Building,
+  ArrowUp,
+  ArrowDown,
+  Layers,
+  Eye,
+  MousePointer,
+  Smartphone,
+  Tablet,
+  Monitor as DesktopIcon
 } from "lucide-react";
 import api from "../../utils/api";
 import * as XLSX from 'xlsx';
@@ -523,15 +545,17 @@ function AnalyticsOverview({ setView, admin }) {
     return "";
   };
 
+  // ==================== SKELETON LOADING COMPONENTS ====================
+
   const StatCardSkeleton = () => (
-    <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
+    <div className="flex-1 min-w-[200px] bg-white p-5 rounded-xl border border-gray-200 animate-pulse">
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
+          <div className="h-4 bg-gray-200 rounded w-24 mb-3"></div>
           <div className="h-8 bg-gray-300 rounded w-16"></div>
         </div>
-        <div className="p-2">
-          <div className="w-5 h-5 bg-gray-300 rounded"></div>
+        <div className="p-3 bg-gray-200 rounded-xl">
+          <div className="w-5 h-5"></div>
         </div>
       </div>
     </div>
@@ -539,41 +563,43 @@ function AnalyticsOverview({ setView, admin }) {
 
   const ProgressBarSkeleton = () => (
     <div className="animate-pulse">
-      <div className="flex justify-between mb-1">
+      <div className="flex justify-between mb-2">
         <div className="h-4 bg-gray-200 rounded w-24"></div>
         <div className="h-4 bg-gray-200 rounded w-12"></div>
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-2">
-        <div className="bg-gray-300 rounded-full h-2 w-3/4"></div>
+      <div className="w-full bg-gray-200 rounded-full h-2.5">
+        <div className="bg-gray-300 rounded-full h-2.5 w-3/4"></div>
       </div>
     </div>
   );
 
-  const StatCard = ({ title, value, icon: Icon, color = "blue", subtext, isLoading = false }) => {
+  // ==================== COMPONENTS ====================
+
+  const StatCard = ({ title, value, icon: Icon, color = "blue", subtext, isLoading = false, trend }) => {
     const getColorClass = (colorName) => {
       const colorMap = {
-        blue: "text-blue-500",
-        green: "text-green-500",
-        purple: "text-purple-500",
-        yellow: "text-yellow-500",
-        orange: "text-orange-500",
-        red: "text-red-500",
-        indigo: "text-indigo-500"
+        blue: "text-blue-600",
+        green: "text-green-600",
+        purple: "text-purple-600",
+        yellow: "text-yellow-600",
+        orange: "text-orange-600",
+        red: "text-red-600",
+        indigo: "text-indigo-600"
       };
-      return colorMap[colorName] || "text-blue-500";
+      return colorMap[colorName] || "text-blue-600";
     };
 
     const getBgColorClass = (colorName) => {
       const colorMap = {
-        blue: "bg-blue-100",
-        green: "bg-green-100",
-        purple: "bg-purple-100",
-        yellow: "bg-yellow-100",
-        orange: "bg-orange-100",
-        red: "bg-red-100",
-        indigo: "bg-indigo-100"
+        blue: "bg-blue-50",
+        green: "bg-green-50",
+        purple: "bg-purple-50",
+        yellow: "bg-yellow-50",
+        orange: "bg-orange-50",
+        red: "bg-red-50",
+        indigo: "bg-indigo-50"
       };
-      return colorMap[colorName] || "bg-blue-100";
+      return colorMap[colorName] || "bg-blue-50";
     };
 
     if (isLoading) {
@@ -581,17 +607,30 @@ function AnalyticsOverview({ setView, admin }) {
     }
 
     return (
-      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
+      <div className="flex-1 min-w-[200px] bg-white p-5 rounded-xl border border-gray-200 hover:shadow-md transition-all duration-200">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-600 font-medium">{title}</p>
+            <p className="text-sm text-gray-500 font-medium mb-1">{title}</p>
             <p className="text-2xl font-bold text-gray-800">
               {typeof value === 'number' ? value.toLocaleString() : value}
             </p>
-            {subtext && <p className="text-xs text-gray-500 mt-1">{subtext}</p>}
+            {trend && trend.percentage > 0 && (
+              <div className="flex items-center gap-1 mt-2">
+                {trend.direction === 'up' ? (
+                  <ArrowUp size={16} className="text-green-500" />
+                ) : trend.direction === 'down' ? (
+                  <ArrowDown size={16} className="text-red-500" />
+                ) : null}
+                <span className={trend.direction === 'up' ? "text-green-500 text-sm font-medium" : "text-red-500 text-sm font-medium"}>
+                  {trend.percentage}%
+                </span>
+                <span className="text-gray-400 text-xs ml-1">vs previous</span>
+              </div>
+            )}
+            {subtext && <p className="text-xs text-gray-400 mt-2">{subtext}</p>}
           </div>
-          <div className={`p-2 ${getBgColorClass(color)} rounded-lg`}>
-            <Icon className={getColorClass(color)} size={20} />
+          <div className={`p-3 ${getBgColorClass(color)} rounded-xl`}>
+            <Icon className={getColorClass(color)} size={22} />
           </div>
         </div>
       </div>
@@ -599,7 +638,8 @@ function AnalyticsOverview({ setView, admin }) {
   };
 
   const ProgressBar = ({ label, value, total, color = "blue", showValue = true, isLoading = false }) => {
-    const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
+    const rawPercentage = total > 0 ? (value / total) * 100 : 0;
+    const percentage = Math.min(Math.round(rawPercentage), 100);
     
     const getBgColorClass = (colorName) => {
       const colorMap = {
@@ -619,14 +659,21 @@ function AnalyticsOverview({ setView, admin }) {
     }
 
     return (
-      <div className="w-full">
-        <div className="flex justify-between text-sm mb-1">
-          <span className="text-gray-600 truncate pr-2" title={label}>{label}</span>
-          {showValue && <span className="text-gray-800 font-medium whitespace-nowrap">{value.toLocaleString()}</span>}
+      <div className="mb-4">
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-sm font-medium text-gray-700 truncate max-w-[60%]" title={label}>
+            {label}
+          </span>
+          <div className="flex items-center gap-3">
+            {showValue && <span className="text-sm font-semibold text-gray-900">{value.toLocaleString()}</span>}
+            <span className="text-xs px-2.5 py-1 bg-gray-100 rounded-full text-gray-600 font-medium">
+              {percentage}%
+            </span>
+          </div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
           <div 
-            className={`${getBgColorClass(color)} rounded-full h-2 transition-all duration-300`}
+            className={`${getBgColorClass(color)} rounded-full h-2.5 transition-all duration-500`}
             style={{ width: `${percentage}%` }}
           />
         </div>
@@ -634,19 +681,113 @@ function AnalyticsOverview({ setView, admin }) {
     );
   };
 
-  const SectionHeader = ({ title, icon: Icon, color = "red" }) => (
-    <div className="flex items-center gap-2 mb-4">
-      <div className={`p-2 bg-${color}-100 rounded-lg`}>
-        <Icon size={20} className={`text-${color}-600`} />
+  const MetricCard = ({ label, value, icon: Icon, bgColor = "bg-blue-50", iconColor = "text-blue-600" }) => (
+    <div className="bg-white p-4 rounded-xl border border-gray-100 hover:shadow-sm transition-all">
+      <div className="flex items-center gap-3">
+        <div className={`p-2.5 ${bgColor} rounded-lg`}>
+          <Icon size={20} className={iconColor} />
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 mb-1">{label}</p>
+          <p className="text-lg font-bold text-gray-800">{value.toLocaleString()}</p>
+        </div>
       </div>
-      <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
     </div>
   );
+
+  const SectionHeader = ({ title, icon: Icon, color = "red" }) => {
+    const getBgColorClass = (colorName) => {
+      const colorMap = {
+        blue: "bg-blue-50",
+        green: "bg-green-50",
+        purple: "bg-purple-50",
+        orange: "bg-orange-50",
+        red: "bg-red-50",
+        indigo: "bg-indigo-50",
+        yellow: "bg-yellow-50"
+      };
+      return colorMap[colorName] || "bg-red-50";
+    };
+
+    const getTextColorClass = (colorName) => {
+      const colorMap = {
+        blue: "text-blue-600",
+        green: "text-green-600",
+        purple: "text-purple-600",
+        orange: "text-orange-600",
+        red: "text-red-600",
+        indigo: "text-indigo-600",
+        yellow: "text-yellow-600"
+      };
+      return colorMap[colorName] || "text-red-600";
+    };
+
+    return (
+      <div className="flex items-center gap-2 mb-5">
+        <div className={`p-2 ${getBgColorClass(color)} rounded-lg`}>
+          <Icon size={20} className={getTextColorClass(color)} />
+        </div>
+        <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
+      </div>
+    );
+  };
+
+  const InsightCard = ({ title, value, icon: Icon, color = "blue", trend }) => {
+    const getColorClasses = (color) => {
+      const map = {
+        blue: { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-100" },
+        green: { bg: "bg-green-50", text: "text-green-600", border: "border-green-100" },
+        purple: { bg: "bg-purple-50", text: "text-purple-600", border: "border-purple-100" },
+        orange: { bg: "bg-orange-50", text: "text-orange-600", border: "border-orange-100" },
+        red: { bg: "bg-red-50", text: "text-red-600", border: "border-red-100" },
+        yellow: { bg: "bg-yellow-50", text: "text-yellow-600", border: "border-yellow-100" }
+      };
+      return map[color] || map.blue;
+    };
+
+    const colors = getColorClasses(color);
+
+    return (
+      <div className={`bg-white p-4 rounded-xl border ${colors.border} hover:shadow-sm transition-all`}>
+        <div className="flex items-start justify-between mb-2">
+          <div className={`p-2 ${colors.bg} rounded-lg`}>
+            <Icon size={18} className={colors.text} />
+          </div>
+          {trend && (
+            <span className={`text-xs font-medium px-2 py-1 rounded-full ${trend > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {trend > 0 ? '+' : ''}{trend}%
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 mb-1">{title}</p>
+        <p className="text-xl font-bold text-gray-800">{value}</p>
+      </div>
+    );
+  };
+
+  const RoleBadge = ({ role }) => {
+    const roleConfig = {
+      student: { bg: "bg-green-100", text: "text-green-700", icon: GraduationCap, label: "Student" },
+      faculty: { bg: "bg-purple-100", text: "text-purple-700", icon: UserCog, label: "Faculty" },
+      staff: { bg: "bg-yellow-100", text: "text-yellow-700", icon: Briefcase, label: "Staff" },
+      admin: { bg: "bg-red-100", text: "text-red-700", icon: Award, label: "Admin" }
+    };
+
+    const config = roleConfig[role] || roleConfig.student;
+    const Icon = config.icon;
+
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
+        <Icon size={12} />
+        <span>{config.label}</span>
+      </span>
+    );
+  };
 
   if (loading) {
     return (
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
-        <header className="bg-white px-6 py-4 border-b border-gray-200">
+        <header className="bg-white px-6 py-4 border-b border-gray-200 sticky top-0 z-10">
           <div className="flex justify-between items-center">
             <div>
               <div className="h-8 bg-gray-200 rounded w-64 mb-2 animate-pulse"></div>
@@ -667,13 +808,27 @@ function AnalyticsOverview({ setView, admin }) {
 
         <div className="p-6">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-            <div className="h-6 bg-gray-200 rounded w-48 mb-4 animate-pulse"></div>
-            <div className="flex flex-wrap gap-4">
+            <div className="h-6 bg-gray-200 rounded w-48 mb-5 animate-pulse"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <StatCardSkeleton />
               <StatCardSkeleton />
               <StatCardSkeleton />
               <StatCardSkeleton />
             </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                <div className="h-6 bg-gray-200 rounded w-40 mb-5 animate-pulse"></div>
+                <div className="space-y-5">
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                  <ProgressBarSkeleton />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </main>
@@ -682,13 +837,13 @@ function AnalyticsOverview({ setView, admin }) {
 
   return (
     <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
-      <header className="bg-white px-6 py-4 border-b border-gray-200">
+      <header className="bg-white px-6 py-4 border-b border-gray-200 sticky top-0 z-10">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-[#CC0000]">
               Analytics Overview
             </h1>
-            <p className="text-gray-600">
+            <p className="text-gray-500 text-sm mt-1">
               {dateRange === 'week' ? 'Last 7 days' : 
                dateRange === 'month' ? 'Last 30 days' : 
                dateRange === 'year' ? 'Last 12 months' : 
@@ -696,7 +851,7 @@ function AnalyticsOverview({ setView, admin }) {
                'Comprehensive insights across all metrics'}
             </p>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
             <div className="flex bg-gray-100 rounded-lg p-1 relative">
               {["week", "month", "year"].map((range) => (
                 <button
@@ -705,9 +860,9 @@ function AnalyticsOverview({ setView, admin }) {
                     setDateRange(range);
                     setShowCustomDate(false);
                   }}
-                  className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer ${
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all cursor-pointer ${
                     dateRange === range && !showCustomDate
-                      ? "bg-[#CC0000] text-white"
+                      ? "bg-[#CC0000] text-white shadow-sm"
                       : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
                   }`}
                 >
@@ -719,9 +874,9 @@ function AnalyticsOverview({ setView, admin }) {
               
               <button
                 onClick={() => setShowCustomDate(!showCustomDate)}
-                className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all cursor-pointer flex items-center gap-1 ${
                   showCustomDate || dateRange === 'custom'
-                    ? "bg-[#CC0000] text-white"
+                    ? "bg-[#CC0000] text-white shadow-sm"
                     : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
                 }`}
               >
@@ -732,48 +887,48 @@ function AnalyticsOverview({ setView, admin }) {
               {showCustomDate && (
                 <div 
                   ref={calendarRef}
-                  className="absolute top-12 right-0 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-50 w-72"
+                  className="absolute top-12 right-0 bg-white p-5 rounded-xl shadow-lg border border-gray-200 z-50 w-80"
                 >
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-sm font-semibold text-gray-700">Select Date Range</h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-sm font-semibold text-gray-800">Select Date Range</h3>
                     <button
                       onClick={() => setShowCustomDate(false)}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-lg transition-colors"
                     >
                       <X size={16} />
                     </button>
                   </div>
-                  <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-4">
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Start Date</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Start Date</label>
                       <input
                         type="date"
                         value={customStartDate}
                         onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                        className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
                         max={customEndDate || undefined}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">End Date</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">End Date</label>
                       <input
                         type="date"
                         value={customEndDate}
                         onChange={(e) => setCustomEndDate(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                        className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
                         min={customStartDate || undefined}
                       />
                     </div>
                     <div className="flex gap-2 mt-2">
                       <button
                         onClick={handleCustomDateApply}
-                        className="flex-1 bg-[#CC0000] text-white text-sm py-2 rounded-lg hover:bg-[#990000] transition-colors"
+                        className="flex-1 bg-[#CC0000] text-white text-sm font-medium py-2.5 rounded-lg hover:bg-[#990000] transition-colors"
                       >
                         Apply
                       </button>
                       <button
                         onClick={handleCustomDateClear}
-                        className="flex-1 bg-gray-200 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                        className="flex-1 bg-gray-100 text-gray-700 text-sm font-medium py-2.5 rounded-lg hover:bg-gray-200 transition-colors"
                       >
                         Clear
                       </button>
@@ -785,16 +940,16 @@ function AnalyticsOverview({ setView, admin }) {
             
             <button
               onClick={() => setShowDownloadModal(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer shadow-sm hover:shadow"
               title="Download Report"
             >
               <Download size={18} />
-              <span>Excel</span>
+              <span className="text-sm font-medium">Excel</span>
             </button>
 
             <button 
               onClick={fetchAllAnalytics}
-              className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
+              className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer transition-all hover:shadow-sm"
               title="Refresh Data"
             >
               <RefreshCw size={18} />
@@ -810,59 +965,59 @@ function AnalyticsOverview({ setView, admin }) {
               <h3 className="text-lg font-semibold text-gray-800">Download Excel Report</h3>
               <button
                 onClick={() => setShowDownloadModal(false)}
-                className="text-gray-400 hover:text-gray-600"
+                className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-lg transition-colors"
               >
                 <X size={20} />
               </button>
             </div>
 
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 mb-3">
                 Select Sections to Include
               </label>
-              <div className="space-y-2">
-                <label className="flex items-center gap-2">
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
                   <input
                     type="checkbox"
                     checked={selectedSections.overview}
                     onChange={(e) => setSelectedSections({...selectedSections, overview: e.target.checked})}
-                    className="rounded text-red-600 focus:ring-red-500"
+                    className="w-4 h-4 rounded text-red-600 focus:ring-red-500"
                   />
                   <span className="text-gray-700">Overview Metrics</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
                   <input
                     type="checkbox"
                     checked={selectedSections.users}
                     onChange={(e) => setSelectedSections({...selectedSections, users: e.target.checked})}
-                    className="rounded text-red-600 focus:ring-red-500"
+                    className="w-4 h-4 rounded text-red-600 focus:ring-red-500"
                   />
                   <span className="text-gray-700">User Analytics</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
                   <input
                     type="checkbox"
                     checked={selectedSections.reservations}
                     onChange={(e) => setSelectedSections({...selectedSections, reservations: e.target.checked})}
-                    className="rounded text-red-600 focus:ring-red-500"
+                    className="w-4 h-4 rounded text-red-600 focus:ring-red-500"
                   />
                   <span className="text-gray-700">Reservation Analytics</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
                   <input
                     type="checkbox"
                     checked={selectedSections.rooms}
                     onChange={(e) => setSelectedSections({...selectedSections, rooms: e.target.checked})}
-                    className="rounded text-red-600 focus:ring-red-500"
+                    className="w-4 h-4 rounded text-red-600 focus:ring-red-500"
                   />
                   <span className="text-gray-700">Room Analytics</span>
                 </label>
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors">
                   <input
                     type="checkbox"
                     checked={selectedSections.engagement}
                     onChange={(e) => setSelectedSections({...selectedSections, engagement: e.target.checked})}
-                    className="rounded text-red-600 focus:ring-red-500"
+                    className="w-4 h-4 rounded text-red-600 focus:ring-red-500"
                   />
                   <span className="text-gray-700">Engagement Metrics</span>
                 </label>
@@ -872,13 +1027,13 @@ function AnalyticsOverview({ setView, admin }) {
             <div className="flex gap-3">
               <button
                 onClick={handleDownload}
-                className="flex-1 bg-[#CC0000] text-white py-2 rounded-lg hover:bg-[#990000] transition-colors"
+                className="flex-1 bg-[#CC0000] text-white text-sm font-medium py-2.5 rounded-lg hover:bg-[#990000] transition-colors"
               >
                 Download Excel
               </button>
               <button
                 onClick={() => setShowDownloadModal(false)}
-                className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                className="flex-1 bg-gray-100 text-gray-700 text-sm font-medium py-2.5 rounded-lg hover:bg-gray-200 transition-colors"
               >
                 Cancel
               </button>
@@ -888,68 +1043,93 @@ function AnalyticsOverview({ setView, admin }) {
       )}
 
       <div className="p-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-6">
-          <SectionHeader title="Overview Metrics" icon={BarChart} color="blue" />
-          <div className="flex flex-wrap gap-4">
-            <StatCard 
-              title="Total Users" 
-              value={analyticsData.totalUsers || 0} 
-              icon={Users} 
-              color="blue" 
-              subtext={`${analyticsData.users?.active || 0} active (7d)`}
-            />
-            <StatCard 
-              title="Total Reservations" 
-              value={analyticsData.totalReservations || 0} 
-              icon={CalendarCheck} 
-              color="green" 
-              subtext={`${analyticsData.completedReservations || 0} completed`}
-            />
-            <StatCard 
-              title="Total Rooms" 
-              value={analyticsData.totalRooms || 0} 
-              icon={DoorOpen} 
-              color="purple" 
-              subtext={`${analyticsData.rooms?.available || 0} available`}
-            />
-            <StatCard 
-              title="Active Today" 
-              value={analyticsData.activeToday || 0} 
-              icon={Activity} 
-              color="orange" 
-            />
+        {/* Overview Metrics Section */}
+        <div className="mb-6">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center justify-between mb-5">
+              <SectionHeader title="Overview Metrics" icon={BarChart} color="blue" />
+              <span className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-full font-medium">Live</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatCard 
+                title="Total Users" 
+                value={analyticsData.totalUsers || 0} 
+                icon={Users} 
+                color="blue" 
+                subtext={`${analyticsData.users?.active || 0} active (7d)`}
+                trend={analyticsData.users?.trends?.monthly}
+              />
+              <StatCard 
+                title="Total Reservations" 
+                value={analyticsData.totalReservations || 0} 
+                icon={CalendarCheck} 
+                color="green" 
+                subtext={`${analyticsData.completedReservations || 0} completed`}
+                trend={analyticsData.reservations?.trends?.total}
+              />
+              <StatCard 
+                title="Total Rooms" 
+                value={analyticsData.totalRooms || 0} 
+                icon={DoorOpen} 
+                color="purple" 
+                subtext={`${analyticsData.rooms?.available || 0} available`}
+                trend={analyticsData.rooms?.trends?.total}
+              />
+              <StatCard 
+                title="Active Today" 
+                value={analyticsData.activeToday || 0} 
+                icon={Activity} 
+                color="orange" 
+                trend={analyticsData.engagement?.trends?.daily}
+              />
+            </div>
           </div>
         </div>
 
+        {/* User Analytics Section */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <SectionHeader title="User Analytics" icon={Users} color="blue" />
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Key Metrics</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Total Users</span>
-                  <span className="text-blue-600 font-semibold">{(analyticsData.users?.total || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Active (7d)</span>
-                  <span className="text-green-600 font-semibold">{(analyticsData.users?.active || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">New Users</span>
-                  <span className="text-purple-600 font-semibold">{(analyticsData.users?.new || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Retention Rate</span>
-                  <span className="text-orange-600 font-semibold">{analyticsData.users?.activityStats?.retentionRate || 0}%</span>
-                </div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Key Metrics */}
+            <div className="lg:col-span-1">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Key Metrics</h3>
+              <div className="space-y-3">
+                <MetricCard 
+                  label="Total Users"
+                  value={analyticsData.users?.total || 0}
+                  icon={Users}
+                  bgColor="bg-blue-50"
+                  iconColor="text-blue-600"
+                />
+                <MetricCard 
+                  label="Active (7d)"
+                  value={analyticsData.users?.active || 0}
+                  icon={Activity}
+                  bgColor="bg-green-50"
+                  iconColor="text-green-600"
+                />
+                <MetricCard 
+                  label="New Users"
+                  value={analyticsData.users?.new || 0}
+                  icon={TrendingUp}
+                  bgColor="bg-purple-50"
+                  iconColor="text-purple-600"
+                />
+                <MetricCard 
+                  label="Retention Rate"
+                  value={`${analyticsData.users?.activityStats?.retentionRate || 0}%`}
+                  icon={Award}
+                  bgColor="bg-orange-50"
+                  iconColor="text-orange-600"
+                />
               </div>
             </div>
 
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Role Distribution</h3>
-              <div className="space-y-3">
+            {/* Role Distribution */}
+            <div className="lg:col-span-1">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Role Distribution</h3>
+              <div className="space-y-4">
                 <ProgressBar 
                   label="Students" 
                   value={analyticsData.users?.byRole?.student || 0} 
@@ -971,9 +1151,29 @@ function AnalyticsOverview({ setView, admin }) {
               </div>
             </div>
 
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Top Departments</h3>
+            {/* Status Distribution */}
+            <div className="lg:col-span-1">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Status Distribution</h3>
               <div className="space-y-3">
+                <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
+                  <span className="text-sm text-gray-600">Verified</span>
+                  <span className="text-green-600 font-semibold">{(analyticsData.users?.byStatus?.verified || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
+                  <span className="text-sm text-gray-600">Unverified</span>
+                  <span className="text-orange-600 font-semibold">{(analyticsData.users?.byStatus?.unverified || 0).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center p-2 bg-gray-50 rounded-lg">
+                  <span className="text-sm text-gray-600">Suspended</span>
+                  <span className="text-red-600 font-semibold">{(analyticsData.users?.byStatus?.suspended || 0).toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Top Departments */}
+            <div className="lg:col-span-1">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Top Departments</h3>
+              <div className="space-y-4">
                 {(analyticsData.users?.byDepartment || []).slice(0, 3).map((dept, idx) => (
                   <ProgressBar 
                     key={idx}
@@ -988,35 +1188,50 @@ function AnalyticsOverview({ setView, admin }) {
           </div>
         </div>
 
+        {/* Reservation Analytics Section */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <SectionHeader title="Reservation Analytics" icon={CalendarCheck} color="green" />
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Key Metrics</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Total Reservations</span>
-                  <span className="text-blue-600 font-semibold">{(analyticsData.reservations?.total || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Completed</span>
-                  <span className="text-green-600 font-semibold">{(analyticsData.reservations?.completed || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Pending</span>
-                  <span className="text-yellow-600 font-semibold">{(analyticsData.reservations?.pending || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Avg Group Size</span>
-                  <span className="text-orange-600 font-semibold">{analyticsData.reservations?.avgGroupSize || 0}</span>
-                </div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Key Metrics */}
+            <div className="lg:col-span-1">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Key Metrics</h3>
+              <div className="space-y-3">
+                <MetricCard 
+                  label="Total Reservations"
+                  value={analyticsData.reservations?.total || 0}
+                  icon={CalendarCheck}
+                  bgColor="bg-blue-50"
+                  iconColor="text-blue-600"
+                />
+                <MetricCard 
+                  label="Completed"
+                  value={analyticsData.reservations?.completed || 0}
+                  icon={CheckCircle}
+                  bgColor="bg-green-50"
+                  iconColor="text-green-600"
+                />
+                <MetricCard 
+                  label="Pending"
+                  value={analyticsData.reservations?.pending || 0}
+                  icon={Clock}
+                  bgColor="bg-yellow-50"
+                  iconColor="text-yellow-600"
+                />
+                <MetricCard 
+                  label="Avg Group Size"
+                  value={analyticsData.reservations?.avgGroupSize || 0}
+                  icon={Users}
+                  bgColor="bg-purple-50"
+                  iconColor="text-purple-600"
+                />
               </div>
             </div>
 
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Peak Days</h3>
-              <div className="space-y-3">
+            {/* Peak Days */}
+            <div className="lg:col-span-1">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Peak Days</h3>
+              <div className="space-y-4">
                 {Object.entries(analyticsData.reservations?.byDayOfWeek || {}).map(([day, count], idx) => {
                   const dayNames = { mon: 'Monday', tue: 'Tuesday', wed: 'Wednesday', 
                                    thu: 'Thursday', fri: 'Friday', sat: 'Saturday', sun: 'Sunday' };
@@ -1033,25 +1248,27 @@ function AnalyticsOverview({ setView, admin }) {
               </div>
             </div>
 
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Most Popular Rooms</h3>
-              <div className="space-y-3">
-                {(analyticsData.reservations?.popularRooms || []).slice(0, 3).map((room, idx) => (
-                  <div key={idx} className="w-full">
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="text-gray-600 truncate pr-2 max-w-[70%]" title={room.name}>
+            {/* Popular Rooms */}
+            <div className="lg:col-span-2">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Most Popular Rooms</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(analyticsData.reservations?.popularRooms || []).slice(0, 4).map((room, idx) => (
+                  <div key={idx} className="bg-gray-50 p-3 rounded-lg">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-gray-800 truncate max-w-[70%]" title={room.name}>
                         {room.name}
                       </span>
-                      <span className="text-gray-800 font-medium whitespace-nowrap">
-                        {room.bookings.toLocaleString()}
-                      </span>
+                      <span className="text-sm font-bold text-gray-900">{room.bookings.toLocaleString()}</span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                       <div 
-                        className={`${idx === 0 ? "bg-blue-500" : idx === 1 ? "bg-green-500" : "bg-purple-500"} rounded-full h-2 transition-all duration-300`}
+                        className={`${idx === 0 ? "bg-blue-500" : idx === 1 ? "bg-green-500" : idx === 2 ? "bg-purple-500" : "bg-orange-500"} rounded-full h-2 transition-all duration-300`}
                         style={{ width: `${Math.min(100, Math.round((room.bookings / (analyticsData.reservations?.total || 1)) * 100))}%` }}
                       />
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {Math.round((room.bookings / (analyticsData.reservations?.total || 1)) * 100)}% of total
+                    </p>
                   </div>
                 ))}
               </div>
@@ -1059,35 +1276,50 @@ function AnalyticsOverview({ setView, admin }) {
           </div>
         </div>
 
+        {/* Room Analytics Section */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <SectionHeader title="Room Analytics" icon={DoorOpen} color="purple" />
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Key Metrics</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Total Rooms</span>
-                  <span className="text-blue-600 font-semibold">{analyticsData.rooms?.total || 0}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Available</span>
-                  <span className="text-green-600 font-semibold">{analyticsData.rooms?.available || 0}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Occupied</span>
-                  <span className="text-orange-600 font-semibold">{analyticsData.rooms?.occupied || 0}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Utilization</span>
-                  <span className="text-purple-600 font-semibold">{analyticsData.rooms?.utilization || 0}%</span>
-                </div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Key Metrics */}
+            <div className="lg:col-span-1">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Key Metrics</h3>
+              <div className="space-y-3">
+                <MetricCard 
+                  label="Total Rooms"
+                  value={analyticsData.rooms?.total || 0}
+                  icon={DoorOpen}
+                  bgColor="bg-blue-50"
+                  iconColor="text-blue-600"
+                />
+                <MetricCard 
+                  label="Available"
+                  value={analyticsData.rooms?.available || 0}
+                  icon={CheckCircle}
+                  bgColor="bg-green-50"
+                  iconColor="text-green-600"
+                />
+                <MetricCard 
+                  label="Occupied"
+                  value={analyticsData.rooms?.occupied || 0}
+                  icon={Activity}
+                  bgColor="bg-orange-50"
+                  iconColor="text-orange-600"
+                />
+                <MetricCard 
+                  label="Utilization"
+                  value={`${analyticsData.rooms?.utilization || 0}%`}
+                  icon={TrendingUp}
+                  bgColor="bg-purple-50"
+                  iconColor="text-purple-600"
+                />
               </div>
             </div>
 
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Rooms by Floor</h3>
-              <div className="space-y-3">
+            {/* Rooms by Floor */}
+            <div className="lg:col-span-1">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Rooms by Floor</h3>
+              <div className="space-y-4">
                 {Object.entries(analyticsData.rooms?.byFloor || {}).map(([floor, count], idx) => (
                   <ProgressBar 
                     key={floor}
@@ -1100,67 +1332,131 @@ function AnalyticsOverview({ setView, admin }) {
               </div>
             </div>
 
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Room Features</h3>
-              <div className="space-y-3">
-                <ProgressBar 
-                  label="WiFi" 
-                  value={analyticsData.rooms?.featureStats?.wifi || 0} 
-                  total={analyticsData.rooms?.total || 1} 
-                  color="blue"
-                />
-                <ProgressBar 
-                  label="Air Conditioning" 
-                  value={analyticsData.rooms?.featureStats?.aircon || 0} 
-                  total={analyticsData.rooms?.total || 1} 
-                  color="green"
-                />
-                <ProgressBar 
-                  label="Projector" 
-                  value={analyticsData.rooms?.featureStats?.projector || 0} 
-                  total={analyticsData.rooms?.total || 1} 
-                  color="purple"
-                />
-                <ProgressBar 
-                  label="Monitor" 
-                  value={analyticsData.rooms?.featureStats?.monitor || 0} 
-                  total={analyticsData.rooms?.total || 1} 
-                  color="orange"
-                />
+            {/* Room Features */}
+            <div className="lg:col-span-2">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Room Features</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Wifi size={16} className="text-blue-500" />
+                    <span className="text-sm font-medium text-gray-700">WiFi</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">{analyticsData.rooms?.featureStats?.wifi || 0} rooms</span>
+                    <span className="text-sm font-bold text-gray-900">
+                      {Math.round(((analyticsData.rooms?.featureStats?.wifi || 0) / (analyticsData.rooms?.total || 1)) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div 
+                      className="bg-blue-500 rounded-full h-1.5"
+                      style={{ width: `${Math.min(100, Math.round(((analyticsData.rooms?.featureStats?.wifi || 0) / (analyticsData.rooms?.total || 1)) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Wind size={16} className="text-green-500" />
+                    <span className="text-sm font-medium text-gray-700">Aircon</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">{analyticsData.rooms?.featureStats?.aircon || 0} rooms</span>
+                    <span className="text-sm font-bold text-gray-900">
+                      {Math.round(((analyticsData.rooms?.featureStats?.aircon || 0) / (analyticsData.rooms?.total || 1)) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div 
+                      className="bg-green-500 rounded-full h-1.5"
+                      style={{ width: `${Math.min(100, Math.round(((analyticsData.rooms?.featureStats?.aircon || 0) / (analyticsData.rooms?.total || 1)) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Video size={16} className="text-purple-500" />
+                    <span className="text-sm font-medium text-gray-700">Projector</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">{analyticsData.rooms?.featureStats?.projector || 0} rooms</span>
+                    <span className="text-sm font-bold text-gray-900">
+                      {Math.round(((analyticsData.rooms?.featureStats?.projector || 0) / (analyticsData.rooms?.total || 1)) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div 
+                      className="bg-purple-500 rounded-full h-1.5"
+                      style={{ width: `${Math.min(100, Math.round(((analyticsData.rooms?.featureStats?.projector || 0) / (analyticsData.rooms?.total || 1)) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Monitor size={16} className="text-orange-500" />
+                    <span className="text-sm font-medium text-gray-700">Monitor</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">{analyticsData.rooms?.featureStats?.monitor || 0} rooms</span>
+                    <span className="text-sm font-bold text-gray-900">
+                      {Math.round(((analyticsData.rooms?.featureStats?.monitor || 0) / (analyticsData.rooms?.total || 1)) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div 
+                      className="bg-orange-500 rounded-full h-1.5"
+                      style={{ width: `${Math.min(100, Math.round(((analyticsData.rooms?.featureStats?.monitor || 0) / (analyticsData.rooms?.total || 1)) * 100))}%` }}
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
+        {/* Engagement Metrics Section */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
           <SectionHeader title="Engagement Metrics" icon={Activity} color="orange" />
           
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Key Metrics</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Daily Active</span>
-                  <span className="text-blue-600 font-semibold">{(analyticsData.engagement?.dailyActive || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Weekly Active</span>
-                  <span className="text-green-600 font-semibold">{(analyticsData.engagement?.weeklyActive || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Monthly Active</span>
-                  <span className="text-purple-600 font-semibold">{(analyticsData.engagement?.monthlyActive || 0).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                  <span className="text-gray-600">Avg Session</span>
-                  <span className="text-orange-600 font-semibold">{analyticsData.engagement?.averageSession || 0}m</span>
-                </div>
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* Key Metrics */}
+            <div className="lg:col-span-1">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Key Metrics</h3>
+              <div className="space-y-3">
+                <MetricCard 
+                  label="Daily Active"
+                  value={analyticsData.engagement?.dailyActive || 0}
+                  icon={Activity}
+                  bgColor="bg-blue-50"
+                  iconColor="text-blue-600"
+                />
+                <MetricCard 
+                  label="Weekly Active"
+                  value={analyticsData.engagement?.weeklyActive || 0}
+                  icon={Users}
+                  bgColor="bg-green-50"
+                  iconColor="text-green-600"
+                />
+                <MetricCard 
+                  label="Monthly Active"
+                  value={analyticsData.engagement?.monthlyActive || 0}
+                  icon={Calendar}
+                  bgColor="bg-purple-50"
+                  iconColor="text-purple-600"
+                />
+                <MetricCard 
+                  label="Avg Session"
+                  value={`${analyticsData.engagement?.averageSession || 0}m`}
+                  icon={Clock}
+                  bgColor="bg-orange-50"
+                  iconColor="text-orange-600"
+                />
               </div>
             </div>
 
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Activity Levels</h3>
-              <div className="space-y-3">
+            {/* Activity Levels */}
+            <div className="lg:col-span-1">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Activity Levels</h3>
+              <div className="space-y-4">
                 <ProgressBar 
                   label="High Activity" 
                   value={analyticsData.engagement?.userActivity?.high || 0} 
@@ -1200,34 +1496,67 @@ function AnalyticsOverview({ setView, admin }) {
               </div>
             </div>
 
-            <div>
-              <h3 className="text-sm font-medium text-gray-600 mb-3">Device Usage</h3>
-              <div className="space-y-3">
-                {(analyticsData.engagement?.deviceBreakdown || []).map((device, idx) => (
-                  <ProgressBar 
-                    key={idx}
-                    label={device.name} 
-                    value={device.value} 
-                    total={100} 
-                    color={device.color}
-                  />
-                ))}
+            {/* Device Usage */}
+            <div className="lg:col-span-2">
+              <h3 className="text-sm font-medium text-gray-500 mb-3">Device Usage</h3>
+              <div className="grid grid-cols-3 gap-4">
+                {(analyticsData.engagement?.deviceBreakdown || []).map((device, idx) => {
+                  const getIcon = (name) => {
+                    if (name === 'Desktop') return DesktopIcon;
+                    if (name === 'Mobile') return Smartphone;
+                    return Tablet;
+                  };
+                  const Icon = getIcon(device.name);
+                  
+                  return (
+                    <div key={idx} className="bg-gray-50 p-4 rounded-lg text-center">
+                      <div className="flex justify-center mb-2">
+                        <div className={`p-2 ${device.color === 'blue' ? 'bg-blue-100' : device.color === 'green' ? 'bg-green-100' : 'bg-purple-100'} rounded-lg`}>
+                          <Icon size={20} className={device.color === 'blue' ? 'text-blue-600' : device.color === 'green' ? 'text-green-600' : 'text-purple-600'} />
+                        </div>
+                      </div>
+                      <p className="text-sm font-medium text-gray-800 mb-1">{device.name}</p>
+                      <p className="text-lg font-bold text-gray-900">{device.value}%</p>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                        <div 
+                          className={`${device.color === 'blue' ? 'bg-blue-500' : device.color === 'green' ? 'bg-green-500' : 'bg-purple-500'} rounded-full h-1.5`}
+                          style={{ width: `${device.value}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
 
+        {/* Most Used Features */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <SectionHeader title="Most Used Features" icon={Target} color="red" />
           
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             {(analyticsData.engagement?.topFeatures || []).slice(0, 5).map((feature, idx) => (
-              <div key={idx} className="bg-gray-50 p-4 rounded-lg text-center">
-                <p className="text-sm text-gray-600 mb-1">{feature.name}</p>
+              <div key={idx} className="bg-gradient-to-br from-gray-50 to-gray-100 p-5 rounded-xl text-center border border-gray-200 hover:shadow-md transition-all">
+                <div className={`w-10 h-10 mx-auto mb-3 rounded-lg flex items-center justify-center ${
+                  idx === 0 ? 'bg-blue-100' : idx === 1 ? 'bg-green-100' : idx === 2 ? 'bg-purple-100' : idx === 3 ? 'bg-orange-100' : 'bg-yellow-100'
+                }`}>
+                  <Target size={20} className={
+                    idx === 0 ? 'text-blue-600' : idx === 1 ? 'text-green-600' : idx === 2 ? 'text-purple-600' : idx === 3 ? 'text-orange-600' : 'text-yellow-600'
+                  } />
+                </div>
+                <p className="text-sm font-medium text-gray-700 mb-1">{feature.name}</p>
                 <p className="text-xl font-bold text-gray-800">{feature.count.toLocaleString()}</p>
-                <p className={`text-xs ${feature.trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {feature.trend > 0 ? '+' : ''}{feature.trend}%
-                </p>
+                <div className="flex items-center justify-center gap-1 mt-2">
+                  {feature.trend > 0 ? (
+                    <ArrowUp size={14} className="text-green-500" />
+                  ) : feature.trend < 0 ? (
+                    <ArrowDown size={14} className="text-red-500" />
+                  ) : null}
+                  <span className={`text-xs font-medium ${feature.trend > 0 ? 'text-green-600' : feature.trend < 0 ? 'text-red-600' : 'text-gray-500'}`}>
+                    {feature.trend > 0 ? '+' : ''}{feature.trend}%
+                  </span>
+                </div>
               </div>
             ))}
           </div>
