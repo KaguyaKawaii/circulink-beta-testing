@@ -77,6 +77,28 @@ function AdminLogs({ setView, onLogout }) {
     }
   };
 
+  // Check admin token and connect socket on mount
+  useEffect(() => {
+    const admin = localStorage.getItem('admin');
+    if (admin) {
+      try {
+        const adminData = JSON.parse(admin);
+        console.log('Admin found, connecting socket...', adminData);
+        
+        // Update socket token and connect
+        socket.updateToken();
+        
+        if (!socket.connected) {
+          socket.connect();
+        }
+      } catch (e) {
+        console.error('Error parsing admin data:', e);
+      }
+    } else {
+      console.log('No admin found, skipping socket connection');
+    }
+  }, []);
+
   // WebSocket setup
   useEffect(() => {
     // Socket connection event handlers
@@ -139,11 +161,6 @@ function AdminLogs({ setView, onLogout }) {
     socket.on('connect_error', handleConnectError);
     socket.on('new_log', handleNewLog); // Listen for new log events
 
-    // Connect if not already connected
-    if (!socket.connected) {
-      socket.connect();
-    }
-
     // Cleanup
     return () => {
       socket.off('connect', handleConnect);
@@ -162,7 +179,7 @@ function AdminLogs({ setView, onLogout }) {
     fetchLogs();
   }, []);
 
-  // Optional: Join admin room for logs (if your backend supports rooms)
+  // Join admin room for logs (if your backend supports rooms)
   useEffect(() => {
     if (wsConnected) {
       // Join a specific room for admin logs
