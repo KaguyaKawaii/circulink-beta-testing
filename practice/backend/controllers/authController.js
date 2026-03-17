@@ -1,5 +1,6 @@
 // controllers/authController.js
 import User from "../models/User.js";
+import Log from "../models/Log.js"; // ✅ ADDED Log import
 import sendEmail from "../utils/sendEmail.js";
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -211,6 +212,16 @@ export const verifyOtp = async (req, res) => {
     await newUser.save();
     console.log('✅ User saved to database:', newUser.email);
     
+    // ✅ ADDED: Log user registration with userAgent
+    await Log.create({
+      userId: newUser._id,
+      id_number: newUser.id_number,
+      userName: newUser.name,
+      action: "user_registered",
+      details: "New user registered and verified",
+      userAgent: req.headers['user-agent'] || '' // ADDED
+    });
+    
     // Clean up temp storage
     tempUsers.delete(email.toLowerCase());
 
@@ -399,6 +410,14 @@ export const login = async (req, res) => {
     const isPasswordValid = await user.comparePassword(password);
 
     if (!isPasswordValid) {
+      // ✅ ADDED: Log failed login attempt with userAgent
+      await Log.create({
+        id_number: email,
+        action: "login_failed",
+        details: `Failed login attempt for email: ${email}`,
+        userAgent: req.headers['user-agent'] || '' // ADDED
+      });
+      
       return res.status(401).json({ 
         success: false,
         message: "Invalid credentials." 
@@ -408,6 +427,16 @@ export const login = async (req, res) => {
     // Update last login
     user.lastLogin = new Date();
     await user.save();
+
+    // ✅ ADDED: Log successful login with userAgent
+    await Log.create({
+      userId: user._id,
+      id_number: user.id_number,
+      userName: user.name,
+      action: "login",
+      details: "User logged in successfully",
+      userAgent: req.headers['user-agent'] || '' // ADDED
+    });
 
     // Generate token
     const token = generateToken(user._id);
@@ -443,7 +472,18 @@ export const login = async (req, res) => {
 
 export const logout = async (req, res) => {
   try {
-    // JWT is stateless, so we just return success
+    // ✅ ADDED: Log logout if user is authenticated with userAgent
+    if (req.user) {
+      await Log.create({
+        userId: req.user._id,
+        id_number: req.user.id_number,
+        userName: req.user.name,
+        action: "logout",
+        details: "User logged out",
+        userAgent: req.headers['user-agent'] || '' // ADDED
+      });
+    }
+    
     res.json({ 
       success: true,
       message: "Logged out successfully." 

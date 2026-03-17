@@ -7,6 +7,7 @@ const logSchema = new mongoose.Schema(
     userName: { type: String },
     action: { type: String, required: true },
     details: { type: String },
+    userAgent: { type: String, default: '' }, // ADDED THIS FIELD
   },
   { timestamps: true }
 );

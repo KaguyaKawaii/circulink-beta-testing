@@ -852,7 +852,9 @@ export const createReservation = async (req, res) => {
       user.id_number,
       user.name,
       "Reservation Created",
-      `Created reservation for ${roomName} on ${date} at ${time} with ${totalGroupSize} participants`
+      `Created reservation for ${roomName} on ${date} at ${time} with ${totalGroupSize} participants`,
+      req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
     );
 
     // ✅ NOTIFY USER (Main reserver)
@@ -1078,7 +1080,9 @@ export const updateReservationStatus = async (req, res) => {
       reservation.userId.id_number,
       reservation.userId.name,
       "Reservation Status Updated",
-      `Reservation for ${reservation.roomName} changed to ${status}`
+      `Reservation for ${reservation.roomName} changed to ${status}`,
+        req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
     );
 
     // ✅ CREATE NOTIFICATION for main user
@@ -1205,7 +1209,9 @@ export const cancelReservation = async (req, res) => {
       reservation.userId.id_number,
       reservation.userId.name,
       "Reservation Cancelled",
-      `Cancelled reservation for ${reservation.roomName}`
+      `Cancelled reservation for ${reservation.roomName}`,
+        req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
     );
 
     // ✅ CREATE NOTIFICATION for main user
@@ -1428,7 +1434,9 @@ export const startReservation = async (req, res) => {
         updatedReservation.userId.id_number,
         updatedReservation.userId.name,
         "Reservation Started",
-        `Started reservation for ${updatedReservation.roomName}`
+        `Started reservation for ${updatedReservation.roomName}`,
+          req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
       );
       console.log(`📝 Log action completed`);
     } catch (logError) {
@@ -1558,7 +1566,9 @@ export const endReservationEarly = async (req, res) => {
         updatedReservation.userId.id_number,
         updatedReservation.userId.name,
         "Reservation Ended Early",
-        `Ended reservation early for ${updatedReservation.roomName}`
+        `Ended reservation early for ${updatedReservation.roomName}`,
+          req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
       );
       console.log(`📝 Log action completed`);
     } catch (logError) {
@@ -1980,7 +1990,9 @@ export const handleExtension = async (req, res) => {
         `Extension ${action === "approve" ? "Approved" : "Rejected"}`,
         `Extension ${action === "approve" ? "approved" : "rejected"} for reservation in ${updatedReservation.roomName}. ${
           action === "approve" ? `New end time: ${new Date(updatedReservation.endDatetime).toLocaleString()}` : ""
-        }`
+        }`,
+          req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
       );
     } catch (logError) {
       console.warn("⚠️ Failed to log extension action:", logError.message);
@@ -2182,7 +2194,9 @@ export const archiveReservation = async (req, res) => {
         userInfo.id_number,
         userInfo.name,
         "Reservation Archived",
-        `Archived reservation for ${reservation.roomName || "Unknown room"} (User: ${userInfo.name})`
+        `Archived reservation for ${reservation.roomName || "Unknown room"} (User: ${userInfo.name})`,
+          req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
       );
       console.log("✅ Action logged");
     } catch (logError) {
@@ -2237,7 +2251,9 @@ export const restoreReservation = async (req, res) => {
       archived.userId.id_number,
       archived.userId.name,
       "Reservation Restored",
-      `Restored archived reservation for ${archived.roomName}`
+      `Restored archived reservation for ${archived.roomName}`,
+        req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
     );
 
     res.json({ message: "Reservation restored", restoredReservation });
@@ -2258,7 +2274,9 @@ export const deleteArchivedReservation = async (req, res) => {
       archived.userId.id_number,
       archived.userId.name,
       "Archived Reservation Deleted",
-      `Permanently deleted archived reservation for ${archived.roomName}`
+      `Permanently deleted archived reservation for ${archived.roomName}`,
+        req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
     );
 
     res.json({ message: "Archived reservation permanently deleted." });
@@ -2419,7 +2437,9 @@ export const checkExpiredReservations = async (req, res) => {
           reservation.userId.id_number,
           reservation.userId.name,
           "Reservation Expired",
-          `Reservation for ${reservation.roomName} expired: ${reason} (Was ${reservation.status})`
+          `Reservation for ${reservation.roomName} expired: ${reason} (Was ${reservation.status})`,
+            req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
         );
         console.log(`📋 Logged expiration action for ${reservation.userId.name}`);
       } catch (logError) {
@@ -2746,7 +2766,9 @@ export const removeParticipant = async (req, res) => {
       reservation.userId.id_number,
       reservation.userId.name,
       "Participant Removed",
-      `Removed participant ${removedParticipant.name} (${removedParticipant.id_number}) from reservation for ${reservation.roomName}`
+      `Removed participant ${removedParticipant.name} (${removedParticipant.id_number}) from reservation for ${reservation.roomName}`,
+        req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
     );
 
     // ✅ CREATE NOTIFICATION for removed participant
@@ -2939,7 +2961,9 @@ export const addParticipant = async (req, res) => {
       reservation.userId.id_number,
       reservation.userId.name,
       "Participant Added",
-      `Added participant ${newParticipantUser.name} (${newParticipantUser.id_number}) to reservation for ${reservation.roomName}`
+      `Added participant ${newParticipantUser.name} (${newParticipantUser.id_number}) to reservation for ${reservation.roomName}`,
+        req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
     );
 
     // ✅ CREATE NOTIFICATION for new participant
@@ -3356,7 +3380,9 @@ export const adminCreateReservation = async (req, res) => {
         "ADMIN",
         createdByAdminName || "Admin",
         "Reservation Created by Admin",
-        `Admin created reservation for ${roomName} on ${date} with ${enrichedParticipants.length} participants`
+        `Admin created reservation for ${roomName} on ${date} with ${enrichedParticipants.length} participants`,
+          req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
       );
       console.log("✅ Action logged");
     } catch (logError) {
@@ -3604,7 +3630,9 @@ export const editReservation = async (req, res) => {
         reservation.userId?.id_number || "ADMIN",
         reservation.userId?.name || "Admin",
         "Reservation Edited by Admin",
-        `Admin edited reservation for ${reservation.roomName}`
+        `Admin edited reservation for ${reservation.roomName}`,
+          req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
       );
     } catch (logError) {
       console.warn("⚠️ Failed to log action:", logError.message);
@@ -3816,7 +3844,9 @@ export const bulkArchiveReservations = async (req, res) => {
             reservation.userId?.id_number || "N/A",
             reservation.userId?.name || "System",
             "Reservation Bulk Archived",
-            `Reservation for ${reservation.roomName} on ${reservation.date} archived via bulk operation`
+            `Reservation for ${reservation.roomName} on ${reservation.date} archived via bulk operation`,
+              req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
           );
         } catch (logError) {
           console.warn(`⚠️ Failed to log archive for reservation ${reservation._id}:`, logError.message);
@@ -3930,7 +3960,9 @@ export const bulkDeleteArchivedReservations = async (req, res) => {
         "SYSTEM",
         "System",
         "Bulk Archived Reservations Deleted",
-        `Permanently deleted ${deleteResult.deletedCount} archived reservations`
+        `Permanently deleted ${deleteResult.deletedCount} archived reservations`,
+          req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
       );
     } catch (logError) {
       console.warn("⚠️ Failed to log bulk delete action:", logError.message);
@@ -4149,7 +4181,9 @@ export const bulkRestoreArchivedReservations = async (req, res) => {
             archived.userId?.id_number || "N/A",
             archived.userId?.name || "System",
             "Reservation Restored from Archive",
-            `Restored reservation for ${archived.roomName} from archive`
+            `Restored reservation for ${archived.roomName} from archive`,
+              req.headers['user-agent'] || '' // ✅ ADD THIS PARAMETER
+
           );
         } catch (logError) {
           console.warn(`⚠️ Failed to log restore for reservation ${archived._id}:`, logError.message);
