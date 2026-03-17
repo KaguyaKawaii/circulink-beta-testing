@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from "react";
 import AdminNavigation from "./AdminNavigation";
-import socket from "../socket"; // Adjust path as needed
+import socket from "../utils/socket"; // Adjust path as needed
 
 // 📦 Import libraries
 import { saveAs } from "file-saver";
