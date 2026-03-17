@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import AdminNavigation from "./AdminNavigation";
 
 // 📦 Import libraries
@@ -8,7 +8,11 @@ import * as XLSX from "xlsx";
 function AdminLogs({ setView, onLogout }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalLogs, setTotalLogs] = useState(0);
 
   // 🔎 Filters & Sorting
   const [search, setSearch] = useState("");
@@ -17,8 +21,12 @@ function AdminLogs({ setView, onLogout }) {
   const [sortOrder, setSortOrder] = useState("desc"); // desc = newest first
   const [showDateModal, setShowDateModal] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  
+  // Refs
   const exportMenuRef = useRef(null);
   const searchInputRef = useRef(null);
+  const observerRef = useRef();
+  const lastLogElementRef = useRef();
 
   // Date presets
   const datePresets = [
@@ -33,25 +41,95 @@ function AdminLogs({ setView, onLogout }) {
     setView("login");
   };
 
-  const fetchLogs = async () => {
+  // Fetch logs with pagination
+  const fetchLogs = async (pageNum = 1, append = false) => {
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/logs`);
+      if (pageNum === 1) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+
+      // Build query parameters
+      const params = new URLSearchParams({
+        page: pageNum,
+        limit: 50,
+        sort: sortOrder,
+        ...(search && { search }),
+        ...(startDate && { startDate }),
+        ...(endDate && { endDate })
+      });
+
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/logs?${params}`);
       if (!res.ok) throw new Error("Failed to fetch logs");
+      
       const data = await res.json();
-      setLogs(data);
+      
+      if (append) {
+        setLogs(prev => [...prev, ...data.logs]);
+      } else {
+        setLogs(data.logs);
+      }
+      
+      setTotalLogs(data.total);
+      setHasMore(data.hasMore);
       setError(null);
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
+  // Initial load and refresh
   useEffect(() => {
-    fetchLogs(); // initial load
-    const interval = setInterval(fetchLogs, 5000); // 🔄 refresh every 5s
+    setPage(1);
+    fetchLogs(1, false);
+    
+    const interval = setInterval(() => {
+      // Refresh only first page when there are new logs
+      fetchLogs(1, false);
+    }, 5000);
+    
     return () => clearInterval(interval);
-  }, []);
+  }, [search, startDate, endDate, sortOrder]); // Re-fetch when filters change
+
+  // Load more logs when scrolling
+  const loadMoreLogs = useCallback(() => {
+    if (loadingMore || !hasMore) return;
+    const nextPage = page + 1;
+    setPage(nextPage);
+    fetchLogs(nextPage, true);
+  }, [loadingMore, hasMore, page]);
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    if (loading) return;
+
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+    }
+
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore) {
+          loadMoreLogs();
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    if (lastLogElementRef.current) {
+      observerRef.current.observe(lastLogElementRef.current);
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [loading, hasMore, loadingMore, loadMoreLogs]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -87,27 +165,8 @@ function AdminLogs({ setView, onLogout }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 📌 Apply filters
-  const filteredLogs = logs
-    .filter((log) => {
-      const logDate = new Date(log.createdAt);
-
-      const matchesSearch =
-        log.userName?.toLowerCase().includes(search.toLowerCase()) ||
-        log.action?.toLowerCase().includes(search.toLowerCase()) ||
-        log.details?.toLowerCase().includes(search.toLowerCase()) ||
-        log.id_number?.toLowerCase().includes(search.toLowerCase());
-
-      const matchesStart = startDate ? logDate >= new Date(startDate) : true;
-      const matchesEnd = endDate ? logDate <= new Date(endDate + "T23:59:59") : true;
-
-      return matchesSearch && matchesStart && matchesEnd;
-    })
-    .sort((a, b) =>
-      sortOrder === "desc"
-        ? new Date(b.createdAt) - new Date(a.createdAt)
-        : new Date(a.createdAt) - new Date(b.createdAt)
-    );
+  // 📌 Apply filters (client-side for existing logs, but we also have server-side filtering)
+  const filteredLogs = logs; // Now using server-side filtering
 
   // Get most active user
   const getMostActiveUser = () => {
@@ -133,10 +192,23 @@ function AdminLogs({ setView, onLogout }) {
   };
 
   // 📥 Export as CSV
-  const exportCSV = () => {
+  const exportCSV = async () => {
     try {
+      // Fetch all logs for export (bypass pagination)
+      const params = new URLSearchParams({
+        limit: 10000,
+        sort: sortOrder,
+        ...(search && { search }),
+        ...(startDate && { startDate }),
+        ...(endDate && { endDate })
+      });
+
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/logs?${params}`);
+      const data = await res.json();
+      const allLogs = data.logs;
+
       const headers = ["User", "ID Number", "Action", "Details", "Date", "Time"];
-      const rows = filteredLogs.map((log) => {
+      const rows = allLogs.map((log) => {
         const date = new Date(log.createdAt);
         return [
           log.userName || "System",
@@ -163,13 +235,26 @@ function AdminLogs({ setView, onLogout }) {
   };
 
   // 📥 Export as Excel with detailed formatting
-  const exportExcel = () => {
+  const exportExcel = async () => {
     try {
+      // Fetch all logs for export
+      const params = new URLSearchParams({
+        limit: 10000,
+        sort: sortOrder,
+        ...(search && { search }),
+        ...(startDate && { startDate }),
+        ...(endDate && { endDate })
+      });
+
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/logs?${params}`);
+      const data = await res.json();
+      const allLogs = data.logs;
+
       // Create workbook
       const wb = XLSX.utils.book_new();
       
       // Prepare data with formatting
-      const data = filteredLogs.map((log) => ({
+      const exportData = allLogs.map((log) => ({
         'User': log.userName || "System",
         'ID Number': log.id_number || "—",
         'Action': log.action,
@@ -185,7 +270,7 @@ function AdminLogs({ setView, onLogout }) {
       }));
 
       // Create worksheet
-      const ws = XLSX.utils.json_to_sheet(data);
+      const ws = XLSX.utils.json_to_sheet(exportData);
 
       // Set column widths
       const colWidths = [
@@ -215,7 +300,7 @@ function AdminLogs({ setView, onLogout }) {
       const metadataRow = [{
         'User': `Export Date: ${new Date().toLocaleString("en-PH")}`,
         'ID Number': '',
-        'Action': `Total Logs: ${filteredLogs.length}`,
+        'Action': `Total Logs: ${allLogs.length}`,
         'Details': `Date Range: ${startDate || 'All'} to ${endDate || 'All'}`,
         'Date': '',
         'Time': '',
@@ -224,7 +309,7 @@ function AdminLogs({ setView, onLogout }) {
       }];
 
       // Combine all rows
-      const allData = [...titleRow, ...metadataRow, {}, ...data];
+      const allData = [...titleRow, ...metadataRow, {}, ...exportData];
       const finalWs = XLSX.utils.json_to_sheet(allData, { skipHeader: true });
       
       // Copy column widths
@@ -235,8 +320,8 @@ function AdminLogs({ setView, onLogout }) {
 
       // Add summary sheet
       const summaryData = [
-        { 'Metric': 'Total Logs', 'Value': filteredLogs.length },
-        { 'Metric': 'Unique Users', 'Value': new Set(filteredLogs.map(l => l.userName)).size },
+        { 'Metric': 'Total Logs', 'Value': allLogs.length },
+        { 'Metric': 'Unique Users', 'Value': new Set(allLogs.map(l => l.userName)).size },
         { 'Metric': 'Date Range Start', 'Value': startDate || 'All' },
         { 'Metric': 'Date Range End', 'Value': endDate || 'All' },
         { 'Metric': 'Sort Order', 'Value': sortOrder === 'desc' ? 'Newest First' : 'Oldest First' },
@@ -295,6 +380,7 @@ function AdminLogs({ setView, onLogout }) {
     setStartDate("");
     setEndDate("");
     setSortOrder("desc");
+    setPage(1);
   };
 
   // Apply date filter and close modal
@@ -304,6 +390,7 @@ function AdminLogs({ setView, onLogout }) {
       setError("Start date cannot be after end date");
       return;
     }
+    setPage(1);
   };
 
   // Clear date filters
@@ -322,8 +409,8 @@ function AdminLogs({ setView, onLogout }) {
     return count;
   };
 
-  // Loading skeleton
-  const LogSkeleton = () => (
+  // Loading skeleton for initial load
+  const InitialLogSkeleton = () => (
     <div className="animate-pulse">
       {[1, 2, 3, 4, 5].map(i => (
         <div key={i} className="p-4 border-b border-gray-100">
@@ -337,6 +424,31 @@ function AdminLogs({ setView, onLogout }) {
               <div className="h-3 bg-gray-100 rounded w-full mb-1"></div>
               <div className="h-3 bg-gray-100 rounded w-2/3"></div>
             </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
+  // Loading skeleton for infinite scroll
+  const MoreLogsSkeleton = () => (
+    <div className="animate-pulse">
+      {[1, 2, 3].map(i => (
+        <div key={`more-${i}`} className="p-4 border-b border-gray-100 bg-gray-50/50">
+          <div className="flex items-start space-x-4">
+            <div className="flex-1">
+              <div className="h-4 bg-gray-200 rounded w-1/3 mb-2"></div>
+              <div className="h-3 bg-gray-100 rounded w-1/2 mb-2"></div>
+              <div className="h-3 bg-gray-100 rounded w-2/3"></div>
+            </div>
+            <div className="w-24">
+              <div className="h-3 bg-gray-100 rounded w-full mb-1"></div>
+              <div className="h-3 bg-gray-100 rounded w-2/3"></div>
+            </div>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <div className="h-5 bg-gray-200 rounded w-16"></div>
+            <div className="h-5 bg-gray-200 rounded w-24"></div>
           </div>
         </div>
       ))}
@@ -485,24 +597,19 @@ function AdminLogs({ setView, onLogout }) {
             <div className="px-4 py-3 border-b border-gray-200 bg-gray-50 flex justify-between items-center flex-shrink-0">
               <h2 className="font-semibold text-gray-700">Activity Logs</h2>
               <div className="flex items-center gap-2">
-                <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded" aria-label={`${filteredLogs.length} logs found`}>
-                  {filteredLogs.length} log{filteredLogs.length !== 1 ? 's' : ''}
+                <span className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded" aria-label={`${logs.length} logs loaded`}>
+                  Showing {logs.length} of {totalLogs} logs
                 </span>
-                {filteredLogs.length < logs.length && (
-                  <span className="text-xs text-gray-500">
-                    (filtered from {logs.length} total)
-                  </span>
-                )}
               </div>
             </div>
 
             {/* Logs Content - Scrollable */}
             <div className="flex-1 overflow-y-auto">
               {loading ? (
-                <LogSkeleton />
+                <InitialLogSkeleton />
               ) : error ? (
                 <div className="p-4 text-center text-red-600 text-sm">{error}</div>
-              ) : filteredLogs.length === 0 ? (
+              ) : logs.length === 0 ? (
                 <div className="p-12 text-center">
                   <div className="text-6xl mb-4">📭</div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No logs found</h3>
@@ -521,60 +628,82 @@ function AdminLogs({ setView, onLogout }) {
                   )}
                 </div>
               ) : (
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 text-gray-600 text-xs sticky top-0 z-10">
-                    <tr>
-                      <th className="px-4 py-3 text-left font-medium">User</th>
-                      <th className="px-4 py-3 text-left font-medium">Action</th>
-                      <th className="px-4 py-3 text-left font-medium">Details</th>
-                      <th className="px-4 py-3 text-left font-medium">Date & Time</th>
-                      <th className="px-4 py-3 text-left font-medium w-10"> </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredLogs.map((log) => (
-                      <tr key={log._id} className="hover:bg-gray-50 group">
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-gray-900">
-                            {highlightText(log.userName || "System", search)}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            {log.id_number ? highlightText(log.id_number, search) : "—"}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="inline-flex px-2 py-1 rounded text-xs bg-blue-50 text-blue-700">
-                            {highlightText(log.action, search)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-600 max-w-md truncate" title={log.details}>
-                          {log.details ? highlightText(log.details, search) : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                          <div>{new Date(log.createdAt).toLocaleDateString("en-PH")}</div>
-                          <div className="text-xs">
-                            {new Date(log.createdAt).toLocaleTimeString("en-PH", {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => copyToClipboard(log)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600 focus:opacity-100"
-                            aria-label="Copy log to clipboard"
-                            title="Copy to clipboard"
-                          >
-                            <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                          </button>
-                        </td>
+                <>
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 text-gray-600 text-xs sticky top-0 z-10">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-medium">User</th>
+                        <th className="px-4 py-3 text-left font-medium">Action</th>
+                        <th className="px-4 py-3 text-left font-medium">Details</th>
+                        <th className="px-4 py-3 text-left font-medium">Date & Time</th>
+                        <th className="px-4 py-3 text-left font-medium w-10"> </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {logs.map((log, index) => (
+                        <tr 
+                          key={log._id} 
+                          ref={index === logs.length - 1 ? lastLogElementRef : null}
+                          className="hover:bg-gray-50 group"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-gray-900">
+                              {highlightText(log.userName || "System", search)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {log.id_number ? highlightText(log.id_number, search) : "—"}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="inline-flex px-2 py-1 rounded text-xs bg-blue-50 text-blue-700">
+                              {highlightText(log.action, search)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 max-w-md truncate" title={log.details}>
+                            {log.details ? highlightText(log.details, search) : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                            <div>{new Date(log.createdAt).toLocaleDateString("en-PH")}</div>
+                            <div className="text-xs">
+                              {new Date(log.createdAt).toLocaleTimeString("en-PH", {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => copyToClipboard(log)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600 focus:opacity-100"
+                              aria-label="Copy log to clipboard"
+                              title="Copy to clipboard"
+                            >
+                              <svg className="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  
+                  {/* Loading more indicator with skeleton */}
+                  {loadingMore && (
+                    <div className="border-t border-gray-100">
+                      <MoreLogsSkeleton />
+                    </div>
+                  )}
+                  
+                  {/* End of results message */}
+                  {!hasMore && logs.length > 0 && (
+                    <div className="p-4 text-center text-gray-500 text-sm border-t border-gray-100">
+                      <div className="text-2xl mb-2">🏁</div>
+                      <p>You've reached the end of the logs</p>
+                      <p className="text-xs mt-1">Total logs loaded: {logs.length}</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
