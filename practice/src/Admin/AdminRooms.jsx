@@ -231,7 +231,6 @@ function AdminRooms({ setView, onLogout }) {
 
   const activeRoomsCount = rooms.filter(room => room.isActive).length;
   const inactiveRoomsCount = rooms.filter(room => !room.isActive).length;
-  const totalCapacity = rooms.reduce((sum, room) => sum + (room.capacity || 0), 0);
 
   return (
     <>
@@ -245,7 +244,7 @@ function AdminRooms({ setView, onLogout }) {
         tabIndex="-1"
         className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gradient-to-br from-gray-50 to-blue-50/30 outline-none"
       >
-        {/* Header - Preserved exactly as requested */}
+        {/* Header */}
         <header className="bg-white px-6 py-4 border-b border-gray-200">
           <div className="flex justify-between items-center">
             <div>
@@ -269,40 +268,30 @@ function AdminRooms({ setView, onLogout }) {
         </header>
 
         <div className="p-6">
-          {/* Stats Cards - Removed hover scale effect */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Stats Cards - Simplified: only 3 cards */}
+          <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 ${showAddRoom || editingRoom ? 'blur-sm pointer-events-none' : ''}`}>
             <StatCard 
               title="Total Rooms" 
               value={rooms.length} 
               icon={<MapPin size={20} />} 
               color="blue"
-              trend="+2 this month"
             />
             <StatCard 
               title="Active Rooms" 
               value={activeRoomsCount} 
               icon={<Eye size={20} />} 
               color="green"
-              percentage={rooms.length ? Math.round((activeRoomsCount / rooms.length) * 100) : 0}
             />
             <StatCard 
               title="Inactive Rooms" 
               value={inactiveRoomsCount} 
               icon={<EyeOff size={20} />} 
               color="orange"
-              percentage={rooms.length ? Math.round((inactiveRoomsCount / rooms.length) * 100) : 0}
-            />
-            <StatCard 
-              title="Total Capacity" 
-              value={totalCapacity} 
-              icon={<Users size={20} />} 
-              color="purple"
-              subtitle="seats available"
             />
           </div>
 
-          {/* Filter Section - Removed Quick Filters, now full width */}
-          <div className="mb-6">
+          {/* Filter Section */}
+          <div className={`mb-6 ${showAddRoom || editingRoom ? 'blur-sm pointer-events-none' : ''}`}>
             <FloorFilter 
               floors={floors}
               selectedFloor={selectedFloor}
@@ -312,7 +301,7 @@ function AdminRooms({ setView, onLogout }) {
           </div>
 
           {/* Main Content Section */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden">
+          <div className={`bg-white/80 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-200/60 overflow-hidden ${showAddRoom || editingRoom ? 'blur-sm pointer-events-none' : ''}`}>
             {/* Section Header with Controls */}
             <div className="p-6 border-b border-gray-200">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -370,52 +359,6 @@ function AdminRooms({ setView, onLogout }) {
               </div>
             </div>
 
-            {/* Add/Edit Room Form */}
-            {(showAddRoom || editingRoom) && (
-              <RoomForm
-                editingRoom={editingRoom}
-                roomName={roomName}
-                setRoomName={setRoomName}
-                floor={floor}
-                setFloor={setFloor}
-                roomType={roomType}
-                setRoomType={setRoomType}
-                capacity={capacity}
-                setCapacity={setCapacity}
-                notes={notes}
-                setNotes={setNotes}
-                roomFeatures={roomFeatures}
-                setRoomFeatures={setRoomFeatures}
-                roomImage={roomImage}
-                handleImageSelect={handleImageSelect}
-                handleRemoveImage={handleRemoveImage}
-                setShowImageSelector={setShowImageSelector}
-                handleAddRoom={handleAddRoom}
-                handleUpdateRoom={handleUpdateRoom}
-                cancelEdit={cancelEdit}
-                roomTypes={roomTypes}
-                floors={floors.filter(f => f !== "All Floors")}
-              />
-            )}
-
-            {/* Image Selector Modal */}
-            {showImageSelector && (
-              <ImageSelector
-                availableRoomImages={availableRoomImages}
-                onSelect={handleImageSelect}
-                onClose={() => setShowImageSelector(false)}
-              />
-            )}
-
-            {/* Delete Confirmation Modal */}
-            {deleteConfirm && (
-              <DeleteConfirmation
-                roomName={deleteConfirm.room}
-                onConfirm={() => handleDeleteRoom(deleteConfirm._id)}
-                onCancel={() => setDeleteConfirm(null)}
-              />
-            )}
-
             {/* Rooms Display */}
             {isLoading ? (
               <LoadingState />
@@ -446,13 +389,67 @@ function AdminRooms({ setView, onLogout }) {
             )}
           </div>
         </div>
+
+        {/* Add/Edit Room Modal - Overlay with blur effect */}
+        {(showAddRoom || editingRoom) && (
+          <div className="fixed inset-0 z-40 flex items-start justify-center pt-20">
+            {/* Backdrop with blur */}
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-md" onClick={cancelEdit}></div>
+            
+            {/* Modal Content */}
+            <div className="relative z-50 w-full max-w-4xl mx-4 bg-white rounded-2xl shadow-2xl animate-slideDown">
+              <RoomForm
+                editingRoom={editingRoom}
+                roomName={roomName}
+                setRoomName={setRoomName}
+                floor={floor}
+                setFloor={setFloor}
+                roomType={roomType}
+                setRoomType={setRoomType}
+                capacity={capacity}
+                setCapacity={setCapacity}
+                notes={notes}
+                setNotes={setNotes}
+                roomFeatures={roomFeatures}
+                setRoomFeatures={setRoomFeatures}
+                roomImage={roomImage}
+                handleImageSelect={handleImageSelect}
+                handleRemoveImage={handleRemoveImage}
+                setShowImageSelector={setShowImageSelector}
+                handleAddRoom={handleAddRoom}
+                handleUpdateRoom={handleUpdateRoom}
+                cancelEdit={cancelEdit}
+                roomTypes={roomTypes}
+                floors={floors.filter(f => f !== "All Floors")}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Image Selector Modal */}
+        {showImageSelector && (
+          <ImageSelector
+            availableRoomImages={availableRoomImages}
+            onSelect={handleImageSelect}
+            onClose={() => setShowImageSelector(false)}
+          />
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deleteConfirm && (
+          <DeleteConfirmation
+            roomName={deleteConfirm.room}
+            onConfirm={() => handleDeleteRoom(deleteConfirm._id)}
+            onCancel={() => setDeleteConfirm(null)}
+          />
+        )}
       </main>
     </>
   );
 }
 
-// StatCard - Removed hover scale effect
-function StatCard({ title, value, icon, color, trend, percentage, subtitle }) {
+// StatCard - Simplified version without trend/percentage/subtitle
+function StatCard({ title, value, icon, color }) {
   const colorClasses = {
     blue: "bg-blue-50 text-blue-600",
     green: "bg-green-50 text-green-600",
@@ -466,18 +463,6 @@ function StatCard({ title, value, icon, color, trend, percentage, subtitle }) {
         <div>
           <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
           <p className="text-3xl font-bold text-gray-800">{value}</p>
-          {percentage !== undefined && (
-            <div className="mt-2">
-              <div className="w-24 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full ${colorClasses[color].split(' ')[0]}`}
-                  style={{ width: `${percentage}%` }}
-                />
-              </div>
-            </div>
-          )}
-          {trend && <p className="text-xs text-green-600 mt-1">{trend}</p>}
-          {subtitle && <p className="text-xs text-gray-500 mt-1">{subtitle}</p>}
         </div>
         <div className={`p-3 rounded-xl ${colorClasses[color]}`}>
           {icon}
@@ -562,7 +547,7 @@ function RoomForm({
   return (
     <form 
       onSubmit={editingRoom ? handleUpdateRoom : handleAddRoom} 
-      className="p-6 bg-gradient-to-br from-blue-50/50 to-gray-50/50 border-b border-gray-200"
+      className="p-6 bg-gradient-to-br from-blue-50/50 to-gray-50/50"
     >
       <div className="flex items-center justify-between mb-6">
         <div>
@@ -592,6 +577,7 @@ function RoomForm({
             onChange={(e) => setRoomName(e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none focus:border-transparent transition-all bg-white"
             placeholder="e.g. Conference Room A"
+            required
           />
         </div>
         
@@ -604,6 +590,7 @@ function RoomForm({
             value={floor}
             onChange={(e) => setFloor(e.target.value)}
             className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none focus:border-transparent transition-all bg-white cursor-pointer"
+            required
           >
             <option value="">Select Floor</option>
             {floors.map(f => (
@@ -638,6 +625,7 @@ function RoomForm({
             className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none focus:border-transparent transition-all bg-white"
             placeholder="e.g. 20"
             min="1"
+            required
           />
         </div>
 
@@ -927,7 +915,7 @@ function GridRooms({ rooms, onEdit, onDelete, onToggleStatus }) {
               </div>
             </div>
           ) : (
-            <div className="h-40 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
+            <div className="relative h-40 bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center">
               <Image size={32} className="text-gray-400" />
               <div className="absolute top-3 left-3">
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
@@ -1162,5 +1150,49 @@ function Menu(props) {
     </svg>
   );
 }
+
+// Add animation styles
+const style = document.createElement('style');
+style.textContent = `
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .animate-fadeIn {
+    animation: fadeIn 0.2s ease-out;
+  }
+  
+  .animate-slideUp {
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  .animate-slideDown {
+    animation: slideDown 0.3s ease-out;
+  }
+`;
+document.head.appendChild(style);
 
 export default AdminRooms;
