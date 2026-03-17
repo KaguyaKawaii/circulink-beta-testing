@@ -24,7 +24,8 @@ import {
   AlertTriangle,
   UserX,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  CalendarRange
 } from "lucide-react";
 import AdminReservationModal from "./Modals/AdminReservationModal";
 import AdminCreateReservationModal from "./Modals/AdminCreateReservationModal";
@@ -70,8 +71,15 @@ function AdminReservations({ setView, onLogout }) {
   const [roomUsage, setRoomUsage] = useState({});
   const [viewMode, setViewMode] = useState("list");
   
-  // Date Filter State
-  const [dateFilter, setDateFilter] = useState("all"); // "today" or "all"
+  // Date Range Filter State
+  const [dateFilter, setDateFilter] = useState("all"); // "all", "today", "range"
+  const [startDate, setStartDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 7); // Default to last 7 days
+    return date;
+  });
+  const [endDate, setEndDate] = useState(new Date());
+  const [showDateRangePicker, setShowDateRangePicker] = useState(false);
 
   const formatPHDateTime = (date) => {
     if (!date) return "—";
@@ -117,7 +125,7 @@ function AdminReservations({ setView, onLogout }) {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [filter, search, dateFilter]);
+  }, [filter, search, dateFilter, startDate, endDate]);
 
   const fetchReservations = async () => {
     setIsLoading(true);
@@ -416,6 +424,20 @@ function AdminReservations({ setView, onLogout }) {
     setSelectedReservation(null);
   };
 
+  // Date Range Handlers
+  const handleApplyDateRange = () => {
+    setShowDateRangePicker(false);
+    setDateFilter("range");
+    setCurrentPage(1);
+  };
+
+  const handleClearDateRange = () => {
+    setDateFilter("all");
+    setStartDate(new Date(new Date().setDate(new Date().getDate() - 7)));
+    setEndDate(new Date());
+    setCurrentPage(1);
+  };
+
   // Pagination Handlers
   const handlePageChange = (pageNumber) => {
     setCurrentPage(pageNumber);
@@ -451,14 +473,20 @@ function AdminReservations({ setView, onLogout }) {
     
     // Date filter logic
     let matchesDate = true;
-    if (dateFilter === "today") {
+    const reservationDate = res.datetime ? new Date(res.datetime) : null;
+    
+    if (dateFilter === "today" && reservationDate) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
-      
-      const reservationDate = res.datetime ? new Date(res.datetime) : null;
-      matchesDate = reservationDate && reservationDate >= today && reservationDate < tomorrow;
+      matchesDate = reservationDate >= today && reservationDate < tomorrow;
+    } else if (dateFilter === "range" && reservationDate && startDate && endDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      matchesDate = reservationDate >= start && reservationDate <= end;
     }
     
     return matchesStatus && matchesSearch && matchesDate;
@@ -706,9 +734,9 @@ function AdminReservations({ setView, onLogout }) {
                 </button>
               </div>
 
-              {/* Date Filter Toggle (only in list view) */}
+              {/* Date Filters (only in list view) */}
               {viewMode === "list" && (
-                <div className="flex items-center space-x-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     onClick={() => setDateFilter("all")}
                     className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
@@ -729,6 +757,71 @@ function AdminReservations({ setView, onLogout }) {
                   >
                     Today's Reservations
                   </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowDateRangePicker(!showDateRangePicker)}
+                      className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
+                        dateFilter === "range" 
+                          ? "bg-blue-600 text-white" 
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      <CalendarRange size={14} />
+                      <span>Date Range</span>
+                    </button>
+                    
+                    {/* Date Range Picker Dropdown */}
+                    {showDateRangePicker && (
+                      <div className="absolute right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50 w-80">
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              Start Date
+                            </label>
+                            <input
+                              type="date"
+                              value={startDate.toISOString().split('T')[0]}
+                              onChange={(e) => setStartDate(new Date(e.target.value))}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              End Date
+                            </label>
+                            <input
+                              type="date"
+                              value={endDate.toISOString().split('T')[0]}
+                              onChange={(e) => setEndDate(new Date(e.target.value))}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={handleApplyDateRange}
+                              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                            >
+                              Apply
+                            </button>
+                            <button
+                              onClick={() => setShowDateRangePicker(false)}
+                              className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                          {dateFilter === "range" && (
+                            <button
+                              onClick={handleClearDateRange}
+                              className="w-full px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                            >
+                              Clear Range
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -851,6 +944,28 @@ function AdminReservations({ setView, onLogout }) {
                   <div className="text-sm text-gray-600">
                     Showing data for selected date
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Active Filters Display */}
+            {viewMode === "list" && dateFilter !== "all" && (
+              <div className="mt-4 flex items-center gap-2">
+                <div className="flex items-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-sm">
+                  <CalendarIcon size={14} className="mr-1" />
+                  {dateFilter === "today" ? (
+                    <span>Showing today's reservations only</span>
+                  ) : (
+                    <span>
+                      Showing reservations from {formatPHDate(startDate)} to {formatPHDate(endDate)}
+                    </span>
+                  )}
+                  <button
+                    onClick={handleClearDateRange}
+                    className="ml-2 hover:text-blue-900"
+                  >
+                    <X size={14} />
+                  </button>
                 </div>
               </div>
             )}
@@ -979,16 +1094,6 @@ function AdminReservations({ setView, onLogout }) {
           ) : (
             /* LIST VIEW */
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-              {/* Date filter info */}
-              <div className="px-6 py-3 bg-gray-50 border-b border-gray-200">
-                <div className="flex items-center">
-                  <CalendarIcon size={16} className="text-gray-500 mr-2" />
-                  <span className="text-sm text-gray-600">
-                    {dateFilter === "today" ? "Showing today's reservations only" : "Showing all reservations"}
-                  </span>
-                </div>
-              </div>
-              
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
