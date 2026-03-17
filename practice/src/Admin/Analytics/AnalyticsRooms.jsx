@@ -25,7 +25,14 @@ import {
   Video,
   Coffee,
   Smartphone,
-  Home
+  Home,
+  LayoutGrid,
+  Thermometer,
+  Tool,
+  Clock3,
+  Flame,
+  Award,
+  Gauge
 } from "lucide-react";
 import api from "../../utils/api";
 
@@ -53,10 +60,10 @@ function AnalyticsRooms({ setView, admin }) {
     topRooms: [],
     byFloor: {},
     byCapacity: {
-      small: 0,    // 4-6 pax
-      medium: 0,   // 7-8 pax
-      large: 0,    // 9-10 pax
-      xlarge: 0    // 11+ pax
+      small: 0,
+      medium: 0,
+      large: 0,
+      xlarge: 0
     },
     trends: {
       total: { value: 0, percentage: 0, direction: 'up' },
@@ -91,25 +98,19 @@ function AnalyticsRooms({ setView, admin }) {
     try {
       let url = `/analytics/rooms/detailed?range=${dateRange}`;
       
-      // Add custom date parameters if custom range is selected
       if (dateRange === "custom" && customStartDate && customEndDate) {
         url = `/analytics/rooms/detailed?startDate=${customStartDate}&endDate=${customEndDate}`;
       }
       
-      console.log("Fetching room analytics from:", url);
       const response = await api.get(url);
       
       if (response.data && response.data.success) {
         setRoomData(response.data.data);
-        console.log("Room analytics data loaded:", response.data.data);
       } else {
-        console.error("API returned unsuccessful response:", response.data);
-        // Fallback to mock data if API fails
         setRoomData(getMockRoomData(dateRange, customStartDate, customEndDate));
       }
     } catch (error) {
       console.error("Error fetching room analytics:", error);
-      // Fallback to mock data
       setRoomData(getMockRoomData(dateRange, customStartDate, customEndDate));
     } finally {
       setLoading(false);
@@ -120,7 +121,6 @@ function AnalyticsRooms({ setView, admin }) {
     fetchRoomAnalytics();
   }, [fetchRoomAnalytics]);
 
-  // Close calendar when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
       if (calendarRef.current && !calendarRef.current.contains(event.target)) {
@@ -134,18 +134,15 @@ function AnalyticsRooms({ setView, admin }) {
     };
   }, []);
 
-  // Mock data generator (for fallback)
   const getMockRoomData = (range, customStart, customEnd) => {
     const now = new Date();
     let totalRooms = 25;
     
-    // Adjust based on range
     let utilizationBase = 68;
     if (range === 'week') utilizationBase = 72;
     if (range === 'year') utilizationBase = 65;
     if (range === 'custom' && customStart && customEnd) utilizationBase = 70;
 
-    // Generate growth data based on range
     let growthLabels = [];
     let growthValues = [];
     
@@ -268,10 +265,10 @@ function AnalyticsRooms({ setView, admin }) {
         "3rd Floor": 5
       },
       byCapacity: {
-        small: 13,    // 4-6 pax
-        medium: 0,    // 7-8 pax
-        large: 0,     // 9-10 pax
-        xlarge: 0     // 11+ pax
+        small: 13,
+        medium: 0,
+        large: 0,
+        xlarge: 0
       },
       trends: {
         total: { value: totalRooms, percentage: 4.2, direction: 'up' },
@@ -352,7 +349,7 @@ function AnalyticsRooms({ setView, admin }) {
         minute: "2-digit",
         second: "2-digit",
         hour12: true,
-      }).replace(/(\d+)\/(\d+)\/(\d+),/, '$3-$1-$2'); // Reformat to YYYY-MM-DD
+      }).replace(/(\d+)\/(\d+)\/(\d+),/, '$3-$1-$2');
     } catch (error) {
       return "Invalid date";
     }
@@ -373,7 +370,6 @@ function AnalyticsRooms({ setView, admin }) {
 
   const handleCustomDateApply = () => {
     if (customStartDate && customEndDate) {
-      // Validate that start date is before end date
       if (new Date(customStartDate) > new Date(customEndDate)) {
         alert("Start date must be before end date");
         return;
@@ -396,28 +392,17 @@ function AnalyticsRooms({ setView, admin }) {
   // Export to CSV function
   const exportToCSV = () => {
     try {
-      // Create CSV content with Excel-friendly formatting
       let csvContent = "";
       
-      // Helper to add a row with proper Excel formatting
       const addRow = (cells) => {
         const formattedCells = cells.map(cell => {
           if (cell === null || cell === undefined) return '';
-          
           let stringCell = String(cell);
-          
-          // Handle long text
-          if (stringCell.length > 50) {
-            stringCell = stringCell.replace(/(.{50})/g, '$1\n');
-          }
-          
-          // Escape commas, quotes, and newlines for CSV
-          if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n') || stringCell.includes('\r')) {
+          if (stringCell.includes(',') || stringCell.includes('"') || stringCell.includes('\n')) {
             return `"${stringCell.replace(/"/g, '""')}"`;
           }
           return stringCell;
         });
-        
         csvContent += formattedCells.join(',') + '\n';
       };
 
@@ -425,141 +410,81 @@ function AnalyticsRooms({ setView, admin }) {
         csvContent += '\n';
       };
 
-      const addSectionHeader = (title, subtitle = '') => {
-        addRow(['========== ' + title.toUpperCase() + ' ==========']);
-        if (subtitle) {
-          addRow([subtitle]);
-        }
-        addBlankRow();
+      const addSectionHeader = (title) => {
+        addRow(['========== ' + title + ' ==========']);
       };
 
-      const addSubHeader = (title) => {
-        addRow(['--- ' + title + ' ---']);
-      };
-
-      // Get date range description
       let rangeDescription = "";
       if (dateRange === "week") rangeDescription = "Last 7 Days";
       else if (dateRange === "month") rangeDescription = "Last 30 Days";
       else if (dateRange === "year") rangeDescription = "Last 12 Months";
       else if (dateRange === "custom") rangeDescription = `${formatDate(customStartDate)} to ${formatDate(customEndDate)}`;
 
-      // ==================== REPORT HEADER ====================
       addBlankRow();
       addRow(['ROOM ANALYTICS REPORT']);
       addRow(['========================================']);
       addBlankRow();
       addRow(['Generated:', new Date().toLocaleString()]);
       addRow(['Date Range:', rangeDescription]);
-      addRow(['Report ID:', `RPT-ROOM-${Date.now()}`]);
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 1: KEY METRICS ====================
-      addSectionHeader('SECTION 1: KEY METRICS');
-      
-      addRow(['Metric', 'Current Value', 'Change %', 'Trend', 'Notes']);
+      addSectionHeader('KEY METRICS');
+      addRow(['Metric', 'Value', 'Change %', 'Trend']);
       addRow([
         'TOTAL ROOMS', 
         (roomData.total || 0).toLocaleString(),
         `${roomData.trends?.total?.percentage || 0}%`,
-        roomData.trends?.total?.direction === 'up' ? 'Increasing' : 'Decreasing',
-        'Total available rooms'
+        roomData.trends?.total?.direction === 'up' ? 'Increasing' : 'Decreasing'
       ]);
       addRow([
         'AVAILABLE', 
         (roomData.available || 0).toLocaleString(),
         `${roomData.trends?.available?.percentage || 0}%`,
-        roomData.trends?.available?.direction === 'up' ? 'Increasing' : 'Decreasing',
-        'Ready for booking'
+        roomData.trends?.available?.direction === 'up' ? 'Increasing' : 'Decreasing'
       ]);
       addRow([
         'OCCUPIED', 
         (roomData.occupied || 0).toLocaleString(),
         `${roomData.trends?.occupied?.percentage || 0}%`,
-        roomData.trends?.occupied?.direction === 'up' ? 'Increasing' : 'Decreasing',
-        'Currently in use'
+        roomData.trends?.occupied?.direction === 'up' ? 'Increasing' : 'Decreasing'
       ]);
       addRow([
         'MAINTENANCE', 
         (roomData.maintenance || 0).toLocaleString(),
         'N/A',
-        'N/A',
-        'Under maintenance'
+        'N/A'
       ]);
       addRow([
         'UTILIZATION RATE', 
         (roomData.utilization || 0) + '%',
         `${roomData.trends?.utilization?.percentage || 0}%`,
-        roomData.trends?.utilization?.direction === 'up' ? 'Increasing' : 'Decreasing',
-        'Overall room usage'
+        roomData.trends?.utilization?.direction === 'up' ? 'Increasing' : 'Decreasing'
       ]);
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 2: FLOOR DISTRIBUTION ====================
-      addSectionHeader('SECTION 2: FLOOR DISTRIBUTION');
+      addSectionHeader('FLOOR DISTRIBUTION');
+      addRow(['Floor', 'Rooms', 'Percentage']);
       
-      addRow(['Floor', 'Rooms', 'Percentage', 'Most Active Room']);
-      
-      const floorData = Object.entries(roomData.byFloor || {}).map(([floor, count]) => {
+      Object.entries(roomData.byFloor || {}).forEach(([floor, count]) => {
         const percentage = roomData.total > 0 ? Math.round((count / roomData.total) * 100) : 0;
-        let mostActive = '';
-        
-        // Find most active room on this floor
-        const roomsOnFloor = roomData.roomDetails?.filter(r => r.floor === floor) || [];
-        if (roomsOnFloor.length > 0) {
-          const topRoom = roomsOnFloor.reduce((max, room) => 
-            room.bookings > max.bookings ? room : max, roomsOnFloor[0]);
-          mostActive = topRoom.name;
-        }
-        
-        return { floor, count, percentage, mostActive };
-      });
-
-      floorData.sort((a, b) => b.count - a.count).forEach(item => {
-        addRow([
-          item.floor,
-          item.count.toLocaleString(),
-          item.percentage + '%',
-          item.mostActive || 'N/A'
-        ]);
+        addRow([floor, count.toLocaleString(), percentage + '%']);
       });
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 3: HOURLY UTILIZATION ====================
-      addSectionHeader('SECTION 3: HOURLY UTILIZATION PATTERNS');
-      
-      addRow(['Time Slot', 'Utilization %', 'Bookings', 'Peak Status']);
+      addSectionHeader('HOURLY UTILIZATION');
+      addRow(['Time Slot', 'Utilization %', 'Bookings']);
       
       (roomData.hourlyUtilization || []).forEach(hour => {
-        const isPeak = hour.utilization > 80 ? '★ Peak Hour' : 
-                      hour.utilization > 60 ? 'Moderate' : 'Off-Peak';
-        
-        addRow([
-          hour.hour,
-          hour.utilization + '%',
-          (hour.bookings || 0).toLocaleString(),
-          isPeak
-        ]);
+        addRow([hour.hour, hour.utilization + '%', (hour.bookings || 0).toLocaleString()]);
       });
-      addBlankRow();
-      
-      // Find peak hours
-      const peakHours = (roomData.hourlyUtilization || []).filter(h => h.utilization > 80);
-      if (peakHours.length > 0) {
-        addRow(['Peak Hours Summary:']);
-        addRow([`- Busiest Time: ${peakHours[0]?.hour} (${peakHours[0]?.utilization}% utilization)`]);
-        addRow([`- Total Peak Hours: ${peakHours.length}`]);
-      }
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 4: FEATURES STATISTICS ====================
-      addSectionHeader('SECTION 4: ROOM FEATURES');
-      
-      addRow(['Feature', 'Rooms with Feature', 'Percentage', 'Popularity Rank']);
+      addSectionHeader('FEATURES STATISTICS');
+      addRow(['Feature', 'Rooms with Feature', 'Percentage']);
       
       const features = [
         { name: 'WiFi', count: roomData.featureStats?.wifi || 0 },
@@ -568,201 +493,34 @@ function AnalyticsRooms({ setView, admin }) {
         { name: 'Monitor', count: roomData.featureStats?.monitor || 0 }
       ];
 
-      features.sort((a, b) => b.count - a.count).forEach((feature, idx) => {
+      features.forEach(feature => {
         const percentage = roomData.total > 0 ? Math.round((feature.count / roomData.total) * 100) : 0;
-        
-        addRow([
-          feature.name,
-          feature.count.toLocaleString(),
-          percentage + '%',
-          '#' + (idx + 1)
-        ]);
+        addRow([feature.name, feature.count.toLocaleString(), percentage + '%']);
       });
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 5: TOP ROOMS ====================
-      addSectionHeader('SECTION 5: TOP PERFORMING ROOMS');
-      
-      addRow(['Rank', 'Room Name', 'Type', 'Floor', 'Capacity', 'Bookings', 'Utilization', 'Performance']);
+      addSectionHeader('TOP ROOMS');
+      addRow(['Rank', 'Room', 'Type', 'Floor', 'Bookings', 'Utilization']);
       
       (roomData.topRooms || []).slice(0, 10).forEach((room, index) => {
-        let performance = 'Excellent';
-        if (room.utilization < 40) performance = 'Low';
-        else if (room.utilization < 60) performance = 'Average';
-        else if (room.utilization < 80) performance = 'Good';
-        
         addRow([
           '#' + (index + 1),
           room.name,
           room.type || 'N/A',
           room.floor || 'N/A',
-          room.capacity || 0,
           room.bookings.toLocaleString(),
-          room.utilization + '%',
-          performance
+          room.utilization + '%'
         ]);
       });
       addBlankRow();
       addBlankRow();
 
-      // ==================== SECTION 6: ROOM DETAILS ====================
-      addSectionHeader('SECTION 6: COMPREHENSIVE ROOM DETAILS');
-      
-      addRow(['Room', 'Type', 'Floor', 'Capacity', 'Bookings', 'Utilization', 'Status', 'Last Maintenance', 'Features']);
-      
-      (roomData.roomDetails || []).forEach(room => {
-        const features = [];
-        if (room.features?.wifi) features.push('WiFi');
-        if (room.features?.aircon) features.push('AC');
-        if (room.features?.projector) features.push('Projector');
-        if (room.features?.monitor) features.push('Monitor');
-        
-        addRow([
-          room.name,
-          room.type,
-          room.floor || 'N/A',
-          room.capacity || 0,
-          (room.bookings || 0).toLocaleString(),
-          (room.utilization || 0) + '%',
-          room.status || 'N/A',
-          room.lastMaintenance || 'N/A',
-          features.join(', ') || 'None'
-        ]);
-      });
-      addBlankRow();
-      addBlankRow();
-
-      // ==================== SECTION 7: MAINTENANCE HISTORY ====================
-      addSectionHeader('SECTION 7: MAINTENANCE HISTORY');
-      
-      if (roomData.maintenanceHistory && roomData.maintenanceHistory.length > 0) {
-        addRow(['Room', 'Date & Time', 'Maintenance Type', 'Status']);
-        
-        roomData.maintenanceHistory.forEach(item => {
-          addRow([
-            item.room,
-            item.date,
-            item.type,
-            item.status
-          ]);
-        });
-      } else {
-        addRow(['No maintenance history available for this period']);
-      }
-      addBlankRow();
-      addBlankRow();
-
-      // ==================== SECTION 8: TOP USERS ====================
-      addSectionHeader('SECTION 8: TOP ROOM USERS');
-      
-      if (roomData.topUsers && roomData.topUsers.length > 0) {
-        addRow(['Rank', 'User Name', 'Department', 'Bookings', 'Preferred Room']);
-        
-        roomData.topUsers.forEach((user, index) => {
-          addRow([
-            '#' + (index + 1),
-            user.name,
-            user.department || 'N/A',
-            user.bookings.toLocaleString(),
-            user.room || 'N/A'
-          ]);
-        });
-      } else {
-        addRow(['No top user data available for this period']);
-      }
-      addBlankRow();
-      addBlankRow();
-
-      // ==================== SECTION 9: BOOKING TRENDS ====================
-      addSectionHeader('SECTION 9: BOOKING TRENDS');
-      
-      addRow(['Period', 'Bookings', 'Change', 'Trend']);
-      
-      if (roomData.bookingTrends && roomData.bookingTrends.length > 0) {
-        roomData.bookingTrends.forEach((item, index) => {
-          let change = 'N/A';
-          let trend = 'N/A';
-          
-          if (index > 0) {
-            const prevBookings = roomData.bookingTrends[index - 1].bookings;
-            const diff = item.bookings - prevBookings;
-            change = (diff > 0 ? '+' : '') + diff;
-            trend = diff > 0 ? 'Growing ↑' : diff < 0 ? 'Declining ↓' : 'Stable';
-          }
-          
-          addRow([
-            item.month,
-            item.bookings.toLocaleString(),
-            change,
-            trend
-          ]);
-        });
-      } else {
-        addRow(['No booking trend data available']);
-      }
-      addBlankRow();
-      addBlankRow();
-
-      // ==================== SECTION 10: EXECUTIVE SUMMARY ====================
-      addSectionHeader('SECTION 10: EXECUTIVE SUMMARY & KEY INSIGHTS');
-      
-      // Calculate insights
-      const totalRooms = roomData.total || 0;
-      const availableRooms = roomData.available || 0;
-      const occupiedRooms = roomData.occupied || 0;
-      const maintenanceRooms = roomData.maintenance || 0;
-      const utilizationRate = roomData.utilization || 0;
-      
-      addRow(['Area', 'Finding', 'Recommendation']);
-      
-      // Utilization insight
-      addRow([
-        'Room Utilization',
-        utilizationRate >= 70 ? 'Healthy utilization rate' : 'Below target utilization',
-        utilizationRate >= 70 ? 'Maintain current scheduling' : 'Consider promoting room availability'
-      ]);
-      
-      // Availability insight
-      addRow([
-        'Room Availability',
-        availableRooms > 5 ? 'Good availability' : 'Limited availability',
-        availableRooms > 5 ? 'Continue current operations' : 'Consider adding more rooms'
-      ]);
-      
-      // Maintenance insight
-      if (maintenanceRooms > 2) {
-        addRow([
-          'Maintenance',
-          `${maintenanceRooms} rooms under maintenance`,
-          'Review maintenance schedule to minimize impact'
-        ]);
-      }
-      
-      // Feature insight
-      const leastFeature = Object.entries(roomData.featureStats || {}).reduce(
-        (min, [feature, count]) => count < min.count ? { feature, count } : min,
-        { feature: 'none', count: Infinity }
-      );
-      
-      if (leastFeature.feature !== 'none' && leastFeature.count < totalRooms * 0.3) {
-        addRow([
-          'Feature Gap',
-          `Only ${leastFeature.count} rooms have ${leastFeature.feature}`,
-          `Consider adding ${leastFeature.feature} to more rooms`
-        ]);
-      }
-      
-      addBlankRow();
-      addBlankRow();
-
-      // ==================== FOOTER ====================
       addRow(['========================================']);
       addRow(['END OF REPORT']);
       addRow(['Generated by Analytics System']);
       addRow([new Date().toLocaleString()]);
 
-      // Create download link
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
@@ -782,17 +540,17 @@ function AnalyticsRooms({ setView, admin }) {
   // ==================== SKELETON LOADING COMPONENTS ====================
 
   const StatCardSkeleton = () => (
-    <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200 animate-pulse">
+    <div className="flex-1 min-w-[200px] bg-white p-5 rounded-xl border border-gray-200 animate-pulse">
       <div className="flex items-center justify-between">
         <div className="flex-1">
-          <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
-          <div className="h-8 bg-gray-300 rounded w-16"></div>
-          <div className="flex items-center gap-1 mt-2">
+          <div className="h-4 bg-gray-200 rounded w-24 mb-3"></div>
+          <div className="h-8 bg-gray-300 rounded w-16 mb-2"></div>
+          <div className="flex items-center gap-1">
             <div className="h-4 bg-gray-200 rounded w-12"></div>
           </div>
         </div>
-        <div className="p-2">
-          <div className="w-5 h-5 bg-gray-300 rounded"></div>
+        <div className="p-3 bg-gray-200 rounded-xl">
+          <div className="w-5 h-5"></div>
         </div>
       </div>
     </div>
@@ -800,12 +558,12 @@ function AnalyticsRooms({ setView, admin }) {
 
   const ProgressBarSkeleton = () => (
     <div className="animate-pulse">
-      <div className="flex justify-between mb-1">
+      <div className="flex justify-between mb-2">
         <div className="h-4 bg-gray-200 rounded w-24"></div>
         <div className="h-4 bg-gray-200 rounded w-12"></div>
       </div>
-      <div className="w-full bg-gray-200 rounded-full h-2">
-        <div className="bg-gray-300 rounded-full h-2 w-3/4"></div>
+      <div className="w-full bg-gray-200 rounded-full h-2.5">
+        <div className="bg-gray-300 rounded-full h-2.5 w-3/4"></div>
       </div>
     </div>
   );
@@ -842,35 +600,8 @@ function AnalyticsRooms({ setView, admin }) {
     </div>
   );
 
-  const TableSkeleton = ({ rows = 5, cols = 5 }) => (
-    <div className="overflow-x-auto animate-pulse">
-      <table className="w-full text-sm">
-        <thead className="bg-gray-50">
-          <tr>
-            {Array(cols).fill(0).map((_, i) => (
-              <th key={i} className="px-6 py-3">
-                <div className="h-4 bg-gray-200 rounded w-20"></div>
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200">
-          {Array(rows).fill(0).map((_, rowIndex) => (
-            <tr key={rowIndex}>
-              {Array(cols).fill(0).map((_, colIndex) => (
-                <td key={colIndex} className="px-6 py-4">
-                  <div className="h-4 bg-gray-200 rounded w-24"></div>
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-
   const SectionHeaderSkeleton = () => (
-    <div className="flex items-center justify-between mb-4">
+    <div className="flex items-center justify-between mb-5">
       <div className="h-6 bg-gray-200 rounded w-48"></div>
       <div className="h-4 bg-gray-200 rounded w-24"></div>
     </div>
@@ -881,28 +612,28 @@ function AnalyticsRooms({ setView, admin }) {
   const StatCard = ({ title, value, icon: Icon, trend, color = "blue", subtext, isLoading = false }) => {
     const getColorClass = (colorName) => {
       const colorMap = {
-        blue: "text-blue-500",
-        green: "text-green-500",
-        purple: "text-purple-500",
-        yellow: "text-yellow-500",
-        orange: "text-orange-500",
-        red: "text-red-500",
-        indigo: "text-indigo-500"
+        blue: "text-blue-600",
+        green: "text-green-600",
+        purple: "text-purple-600",
+        yellow: "text-yellow-600",
+        orange: "text-orange-600",
+        red: "text-red-600",
+        indigo: "text-indigo-600"
       };
-      return colorMap[colorName] || "text-blue-500";
+      return colorMap[colorName] || "text-blue-600";
     };
 
     const getBgColorClass = (colorName) => {
       const colorMap = {
-        blue: "bg-blue-100",
-        green: "bg-green-100",
-        purple: "bg-purple-100",
-        yellow: "bg-yellow-100",
-        orange: "bg-orange-100",
-        red: "bg-red-100",
-        indigo: "bg-indigo-100"
+        blue: "bg-blue-50",
+        green: "bg-green-50",
+        purple: "bg-purple-50",
+        yellow: "bg-yellow-50",
+        orange: "bg-orange-50",
+        red: "bg-red-50",
+        indigo: "bg-indigo-50"
       };
-      return colorMap[colorName] || "bg-blue-100";
+      return colorMap[colorName] || "bg-blue-50";
     };
 
     if (isLoading) {
@@ -910,30 +641,31 @@ function AnalyticsRooms({ setView, admin }) {
     }
 
     return (
-      <div className="flex-1 min-w-[200px] bg-white p-4 rounded-lg border border-gray-200">
+      <div className="flex-1 min-w-[200px] bg-white p-5 rounded-xl border border-gray-200 hover:shadow-md transition-all duration-200">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-gray-600 font-medium">{title}</p>
+            <p className="text-sm text-gray-500 font-medium mb-1">{title}</p>
             <p className="text-2xl font-bold text-gray-800">
               {typeof value === 'number' ? value.toLocaleString() : value}
               {title.includes('Utilization') && '%'}
             </p>
-            {subtext && <p className="text-xs text-gray-500 mt-1">{subtext}</p>}
+            {subtext && <p className="text-xs text-gray-400 mt-2">{subtext}</p>}
             {trend && trend.percentage > 0 && (
-              <div className="flex items-center gap-1 mt-1">
+              <div className="flex items-center gap-1 mt-2">
                 {trend.direction === 'up' ? (
                   <ArrowUp size={16} className="text-green-500" />
                 ) : trend.direction === 'down' ? (
                   <ArrowDown size={16} className="text-red-500" />
                 ) : null}
-                <span className={trend.direction === 'up' ? "text-green-500 text-sm" : "text-red-500 text-sm"}>
+                <span className={trend.direction === 'up' ? "text-green-500 text-sm font-medium" : "text-red-500 text-sm font-medium"}>
                   {trend.percentage}%
                 </span>
+                <span className="text-gray-400 text-xs ml-1">vs previous</span>
               </div>
             )}
           </div>
-          <div className={`p-2 ${getBgColorClass(color)} rounded-lg`}>
-            <Icon className={getColorClass(color)} size={20} />
+          <div className={`p-3 ${getBgColorClass(color)} rounded-xl`}>
+            <Icon className={getColorClass(color)} size={22} />
           </div>
         </div>
       </div>
@@ -962,21 +694,21 @@ function AnalyticsRooms({ setView, admin }) {
     }
 
     return (
-      <div className="mb-4">
-        <div className="flex justify-between items-center mb-1">
+      <div className="mb-5">
+        <div className="flex justify-between items-center mb-2">
           <span className="text-sm font-medium text-gray-700 truncate max-w-[60%]" title={label}>
             {label}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {showValue && <span className="text-sm font-semibold text-gray-900">{value.toLocaleString()}</span>}
-            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">
+            <span className="text-xs px-2.5 py-1 bg-gray-100 rounded-full text-gray-600 font-medium">
               {percentage}%
             </span>
           </div>
         </div>
         <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
           <div 
-            className={`${getBgColorClass(color)} rounded-full h-2.5 transition-all duration-300`}
+            className={`${getBgColorClass(color)} rounded-full h-2.5 transition-all duration-500`}
             style={{ width: `${percentage}%` }}
           />
         </div>
@@ -984,19 +716,78 @@ function AnalyticsRooms({ setView, admin }) {
     );
   };
 
-  const FeatureBadge = ({ feature, available }) => (
-    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
-      available ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-    }`}>
-      {feature === 'wifi' && <Wifi size={12} />}
-      {feature === 'aircon' && <Wind size={12} />}
-      {feature === 'projector' && <Video size={12} />}
-      {feature === 'monitor' && <Monitor size={12} />}
-      <span className="capitalize">{feature}</span>
-    </span>
-  );
+  const FeatureBadge = ({ feature, available }) => {
+    const featureConfig = {
+      wifi: { icon: Wifi, label: 'WiFi', color: 'blue' },
+      aircon: { icon: Wind, label: 'AC', color: 'green' },
+      projector: { icon: Video, label: 'Projector', color: 'purple' },
+      monitor: { icon: Monitor, label: 'Monitor', color: 'orange' }
+    };
 
-  // Find max value for hourly chart scaling
+    const config = featureConfig[feature] || { icon: Wifi, label: feature, color: 'gray' };
+    const Icon = config.icon;
+
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs font-medium ${
+        available 
+          ? `bg-${config.color}-50 text-${config.color}-700 border border-${config.color}-200` 
+          : 'bg-gray-100 text-gray-500 border border-gray-200'
+      }`}>
+        <Icon size={12} />
+        <span className="capitalize">{config.label}</span>
+      </span>
+    );
+  };
+
+  const StatusBadge = ({ status }) => {
+    const statusConfig = {
+      available: { bg: "bg-green-100", text: "text-green-700", label: "Available" },
+      occupied: { bg: "bg-yellow-100", text: "text-yellow-700", label: "Occupied" },
+      maintenance: { bg: "bg-red-100", text: "text-red-700", label: "Maintenance" }
+    };
+
+    const config = statusConfig[status] || statusConfig.available;
+
+    return (
+      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${config.bg} ${config.text}`}>
+        {config.label}
+      </span>
+    );
+  };
+
+  const InsightCard = ({ title, value, icon: Icon, color = "blue", trend }) => {
+    const getColorClasses = (color) => {
+      const map = {
+        blue: { bg: "bg-blue-50", text: "text-blue-600", border: "border-blue-100" },
+        green: { bg: "bg-green-50", text: "text-green-600", border: "border-green-100" },
+        purple: { bg: "bg-purple-50", text: "text-purple-600", border: "border-purple-100" },
+        orange: { bg: "bg-orange-50", text: "text-orange-600", border: "border-orange-100" },
+        red: { bg: "bg-red-50", text: "text-red-600", border: "border-red-100" },
+        yellow: { bg: "bg-yellow-50", text: "text-yellow-600", border: "border-yellow-100" }
+      };
+      return map[color] || map.blue;
+    };
+
+    const colors = getColorClasses(color);
+
+    return (
+      <div className={`bg-white p-4 rounded-xl border ${colors.border} hover:shadow-sm transition-all`}>
+        <div className="flex items-start justify-between mb-2">
+          <div className={`p-2 ${colors.bg} rounded-lg`}>
+            <Icon size={18} className={colors.text} />
+          </div>
+          {trend && (
+            <span className={`text-xs font-medium px-2 py-1 rounded-full ${trend > 0 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+              {trend > 0 ? '+' : ''}{trend}%
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-gray-500 mb-1">{title}</p>
+        <p className="text-xl font-bold text-gray-800">{value}</p>
+      </div>
+    );
+  };
+
   const maxHourlyUtilization = Math.max(...(roomData.hourlyUtilization || []).map(h => h.utilization), 1);
   const maxGrowthValue = Math.max(...(roomData.growth?.values || []), 1);
   const chartHeight = 200;
@@ -1006,8 +797,7 @@ function AnalyticsRooms({ setView, admin }) {
   if (loading && !roomData.total) {
     return (
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
-        {/* Header Skeleton */}
-        <header className="bg-white px-6 py-4 border-b border-gray-200">
+        <header className="bg-white px-6 py-4 border-b border-gray-200 sticky top-0 z-10">
           <div className="flex justify-between items-center">
             <div>
               <div className="h-8 bg-gray-200 rounded w-64 mb-2 animate-pulse"></div>
@@ -1026,12 +816,10 @@ function AnalyticsRooms({ setView, admin }) {
           </div>
         </header>
 
-        {/* Main Content Skeleton */}
         <div className="p-6">
-          {/* Key Metrics Skeleton */}
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-4">
+          <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-5">
             <SectionHeaderSkeleton />
-            <div className="flex flex-wrap gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <StatCardSkeleton />
               <StatCardSkeleton />
               <StatCardSkeleton />
@@ -1040,23 +828,21 @@ function AnalyticsRooms({ setView, admin }) {
             </div>
           </div>
 
-          {/* Floor Distribution Skeleton */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
             <SectionHeaderSkeleton />
-            <div className="space-y-4">
+            <div className="space-y-5">
               <ProgressBarSkeleton />
               <ProgressBarSkeleton />
               <ProgressBarSkeleton />
             </div>
           </div>
 
-          {/* Features Grid Skeleton */}
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-8">
             {Array(4).fill(0).map((_, i) => (
-              <div key={i} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 animate-pulse">
+              <div key={i} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 animate-pulse">
                 <div className="flex items-center gap-3">
-                  <div className="p-2 bg-gray-200 rounded-lg w-10 h-10"></div>
-                  <div>
+                  <div className="p-2.5 bg-gray-200 rounded-lg w-10 h-10"></div>
+                  <div className="flex-1">
                     <div className="h-3 bg-gray-200 rounded w-20 mb-2"></div>
                     <div className="h-5 bg-gray-300 rounded w-12"></div>
                   </div>
@@ -1065,22 +851,31 @@ function AnalyticsRooms({ setView, admin }) {
             ))}
           </div>
 
-          {/* Hourly Utilization Skeleton */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
             <SectionHeaderSkeleton />
             <ChartSkeleton />
           </div>
 
-          {/* Top Rooms Table Skeleton */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
             <SectionHeaderSkeleton />
-            <TableSkeleton rows={5} cols={7} />
+            <div className="space-y-4">
+              <div className="h-10 bg-gray-200 rounded w-full animate-pulse"></div>
+              <div className="h-10 bg-gray-200 rounded w-full animate-pulse"></div>
+              <div className="h-10 bg-gray-200 rounded w-full animate-pulse"></div>
+              <div className="h-10 bg-gray-200 rounded w-full animate-pulse"></div>
+              <div className="h-10 bg-gray-200 rounded w-full animate-pulse"></div>
+            </div>
           </div>
 
-          {/* Room Details Table Skeleton */}
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
             <SectionHeaderSkeleton />
-            <TableSkeleton rows={5} cols={8} />
+            <div className="space-y-4">
+              <div className="h-10 bg-gray-200 rounded w-full animate-pulse"></div>
+              <div className="h-10 bg-gray-200 rounded w-full animate-pulse"></div>
+              <div className="h-10 bg-gray-200 rounded w-full animate-pulse"></div>
+              <div className="h-10 bg-gray-200 rounded w-full animate-pulse"></div>
+              <div className="h-10 bg-gray-200 rounded w-full animate-pulse"></div>
+            </div>
           </div>
         </div>
       </main>
@@ -1090,13 +885,13 @@ function AnalyticsRooms({ setView, admin }) {
   return (
     <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white px-6 py-4 border-b border-gray-200">
+      <header className="bg-white px-6 py-4 border-b border-gray-200 sticky top-0 z-10">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-2xl font-bold text-[#CC0000]">
               Room Analytics
             </h1>
-            <p className="text-gray-600">
+            <p className="text-gray-500 text-sm mt-1">
               {dateRange === 'week' ? 'Last 7 days' : 
                dateRange === 'month' ? 'Last 30 days' : 
                dateRange === 'year' ? 'Last 12 months' : 
@@ -1104,8 +899,7 @@ function AnalyticsRooms({ setView, admin }) {
                'Monitor room utilization, availability, and performance'}
             </p>
           </div>
-          <div className="flex items-center space-x-4">
-            {/* Date Range Selector */}
+          <div className="flex items-center space-x-3">
             <div className="flex bg-gray-100 rounded-lg p-1 relative">
               {["week", "month", "year"].map((range) => (
                 <button
@@ -1114,9 +908,9 @@ function AnalyticsRooms({ setView, admin }) {
                     setDateRange(range);
                     setShowCustomDate(false);
                   }}
-                  className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer ${
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all cursor-pointer ${
                     dateRange === range && !showCustomDate
-                      ? "bg-[#CC0000] text-white"
+                      ? "bg-[#CC0000] text-white shadow-sm"
                       : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
                   }`}
                 >
@@ -1126,12 +920,11 @@ function AnalyticsRooms({ setView, admin }) {
                 </button>
               ))}
               
-              {/* Custom Date Button */}
               <button
                 onClick={() => setShowCustomDate(!showCustomDate)}
-                className={`px-4 py-2 text-sm rounded-md transition-all cursor-pointer flex items-center gap-1 ${
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-all cursor-pointer flex items-center gap-1 ${
                   showCustomDate || dateRange === 'custom'
-                    ? "bg-[#CC0000] text-white"
+                    ? "bg-[#CC0000] text-white shadow-sm"
                     : "text-gray-600 hover:text-gray-800 hover:bg-gray-200"
                 }`}
               >
@@ -1139,52 +932,51 @@ function AnalyticsRooms({ setView, admin }) {
                 <span>Custom</span>
               </button>
 
-              {/* Custom Date Range Picker */}
               {showCustomDate && (
                 <div 
                   ref={calendarRef}
-                  className="absolute top-12 right-0 bg-white p-4 rounded-lg shadow-lg border border-gray-200 z-50 w-72"
+                  className="absolute top-12 right-0 bg-white p-5 rounded-xl shadow-lg border border-gray-200 z-50 w-80"
                 >
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-sm font-semibold text-gray-700">Select Date Range</h3>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-sm font-semibold text-gray-800">Select Date Range</h3>
                     <button
                       onClick={() => setShowCustomDate(false)}
-                      className="text-gray-400 hover:text-gray-600"
+                      className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-lg transition-colors"
                     >
                       <X size={16} />
                     </button>
                   </div>
-                  <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-4">
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Start Date</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">Start Date</label>
                       <input
                         type="date"
                         value={customStartDate}
                         onChange={(e) => setCustomStartDate(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                        className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
                         max={customEndDate || undefined}
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">End Date</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">End Date</label>
                       <input
                         type="date"
                         value={customEndDate}
                         onChange={(e) => setCustomEndDate(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
+                        className="border border-gray-300 rounded-lg px-3 py-2.5 text-sm w-full focus:ring-2 focus:ring-red-500 focus:border-red-500 outline-none"
                         min={customStartDate || undefined}
                       />
                     </div>
                     <div className="flex gap-2 mt-2">
                       <button
                         onClick={handleCustomDateApply}
-                        className="flex-1 bg-[#CC0000] text-white text-sm py-2 rounded-lg hover:bg-[#990000] transition-colors"
+                        className="flex-1 bg-[#CC0000] text-white text-sm font-medium py-2.5 rounded-lg hover:bg-[#990000] transition-colors"
                       >
                         Apply
                       </button>
                       <button
                         onClick={handleCustomDateClear}
-                        className="flex-1 bg-gray-200 text-gray-700 text-sm py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                        className="flex-1 bg-gray-100 text-gray-700 text-sm font-medium py-2.5 rounded-lg hover:bg-gray-200 transition-colors"
                       >
                         Clear
                       </button>
@@ -1194,20 +986,18 @@ function AnalyticsRooms({ setView, admin }) {
               )}
             </div>
             
-            {/* Export to CSV Button */}
             <button
               onClick={exportToCSV}
-              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer shadow-sm hover:shadow"
               title="Export to CSV"
             >
               <Download size={18} />
-              <span>Excel</span>
+              <span className="text-sm font-medium">Excel</span>
             </button>
 
-            {/* Refresh Button */}
             <button 
               onClick={fetchRoomAnalytics}
-              className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer"
+              className="p-2 bg-white border border-gray-300 rounded-lg text-gray-600 hover:text-gray-800 hover:bg-gray-50 cursor-pointer transition-all hover:shadow-sm"
               title="Refresh Data"
             >
               <RefreshCw size={18} />
@@ -1219,10 +1009,13 @@ function AnalyticsRooms({ setView, admin }) {
       {/* Main Content */}
       <div className="p-6">
         {/* Key Metrics Cards */}
-        <div className="flex flex-col gap-4 mb-6 w-full">
+        <div className="mb-6">
           <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800 mb-4">Room Status Overview</h2>
-            <div className="flex flex-wrap gap-4">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-semibold text-gray-800">Room Status Overview</h2>
+              <span className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-full font-medium">Live</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               <StatCard 
                 title="Total Rooms" 
                 value={roomData.total} 
@@ -1252,7 +1045,7 @@ function AnalyticsRooms({ setView, admin }) {
               <StatCard 
                 title="Maintenance" 
                 value={roomData.maintenance} 
-                icon={AlertCircle} 
+                icon={Tool} 
                 color="red" 
                 subtext="Under maintenance"
                 isLoading={loading}
@@ -1260,7 +1053,7 @@ function AnalyticsRooms({ setView, admin }) {
               <StatCard 
                 title="Utilization Rate" 
                 value={roomData.utilization} 
-                icon={TrendingUp} 
+                icon={Gauge} 
                 trend={roomData.trends?.utilization}
                 color="purple" 
                 subtext="Overall usage"
@@ -1270,11 +1063,14 @@ function AnalyticsRooms({ setView, admin }) {
           </div>
         </div>
 
-        {/* Floor Distribution - Progress Bars */}
+        {/* Floor Distribution */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Rooms by Floor</h2>
+          <h2 className="text-lg font-semibold text-gray-800 mb-5 flex items-center gap-2">
+            <LayoutGrid size={20} className="text-indigo-500" />
+            Rooms by Floor
+          </h2>
           {loading ? (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <ProgressBarSkeleton />
               <ProgressBarSkeleton />
               <ProgressBarSkeleton />
@@ -1300,57 +1096,57 @@ function AnalyticsRooms({ setView, admin }) {
 
         {/* Features Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Wifi size={20} className="text-blue-600" />
+              <div className="p-2.5 bg-blue-100 rounded-xl">
+                <Wifi size={22} className="text-blue-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Rooms with WiFi</p>
+                <p className="text-xs text-gray-500 mb-1">Rooms with WiFi</p>
                 <p className="text-xl font-bold text-gray-800">{roomData.featureStats?.wifi || 0}</p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-400 mt-1">
                   {Math.round(((roomData.featureStats?.wifi || 0) / (roomData.total || 1)) * 100)}% of total
                 </p>
               </div>
             </div>
           </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Wind size={20} className="text-green-600" />
+              <div className="p-2.5 bg-green-100 rounded-xl">
+                <Wind size={22} className="text-green-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Rooms with AC</p>
+                <p className="text-xs text-gray-500 mb-1">Rooms with AC</p>
                 <p className="text-xl font-bold text-gray-800">{roomData.featureStats?.aircon || 0}</p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-400 mt-1">
                   {Math.round(((roomData.featureStats?.aircon || 0) / (roomData.total || 1)) * 100)}% of total
                 </p>
               </div>
             </div>
           </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Video size={20} className="text-purple-600" />
+              <div className="p-2.5 bg-purple-100 rounded-xl">
+                <Video size={22} className="text-purple-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Rooms with Projector</p>
+                <p className="text-xs text-gray-500 mb-1">Rooms with Projector</p>
                 <p className="text-xl font-bold text-gray-800">{roomData.featureStats?.projector || 0}</p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-400 mt-1">
                   {Math.round(((roomData.featureStats?.projector || 0) / (roomData.total || 1)) * 100)}% of total
                 </p>
               </div>
             </div>
           </div>
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 rounded-lg">
-                <Monitor size={20} className="text-orange-600" />
+              <div className="p-2.5 bg-orange-100 rounded-xl">
+                <Monitor size={22} className="text-orange-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Rooms with Monitor</p>
+                <p className="text-xs text-gray-500 mb-1">Rooms with Monitor</p>
                 <p className="text-xl font-bold text-gray-800">{roomData.featureStats?.monitor || 0}</p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-gray-400 mt-1">
                   {Math.round(((roomData.featureStats?.monitor || 0) / (roomData.total || 1)) * 100)}% of total
                 </p>
               </div>
@@ -1358,9 +1154,12 @@ function AnalyticsRooms({ setView, admin }) {
           </div>
         </div>
 
-        {/* Hourly Utilization - Fixed Chart */}
+        {/* Hourly Utilization */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Hourly Utilization</h2>
+          <h2 className="text-lg font-semibold text-gray-800 mb-5 flex items-center gap-2">
+            <Clock3 size={20} className="text-orange-500" />
+            Hourly Utilization
+          </h2>
           {loading ? (
             <ChartSkeleton />
           ) : (
@@ -1377,28 +1176,26 @@ function AnalyticsRooms({ setView, admin }) {
                           className={`w-3/4 ${isPeak ? 'bg-gradient-to-t from-green-500 to-green-400' : 'bg-gradient-to-t from-[#CC0000] to-[#FF4444]'} rounded-t transition-all duration-300 hover:from-[#990000] hover:to-[#CC0000] cursor-pointer`}
                           style={{ height: `${height}px` }}
                         >
-                          {/* Tooltip */}
-                          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-lg">
                             {hour.utilization}% • {hour.bookings || 0} bookings
                           </div>
                         </div>
                       </div>
-                      <span className="text-xs text-gray-600 font-medium">{hour.hour}</span>
-                      <span className="text-sm text-gray-800">{hour.utilization}%</span>
+                      <span className="text-xs text-gray-500 font-medium">{hour.hour}</span>
+                      <span className="text-sm font-semibold text-gray-800">{hour.utilization}%</span>
                     </div>
                   );
                 })}
               </div>
               
-              {/* Legend */}
-              <div className="flex justify-between items-center mt-4 text-xs text-gray-500">
+              <div className="flex justify-between items-center mt-5 pt-4 border-t border-gray-100 text-xs text-gray-500">
                 <div>Peak hours: &gt;80% utilization</div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-1">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1.5">
                     <div className="w-3 h-3 bg-gradient-to-t from-[#CC0000] to-[#FF4444] rounded"></div>
                     <span>Normal usage</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <div className="w-3 h-3 bg-gradient-to-t from-green-500 to-green-400 rounded"></div>
                     <span>Peak hours</span>
                   </div>
@@ -1408,9 +1205,10 @@ function AnalyticsRooms({ setView, admin }) {
           )}
         </div>
 
-        {/* Growth Chart - Fixed like AnalyticsReservations */}
+        {/* Growth Chart */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">
+          <h2 className="text-lg font-semibold text-gray-800 mb-5 flex items-center gap-2">
+            <TrendingUp size={20} className="text-blue-500" />
             Room Booking Growth - {dateRange === 'week' ? 'Daily' : dateRange === 'month' ? 'Weekly' : dateRange === 'year' ? 'Monthly' : 'Custom Period'}
           </h2>
           {loading ? (
@@ -1430,27 +1228,26 @@ function AnalyticsRooms({ setView, admin }) {
                             className="w-3/4 bg-gradient-to-t from-[#CC0000] to-[#FF4444] rounded-t transition-all duration-300 hover:from-[#990000] hover:to-[#CC0000] cursor-pointer"
                             style={{ height: `${height}px` }}
                           >
-                            {/* Tooltip */}
-                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">
+                            <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-lg">
                               {value} bookings
                             </div>
                           </div>
                         </div>
-                        <span className="text-xs text-gray-600 font-medium">{roomData.growth.labels?.[index] || ''}</span>
-                        <span className="text-xs text-gray-800">{value}</span>
+                        <span className="text-xs text-gray-500 font-medium">{roomData.growth.labels?.[index] || ''}</span>
+                        <span className="text-sm font-semibold text-gray-800">{value}</span>
                       </div>
                     );
                   })
                 ) : (
-                  <div className="w-full text-center text-gray-500 py-12">
+                  <div className="w-full text-center text-gray-400 py-12">
                     No growth data available for this period
                   </div>
                 )}
               </div>
               
               {roomData.growth?.values && roomData.growth.values.length > 0 && (
-                <div className="flex justify-between items-center mt-4 text-xs text-gray-500">
-                  <div>Total bookings: {roomData.growth.values.reduce((a, b) => a + b, 0)}</div>
+                <div className="flex justify-between items-center mt-5 pt-4 border-t border-gray-100 text-xs text-gray-500">
+                  <div>Total bookings: {roomData.growth.values.reduce((a, b) => a + b, 0).toLocaleString()}</div>
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-gradient-to-t from-[#CC0000] to-[#FF4444] rounded"></div>
                     <span>Bar height relative to peak period</span>
@@ -1463,7 +1260,10 @@ function AnalyticsRooms({ setView, admin }) {
 
         {/* Top Rooms Table */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mb-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Top Performing Rooms</h2>
+          <h2 className="text-lg font-semibold text-gray-800 mb-5 flex items-center gap-2">
+            <Award size={20} className="text-yellow-500" />
+            Top Performing Rooms
+          </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
@@ -1488,17 +1288,23 @@ function AnalyticsRooms({ setView, admin }) {
                   </>
                 ) : (
                   (roomData.topRooms || []).slice(0, 10).map((room, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{room.name}</td>
+                    <tr key={index} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-medium text-gray-900">{room.name}</div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-600">{room.type}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-600">{room.floor || 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-800">{room.capacity || 0}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{room.bookings}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <span className="font-medium text-gray-800">{room.capacity || 0}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="font-semibold text-gray-900">{room.bookings.toLocaleString()}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className="w-20 bg-gray-200 rounded-full h-2 overflow-hidden">
                             <div 
-                              className={`rounded-full h-2 ${
+                              className={`rounded-full h-2 transition-all duration-300 ${
                                 room.utilization > 80 ? 'bg-green-500' :
                                 room.utilization > 60 ? 'bg-blue-500' :
                                 room.utilization > 40 ? 'bg-yellow-500' : 'bg-red-500'
@@ -1506,11 +1312,11 @@ function AnalyticsRooms({ setView, admin }) {
                               style={{ width: `${Math.min(room.utilization, 100)}%` }}
                             ></div>
                           </div>
-                          <span className="text-gray-600 text-sm">{Math.min(room.utilization, 100)}%</span>
+                          <span className="text-sm font-medium text-gray-700">{Math.min(room.utilization, 100)}%</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex gap-1">
+                        <div className="flex gap-1.5">
                           {room.features?.wifi && <Wifi size={14} className="text-blue-500" title="WiFi" />}
                           {room.features?.aircon && <Wind size={14} className="text-green-500" title="Aircon" />}
                           {room.features?.projector && <Video size={14} className="text-purple-500" title="Projector" />}
@@ -1527,7 +1333,10 @@ function AnalyticsRooms({ setView, admin }) {
 
         {/* Room Details Table */}
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">Room Details & Status</h2>
+          <h2 className="text-lg font-semibold text-gray-800 mb-5 flex items-center gap-2">
+            <BarChart3 size={20} className="text-indigo-500" />
+            Room Details & Status
+          </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
@@ -1551,17 +1360,23 @@ function AnalyticsRooms({ setView, admin }) {
                   </>
                 ) : (
                   (roomData.roomDetails || []).slice(0, 15).map((room, index) => (
-                    <tr key={index} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-800 font-medium">{room.name}</td>
+                    <tr key={index} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-medium text-gray-900">{room.name}</div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-600">{room.type}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-gray-600">{room.floor || 'N/A'}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-800">{room.capacity}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-800">{room.bookings}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <div className="w-16 bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <span className="font-medium text-gray-800">{room.capacity}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="font-semibold text-gray-900">{room.bookings.toLocaleString()}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className="w-20 bg-gray-200 rounded-full h-2 overflow-hidden">
                             <div 
-                              className={`rounded-full h-2 ${
+                              className={`rounded-full h-2 transition-all duration-300 ${
                                 room.utilization > 80 ? 'bg-green-500' :
                                 room.utilization > 60 ? 'bg-blue-500' :
                                 room.utilization > 40 ? 'bg-yellow-500' : 'bg-red-500'
@@ -1569,22 +1384,13 @@ function AnalyticsRooms({ setView, admin }) {
                               style={{ width: `${Math.min(room.utilization, 100)}%` }}
                             ></div>
                           </div>
-                          <span className="text-gray-600 text-sm">{Math.min(room.utilization, 100)}%</span>
+                          <span className="text-sm font-medium text-gray-700">{Math.min(room.utilization, 100)}%</span>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          room.status === 'available' ? 'bg-green-100 text-green-700' :
-                          room.status === 'occupied' ? 'bg-yellow-100 text-yellow-700' :
-                          room.status === 'maintenance' ? 'bg-red-100 text-red-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {room.status === 'available' ? 'Available' : 
-                           room.status === 'occupied' ? 'Occupied' : 
-                           room.status === 'maintenance' ? 'Maintenance' : room.status}
-                        </span>
+                        <StatusBadge status={room.status} />
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-gray-600 text-xs">
+                      <td className="px-6 py-4 whitespace-nowrap text-gray-500 text-xs">
                         {formatDateTime(room.lastMaintenance)}
                       </td>
                     </tr>
@@ -1594,9 +1400,8 @@ function AnalyticsRooms({ setView, admin }) {
             </table>
           </div>
           
-          {/* Footer note */}
           {roomData.roomDetails && roomData.roomDetails.length > 15 && (
-            <div className="mt-4 pt-4 border-t border-gray-100 text-xs text-gray-500 text-center">
+            <div className="mt-5 pt-4 border-t border-gray-100 text-xs text-gray-500 text-center">
               Showing 15 of {roomData.roomDetails.length} rooms
             </div>
           )}
