@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import socket from "../utils/socket";
 import moment from "moment-timezone";
+import RoomAvailabilityModal from "./RoomAvailabilityModal";
 
 // Import shared room images configuration
 import { availableRoomImages, getRoomImageById } from "../data/roomImages";
@@ -58,6 +59,13 @@ function ReserveRoom({ user, setView }) {
   const [selectedRoomDetails, setSelectedRoomDetails] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   
+  // Add state for room availability
+  const [roomAvailability, setRoomAvailability] = useState([]);
+  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [selectedAvailabilityDate, setSelectedAvailabilityDate] = useState(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState(null);
+  
   // Alert modal state
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
@@ -86,7 +94,7 @@ function ReserveRoom({ user, setView }) {
     return graduateKeywords.some(keyword => user.course.includes(keyword));
   }, [user]);
 
-  // ✅ NEW: Check if user is Faculty
+  // Check if user is Faculty
   const isFacultyUser = useCallback(() => {
     return user?.role === "Faculty" || user?.role === "Staff_Office";
   }, [user]);
@@ -156,6 +164,72 @@ function ReserveRoom({ user, setView }) {
   }, []);
 
   const [calendarDays, setCalendarDays] = useState(generateCalendarDays(currentMonth, currentYear));
+
+  // Updated time slots with 2-hour durations (7 AM to 3 PM)
+  const timeSlots = [
+    { value: "07:00", display: "7:00 AM - 9:00 AM", start: "07:00", end: "09:00" },
+    { value: "09:00", display: "9:00 AM - 11:00 AM", start: "09:00", end: "11:00" },
+    { value: "11:00", display: "11:00 AM - 1:00 PM", start: "11:00", end: "13:00" },
+    { value: "13:00", display: "1:00 PM - 3:00 PM", start: "13:00", end: "15:00" }
+  ];
+
+  const formatDisplayTime = (timeValue) => {
+    const slot = timeSlots.find(t => t.value === timeValue);
+    return slot ? slot.display : "Select Time";
+  };
+
+  // Fetch room availability for selected date and time
+  const fetchRoomAvailability = async (date, time) => {
+    if (!date || !time) return;
+    
+    setAvailabilityLoading(true);
+    setAvailabilityError(null);
+    
+    try {
+      const selectedTimeSlot = timeSlots.find(t => t.value === time);
+      const startTime = selectedTimeSlot ? selectedTimeSlot.start : time;
+      const endTime = selectedTimeSlot ? selectedTimeSlot.end : "15:00";
+      
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations/room-availability`, {
+        params: {
+          date: date,
+          time: startTime,
+          endTime: endTime
+        }
+      });
+      
+      setRoomAvailability(response.data.rooms || []);
+      setSelectedAvailabilityDate(new Date(date));
+      setShowAvailabilityModal(true);
+    } catch (error) {
+      console.error("Failed to fetch room availability:", error);
+      setAvailabilityError("Failed to load room availability. Please try again.");
+    } finally {
+      setAvailabilityLoading(false);
+    }
+  };
+
+  // Handle date selection with availability check
+  const handleDateSelect = async (date) => {
+    setFormData({ ...formData, date: date.date });
+    setShowDateModal(false);
+    
+    // If time is already selected, fetch availability
+    if (formData.time) {
+      await fetchRoomAvailability(date.date, formData.time);
+    }
+  };
+
+  // Handle time selection with availability check
+  const handleTimeSelect = async (time) => {
+    setFormData({ ...formData, time: time.value });
+    setShowTimeModal(false);
+    
+    // If date is already selected, fetch availability
+    if (formData.date) {
+      await fetchRoomAvailability(formData.date, time.value);
+    }
+  };
 
   const groupedRooms = rooms.reduce((acc, room) => {
     if (!acc[room.floor]) acc[room.floor] = [];
@@ -288,7 +362,7 @@ function ReserveRoom({ user, setView }) {
     }
   };
 
-  // ✅ MODIFIED: Enhanced validateForm with Faculty exemption
+  // Enhanced validateForm with Faculty exemption
   const validateForm = () => {
     if (!formData.date) {
       showAlert("Please select a date.");
@@ -368,7 +442,7 @@ function ReserveRoom({ user, setView }) {
 
     const expectedAdditionalParticipants = totalUsers - 1;
 
-    // ✅ NEW: Faculty can reserve with just themselves
+    // Faculty can reserve with just themselves
     if (!isFacultyUser() && filledParticipants !== expectedAdditionalParticipants) {
       showAlert(`Please complete all ${expectedAdditionalParticipants} additional participant fields for ${totalUsers} total users.`);
       for (let i = 1; i < formData.participants.length; i++) {
@@ -389,11 +463,11 @@ function ReserveRoom({ user, setView }) {
       return false;
     }
 
-    // ✅ MODIFIED: Validate participants with Faculty exemption
+    // Validate participants with Faculty exemption
     for (let i = 0; i < formData.participants.length; i++) {
       const p = formData.participants[i];
       
-      // ✅ NEW: Skip validation for empty participants if user is Faculty
+      // Skip validation for empty participants if user is Faculty
       if (isFacultyUser() && i > 0 && (!p.name || !p.name.trim() || !p.id_number || !p.id_number.toString().trim())) {
         continue;
       }
@@ -626,7 +700,7 @@ function ReserveRoom({ user, setView }) {
     }
   };
 
-  // ✅ MODIFIED: Submit reservation with Faculty participant filtering
+  // Submit reservation with Faculty participant filtering
   const submitReservation = async () => {
     if (isSubmitting) {
       console.log("Submission already in progress, ignoring click");
@@ -680,15 +754,23 @@ function ReserveRoom({ user, setView }) {
     setLoading(true);
 
     try {
+      const selectedTimeSlot = timeSlots.find(t => t.value === formData.time);
+      const startTime = selectedTimeSlot ? selectedTimeSlot.start : formData.time;
+      const endTime = selectedTimeSlot ? selectedTimeSlot.end : "15:00";
+      
       const manilaTime = moment.tz(
-        `${formData.date}T${formData.time}`,
+        `${formData.date}T${startTime}`,
         "YYYY-MM-DDTHH:mm",
         "Asia/Manila"
       );
 
-      const endManilaTime = manilaTime.clone().add(1, 'hour');
+      const endManilaTime = moment.tz(
+        `${formData.date}T${endTime}`,
+        "YYYY-MM-DDTHH:mm",
+        "Asia/Manila"
+      );
 
-      // ✅ NEW: For Faculty, filter out empty participants
+      // For Faculty, filter out empty participants
       let participantsToSend = formData.participants;
       if (isFacultyUser()) {
         participantsToSend = formData.participants.filter((p, index) => {
@@ -711,7 +793,7 @@ function ReserveRoom({ user, setView }) {
         datetime: manilaTime.format(),
         datetimeUTC: manilaTime.utc().format(),
         date: formData.date,
-        time: formData.time,
+        time: startTime,
         endDatetime: endManilaTime.format(),
         endDatetimeUTC: endManilaTime.utc().format(),
         numUsers: isFacultyUser() ? participantsToSend.length : parseInt(formData.numUsers),
@@ -743,41 +825,31 @@ function ReserveRoom({ user, setView }) {
     "4th Floor", 
     "5th Floor"
   ];
-  
-  const timeSlots = [
-    { value: "07:00", display: "7:00 AM" },
-    { value: "07:30", display: "7:30 AM" },
-    { value: "08:00", display: "8:00 AM" },
-    { value: "08:30", display: "8:30 AM" },
-    { value: "09:00", display: "9:00 AM" },
-    { value: "09:30", display: "9:30 AM" },
-    { value: "10:00", display: "10:00 AM" },
-    { value: "10:30", display: "10:30 AM" },
-    { value: "11:00", display: "11:00 AM" },
-    { value: "11:30", display: "11:30 AM" },
-    { value: "13:00", display: "1:00 PM" },
-    { value: "13:30", display: "1:30 PM" },
-    { value: "14:00", display: "2:00 PM" },
-    { value: "14:30", display: "2:30 PM" },
-    { value: "15:00", display: "3:00 PM" },
-    { value: "15:30", display: "3:30 PM" },
-    { value: "16:00", display: "4:00 PM" },
-    { value: "16:30", display: "4:30 PM" },
-    { value: "17:00", display: "5:00 PM" }
-  ];
 
-  const formatDisplayTime = (timeValue) => {
-    const slot = timeSlots.find(t => t.value === timeValue);
-    return slot ? slot.display : "Select Time";
+  // Helper function to check if a room is available for the selected time
+  const isRoomAvailableForTime = (room, selectedTimeSlot) => {
+    if (!roomAvailability || roomAvailability.length === 0) return true;
+    
+    const roomStatus = roomAvailability.find(r => r._id === room._id);
+    if (!roomStatus) return true;
+    
+    const hasOccupied = roomStatus.occupied && roomStatus.occupied.length > 0;
+    const hasPending = roomStatus.pending && roomStatus.pending.length > 0;
+    
+    return !hasOccupied && !hasPending;
   };
 
-  // ✅ FIXED: Allow clicking on any room to view details, but only select if available and user has access
   const handleRoomClick = (room) => {
     // Always show room details
     setSelectedRoomDetails(room);
     
-    // Only select the room (set as form data) if it's active and user has access
-    if (room.isActive && canReserveFloor(room.floor)) {
+    // Check availability for selected date and time
+    const selectedTimeSlot = timeSlots.find(t => t.value === formData.time);
+    const isAvailable = isRoomAvailableForTime(room, selectedTimeSlot);
+    const canAccess = canReserveFloor(room.floor);
+    
+    // Only select the room if it's active, available, and user has access
+    if (room.isActive && isAvailable && canAccess) {
       setFormData((prev) => ({
         ...prev,
         roomName: room.room,
@@ -785,6 +857,8 @@ function ReserveRoom({ user, setView }) {
       }));
     } else if (!room.isActive) {
       showAlert("This room is currently unavailable. You can view details but cannot reserve it.");
+    } else if (!isAvailable && formData.date && formData.time) {
+      showAlert("This room is already booked for the selected time. Please choose a different time or room.");
     } else if (!canReserveFloor(room.floor)) {
       if (room.floor === "Ground Floor") {
         showAlert("Ground Floor is reserved for Graduate students only. You can view details but cannot reserve this room.");
@@ -1244,7 +1318,7 @@ function ReserveRoom({ user, setView }) {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Time
+                Time (2-hour slots)
               </p>
               <button
                 onClick={() => setShowTimeModal(true)}
@@ -1253,7 +1327,7 @@ function ReserveRoom({ user, setView }) {
                 }`}
               >
                 <span className={formData.time ? "text-gray-800 truncate" : "text-gray-400 font-semibold truncate"}>
-                  {formData.time ? formatDisplayTime(formData.time) : "Select Time"}
+                  {formData.time ? formatDisplayTime(formData.time) : "Select Time Slot"}
                 </span>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -1348,12 +1422,7 @@ function ReserveRoom({ user, setView }) {
                   <div key={index} className="text-center">
                     {day ? (
                       <button
-                        onClick={() => {
-                          if (!day.disabled) {
-                            setFormData({ ...formData, date: day.date });
-                            setShowDateModal(false);
-                          }
-                        }}
+                        onClick={() => handleDateSelect(day)}
                         className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-colors text-sm sm:text-base font-medium min-w-[40px] min-h-[40px]
                           ${day.disabled ? 
                             day.isSunday ? 
@@ -1386,7 +1455,7 @@ function ReserveRoom({ user, setView }) {
           </div>
         )}
 
-        {/* Time Selection Modal */}
+        {/* Time Selection Modal - Updated with 2-hour slots */}
         {showTimeModal && (
           <div className="fixed top-0 left-0 w-screen h-screen bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[600px] max-h-[90vh] overflow-y-auto shadow-xl">
@@ -1394,73 +1463,28 @@ function ReserveRoom({ user, setView }) {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Select Time
+                Select Time Slot (2-hour duration)
               </h2>
 
-              <div className="flex flex-col md:flex-row gap-4 sm:gap-6">
-                {/* Morning */}
-                <div className="flex-1">
-                  <h3 className="text-xs sm:text-sm font-bold text-gray-500 mb-2">
-                    Morning (7:00 AM – 11:30 AM)
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-1 font-bold gap-2">
-                    {timeSlots
-                      .filter((slot) => {
-                        const [hourStr] = slot.value.split(":");
-                        const hour = parseInt(hourStr, 10);
-                        return hour >= 7 && hour < 12;
-                      })
-                      .map((slot) => (
-                        <button
-                          key={slot.value}
-                          onClick={() => {
-                            setFormData({ ...formData, time: slot.value });
-                            setShowTimeModal(false);
-                          }}
-                          className={`p-3 sm:p-3 border border-gray-300 rounded-lg text-center cursor-pointer transition-colors text-sm sm:text-base min-h-[44px]
-                            ${
-                              formData.time === slot.value
-                                ? "bg-[#CC0000] text-white border-[#CC0000]"
-                                : "hover:bg-gray-100"
-                            }`}
-                        >
-                          {slot.display}
-                        </button>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Afternoon */}
-                <div className="flex-1">
-                  <h3 className="text-xs sm:text-sm font-bold text-gray-500 mb-2">
-                    Afternoon (1:00 PM – 5:00 PM)
-                  </h3>
-                  <div className="grid grid-cols-2 sm:grid-cols-1 font-bold gap-2">
-                    {timeSlots
-                      .filter((slot) => {
-                        const [hourStr] = slot.value.split(":");
-                        const hour = parseInt(hourStr, 10);
-                        return hour >= 13 && hour <= 17;
-                      })
-                      .map((slot) => (
-                        <button
-                          key={slot.value}
-                          onClick={() => {
-                            setFormData({ ...formData, time: slot.value });
-                            setShowTimeModal(false);
-                          }}
-                          className={`p-3 sm:p-3 border border-gray-300 rounded-lg text-center cursor-pointer transition-colors text-sm sm:text-base min-h-[44px]
-                            ${
-                              formData.time === slot.value
-                                ? "bg-[#CC0000] text-white border-[#CC0000]"
-                                : "hover:bg-gray-100"
-                            }`}
-                        >
-                          {slot.display}
-                        </button>
-                      ))}
-                  </div>
-                </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {timeSlots.map((slot) => (
+                  <button
+                    key={slot.value}
+                    onClick={() => handleTimeSelect(slot)}
+                    className={`p-4 border rounded-lg text-center cursor-pointer transition-all duration-200 min-h-[80px]
+                      ${formData.time === slot.value
+                        ? "bg-[#CC0000] text-white border-[#CC0000] shadow-lg"
+                        : "hover:bg-gray-100 border-gray-300 hover:border-gray-400"
+                      }`}
+                  >
+                    <div className="font-semibold text-base sm:text-lg">
+                      {slot.display}
+                    </div>
+                    <div className="text-xs mt-1 opacity-75">
+                      2-hour session
+                    </div>
+                  </button>
+                ))}
               </div>
 
               <button
@@ -1612,18 +1636,21 @@ function ReserveRoom({ user, setView }) {
                   const roomImage = getRoomImage(room);
                   const isDisabled = !room.isActive;
                   const canReserve = canReserveFloor(room.floor);
+                  const selectedTimeSlot = timeSlots.find(t => t.value === formData.time);
+                  const isAvailable = isRoomAvailableForTime(room, selectedTimeSlot);
                   const isSelected = formData.room_Id === room._id;
+                  const isBooked = !isAvailable && formData.date && formData.time;
 
                   return (
                     <button
                       key={room._id}
                       onClick={() => handleRoomClick(room)}
                       className={`border-2 rounded-2xl w-full sm:w-[280px] md:w-[300px] h-[250px] sm:h-[280px] md:h-[300px] flex justify-center items-center cursor-pointer relative overflow-hidden transition-all duration-200 ${
-                        isSelected && room.isActive && canReserve
+                        isSelected && room.isActive && canReserve && isAvailable
                           ? "border-[#CC0000] ring-2 ring-red-100 bg-red-50"
-                          : isSelected && (!room.isActive || !canReserve)
+                          : isSelected && (!room.isActive || !canReserve || !isAvailable)
                           ? "border-gray-400 ring-2 ring-gray-200 bg-gray-50"
-                          : isDisabled || !canReserve
+                          : isDisabled || !canReserve || isBooked
                           ? "border-gray-300 bg-gray-100 cursor-pointer opacity-60"
                           : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                       }`}
@@ -1638,7 +1665,7 @@ function ReserveRoom({ user, setView }) {
                         />
                       )}
                       <div className={`absolute inset-0 z-0 ${
-                        isDisabled || !canReserve ? "bg-gray-800/60" : "bg-black/30"
+                        isDisabled || !canReserve || isBooked ? "bg-gray-800/60" : "bg-black/30"
                       }`}></div>
                       
                       {/* Room Status Badge */}
@@ -1648,15 +1675,22 @@ function ReserveRoom({ user, setView }) {
                         </div>
                       )}
                       
+                      {/* Booked Badge */}
+                      {isBooked && !isDisabled && (
+                        <div className="absolute top-2 right-2 bg-orange-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
+                          Booked
+                        </div>
+                      )}
+                      
                       {/* Restricted Badge */}
-                      {!canReserve && !isDisabled && (
+                      {!canReserve && !isDisabled && !isBooked && (
                         <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
                           Restricted
                         </div>
                       )}
                       
                       {/* View Details Badge */}
-                      {(isDisabled || !canReserve) && (
+                      {(isDisabled || !canReserve || isBooked) && (
                         <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
                           Click to View Details
                         </div>
@@ -1976,6 +2010,10 @@ function ReserveRoom({ user, setView }) {
           <ul className="space-y-1 sm:space-y-2">
             <li className="text-xs sm:text-sm text-gray-600 flex items-start">
               <span className="text-red-600 font-bold mr-1">•</span>
+              Reservations are for 2-hour sessions only. Available time slots: 7:00 AM - 9:00 AM, 9:00 AM - 11:00 AM, 11:00 AM - 1:00 PM, and 1:00 PM - 3:00 PM.
+            </li>
+            <li className="text-xs sm:text-sm text-gray-600 flex items-start">
+              <span className="text-red-600 font-bold mr-1">•</span>
               The group will be notified fifteen (15) minutes before the usage is terminated. If there are no standing reservations for the next hour, the group may request a one-hour extension.
             </li>
             <li className="text-xs sm:text-sm text-gray-600 flex items-start">
@@ -1991,7 +2029,7 @@ function ReserveRoom({ user, setView }) {
           </ul>
         </div>
 
-        {/* Submit Button - Fixed to prevent multiple clicks */}
+        {/* Submit Button */}
         <div className="flex justify-center">
           <button
             onClick={submitReservation}
@@ -2131,6 +2169,18 @@ function ReserveRoom({ user, setView }) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Room Availability Modal */}
+      {showAvailabilityModal && (
+        <RoomAvailabilityModal
+          selectedDate={selectedAvailabilityDate}
+          roomStatuses={roomAvailability}
+          availLoading={availabilityLoading}
+          availError={availabilityError}
+          onClose={() => setShowAvailabilityModal(false)}
+          currentUserId={user?._id}
+        />
       )}
     </main>
   );
