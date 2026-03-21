@@ -57,7 +57,6 @@ const apiService = {
       return response.data;
     } catch (error) {
       console.error(`API Error (GET ${url}):`, error);
-      // Return empty array or object instead of throwing to prevent cascading failures
       if (error.response?.status === 404) {
         console.log(`⚠️ Endpoint ${url} not found, returning empty data`);
         return [];
@@ -126,20 +125,17 @@ function AdminDashboard({ setView }) {
     return admin.id_number || "admin";
   };
 
-  // 🆕 ADD WEBSOCKET LISTENER FOR REAL-TIME UPDATES
+  // WebSocket listener for real-time updates
   useEffect(() => {
-    // Only set up socket if not already connected
     if (!window.socketConnected) {
       console.log('🔌 Connecting to WebSocket for real-time updates...');
       const socket = io(import.meta.env.VITE_WS_URL);
       
-      // Listen for admin unread updates
       socket.on('adminUnreadUpdate', (data) => {
         console.log('📥 Received real-time admin unread update:', data);
         updateUnreadCountsFromSocket(data);
       });
 
-      // Listen for new messages to admin
       socket.on('newMessage', (message) => {
         if (message.receiver === 'admin' || message.sender === 'admin') {
           console.log('📥 New message affecting admin, refreshing counts');
@@ -147,7 +143,6 @@ function AdminDashboard({ setView }) {
         }
       });
 
-      // Listen for connection events
       socket.on('connect', () => {
         console.log('✅ Connected to WebSocket server');
       });
@@ -169,7 +164,6 @@ function AdminDashboard({ setView }) {
     }
   }, []);
 
-  // 🆕 ADD FUNCTION TO PROCESS SOCKET UPDATES
   const updateUnreadCountsFromSocket = (data) => {
     const { recipients, totalUnread } = data;
     
@@ -204,11 +198,9 @@ function AdminDashboard({ setView }) {
     }
   };
 
-  // 🆕 ENHANCED REFRESH FUNCTION FOR UNREAD COUNTS
   const refreshUnreadCounts = async () => {
     try {
       console.log('🔄 Manually refreshing unread counts...');
-      // Use the correct endpoint from messageRoutes.js
       const adminRecipients = await apiService.get('/api/messages/recipients/admin');
       
       const totalUnread = Array.isArray(adminRecipients) 
@@ -246,7 +238,6 @@ function AdminDashboard({ setView }) {
       console.log('✅ Unread counts refreshed:', { totalUnread, unreadUserMessages, unreadStaffMessages });
     } catch (error) {
       console.error('❌ Failed to refresh unread counts:', error);
-      // Set fallback data
       setSummaryData(prev => ({
         ...prev,
         unreadMessages: 0,
@@ -256,64 +247,54 @@ function AdminDashboard({ setView }) {
     }
   };
 
-const fetchAllData = useCallback(async () => {
-  try {
-    setRefreshing(true);
-    setError(null);
-    
-    // Define all API endpoints to fetch - using correct endpoints from your routes
-    const endpoints = [
-      { key: 'reservations', url: '/api/reservations' },
-      // ✅ FIXED: Changed from '/api/all/users' to '/api/users/all' to match your routes
-      { key: 'users', url: '/api/users/all' },
-      { key: 'reports', url: '/api/reports' },
-      { key: 'rooms', url: '/api/rooms' },
-      { key: 'news', url: '/api/news/active' },
-      { key: 'logs', url: '/api/logs' },
-      { key: 'adminRecipients', url: '/api/messages/recipients/admin' }
-    ];
+  const fetchAllData = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      setError(null);
+      
+      const endpoints = [
+        { key: 'reservations', url: '/api/reservations' },
+        { key: 'users', url: '/api/users/all' },
+        { key: 'reports', url: '/api/reports' },
+        { key: 'rooms', url: '/api/rooms' },
+        { key: 'news', url: '/api/news/active' },
+        { key: 'logs', url: '/api/logs' },
+        { key: 'adminRecipients', url: '/api/messages/recipients/admin' }
+      ];
 
-    // Fetch all data in parallel with error handling for each
-    const fetchPromises = endpoints.map(async (endpoint) => {
-      try {
-        const data = await apiService.get(endpoint.url);
-        return { key: endpoint.key, data };
-      } catch (error) {
-        console.log(`⚠️ Failed to fetch ${endpoint.key}, using empty data`);
-        return { key: endpoint.key, data: [] };
-      }
-    });
+      const fetchPromises = endpoints.map(async (endpoint) => {
+        try {
+          const data = await apiService.get(endpoint.url);
+          return { key: endpoint.key, data };
+        } catch (error) {
+          console.log(`⚠️ Failed to fetch ${endpoint.key}, using empty data`);
+          return { key: endpoint.key, data: [] };
+        }
+      });
 
-    const results = await Promise.all(fetchPromises);
-    
-    // Process results
-    const data = {};
-    results.forEach(result => {
-      data[result.key] = result.data;
-    });
+      const results = await Promise.all(fetchPromises);
+      
+      const data = {};
+      results.forEach(result => {
+        data[result.key] = result.data;
+      });
 
-    // Process and validate data
-    processFetchedData(data);
+      processFetchedData(data);
 
-  } catch (error) {
-    console.error("Error fetching dashboard data:", error);
-    setError("Some dashboard data failed to load. Showing available information.");
-  } finally {
-    setLoading(false);
-    setRefreshing(false);
-  }
-}, []);
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+      setError("Some dashboard data failed to load. Showing available information.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
   const processFetchedData = (data) => {
-    // Helper function to safely get array length
     const safeLength = (array) => (Array.isArray(array) ? array.length : 0);
-    
-    // Helper function to filter by status
     const filterByStatus = (array, status) => 
       Array.isArray(array) ? array.filter(item => item.status === status).length : 0;
 
-    // Process data with safe fallbacks
-    // FIXED: Handle the response structure from getAllUsers which returns { success: true, users: [...] }
     let usersData = [];
     if (data.users && data.users.success && Array.isArray(data.users.users)) {
       usersData = data.users.users;
@@ -326,28 +307,21 @@ const fetchAllData = useCallback(async () => {
     const roomsData = Array.isArray(data.rooms) ? data.rooms : [];
     const adminRecipients = Array.isArray(data.adminRecipients) ? data.adminRecipients : [];
 
-    // Calculate additional metrics
     const activeRooms = roomsData.filter(room => room.isActive !== false).length;
-    
     const completedReservations = reservationsData.filter(res => 
       res.status === 'Completed' || res.status === 'Approved'
     ).length;
-    
     const cancelledReservations = reservationsData.filter(res => 
       res.status === 'Cancelled' || res.status === 'Rejected'
     ).length;
-    
     const occupancyRate = activeRooms > 0 
       ? Math.round((completedReservations / activeRooms) * 100) 
       : 0;
 
-    // Calculate unread messages
     const totalUnread = adminRecipients.reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0);
-
     const unreadUserMessages = adminRecipients
       .filter(recipient => recipient.type === 'user')
       .reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0);
-
     const unreadStaffMessages = adminRecipients
       .filter(recipient => recipient.type === 'staff')
       .reduce((sum, recipient) => sum + (recipient.unreadCount || 0), 0);
@@ -361,12 +335,10 @@ const fetchAllData = useCallback(async () => {
           roomCounts[roomName] = (roomCounts[roomName] || 0) + 1;
         }
       });
-      
       const popular = Object.entries(roomCounts)
         .map(([name, count]) => ({ name, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
-      
       setPopularRooms(popular);
     }
 
@@ -380,12 +352,10 @@ const fetchAllData = useCallback(async () => {
           hourCounts[timeSlot] = (hourCounts[timeSlot] || 0) + 1;
         }
       });
-      
       const peak = Object.entries(hourCounts)
         .map(([time, count]) => ({ time, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 3);
-      
       setPeakHours(peak);
     }
 
@@ -406,7 +376,6 @@ const fetchAllData = useCallback(async () => {
       cancelledReservations
     });
 
-    // Set other data states
     setNewsList(Array.isArray(data.news) ? data.news : []);
     setReservations(reservationsData);
     setReports(reportsData);
@@ -415,7 +384,6 @@ const fetchAllData = useCallback(async () => {
     const logsData = Array.isArray(data.logs) ? data.logs : [];
     setLogs(logsData);
 
-    // Set unread breakdown
     setUnreadBreakdown(
       adminRecipients
         .filter(recipient => recipient.unreadCount > 0)
@@ -423,30 +391,25 @@ const fetchAllData = useCallback(async () => {
         .slice(0, 5)
     );
 
-    // Update recent activity
     updateRecentActivity(logsData);
   };
 
-  // Fetch room availability for selected date
   const fetchRoomAvailabilityForDate = useCallback(async (date) => {
     try {
       console.log('🚀 Fetching room availability...');
       setAvailLoading(true);
       setAvailError(null);
       
-      // Format date for API
       const formattedDate = date.toISOString().split('T')[0];
       const adminId = getAdminId();
       
       console.log('📋 Formatted date for API:', formattedDate);
       
       try {
-        // Use the availability endpoint with proper userId
         const availabilityData = await apiService.get(`/api/rooms/availability?date=${formattedDate}&userId=${adminId}`);
         console.log('✅ Room availability data received:', availabilityData);
         
         if (Array.isArray(availabilityData)) {
-          // Process the data to ensure consistent structure
           const processedData = availabilityData.map(room => ({
             _id: room._id || room.room,
             room: room.room || "Unnamed Room",
@@ -458,12 +421,11 @@ const fetchAllData = useCallback(async () => {
           
           setRoomStatuses(processedData);
           
-          // Initialize expanded floors - expand all by default
           const floors = {};
           processedData.forEach(room => {
             const floor = room.floor || "Unknown Floor";
             if (!floors[floor]) {
-              floors[floor] = true; // true = expanded
+              floors[floor] = true;
             }
           });
           setExpandedFloors(floors);
@@ -476,7 +438,6 @@ const fetchAllData = useCallback(async () => {
         }
       } catch (apiError) {
         console.log('⚠️ API endpoint error:', apiError);
-        // If the API fails, use rooms data as fallback
         if (rooms.length > 0) {
           console.log('📋 Using rooms data as fallback');
           const fallbackData = rooms.map(room => ({
@@ -489,7 +450,6 @@ const fetchAllData = useCallback(async () => {
           }));
           setRoomStatuses(fallbackData);
           
-          // Initialize expanded floors
           const floors = {};
           fallbackData.forEach(room => {
             const floor = room.floor || "Unknown Floor";
@@ -545,7 +505,6 @@ const fetchAllData = useCallback(async () => {
     }
   };
 
-  // Calendar Functions
   const handleDateClick = (date) => {
     console.log('📅 Date clicked:', date);
     setSelectedDate(date);
@@ -556,8 +515,6 @@ const fetchAllData = useCallback(async () => {
     if (view !== 'month') return null;
     
     const dateStr = date.toISOString().split('T')[0];
-    
-    // Count reservations for this date
     const dayReservations = reservations.filter(reservation => {
       const reservationDate = new Date(reservation.datetime).toISOString().split('T')[0];
       return reservationDate === dateStr;
@@ -565,7 +522,6 @@ const fetchAllData = useCallback(async () => {
     
     if (dayReservations.length === 0) return null;
     
-    // Determine dot color based on reservation count
     let dotColor = 'bg-blue-500';
     if (dayReservations.length >= 5) dotColor = 'bg-red-500';
     else if (dayReservations.length >= 3) dotColor = 'bg-amber-500';
@@ -579,8 +535,6 @@ const fetchAllData = useCallback(async () => {
 
   useEffect(() => {
     fetchAllData();
-    
-    // Auto-refresh every 30 seconds
     const interval = setInterval(fetchAllData, 30000);
     return () => clearInterval(interval);
   }, [fetchAllData]);
@@ -607,7 +561,6 @@ const fetchAllData = useCallback(async () => {
     }));
   };
 
-  // Enhanced room status detection for admin
   const getRoomStatus = (room) => {
     const isRoomActive = room.isActive !== false;
     const hasOccupied = Array.isArray(room.occupied) && room.occupied.length > 0;
@@ -624,7 +577,6 @@ const fetchAllData = useCallback(async () => {
     }
   };
 
-  // Group rooms by floor
   const groupedByFloor = roomStatuses.reduce((acc, room) => {
     const floor = room.floor || "Unknown Floor";
     if (!acc[floor]) acc[floor] = [];
@@ -632,7 +584,6 @@ const fetchAllData = useCallback(async () => {
     return acc;
   }, {});
 
-  // Sort floors
   const allFloors = Object.keys(groupedByFloor).sort((a, b) => {
     const floorOrder = {
       "Ground Floor": 0,
@@ -643,7 +594,6 @@ const fetchAllData = useCallback(async () => {
     return (floorOrder[a] || 999) - (floorOrder[b] || 999);
   });
 
-  // Modal date navigation functions
   const handleModalPreviousDay = () => {
     const newDate = new Date(modalSelectedDate);
     newDate.setDate(newDate.getDate() - 1);
@@ -670,7 +620,6 @@ const fetchAllData = useCallback(async () => {
     setShowRoomAvailabilityModal(true);
   };
 
-  // Render different views
   if (currentSubView === "news") {
     return <AdminNews setView={setView} admin={{}} />;
   }
@@ -682,14 +631,12 @@ const fetchAllData = useCallback(async () => {
   if (loading) {
     return (
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50 flex items-center justify-center">
-        
         <div className="text-center">
           <div className="w-64 h-2 bg-gray-200 rounded-full mx-auto overflow-hidden mb-4">
             <div className="h-full bg-[#CC0000] animate-[loading_1.2s_ease-in-out_infinite]"></div>
           </div>
           <p className="text-gray-800 font-bold">Loading dashboard data...</p>
           <p className="text-gray-500 font-bold text-sm">Please Wait...</p>
-
           <style>
             {`
               @keyframes loading {
@@ -700,7 +647,6 @@ const fetchAllData = useCallback(async () => {
             `}
           </style>
         </div>
-
       </main>
     );
   }
@@ -714,13 +660,11 @@ const fetchAllData = useCallback(async () => {
     }
   };
 
-  // Calculate reservation status breakdown
   const pendingCount = summaryData.pendingReservations;
   const approvedCount = reservations.filter(r => r.status === 'Approved' || r.status === 'Ongoing').length;
   const completedCount = reservations.filter(r => r.status === 'Completed').length;
   const cancelledCount = reservations.filter(r => r.status === 'Cancelled' || r.status === 'Rejected').length;
 
-  // Strip HTML tags from content
   const stripHtmlTags = (html) => {
     if (!html) return '';
     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -728,25 +672,25 @@ const fetchAllData = useCallback(async () => {
   };
 
   return (
-    <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white px-8 py-6 border-b border-gray-200 shadow-sm sticky top-0 z-10">
-        <div className="flex justify-between items-center">
+    <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50 overflow-x-hidden">
+      {/* Header - Responsive with flex-wrap for low resolution */}
+      <header className="bg-white px-4 sm:px-6 md:px-8 py-4 sm:py-6 border-b border-gray-200 shadow-sm sticky top-0 z-10">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-gray-600 text-sm mt-1">Welcome back, Administrator</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Admin Dashboard</h1>
+            <p className="text-gray-600 text-xs sm:text-sm mt-1">Welcome back, Administrator</p>
           </div>
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
             <button
               onClick={refreshData}
               disabled={refreshing}
-              className="flex items-center px-4 py-2 text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors duration-200 disabled:opacity-50 shadow-sm"
+              className="flex items-center px-3 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors duration-200 disabled:opacity-50 shadow-sm"
             >
-              <RefreshCw size={18} className={`mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              <RefreshCw size={16} className={`mr-1 sm:mr-2 ${refreshing ? 'animate-spin' : ''}`} />
               {refreshing ? 'Refreshing...' : 'Refresh Data'}
             </button>
-            <div className="bg-gray-100 px-4 py-2 rounded-lg border border-gray-200">
-              <span className="text-sm font-medium text-gray-700">
+            <div className="bg-gray-100 px-3 sm:px-4 py-2 rounded-lg border border-gray-200">
+              <span className="text-xs sm:text-sm font-medium text-gray-700 whitespace-nowrap">
                 {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
               </span>
             </div>
@@ -754,15 +698,15 @@ const fetchAllData = useCallback(async () => {
         </div>
       </header>
 
-      {/* Error Banner - Show only if there's a critical error */}
+      {/* Error Banner */}
       {error && (
-        <div className="mx-8 mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg shadow-sm">
+        <div className="mx-4 sm:mx-6 md:mx-8 mt-4 sm:mt-6 p-3 sm:p-4 bg-amber-50 border border-amber-200 rounded-lg shadow-sm">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <AlertCircle size={20} className="text-amber-500" />
+              <AlertCircle size={18} className="text-amber-500" />
             </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium text-amber-800">{error}</p>
+            <div className="ml-2 sm:ml-3">
+              <p className="text-xs sm:text-sm font-medium text-amber-800">{error}</p>
             </div>
             <div className="ml-auto pl-3">
               <button
@@ -776,66 +720,66 @@ const fetchAllData = useCallback(async () => {
         </div>
       )}
 
-      {/* Main Content */}
-      <div className="p-6 space-y-6">
-        {/* Modified Grid Layout - Stats on Left, Calendar/Activity on Right */}
+      {/* Main Content - Fully Responsive Grid */}
+      <div className="p-4 sm:p-6 space-y-6">
+        {/* Responsive Grid: stacks on smaller desktop, side-by-side on larger */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-          {/* Left Column - All Stats (2/3 width) */}
+          {/* Left Column - All Stats (spans full width on low res) */}
           <div className="xl:col-span-2 space-y-6">
-            {/* Stats Overview - Expanded with more metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Stats Grid - Responsive cards with min-width */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {/* Reservation Card */}
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-blue-50 text-blue-600">
-                    <CalendarIcon size={24} />
+              <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-blue-50 text-blue-600">
+                    <CalendarIcon size={20} className="sm:w-6 sm:h-6" />
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-900">{summaryData.reservations}</p>
-                    <p className="text-gray-500 text-sm font-medium">Total Reservations</p>
+                    <p className="text-xl sm:text-2xl font-bold text-gray-900">{summaryData.reservations}</p>
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium">Total Reservations</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 pt-4 border-t border-gray-100">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 sm:pt-4 border-t border-gray-100">
                   <div>
-                    <span className="text-xs text-gray-500">Pending</span>
-                    <p className="text-sm font-semibold text-amber-600">{pendingCount}</p>
+                    <span className="text-[10px] sm:text-xs text-gray-500">Pending</span>
+                    <p className="text-xs sm:text-sm font-semibold text-amber-600">{pendingCount}</p>
                   </div>
                   <div>
-                    <span className="text-xs text-gray-500">Approved</span>
-                    <p className="text-sm font-semibold text-green-600">{approvedCount}</p>
+                    <span className="text-[10px] sm:text-xs text-gray-500">Approved</span>
+                    <p className="text-xs sm:text-sm font-semibold text-green-600">{approvedCount}</p>
                   </div>
                   <div>
-                    <span className="text-xs text-gray-500">Completed</span>
-                    <p className="text-sm font-semibold text-blue-600">{completedCount}</p>
+                    <span className="text-[10px] sm:text-xs text-gray-500">Completed</span>
+                    <p className="text-xs sm:text-sm font-semibold text-blue-600">{completedCount}</p>
                   </div>
                   <div>
-                    <span className="text-xs text-gray-500">Cancelled</span>
-                    <p className="text-sm font-semibold text-red-600">{cancelledCount}</p>
+                    <span className="text-[10px] sm:text-xs text-gray-500">Cancelled</span>
+                    <p className="text-xs sm:text-sm font-semibold text-red-600">{cancelledCount}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Users Card - Now showing correct count */}
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-green-50 text-green-600">
-                    <Users size={24} />
+              {/* Users Card */}
+              <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-green-50 text-green-600">
+                    <Users size={20} className="sm:w-6 sm:h-6" />
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-900">{summaryData.users}</p>
-                    <p className="text-gray-500 text-sm font-medium">Total Users</p>
+                    <p className="text-xl sm:text-2xl font-bold text-gray-900">{summaryData.users}</p>
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium">Total Users</p>
                   </div>
                 </div>
-                <div className="pt-4 border-t border-gray-100">
+                <div className="pt-3 sm:pt-4 border-t border-gray-100">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">New this week</span>
-                    <span className="text-sm font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
+                    <span className="text-xs sm:text-sm text-gray-600">New this week</span>
+                    <span className="text-xs sm:text-sm font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
                       {getNewUsersThisWeek()}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Active users</span>
-                    <span className="text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                    <span className="text-xs sm:text-sm text-gray-600">Active users</span>
+                    <span className="text-xs sm:text-sm font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded">
                       {Math.round(summaryData.users * 0.7)} (est.)
                     </span>
                   </div>
@@ -843,24 +787,24 @@ const fetchAllData = useCallback(async () => {
               </div>
 
               {/* Rooms Card */}
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-purple-50 text-purple-600">
-                    <Home size={24} />
+              <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-purple-50 text-purple-600">
+                    <Home size={20} className="sm:w-6 sm:h-6" />
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-900">{summaryData.activeRooms}</p>
-                    <p className="text-gray-500 text-sm font-medium">Active Rooms</p>
+                    <p className="text-xl sm:text-2xl font-bold text-gray-900">{summaryData.activeRooms}</p>
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium">Active Rooms</p>
                   </div>
                 </div>
-                <div className="pt-4 border-t border-gray-100">
+                <div className="pt-3 sm:pt-4 border-t border-gray-100">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">Total rooms</span>
-                    <span className="text-sm font-semibold text-gray-700">{summaryData.totalRooms}</span>
+                    <span className="text-xs sm:text-sm text-gray-600">Total rooms</span>
+                    <span className="text-xs sm:text-sm font-semibold text-gray-700">{summaryData.totalRooms}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Occupancy rate</span>
-                    <span className="text-sm font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded">
+                    <span className="text-xs sm:text-sm text-gray-600">Occupancy rate</span>
+                    <span className="text-xs sm:text-sm font-semibold text-purple-600 bg-purple-50 px-2 py-1 rounded">
                       {summaryData.occupancyRate}%
                     </span>
                   </div>
@@ -868,26 +812,26 @@ const fetchAllData = useCallback(async () => {
               </div>
 
               {/* Reports Card */}
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-red-50 text-red-600">
-                    <AlertCircle size={24} />
+              <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-red-50 text-red-600">
+                    <AlertCircle size={20} className="sm:w-6 sm:h-6" />
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-900">{summaryData.reports}</p>
-                    <p className="text-gray-500 text-sm font-medium">Total Reports</p>
+                    <p className="text-xl sm:text-2xl font-bold text-gray-900">{summaryData.reports}</p>
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium">Total Reports</p>
                   </div>
                 </div>
-                <div className="pt-4 border-t border-gray-100">
+                <div className="pt-3 sm:pt-4 border-t border-gray-100">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">Pending review</span>
-                    <span className="text-sm font-semibold text-red-600 bg-red-50 px-2 py-1 rounded">
+                    <span className="text-xs sm:text-sm text-gray-600">Pending review</span>
+                    <span className="text-xs sm:text-sm font-semibold text-red-600 bg-red-50 px-2 py-1 rounded">
                       {summaryData.pendingReports}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Resolved</span>
-                    <span className="text-sm font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
+                    <span className="text-xs sm:text-sm text-gray-600">Resolved</span>
+                    <span className="text-xs sm:text-sm font-semibold text-green-600 bg-green-50 px-2 py-1 rounded">
                       {summaryData.reports - summaryData.pendingReports}
                     </span>
                   </div>
@@ -896,109 +840,109 @@ const fetchAllData = useCallback(async () => {
             </div>
 
             {/* Second Row - Key Metrics */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {/* Messages Card */}
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-amber-50 text-amber-600">
-                    <MessageSquare size={24} />
+              <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-amber-50 text-amber-600">
+                    <MessageSquare size={20} className="sm:w-6 sm:h-6" />
                   </div>
                   <div className="text-right">
-                    <span className={`text-2xl font-bold px-2 py-1 rounded ${
+                    <span className={`text-xl sm:text-2xl font-bold px-2 py-1 rounded ${
                       summaryData.unreadMessages > 0 
                         ? 'text-gray-900' 
                         : 'text-gray-600 bg-gray-50'
                     }`}>
                       {summaryData.unreadMessages}
                     </span>
-                    <p className="text-gray-500 text-sm font-medium">Unread Messages</p>
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium">Unread Messages</p>
                   </div>
                 </div>
-                <div className="pt-4 border-t border-gray-100">
+                <div className="pt-3 sm:pt-4 border-t border-gray-100">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">From users</span>
-                    <span className="text-sm font-semibold text-blue-600">{summaryData.unreadUserMessages}</span>
+                    <span className="text-xs sm:text-sm text-gray-600">From users</span>
+                    <span className="text-xs sm:text-sm font-semibold text-blue-600">{summaryData.unreadUserMessages}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">From staff</span>
-                    <span className="text-sm font-semibold text-purple-600">{summaryData.unreadStaffMessages}</span>
+                    <span className="text-xs sm:text-sm text-gray-600">From staff</span>
+                    <span className="text-xs sm:text-sm font-semibold text-purple-600">{summaryData.unreadStaffMessages}</span>
                   </div>
                 </div>
               </div>
 
               {/* Peak Hours Card */}
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-indigo-50 text-indigo-600">
-                    <Clock size={24} />
+              <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-indigo-50 text-indigo-600">
+                    <Clock size={20} className="sm:w-6 sm:h-6" />
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-900">{peakHours.length}</p>
-                    <p className="text-gray-500 text-sm font-medium">Peak Hours</p>
+                    <p className="text-xl sm:text-2xl font-bold text-gray-900">{peakHours.length}</p>
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium">Peak Hours</p>
                   </div>
                 </div>
-                <div className="pt-4 border-t border-gray-100">
+                <div className="pt-3 sm:pt-4 border-t border-gray-100">
                   {peakHours.length > 0 ? (
                     peakHours.map((hour, idx) => (
                       <div key={idx} className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-600">{hour.time}</span>
-                        <span className="text-sm font-semibold text-indigo-600">{hour.count} bookings</span>
+                        <span className="text-xs sm:text-sm text-gray-600 truncate">{hour.time}</span>
+                        <span className="text-xs sm:text-sm font-semibold text-indigo-600">{hour.count} bookings</span>
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500 text-center py-2">No peak hours data</p>
+                    <p className="text-xs sm:text-sm text-gray-500 text-center py-2">No peak hours data</p>
                   )}
                 </div>
               </div>
 
               {/* Popular Rooms Card */}
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-cyan-50 text-cyan-600">
-                    <Star size={24} />
+              <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-cyan-50 text-cyan-600">
+                    <Star size={20} className="sm:w-6 sm:h-6" />
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-900">{popularRooms.length}</p>
-                    <p className="text-gray-500 text-sm font-medium">Popular Rooms</p>
+                    <p className="text-xl sm:text-2xl font-bold text-gray-900">{popularRooms.length}</p>
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium">Popular Rooms</p>
                   </div>
                 </div>
-                <div className="pt-4 border-t border-gray-100">
+                <div className="pt-3 sm:pt-4 border-t border-gray-100">
                   {popularRooms.length > 0 ? (
                     popularRooms.map((room, idx) => (
                       <div key={idx} className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-gray-600 truncate max-w-[120px]">{room.name}</span>
-                        <span className="text-sm font-semibold text-cyan-600">{room.count} bookings</span>
+                        <span className="text-xs sm:text-sm text-gray-600 truncate max-w-[100px] sm:max-w-[120px]">{room.name}</span>
+                        <span className="text-xs sm:text-sm font-semibold text-cyan-600">{room.count} bookings</span>
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm text-gray-500 text-center py-2">No popular rooms data</p>
+                    <p className="text-xs sm:text-sm text-gray-500 text-center py-2">No popular rooms data</p>
                   )}
                 </div>
               </div>
 
               {/* Success Rate Card */}
-              <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-3 rounded-xl bg-green-50 text-green-600">
-                    <Percent size={24} />
+              <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-3 sm:mb-4">
+                  <div className="p-2 sm:p-3 rounded-xl bg-green-50 text-green-600">
+                    <Percent size={20} className="sm:w-6 sm:h-6" />
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-900">
+                    <p className="text-xl sm:text-2xl font-bold text-gray-900">
                       {summaryData.reservations > 0 
                         ? Math.round((summaryData.completedReservations / summaryData.reservations) * 100) 
                         : 0}%
                     </p>
-                    <p className="text-gray-500 text-sm font-medium">Success Rate</p>
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium">Success Rate</p>
                   </div>
                 </div>
-                <div className="pt-4 border-t border-gray-100">
+                <div className="pt-3 sm:pt-4 border-t border-gray-100">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-gray-600">Completed</span>
-                    <span className="text-sm font-semibold text-green-600">{summaryData.completedReservations}</span>
+                    <span className="text-xs sm:text-sm text-gray-600">Completed</span>
+                    <span className="text-xs sm:text-sm font-semibold text-green-600">{summaryData.completedReservations}</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">Cancelled</span>
-                    <span className="text-sm font-semibold text-red-600">{summaryData.cancelledReservations}</span>
+                    <span className="text-xs sm:text-sm text-gray-600">Cancelled</span>
+                    <span className="text-xs sm:text-sm font-semibold text-red-600">{summaryData.cancelledReservations}</span>
                   </div>
                 </div>
               </div>
@@ -1006,40 +950,38 @@ const fetchAllData = useCallback(async () => {
 
             {/* Unread Messages Overview */}
             {summaryData.unreadMessages > 0 && (
-              <div className="bg-white p-6 rounded-xl border border-amber-200 shadow-sm">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-xl font-semibold text-gray-900 flex items-center">
-                    <Mail className="mr-3 text-amber-600" size={24} />
+              <div className="bg-white p-4 sm:p-6 rounded-xl border border-amber-200 shadow-sm overflow-x-auto">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6">
+                  <h2 className="text-lg sm:text-xl font-semibold text-gray-900 flex items-center">
+                    <Mail className="mr-2 sm:mr-3 text-amber-600" size={20} />
                     Unread Messages Overview
                   </h2>
-                  <span className="bg-amber-100 text-amber-800 px-4 py-2 rounded-full text-sm font-semibold">
+                  <span className="bg-amber-100 text-amber-800 px-3 py-1.5 rounded-full text-xs sm:text-sm font-semibold self-start sm:self-auto">
                     {summaryData.unreadMessages} total unread
                   </span>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 mb-4 sm:mb-6">
+                  <div className="bg-blue-50 p-3 sm:p-4 rounded-lg border border-blue-200">
                     <div className="flex items-center justify-between">
-                      <span className="text-blue-800 text-sm font-semibold">From Users</span>
-                      <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-lg text-sm font-bold">
+                      <span className="text-blue-800 text-xs sm:text-sm font-semibold">From Users</span>
+                      <span className="bg-blue-100 text-blue-800 px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold">
                         {summaryData.unreadUserMessages}
                       </span>
                     </div>
                   </div>
-                  
-                  <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                  <div className="bg-purple-50 p-3 sm:p-4 rounded-lg border border-purple-200">
                     <div className="flex items-center justify-between">
-                      <span className="text-purple-800 text-sm font-semibold">From Staff</span>
-                      <span className="bg-purple-100 text-purple-800 px-3 py-1 rounded-lg text-sm font-bold">
+                      <span className="text-purple-800 text-xs sm:text-sm font-semibold">From Staff</span>
+                      <span className="bg-purple-100 text-purple-800 px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold">
                         {summaryData.unreadStaffMessages}
                       </span>
                     </div>
                   </div>
-                  
-                  <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
+                  <div className="bg-amber-50 p-3 sm:p-4 rounded-lg border border-amber-200">
                     <div className="flex items-center justify-between">
-                      <span className="text-amber-800 text-sm font-semibold">Total Unread</span>
-                      <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-lg text-sm font-bold">
+                      <span className="text-amber-800 text-xs sm:text-sm font-semibold">Total Unread</span>
+                      <span className="bg-amber-100 text-amber-800 px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold">
                         {summaryData.unreadMessages}
                       </span>
                     </div>
@@ -1048,12 +990,12 @@ const fetchAllData = useCallback(async () => {
 
                 {unreadBreakdown.length > 0 ? (
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Conversations Requiring Attention</h3>
-                    <div className="space-y-3">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4">Conversations Requiring Attention</h3>
+                    <div className="space-y-2 sm:space-y-3">
                       {unreadBreakdown.map((conversation, index) => (
-                        <div key={conversation._id || index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
-                          <div className="flex items-center space-x-4">
-                            <div className="w-8 h-8 bg-amber-500 text-white rounded-full flex items-center justify-center text-sm font-bold">
+                        <div key={conversation._id || index} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors gap-3">
+                          <div className="flex items-center space-x-3 sm:space-x-4">
+                            <div className="w-6 h-6 sm:w-8 sm:h-8 bg-amber-500 text-white rounded-full flex items-center justify-center text-xs sm:text-sm font-bold">
                               {index + 1}
                             </div>
                             <div>
@@ -1063,8 +1005,8 @@ const fetchAllData = useCallback(async () => {
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-3">
-                            <span className="bg-red-100 text-red-800 px-3 py-1 rounded-lg text-sm font-bold">
+                          <div className="flex items-center space-x-2 sm:space-x-3">
+                            <span className="bg-red-100 text-red-800 px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-bold">
                               {conversation.unreadCount} unread
                             </span>
                             <button
@@ -1072,7 +1014,7 @@ const fetchAllData = useCallback(async () => {
                                 setView("adminMessage");
                                 setTimeout(refreshUnreadCounts, 1000);
                               }}
-                              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
+                              className="bg-blue-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
                             >
                               Reply
                             </button>
@@ -1082,14 +1024,12 @@ const fetchAllData = useCallback(async () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <MessageSquare className="mx-auto mb-3 text-gray-400" size={32} />
-                    <p className="text-gray-500 text-sm mb-4">No unread messages</p>
+                  <div className="text-center py-6 sm:py-8">
+                    <MessageSquare className="mx-auto mb-2 sm:mb-3 text-gray-400" size={28} />
+                    <p className="text-gray-500 text-xs sm:text-sm mb-3 sm:mb-4">No unread messages</p>
                     <button
-                      onClick={() => {
-                        setView("adminMessage");
-                      }}
-                      className="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
+                      onClick={() => setView("adminMessage")}
+                      className="bg-blue-600 text-white px-4 sm:px-6 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-700 transition-colors duration-200"
                     >
                       Go to Messages
                     </button>
@@ -1098,67 +1038,63 @@ const fetchAllData = useCallback(async () => {
               </div>
             )}
 
-            {/* Recent News - Updated with images, title and description */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Recent News</h2>
+            {/* Recent News */}
+            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Recent News</h2>
                 <button
                   onClick={() => setCurrentSubView("news")}
-                  className="flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors duration-200 shadow-sm"
+                  className="flex items-center px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors duration-200 shadow-sm"
                 >
-                  <FileText size={16} className="mr-2" />
+                  <FileText size={14} className="mr-1 sm:mr-2" />
                   Manage News
                 </button>
               </div>
               
               {newsList.length === 0 ? (
-                <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
-                  <FileText className="mx-auto text-gray-400 mb-3" size={40} />
-                  <p className="text-gray-500 text-sm">No news posted yet</p>
+                <div className="text-center py-6 sm:py-8 border-2 border-dashed border-gray-200 rounded-lg">
+                  <FileText className="mx-auto text-gray-400 mb-2 sm:mb-3" size={32} />
+                  <p className="text-gray-500 text-xs sm:text-sm">No news posted yet</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {newsList.slice(0, 3).map((news) => {
-                    // Get first image if available
                     const firstImage = news.images && news.images.length > 0 ? news.images[0] : null;
-                    // Strip HTML tags for description
-                    const plainTextContent = stripHtmlTags(news.content).substring(0, 100) + (stripHtmlTags(news.content).length > 100 ? '...' : '');
+                    const plainTextContent = stripHtmlTags(news.content).substring(0, 80) + (stripHtmlTags(news.content).length > 80 ? '...' : '');
                     
                     return (
-                      <div key={news._id} className="p-4 rounded-lg border border-gray-200 hover:shadow-md transition-shadow duration-200">
-                        <div className="flex flex-col sm:flex-row gap-4">
-                          {/* Image */}
+                      <div key={news._id} className="p-3 sm:p-4 rounded-lg border border-gray-200 hover:shadow-md transition-shadow duration-200">
+                        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                           {firstImage ? (
-                            <div className="sm:w-24 sm:h-24 w-full h-40 flex-shrink-0">
+                            <div className="sm:w-20 sm:h-20 w-full h-32 flex-shrink-0">
                               <img 
                                 src={firstImage} 
                                 alt={news.title}
                                 className="w-full h-full object-cover rounded-lg"
                                 onError={(e) => {
                                   e.target.onerror = null;
-                                  e.target.src = 'https://via.placeholder.com/96x96?text=No+Image';
+                                  e.target.src = 'https://via.placeholder.com/80x80?text=No+Image';
                                 }}
                               />
                             </div>
                           ) : (
-                            <div className="sm:w-24 sm:h-24 w-full h-40 flex-shrink-0 bg-gray-100 rounded-lg flex items-center justify-center">
-                              <FileText size={32} className="text-gray-400" />
+                            <div className="sm:w-20 sm:h-20 w-full h-32 flex-shrink-0 bg-gray-100 rounded-lg flex items-center justify-center">
+                              <FileText size={24} className="text-gray-400" />
                             </div>
                           )}
                           
-                          {/* Content */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-start mb-2">
-                              <h3 className="font-semibold text-gray-900 text-base leading-tight line-clamp-2 max-w-[250px]">{news.title}</h3>
-                              <span className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-lg font-medium whitespace-nowrap ml-2">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-2 mb-1 sm:mb-2">
+                              <h3 className="font-semibold text-gray-900 text-sm sm:text-base line-clamp-1">{news.title}</h3>
+                              <span className="text-[10px] sm:text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-lg font-medium whitespace-nowrap self-start sm:self-auto">
                                 {new Date(news.createdAt).toLocaleDateString()}
                               </span>
                             </div>
-                            <p className="text-gray-600 text-sm leading-relaxed line-clamp-2">
+                            <p className="text-gray-600 text-xs sm:text-sm leading-relaxed line-clamp-2">
                               {plainTextContent}
                             </p>
                             {news.images && news.images.length > 1 && (
-                              <p className="text-xs text-gray-500 mt-2">
+                              <p className="text-[10px] sm:text-xs text-gray-500 mt-1">
                                 +{news.images.length - 1} more image{news.images.length - 1 > 1 ? 's' : ''}
                               </p>
                             )}
@@ -1170,7 +1106,7 @@ const fetchAllData = useCallback(async () => {
                   {newsList.length > 3 && (
                     <button 
                       onClick={() => setCurrentSubView("news")}
-                      className="w-full py-3 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200 border border-gray-200"
+                      className="w-full py-2 sm:py-3 text-xs sm:text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg transition-colors duration-200 border border-gray-200"
                     >
                       View all news articles ({newsList.length})
                     </button>
@@ -1180,37 +1116,36 @@ const fetchAllData = useCallback(async () => {
             </div>
           </div>
 
-          {/* Right Column - Calendar & Activity (1/3 width) */}
+          {/* Right Column - Calendar & Activity */}
           <div className="xl:col-span-1 space-y-6">
             {/* Calendar */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Calendar</h2>
+            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex justify-between items-center mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Calendar</h2>
                 <button
                   onClick={openModal}
-                  className="flex items-center px-3 py-1.5 text-sm font-medium rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors duration-200"
+                  className="flex items-center px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors duration-200"
                   title="View all room availability"
                 >
-                  <Maximize2 size={16} className="mr-1" />
-                  Expand
+                  <Maximize2 size={14} className="mr-1" />
+                  <span className="hidden sm:inline">Expand</span>
                 </button>
               </div>
               
-              {/* Calendar Legend */}
-              <div className="mb-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                <p className="text-xs font-semibold text-gray-700 mb-2">Calendar Legend:</p>
-                <div className="flex flex-wrap gap-3">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                    <span className="text-xs text-gray-600">1-2 bookings</span>
+              <div className="mb-3 sm:mb-4 p-2 sm:p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="text-[10px] sm:text-xs font-semibold text-gray-700 mb-1 sm:mb-2">Calendar Legend:</p>
+                <div className="flex flex-wrap gap-2 sm:gap-3">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-blue-500 rounded-full"></div>
+                    <span className="text-[10px] sm:text-xs text-gray-600">1-2 bookings</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
-                    <span className="text-xs text-gray-600">3-4 bookings</span>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-amber-500 rounded-full"></div>
+                    <span className="text-[10px] sm:text-xs text-gray-600">3-4 bookings</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                    <span className="text-xs text-gray-600">5+ bookings</span>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-red-500 rounded-full"></div>
+                    <span className="text-[10px] sm:text-xs text-gray-600">5+ bookings</span>
                   </div>
                 </div>
               </div>
@@ -1222,19 +1157,19 @@ const fetchAllData = useCallback(async () => {
                 tileContent={renderCalendarTile}
                 tileClassName={({ date, view }) => {
                   if (view !== "month") return "";
-                  return "relative h-10 sm:h-12 hover:bg-gray-50 rounded-lg transition-colors duration-200";
+                  return "relative h-8 sm:h-10 md:h-12 hover:bg-gray-50 rounded-lg transition-colors duration-200";
                 }}
-                prevLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">◀</span>}
-                nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">▶</span>}
+                prevLabel={<span className="text-gray-600 hover:text-red-600 transition-colors text-xs sm:text-base">◀</span>}
+                nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors text-xs sm:text-base">▶</span>}
                 prev2Label={null}
                 next2Label={null}
                 aria-label="Reservation calendar"
               />
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-sm text-blue-800 font-medium">
+              <div className="mt-4 sm:mt-6 p-2 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-xs sm:text-sm text-blue-800 font-medium">
                   Selected: {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </p>
-                <p className="text-xs text-blue-600 mt-1">
+                <p className="text-[10px] sm:text-xs text-blue-600 mt-1">
                   {reservations.filter(r => {
                     const rDate = new Date(r.datetime).toDateString();
                     return rDate === selectedDate.toDateString();
@@ -1245,79 +1180,74 @@ const fetchAllData = useCallback(async () => {
 
             {/* Room Availability Dashboard */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <div className="p-2 bg-blue-100 rounded-lg">
-                      <Building2 size={20} className="text-blue-600" />
+              <div className="p-4 sm:p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
+                    <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg">
+                      <Building2 size={16} className="sm:w-5 sm:h-5 text-blue-600" />
                     </div>
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-900">Room Availability</h2>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <h2 className="text-base sm:text-xl font-semibold text-gray-900">Room Availability</h2>
+                      <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1 line-clamp-1">
                         {selectedDate.toLocaleDateString('en-US', { 
-                          weekday: 'long', 
-                          month: 'long', 
-                          day: 'numeric',
-                          year: 'numeric'
+                          weekday: 'short', 
+                          month: 'short', 
+                          day: 'numeric'
                         })}
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    {availLoading && (
-                      <div className="flex items-center">
-                        <RefreshCw size={16} className="animate-spin text-blue-600" />
-                      </div>
-                    )}
-                  </div>
+                  {availLoading && (
+                    <div className="flex items-center">
+                      <RefreshCw size={14} className="animate-spin text-blue-600" />
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="p-4">
-                {/* Legend */}
-                <div className="flex flex-wrap gap-4 mb-4 pb-3 border-b border-gray-100">
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span className="text-xs text-gray-600">Available</span>
+              <div className="p-3 sm:p-4">
+                <div className="flex flex-wrap gap-2 sm:gap-4 mb-3 sm:mb-4 pb-2 sm:pb-3 border-b border-gray-100">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full"></div>
+                    <span className="text-[10px] sm:text-xs text-gray-600">Available</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                    <span className="text-xs text-gray-600">Occupied</span>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-red-500 rounded-full"></div>
+                    <span className="text-[10px] sm:text-xs text-gray-600">Occupied</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
-                    <span className="text-xs text-gray-600">Pending</span>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-amber-500 rounded-full"></div>
+                    <span className="text-[10px] sm:text-xs text-gray-600">Pending</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-                    <span className="text-xs text-gray-600">Inactive</span>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-400 rounded-full"></div>
+                    <span className="text-[10px] sm:text-xs text-gray-600">Inactive</span>
                   </div>
                 </div>
 
-                {/* Room Status Content */}
                 {availLoading ? (
-                  <div className="flex flex-col items-center justify-center py-8">
-                    <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mb-3"></div>
-                    <p className="text-gray-600 text-sm">Loading room availability...</p>
+                  <div className="flex flex-col items-center justify-center py-6 sm:py-8">
+                    <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mb-2 sm:mb-3"></div>
+                    <p className="text-gray-600 text-xs sm:text-sm">Loading room availability...</p>
                   </div>
                 ) : availError ? (
-                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-                    <AlertCircle size={24} className="mx-auto mb-2 text-red-500" />
-                    <p className="text-red-700 text-sm">{availError}</p>
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 text-center">
+                    <AlertCircle size={20} className="mx-auto mb-1 sm:mb-2 text-red-500" />
+                    <p className="text-red-700 text-xs sm:text-sm">{availError}</p>
                     <button
                       onClick={() => fetchRoomAvailabilityForDate(selectedDate)}
-                      className="mt-3 px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+                      className="mt-2 sm:mt-3 px-3 sm:px-4 py-1 sm:py-1.5 bg-red-100 text-red-700 rounded-lg text-xs sm:text-sm font-medium hover:bg-red-200 transition-colors"
                     >
                       Retry
                     </button>
                   </div>
                 ) : roomStatuses.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Building2 className="mx-auto mb-3 text-gray-400" size={40} />
-                    <p className="text-gray-500 text-sm">No rooms available for selected date</p>
+                  <div className="text-center py-6 sm:py-8">
+                    <Building2 className="mx-auto mb-2 sm:mb-3 text-gray-400" size={32} />
+                    <p className="text-gray-500 text-xs sm:text-sm">No rooms available</p>
                   </div>
                 ) : (
-                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+                  <div className="space-y-2 sm:space-y-3 max-h-[350px] sm:max-h-[400px] overflow-y-auto pr-1">
                     {allFloors.map((floorName) => {
                       const rooms = groupedByFloor[floorName] || [];
                       const floorStats = rooms.reduce((acc, room) => {
@@ -1331,77 +1261,56 @@ const fetchAllData = useCallback(async () => {
 
                       return (
                         <div key={floorName} className="border border-gray-200 rounded-lg overflow-hidden">
-                          {/* Floor Header - Clickable */}
                           <div 
-                            className="px-4 py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
+                            className="px-3 sm:px-4 py-2 sm:py-3 bg-gray-50 border-b border-gray-200 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
                             onClick={() => toggleFloor(floorName)}
                           >
-                            <div className="flex items-center space-x-3">
-                              <h3 className="font-semibold text-gray-800 text-sm">{floorName}</h3>
-                              <span className="text-xs text-gray-500 bg-white px-2 py-1 rounded-full">
+                            <div className="flex items-center space-x-2">
+                              <h3 className="font-semibold text-gray-800 text-xs sm:text-sm">{floorName}</h3>
+                              <span className="text-[10px] sm:text-xs text-gray-500 bg-white px-1.5 sm:px-2 py-0.5 rounded-full">
                                 {rooms.length} rooms
                               </span>
                             </div>
-                            <div className="flex items-center space-x-4">
-                              <div className="flex items-center space-x-2 text-xs">
+                            <div className="flex items-center space-x-2 sm:space-x-3">
+                              <div className="flex items-center space-x-1 sm:space-x-2 text-[10px] sm:text-xs">
                                 {floorStats.available > 0 && (
-                                  <span className="text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                                    {floorStats.available} avail
-                                  </span>
+                                  <span className="text-green-600 bg-green-50 px-1 sm:px-2 py-0.5 rounded-full">{floorStats.available}</span>
                                 )}
                                 {floorStats.occupied > 0 && (
-                                  <span className="text-red-600 bg-red-50 px-2 py-1 rounded-full">
-                                    {floorStats.occupied} occ
-                                  </span>
-                                )}
-                                {floorStats.pending > 0 && (
-                                  <span className="text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
-                                    {floorStats.pending} pend
-                                  </span>
+                                  <span className="text-red-600 bg-red-50 px-1 sm:px-2 py-0.5 rounded-full">{floorStats.occupied}</span>
                                 )}
                               </div>
                               {expandedFloors[floorName] ? (
-                                <ChevronUp size={18} className="text-gray-500" />
+                                <ChevronUp size={14} className="sm:w-4 sm:h-4 text-gray-500" />
                               ) : (
-                                <ChevronDown size={18} className="text-gray-500" />
+                                <ChevronDown size={14} className="sm:w-4 sm:h-4 text-gray-500" />
                               )}
                             </div>
                           </div>
                           
-                          {/* Room List - Collapsible */}
                           {expandedFloors[floorName] && (
                             <div className="divide-y divide-gray-100">
                               {rooms.map((room) => {
-                                const { status, color, label } = getRoomStatus(room);
+                                const { status, label } = getRoomStatus(room);
                                 const isRoomActive = room.isActive !== false;
 
                                 return (
-                                  <div key={room._id} className="p-4 hover:bg-gray-50 transition-colors">
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                      {/* Room Info */}
-                                      <div className="flex items-center gap-3 min-w-0 flex-1">
-                                        <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
+                                  <div key={room._id} className="p-2 sm:p-3 hover:bg-gray-50 transition-colors">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${
                                           status === 'inactive' ? "bg-gray-400" :
                                           status === 'occupied' ? "bg-red-500" :
                                           status === 'pending' ? "bg-amber-500" : "bg-green-500"
                                         }`} />
                                         <div>
-                                          <p className={`font-medium text-sm ${
-                                            !isRoomActive ? "text-gray-500" : "text-gray-900"
-                                          }`}>
+                                          <p className={`font-medium text-xs sm:text-sm ${!isRoomActive ? "text-gray-500" : "text-gray-900"}`}>
                                             {room.room}
-                                            {!isRoomActive && (
-                                              <span className="ml-2 text-xs text-gray-500 font-normal">(Inactive)</span>
-                                            )}
                                           </p>
-                                          <p className="text-xs text-gray-500 mt-0.5">
-                                            Floor {room.floor}
-                                          </p>
+                                          <p className="text-[10px] sm:text-xs text-gray-500">Floor {room.floor}</p>
                                         </div>
                                       </div>
-
-                                      {/* Status Badge */}
-                                      <div className={`text-xs font-medium px-3 py-1.5 rounded-full inline-flex items-center justify-center ${
+                                      <div className={`text-[10px] sm:text-xs font-medium px-2 py-0.5 sm:px-3 sm:py-1 rounded-full inline-flex items-center justify-center self-start sm:self-auto ${
                                         status === 'inactive' ? "bg-gray-100 text-gray-600" :
                                         status === 'occupied' ? "bg-red-100 text-red-700" :
                                         status === 'pending' ? "bg-amber-100 text-amber-700" : 
@@ -1410,59 +1319,6 @@ const fetchAllData = useCallback(async () => {
                                         {label}
                                       </div>
                                     </div>
-
-                                    {/* Booking Details */}
-                                    {(room.occupied?.length > 0 || room.pending?.length > 0) && (
-                                      <div className="mt-3 pt-3 border-t border-gray-100">
-                                        {room.occupied?.length > 0 && (
-                                          <div className="mb-2">
-                                            <p className="text-xs font-semibold text-red-600 mb-1 flex items-center">
-                                              <CheckCircle size={12} className="mr-1" />
-                                              Approved Bookings ({room.occupied.length})
-                                            </p>
-                                            <div className="space-y-1">
-                                              {room.occupied.slice(0, 2).map((booking, i) => (
-                                                <div key={i} className="flex items-center justify-between text-xs bg-red-50 p-2 rounded">
-                                                  <span className="text-gray-700">
-                                                    {formatTime(booking.start)} - {formatTime(booking.end)}
-                                                  </span>
-                                                  {booking.userName && (
-                                                    <span className="text-gray-500 ml-2">by {booking.userName}</span>
-                                                  )}
-                                                </div>
-                                              ))}
-                                              {room.occupied.length > 2 && (
-                                                <p className="text-xs text-gray-500 mt-1">+{room.occupied.length - 2} more bookings</p>
-                                              )}
-                                            </div>
-                                          </div>
-                                        )}
-                                        
-                                        {room.pending?.length > 0 && (
-                                          <div>
-                                            <p className="text-xs font-semibold text-amber-600 mb-1 flex items-center">
-                                              <Clock3 size={12} className="mr-1" />
-                                              Pending Approvals ({room.pending.length})
-                                            </p>
-                                            <div className="space-y-1">
-                                              {room.pending.slice(0, 2).map((booking, i) => (
-                                                <div key={i} className="flex items-center justify-between text-xs bg-amber-50 p-2 rounded">
-                                                  <span className="text-gray-700">
-                                                    {formatTime(booking.start)} - {formatTime(booking.end)}
-                                                  </span>
-                                                  {booking.userName && (
-                                                    <span className="text-gray-500 ml-2">by {booking.userName}</span>
-                                                  )}
-                                                </div>
-                                              ))}
-                                              {room.pending.length > 2 && (
-                                                <p className="text-xs text-gray-500 mt-1">+{room.pending.length - 2} more pending</p>
-                                              )}
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
                                   </div>
                                 );
                               })}
@@ -1477,34 +1333,34 @@ const fetchAllData = useCallback(async () => {
             </div>
 
             {/* Recent Activity */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Recent Activity</h2>
+            <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 shadow-sm">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 sm:mb-6">
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Recent Activity</h2>
                 <button
                   onClick={() => setCurrentSubView("logs")}
-                  className="flex items-center px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors duration-200 shadow-sm"
+                  className="flex items-center px-3 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors duration-200 shadow-sm"
                 >
-                  <Eye size={16} className="mr-2" />
+                  <Eye size={14} className="mr-1 sm:mr-2" />
                   View Logs
                 </button>
               </div>
               
               {recentActivity.length === 0 ? (
-                <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
-                  <Clock className="mx-auto text-gray-400 mb-3" size={40} />
-                  <p className="text-gray-500 text-sm">No recent activity</p>
+                <div className="text-center py-6 sm:py-8 border-2 border-dashed border-gray-200 rounded-lg">
+                  <Clock className="mx-auto text-gray-400 mb-2 sm:mb-3" size={28} />
+                  <p className="text-gray-500 text-xs sm:text-sm">No recent activity</p>
                 </div>
               ) : (
-                <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2">
+                <div className="space-y-3 sm:space-y-4 max-h-[350px] sm:max-h-[400px] overflow-y-auto pr-1 sm:pr-2">
                   {recentActivity.map((activity) => (
-                    <div key={activity.id} className="flex items-start space-x-4 p-3 rounded-lg border border-gray-200 hover:shadow-sm transition-shadow duration-200">
-                      <div className="flex-shrink-0 w-2 h-2 bg-blue-500 rounded-full mt-2"></div>
+                    <div key={activity.id} className="flex items-start space-x-2 sm:space-x-3 p-2 sm:p-3 rounded-lg border border-gray-200 hover:shadow-sm transition-shadow duration-200">
+                      <div className="flex-shrink-0 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full mt-1.5 sm:mt-2"></div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{activity.action}</p>
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{activity.details}</p>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs text-gray-400">{activity.user}</span>
-                          <span className="text-xs text-gray-400">{activity.time}</span>
+                        <p className="text-xs sm:text-sm font-medium text-gray-900 truncate">{activity.action}</p>
+                        <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5 line-clamp-2">{activity.details}</p>
+                        <div className="flex items-center justify-between mt-1 sm:mt-2">
+                          <span className="text-[10px] sm:text-xs text-gray-400">{activity.user}</span>
+                          <span className="text-[10px] sm:text-xs text-gray-400">{activity.time}</span>
                         </div>
                       </div>
                     </div>
@@ -1516,134 +1372,112 @@ const fetchAllData = useCallback(async () => {
         </div>
       </div>
 
-      {/* Room Availability Modal with Date Navigation */}
+      {/* Room Availability Modal - Responsive */}
       {showRoomAvailabilityModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-xl w-full max-w-6xl max-h-[90vh] overflow-hidden border border-gray-200">
-            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-              <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Building2 size={24} className="text-blue-600" />
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl w-full max-w-4xl lg:max-w-6xl max-h-[95vh] sm:max-h-[90vh] overflow-hidden border border-gray-200">
+            <div className="p-4 sm:p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-3 sm:mb-4">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="p-1.5 sm:p-2 bg-blue-100 rounded-lg">
+                    <Building2 size={18} className="sm:w-6 sm:h-6 text-blue-600" />
                   </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Room Availability Overview</h2>
-                  </div>
+                  <h2 className="text-lg sm:text-2xl font-bold text-gray-900">Room Availability Overview</h2>
                 </div>
                 <button
                   onClick={() => setShowRoomAvailabilityModal(false)}
-                  className="p-2 hover:bg-gray-200 rounded-full transition-colors"
+                  className="p-1.5 sm:p-2 hover:bg-gray-200 rounded-full transition-colors self-end sm:self-auto"
                 >
-                  <X size={24} className="text-gray-600" />
+                  <X size={18} className="sm:w-6 sm:h-6 text-gray-600" />
                 </button>
               </div>
               
-              {/* Date Navigation */}
-              <div className="flex items-center justify-between bg-white rounded-lg p-2 border border-gray-200">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white rounded-lg p-2 sm:p-3 border border-gray-200">
                 <button
                   onClick={handleModalPreviousDay}
-                  className="flex items-center px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="flex items-center px-2 sm:px-4 py-1 sm:py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors text-xs sm:text-sm"
                 >
-                  <ChevronLeft size={18} className="mr-1" />
-                  Previous Day
+                  <ChevronLeft size={14} className="sm:w-4 sm:h-4 mr-1" />
+                  Previous
                 </button>
                 
-                <div className="flex items-center space-x-4">
-                  <div className="relative">
-                    <button
-                      onClick={() => setShowDatePicker(!showDatePicker)}
-                      className="flex items-center px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
-                    >
-                      <CalendarPicker size={18} className="mr-2" />
-                      {modalSelectedDate.toLocaleDateString('en-US', { 
-                        weekday: 'long', 
-                        month: 'long', 
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
-                    </button>
-                    
-                    {/* Mini Calendar Date Picker */}
-                    {showDatePicker && (
-                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 z-10 bg-white rounded-lg shadow-xl border border-gray-200 p-2">
-                        <Calendar
-                          onChange={handleModalDateSelect}
-                          value={modalSelectedDate}
-                          className="border-0"
-                          tileClassName={({ date, view }) => {
-                            if (view !== "month") return "";
-                            return "hover:bg-gray-100 rounded-lg p-1";
-                          }}
-                        />
-                      </div>
-                    )}
-                  </div>
+                <div className="relative w-full sm:w-auto">
+                  <button
+                    onClick={() => setShowDatePicker(!showDatePicker)}
+                    className="flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-1.5 sm:py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors text-xs sm:text-sm"
+                  >
+                    <CalendarPicker size={14} className="sm:w-4 sm:h-4 mr-1 sm:mr-2" />
+                    <span className="truncate">{modalSelectedDate.toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}</span>
+                  </button>
+                  
+                  {showDatePicker && (
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 z-10 bg-white rounded-lg shadow-xl border border-gray-200 p-2 w-[280px] sm:w-auto">
+                      <Calendar
+                        onChange={handleModalDateSelect}
+                        value={modalSelectedDate}
+                        className="border-0"
+                      />
+                    </div>
+                  )}
                 </div>
                 
                 <button
                   onClick={handleModalNextDay}
-                  className="flex items-center px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="flex items-center px-2 sm:px-4 py-1 sm:py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors text-xs sm:text-sm"
                 >
-                  Next Day
-                  <ChevronRight size={18} className="ml-1" />
+                  Next
+                  <ChevronRight size={14} className="sm:w-4 sm:h-4 ml-1" />
                 </button>
               </div>
-              
-              <p className="text-sm text-gray-600 mt-2 text-center">
-                {modalSelectedDate.toLocaleDateString('en-US', { 
-                  weekday: 'long', 
-                  month: 'long', 
-                  day: 'numeric',
-                  year: 'numeric'
-                })}
-              </p>
             </div>
             
-            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
-              {/* Legend */}
-              <div className="flex flex-wrap gap-4 mb-6 pb-3 border-b border-gray-200">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                  <span className="text-sm text-gray-600">Available</span>
+            <div className="p-4 sm:p-6 overflow-y-auto max-h-[calc(95vh-180px)] sm:max-h-[calc(90vh-180px)]">
+              <div className="flex flex-wrap gap-2 sm:gap-4 mb-4 sm:mb-6 pb-2 sm:pb-3 border-b border-gray-200">
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-[10px] sm:text-sm text-gray-600">Available</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                  <span className="text-sm text-gray-600">Occupied</span>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 bg-red-500 rounded-full"></div>
+                  <span className="text-[10px] sm:text-sm text-gray-600">Occupied</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
-                  <span className="text-sm text-gray-600">Pending</span>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 bg-amber-500 rounded-full"></div>
+                  <span className="text-[10px] sm:text-sm text-gray-600">Pending</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
-                  <span className="text-sm text-gray-600">Inactive</span>
+                <div className="flex items-center gap-1">
+                  <div className="w-2 h-2 sm:w-3 sm:h-3 bg-gray-400 rounded-full"></div>
+                  <span className="text-[10px] sm:text-sm text-gray-600">Inactive</span>
                 </div>
               </div>
 
-              {/* Room Status Content */}
               {availLoading ? (
-                <div className="flex flex-col items-center justify-center py-12">
-                  <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-                  <p className="text-gray-600">Loading room availability...</p>
+                <div className="flex flex-col items-center justify-center py-8 sm:py-12">
+                  <div className="w-8 h-8 sm:w-12 sm:h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-3 sm:mb-4"></div>
+                  <p className="text-gray-600 text-xs sm:text-sm">Loading room availability...</p>
                 </div>
               ) : availError ? (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-                  <AlertCircle size={40} className="mx-auto mb-3 text-red-500" />
-                  <p className="text-red-700 mb-4">{availError}</p>
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6 text-center">
+                  <AlertCircle size={28} className="mx-auto mb-2 sm:mb-3 text-red-500" />
+                  <p className="text-red-700 text-xs sm:text-sm mb-3 sm:mb-4">{availError}</p>
                   <button
                     onClick={() => fetchRoomAvailabilityForDate(modalSelectedDate)}
-                    className="px-4 py-2 bg-red-100 text-red-700 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+                    className="px-3 sm:px-4 py-1.5 sm:py-2 bg-red-100 text-red-700 rounded-lg text-xs sm:text-sm font-medium hover:bg-red-200 transition-colors"
                   >
                     Retry
                   </button>
                 </div>
               ) : roomStatuses.length === 0 ? (
-                <div className="text-center py-12">
-                  <Building2 className="mx-auto mb-3 text-gray-400" size={48} />
-                  <p className="text-gray-500">No rooms available for selected date</p>
+                <div className="text-center py-8 sm:py-12">
+                  <Building2 className="mx-auto mb-2 sm:mb-3 text-gray-400" size={36} />
+                  <p className="text-gray-500 text-xs sm:text-sm">No rooms available</p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3 sm:space-y-4">
                   {allFloors.map((floorName) => {
                     const rooms = groupedByFloor[floorName] || [];
                     const floorStats = rooms.reduce((acc, room) => {
@@ -1657,68 +1491,47 @@ const fetchAllData = useCallback(async () => {
 
                     return (
                       <div key={floorName} className="border border-gray-200 rounded-lg overflow-hidden">
-                        {/* Floor Header */}
-                        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-3">
-                              <h3 className="font-semibold text-gray-800 text-lg">{floorName}</h3>
-                              <span className="text-sm text-gray-500 bg-white px-3 py-1 rounded-full">
+                        <div className="px-3 sm:px-6 py-2 sm:py-4 bg-gray-50 border-b border-gray-200">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center space-x-2 sm:space-x-3">
+                              <h3 className="font-semibold text-gray-800 text-sm sm:text-lg">{floorName}</h3>
+                              <span className="text-xs sm:text-sm text-gray-500 bg-white px-2 py-0.5 sm:px-3 sm:py-1 rounded-full">
                                 {rooms.length} rooms
                               </span>
                             </div>
-                            <div className="flex items-center space-x-3 text-sm">
+                            <div className="flex flex-wrap items-center gap-1 sm:gap-2 text-xs sm:text-sm">
                               {floorStats.available > 0 && (
-                                <span className="text-green-600 bg-green-50 px-3 py-1 rounded-full">
-                                  {floorStats.available} Available
-                                </span>
+                                <span className="text-green-600 bg-green-50 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full">{floorStats.available} Available</span>
                               )}
                               {floorStats.occupied > 0 && (
-                                <span className="text-red-600 bg-red-50 px-3 py-1 rounded-full">
-                                  {floorStats.occupied} Occupied
-                                </span>
-                              )}
-                              {floorStats.pending > 0 && (
-                                <span className="text-amber-600 bg-amber-50 px-3 py-1 rounded-full">
-                                  {floorStats.pending} Pending
-                                </span>
+                                <span className="text-red-600 bg-red-50 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full">{floorStats.occupied} Occupied</span>
                               )}
                             </div>
                           </div>
                         </div>
                         
-                        {/* Room List */}
                         <div className="divide-y divide-gray-100">
                           {rooms.map((room) => {
                             const { status, label } = getRoomStatus(room);
                             const isRoomActive = room.isActive !== false;
 
                             return (
-                              <div key={room._id} className="p-6 hover:bg-gray-50 transition-colors">
-                                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                                  {/* Room Info */}
-                                  <div className="flex items-center gap-4 min-w-0 flex-1">
-                                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                              <div key={room._id} className="p-3 sm:p-6 hover:bg-gray-50 transition-colors">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                  <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                                    <div className={`w-2 h-2 sm:w-3 sm:h-3 rounded-full flex-shrink-0 ${
                                       status === 'inactive' ? "bg-gray-400" :
                                       status === 'occupied' ? "bg-red-500" :
                                       status === 'pending' ? "bg-amber-500" : "bg-green-500"
                                     }`} />
                                     <div>
-                                      <p className={`font-semibold text-base ${
-                                        !isRoomActive ? "text-gray-500" : "text-gray-900"
-                                      }`}>
+                                      <p className={`font-semibold text-sm sm:text-base ${!isRoomActive ? "text-gray-500" : "text-gray-900"}`}>
                                         {room.room}
-                                        {!isRoomActive && (
-                                          <span className="ml-2 text-sm text-gray-500 font-normal">(Inactive)</span>
-                                        )}
                                       </p>
-                                      <p className="text-sm text-gray-500 mt-1">
-                                        Floor {room.floor}
-                                      </p>
+                                      <p className="text-xs sm:text-sm text-gray-500 mt-0.5">Floor {room.floor}</p>
                                     </div>
                                   </div>
-
-                                  {/* Status Badge */}
-                                  <div className={`text-sm font-medium px-4 py-2 rounded-full inline-flex items-center justify-center ${
+                                  <div className={`text-xs sm:text-sm font-medium px-2 py-1 sm:px-4 sm:py-2 rounded-full inline-flex items-center justify-center self-start sm:self-auto ${
                                     status === 'inactive' ? "bg-gray-100 text-gray-600" :
                                     status === 'occupied' ? "bg-red-100 text-red-700" :
                                     status === 'pending' ? "bg-amber-100 text-amber-700" : 
@@ -1727,59 +1540,6 @@ const fetchAllData = useCallback(async () => {
                                     {label}
                                   </div>
                                 </div>
-
-                                {/* Booking Details */}
-                                {(room.occupied?.length > 0 || room.pending?.length > 0) && (
-                                  <div className="mt-4 pt-4 border-t border-gray-100">
-                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                                      {room.occupied?.length > 0 && (
-                                        <div>
-                                          <p className="text-sm font-semibold text-red-600 mb-2 flex items-center">
-                                            <CheckCircle size={14} className="mr-1" />
-                                            Approved Bookings ({room.occupied.length})
-                                          </p>
-                                          <div className="space-y-2">
-                                            {room.occupied.map((booking, i) => (
-                                              <div key={i} className="flex items-center justify-between text-sm bg-red-50 p-3 rounded">
-                                                <div>
-                                                  <span className="text-gray-700 font-medium">
-                                                    {formatTime(booking.start)} - {formatTime(booking.end)}
-                                                  </span>
-                                                  {booking.userName && (
-                                                    <p className="text-gray-500 text-xs mt-1">by {booking.userName}</p>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      )}
-                                      
-                                      {room.pending?.length > 0 && (
-                                        <div>
-                                          <p className="text-sm font-semibold text-amber-600 mb-2 flex items-center">
-                                            <Clock3 size={14} className="mr-1" />
-                                            Pending Approvals ({room.pending.length})
-                                          </p>
-                                          <div className="space-y-2">
-                                            {room.pending.map((booking, i) => (
-                                              <div key={i} className="flex items-center justify-between text-sm bg-amber-50 p-3 rounded">
-                                                <div>
-                                                  <span className="text-gray-700 font-medium">
-                                                    {formatTime(booking.start)} - {formatTime(booking.end)}
-                                                  </span>
-                                                  {booking.userName && (
-                                                    <p className="text-gray-500 text-xs mt-1">by {booking.userName}</p>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
                               </div>
                             );
                           })}
@@ -1791,16 +1551,15 @@ const fetchAllData = useCallback(async () => {
               )}
             </div>
             
-            <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-between items-center">
-              <div className="text-sm text-gray-600">
-                Total Rooms: {roomStatuses.length} | 
+            <div className="p-4 sm:p-6 border-t border-gray-200 bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-3">
+              <div className="text-[10px] sm:text-sm text-gray-600 text-center sm:text-left">
+                Total: {roomStatuses.length} | 
                 Available: {roomStatuses.filter(r => getRoomStatus(r).status === 'available').length} |
-                Occupied: {roomStatuses.filter(r => getRoomStatus(r).status === 'occupied').length} |
-                Pending: {roomStatuses.filter(r => getRoomStatus(r).status === 'pending').length}
+                Occupied: {roomStatuses.filter(r => getRoomStatus(r).status === 'occupied').length}
               </div>
               <button
                 onClick={() => setShowRoomAvailabilityModal(false)}
-                className="px-6 py-2.5 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                className="w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-2.5 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors font-medium text-sm"
               >
                 Close
               </button>

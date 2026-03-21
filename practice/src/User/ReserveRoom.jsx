@@ -60,8 +60,9 @@ function ReserveRoom({ user, setView }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   
   // Time picker state
-  const [tempHour, setTempHour] = useState("07");
+  const [tempHour, setTempHour] = useState("7");
   const [tempMinute, setTempMinute] = useState("00");
+  const [tempAmPm, setTempAmPm] = useState("AM");
   
   // Add state for room availability
   const [roomAvailability, setRoomAvailability] = useState([]);
@@ -169,13 +170,22 @@ function ReserveRoom({ user, setView }) {
 
   const [calendarDays, setCalendarDays] = useState(generateCalendarDays(currentMonth, currentYear));
 
-  // Generate hours from 7 to 15 (7 AM to 3 PM) - Display in 24-hour format
+  // Generate hours from 7 AM to 3 PM (7:00 AM to 3:00 PM)
   const generateHours = () => {
     const hours = [];
     for (let i = 7; i <= 15; i++) {
+      let displayHour = i;
+      let ampm = "AM";
+      if (i === 12) {
+        displayHour = 12;
+        ampm = "PM";
+      } else if (i > 12) {
+        displayHour = i - 12;
+        ampm = "PM";
+      }
       hours.push({
-        value: i.toString().padStart(2, '0'),
-        display: `${i.toString().padStart(2, '0')}:00`,
+        value: i.toString(),
+        display: `${displayHour}:00 ${ampm}`,
         hour24: i
       });
     }
@@ -198,8 +208,26 @@ function ReserveRoom({ user, setView }) {
     if (!timeValue) return "Select Time";
     const [hour, minute] = timeValue.split(":");
     const hourNum = parseInt(hour, 10);
-    // Format as HH:MM in 24-hour format
-    return `${hourNum.toString().padStart(2, '0')}:${minute}`;
+    let displayHour = hourNum;
+    let ampm = "AM";
+    if (hourNum === 12) {
+      ampm = "PM";
+    } else if (hourNum > 12) {
+      displayHour = hourNum - 12;
+      ampm = "PM";
+    }
+    return `${displayHour}:${minute} ${ampm}`;
+  };
+
+  // Convert 12-hour format to 24-hour format for storage
+  const convertTo24Hour = (hour, minute, ampm) => {
+    let hour24 = parseInt(hour, 10);
+    if (ampm === "PM" && hour24 !== 12) {
+      hour24 += 12;
+    } else if (ampm === "AM" && hour24 === 12) {
+      hour24 = 0;
+    }
+    return `${hour24.toString().padStart(2, '0')}:${minute}`;
   };
 
   // Fetch room availability for selected date
@@ -240,8 +268,7 @@ function ReserveRoom({ user, setView }) {
 
   // Handle time selection
   const handleTimeSelect = () => {
-    const hour24 = parseInt(tempHour, 10);
-    const timeString = `${hour24.toString().padStart(2, '0')}:${tempMinute}`;
+    const timeString = convertTo24Hour(tempHour, tempMinute, tempAmPm);
     setFormData({ ...formData, time: timeString });
     setShowTimeModal(false);
     
@@ -254,12 +281,27 @@ function ReserveRoom({ user, setView }) {
   // Reset time picker when opening modal
   const openTimeModal = () => {
     if (formData.time) {
-      const [hour, minute] = formData.time.split(":");
-      setTempHour(hour);
+      const [hour24, minute] = formData.time.split(":");
+      const hourNum = parseInt(hour24, 10);
+      let displayHour = hourNum;
+      let ampm = "AM";
+      if (hourNum === 12) {
+        ampm = "PM";
+        displayHour = 12;
+      } else if (hourNum > 12) {
+        displayHour = hourNum - 12;
+        ampm = "PM";
+      } else if (hourNum === 0) {
+        displayHour = 12;
+        ampm = "AM";
+      }
+      setTempHour(displayHour.toString());
       setTempMinute(minute);
+      setTempAmPm(ampm);
     } else {
-      setTempHour("07");
+      setTempHour("7");
       setTempMinute("00");
+      setTempAmPm("AM");
     }
     setShowTimeModal(true);
   };
@@ -1302,13 +1344,13 @@ function ReserveRoom({ user, setView }) {
               )}
             </div>
 
-            {/* Time Selector - Full minute picker 7:00 AM to 3:00 PM */}
+            {/* Time Selector - AM/PM format */}
             <div className="space-y-1" ref={timeRef}>
               <p className="font-medium text-gray-700 flex items-center text-sm sm:text-base">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Select Time (7:00 - 15:00)
+                Select Time (7:00 AM - 3:00 PM)
               </p>
               <button
                 onClick={openTimeModal}
@@ -1445,7 +1487,7 @@ function ReserveRoom({ user, setView }) {
           </div>
         )}
 
-        {/* Time Selection Modal - Full minute picker without AM/PM */}
+        {/* Time Selection Modal - AM/PM format */}
         {showTimeModal && (
           <div className="fixed top-0 left-0 w-screen h-screen bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[400px] shadow-xl">
@@ -1453,7 +1495,7 @@ function ReserveRoom({ user, setView }) {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Select Time (7:00 - 15:00)
+                Select Time (7:00 AM - 3:00 PM)
               </h2>
 
               <div className="flex gap-4 mb-6">
@@ -1465,11 +1507,24 @@ function ReserveRoom({ user, setView }) {
                     onChange={(e) => setTempHour(e.target.value)}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
                   >
-                    {hours.map((hour) => (
-                      <option key={hour.value} value={hour.value}>
-                        {hour.display}
-                      </option>
-                    ))}
+                    {[7, 8, 9, 10, 11, 12, 1, 2, 3].map((hour) => {
+                      let displayHour = hour;
+                      let ampm = "AM";
+                      if (hour === 12) {
+                        displayHour = 12;
+                        ampm = "PM";
+                      } else if (hour > 12) {
+                        displayHour = hour - 12;
+                        ampm = "PM";
+                      } else if (hour === 7 || hour === 8 || hour === 9 || hour === 10 || hour === 11) {
+                        ampm = "AM";
+                      }
+                      return (
+                        <option key={hour} value={hour}>
+                          {displayHour}:00 {ampm}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -1486,6 +1541,19 @@ function ReserveRoom({ user, setView }) {
                         {minute}
                       </option>
                     ))}
+                  </select>
+                </div>
+
+                {/* AM/PM Selector */}
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">AM/PM</label>
+                  <select
+                    value={tempAmPm}
+                    onChange={(e) => setTempAmPm(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
                   </select>
                 </div>
               </div>
