@@ -20,6 +20,7 @@ import {
   Activity,
   ChevronDown,
   ChevronRight,
+  Archive, // Add this import
 } from "lucide-react";
 
 function AdminNavigation({ admin, setView, currentView, onLogout }) {
