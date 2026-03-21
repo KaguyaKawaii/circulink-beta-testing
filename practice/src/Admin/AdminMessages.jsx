@@ -1,3 +1,4 @@
+// AdminMessages.jsx - Fully Responsive Version
 import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { io } from "socket.io-client";
@@ -19,12 +20,27 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [error, setError] = useState(null);
   const [userNames, setUserNames] = useState({});
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   const listRef = useRef(null);
   const messagesEndRef = useRef(null);
   const searchRef = useRef(null);
   const chatContainerRef = useRef(null);
   const messageInputRef = useRef(null);
+  const mobileSidebarRef = useRef(null);
+
+  // Handle window resize for responsive layout
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth >= 768) {
+        setMobileSidebarOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -134,6 +150,9 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
       if (searchRef.current && !searchRef.current.contains(event.target)) {
         setShowSearchDropdown(false);
       }
+      if (mobileSidebarRef.current && !mobileSidebarRef.current.contains(event.target) && mobileSidebarOpen && isMobile) {
+        setMobileSidebarOpen(false);
+      }
     };
 
     document.addEventListener("mousedown", handleClickOutside);
@@ -151,6 +170,10 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
       fetchMessagesWithoutLoading();
       markAsRead(selectedId);
       moveConversationToTop(selectedId);
+      // Close mobile sidebar when a conversation is selected
+      if (isMobile) {
+        setMobileSidebarOpen(false);
+      }
     }
   }, [selectedId]);
 
@@ -159,7 +182,7 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
   }, [messages]);
 
   useEffect(() => {
-    if (selectedId && messageInputRef.current) {
+    if (selectedId && messageInputRef.current && !isMobile) {
       messageInputRef.current.focus();
     }
   }, [selectedId]);
@@ -577,31 +600,97 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
     )
   ).slice(0, 5);
 
+  // Mobile menu button component
+  const MobileMenuButton = () => (
+    <button
+      onClick={() => setMobileSidebarOpen(true)}
+      className="md:hidden fixed bottom-4 right-4 z-20 bg-[#CC0000] text-white rounded-full p-3 shadow-lg hover:bg-[#CC0000]/90 transition-all"
+    >
+      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+      </svg>
+    </button>
+  );
+
+  // Mobile back button for chat header
+  const MobileBackButton = () => (
+    <button
+      onClick={() => setMobileSidebarOpen(true)}
+      className="md:hidden mr-3 p-2 hover:bg-gray-100 rounded-full transition-colors"
+    >
+      <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+      </svg>
+    </button>
+  );
+
   return (
     <>
       <AdminNavigation setView={setView} currentView="adminMessage" onLogout={onLogout} />
       
-      <div className="ml-[250px] h-screen flex flex-col bg-gray-100">
-        {/* EXACT HEADER STYLE - Copied pixel for pixel from News Management */}
-        <header className="bg-white px-6 py-4 border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-[#CC0000]">Messages</h1>
-          <p className="text-gray-600">Chat with users and staff</p>
+      <div className="ml-[250px] h-screen flex flex-col bg-gray-100 overflow-hidden">
+        {/* Header - Responsive */}
+        <header className="bg-white px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex-shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <h1 className="text-xl sm:text-2xl font-bold text-[#CC0000]">Messages</h1>
+              <p className="text-xs sm:text-sm text-gray-600 mt-0.5">Chat with users and staff</p>
+            </div>
+            {/* Unread badge for mobile */}
+            <div className="md:hidden">
+              {recipients.filter(r => r?.unreadCount > 0).length > 0 && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[#CC0000] text-white">
+                  {recipients.filter(r => r?.unreadCount > 0).length} unread
+                </span>
+              )}
+            </div>
+          </div>
           {error && (
-            <div className="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded text-sm">
+            <div className="mt-2 p-2 bg-red-100 border border-red-400 text-red-700 rounded text-xs sm:text-sm">
               {error}
             </div>
           )}
         </header>
 
-        <div className="flex flex-1 overflow-hidden">
-          {/* Conversations Sidebar */}
-          <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+        <div className="flex flex-1 overflow-hidden relative">
+          {/* Mobile Sidebar Overlay */}
+          {mobileSidebarOpen && isMobile && (
+            <div className="fixed inset-0 bg-black/50 z-30 md:hidden" onClick={() => setMobileSidebarOpen(false)} />
+          )}
+
+          {/* Conversations Sidebar - Responsive */}
+          <div 
+            ref={mobileSidebarRef}
+            className={`
+              fixed md:relative z-40 md:z-auto
+              w-80 bg-white border-r border-gray-200 flex flex-col
+              transition-transform duration-300 ease-in-out
+              ${mobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+              md:translate-x-0
+              h-full md:h-auto
+              top-0 left-0
+              shadow-xl md:shadow-none
+            `}
+          >
+            {/* Sidebar Header for mobile */}
+            <div className="md:hidden flex items-center justify-between p-4 border-b border-gray-200 bg-white">
+              <h2 className="font-semibold text-gray-800">Conversations</h2>
+              <button 
+                onClick={() => setMobileSidebarOpen(false)}
+                className="p-2 hover:bg-gray-100 rounded-full"
+              >
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
             {/* Search */}
             <div className="p-3 border-b border-gray-200" ref={searchRef}>
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Search Messenger"
+                  placeholder="Search users or staff..."
                   className="w-full bg-gray-100 rounded-full pl-10 pr-4 py-2 text-sm text-gray-700 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#CC0000] focus:bg-white transition-all"
                   value={searchTerm}
                   onChange={(e) => {
@@ -631,10 +720,11 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                           className="w-full flex items-center p-3 hover:bg-gray-50 transition-colors"
                         >
                           {getAvatar(user.name, user.role === "staff" ? "staff" : "user", "sm")}
-                          <div className="ml-3 text-left">
-                            <div className="font-medium text-gray-900 text-sm">{user.name}</div>
+                          <div className="ml-3 text-left flex-1 min-w-0">
+                            <div className="font-medium text-gray-900 text-sm truncate">{user.name}</div>
                             <div className="text-xs text-gray-500">
                               {user.role === "staff" ? "Staff" : "User"}
+                              {user.department && ` • ${user.department}`}
                             </div>
                           </div>
                         </button>
@@ -652,12 +742,12 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
             {/* Conversations List */}
             <div className="flex-1 overflow-y-auto" ref={listRef}>
               {recipients.filter(r => r !== undefined).length === 0 ? (
-                <div className="text-center p-8 text-gray-500">
-                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="text-center p-6 sm:p-8 text-gray-500">
+                  <svg className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
-                  <p className="font-medium">No conversations yet</p>
-                  <p className="text-xs mt-2">Search for someone to start chatting</p>
+                  <p className="font-medium text-sm">No conversations yet</p>
+                  <p className="text-xs mt-1">Search for someone to start chatting</p>
                 </div>
               ) : (
                 recipients.filter(r => r !== undefined).map((recipient) => (
@@ -677,17 +767,17 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                           <span className="font-semibold text-gray-800 text-sm truncate">
                             {recipient.name}
                           </span>
-                          <span className="text-xs text-gray-400 ml-2">
+                          <span className="text-xs text-gray-400 ml-2 flex-shrink-0">
                             {recipient.timestamp ? formatTime(recipient.timestamp) : ''}
                           </span>
                         </div>
                         <div className="flex items-center justify-between mt-0.5">
-                          <div className="text-xs text-gray-600 truncate max-w-[180px]">
+                          <div className="text-xs text-gray-600 truncate max-w-[160px] sm:max-w-[180px]">
                             {recipient.latestMessage || "No messages yet"}
                           </div>
                           {recipient.unreadCount > 0 && (
-                            <span className="bg-[#CC0000] text-white text-xs px-2 py-0.5 rounded-full ml-2">
-                              {recipient.unreadCount}
+                            <span className="bg-[#CC0000] text-white text-xs px-1.5 py-0.5 rounded-full ml-2 flex-shrink-0 min-w-[20px] text-center">
+                              {recipient.unreadCount > 99 ? '99+' : recipient.unreadCount}
                             </span>
                           )}
                         </div>
@@ -700,16 +790,19 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
           </div>
 
           {/* Chat Area */}
-          <div className="flex-1 flex flex-col bg-gray-100">
+          <div className="flex-1 flex flex-col bg-gray-100 overflow-hidden">
             {selectedId ? (
               <>
-                {/* Chat Header */}
-                <div className="bg-white px-4 py-3 border-b border-gray-200 shadow-sm flex items-center">
-                  <div className="flex items-center space-x-3">
+                {/* Chat Header - Responsive */}
+                <div className="bg-white px-3 sm:px-4 py-2 sm:py-3 border-b border-gray-200 shadow-sm flex items-center">
+                  {isMobile && <MobileBackButton />}
+                  <div className="flex items-center space-x-2 sm:space-x-3">
                     {getAvatar(selectedName, selectedType)}
-                    <div>
-                      <h3 className="font-semibold text-gray-800">{selectedName}</h3>
-                      <p className="text-xs text-gray-500">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-gray-800 text-sm sm:text-base truncate max-w-[150px] sm:max-w-none">
+                        {selectedName}
+                      </h3>
+                      <p className="text-[10px] sm:text-xs text-gray-500">
                         {selectedType === "staff" ? "Staff" : "User"} • Active now
                       </p>
                     </div>
@@ -719,30 +812,30 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                 {/* Messages Container */}
                 <div 
                   ref={chatContainerRef}
-                  className="flex-1 overflow-y-auto px-4 py-6"
+                  className="flex-1 overflow-y-auto px-3 sm:px-4 py-3 sm:py-6"
                 >
                   {messages.length === 0 ? (
                     <div className="flex justify-center items-center h-full">
                       <div className="text-center text-gray-500">
-                        <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3">
-                          <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-2 sm:mb-3">
+                          <svg className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                           </svg>
                         </div>
-                        <p className="text-sm">No messages yet</p>
-                        <p className="text-xs text-gray-400 mt-1">Say hello to {selectedName}</p>
+                        <p className="text-xs sm:text-sm">No messages yet</p>
+                        <p className="text-[10px] sm:text-xs text-gray-400 mt-1">Say hello to {selectedName}</p>
                       </div>
                     </div>
                   ) : (
-                    <div className="space-y-4">
+                    <div className="space-y-3 sm:space-y-4">
                       {Object.entries(messageGroups).map(([date, dateMessages]) => (
                         <div key={date}>
-                          <div className="flex justify-center mb-4">
-                            <span className="text-xs bg-gray-200/80 text-gray-600 px-3 py-1 rounded-full">
+                          <div className="flex justify-center mb-2 sm:mb-4">
+                            <span className="text-[10px] sm:text-xs bg-gray-200/80 text-gray-600 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">
                               {date}
                             </span>
                           </div>
-                          <div className="space-y-2">
+                          <div className="space-y-2 sm:space-y-2">
                             {dateMessages.map((msg, idx) => {
                               const isAdmin = msg.sender === "admin";
                               const showAvatar = !isAdmin && (
@@ -752,24 +845,24 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                               
                               return (
                                 <div key={msg._id || msg.localId} className={`flex ${isAdmin ? 'justify-end' : 'justify-start'}`}>
-                                  <div className={`flex items-end space-x-2 max-w-[65%] ${isAdmin ? 'flex-row-reverse space-x-reverse' : ''}`}>
+                                  <div className={`flex items-end space-x-1 sm:space-x-2 max-w-[80%] sm:max-w-[65%] ${isAdmin ? 'flex-row-reverse space-x-reverse' : ''}`}>
                                     {!isAdmin && showAvatar ? (
                                       getAvatar(selectedName, selectedType, "sm")
                                     ) : !isAdmin ? (
-                                      <div className="w-8"></div>
+                                      <div className="w-6 sm:w-8"></div>
                                     ) : null}
                                     
                                     <div className="flex flex-col">
-                                      <div className={`px-3 py-2 rounded-2xl ${
+                                      <div className={`px-2 sm:px-3 py-1.5 sm:py-2 rounded-2xl ${
                                         isAdmin 
                                           ? 'bg-[#CC0000] text-white rounded-br-none' 
                                           : 'bg-white border border-gray-200 rounded-bl-none shadow-sm'
                                       }`}>
-                                        <div className="text-sm whitespace-pre-wrap break-words">
+                                        <div className="text-xs sm:text-sm whitespace-pre-wrap break-words max-w-[220px] sm:max-w-md">
                                           {msg.content}
                                         </div>
                                       </div>
-                                      <div className={`text-[10px] text-gray-400 mt-1 ${isAdmin ? 'text-right' : 'text-left'}`}>
+                                      <div className={`text-[8px] sm:text-[10px] text-gray-400 mt-0.5 sm:mt-1 ${isAdmin ? 'text-right' : 'text-left'}`}>
                                         {formatTime(msg.createdAt)}
                                         {msg.status === "sending" && " • Sending"}
                                         {msg.status === "failed" && " • Failed"}
@@ -787,14 +880,14 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                   )}
                 </div>
 
-                {/* Message Input */}
-                <div className="bg-white px-4 py-3 border-t border-gray-200">
+                {/* Message Input - Responsive */}
+                <div className="bg-white px-3 sm:px-4 py-2 sm:py-3 border-t border-gray-200">
                   <div className="flex items-end space-x-2">
-                    <div className="flex-1 bg-gray-100 rounded-3xl px-4 py-2">
+                    <div className="flex-1 bg-gray-100 rounded-3xl px-3 sm:px-4 py-1.5 sm:py-2">
                       <textarea
                         ref={messageInputRef}
-                        placeholder={`Message ${selectedName}`}
-                        className="w-full bg-transparent border-0 focus:ring-0 text-sm resize-none outline-none max-h-32"
+                        placeholder={`Message ${selectedName}...`}
+                        className="w-full bg-transparent border-0 focus:ring-0 text-xs sm:text-sm resize-none outline-none max-h-24 sm:max-h-32"
                         value={newMessage}
                         onChange={(e) => setNewMessage(e.target.value)}
                         onKeyDown={handleKeyPress}
@@ -805,9 +898,9 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                     <button
                       onClick={handleSendMessage}
                       disabled={!newMessage.trim()}
-                      className="bg-[#CC0000] text-white rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-[#CC0000]/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#CC0000] cursor-pointer flex-shrink-0"
+                      className="bg-[#CC0000] text-white rounded-full w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:bg-[#CC0000]/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#CC0000] cursor-pointer flex-shrink-0"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                       </svg>
                     </button>
@@ -815,18 +908,24 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
                 </div>
               </>
             ) : (
-              /* Empty State */
+              /* Empty State - Responsive */
               <div className="flex-1 flex items-center justify-center bg-gray-100">
-                <div className="text-center text-gray-500">
-                  <div className="w-24 h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="text-center text-gray-500 p-4">
+                  <div className="w-16 h-16 sm:w-24 sm:h-24 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                    <svg className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                     </svg>
                   </div>
-                  <h3 className="text-xl font-semibold mb-2 text-gray-700">Your Messages</h3>
-                  <p className="text-gray-500 max-w-sm">
+                  <h3 className="text-base sm:text-xl font-semibold mb-1 sm:mb-2 text-gray-700">Your Messages</h3>
+                  <p className="text-xs sm:text-sm text-gray-500 max-w-[250px] sm:max-w-sm">
                     Select a conversation from the sidebar or search for someone to start chatting
                   </p>
+                  <button
+                    onClick={() => setMobileSidebarOpen(true)}
+                    className="md:hidden mt-4 px-4 py-2 bg-[#CC0000] text-white rounded-lg text-sm"
+                  >
+                    Open Conversations
+                  </button>
                 </div>
               </div>
             )}
@@ -834,7 +933,10 @@ function AdminMessages({ setView, onLogout, refreshUnreadCounts }) {
         </div>
       </div>
 
-      <style jsx>{`
+      {/* Mobile Menu Button - Only shows when no conversation selected on mobile */}
+      {!selectedId && isMobile && <MobileMenuButton />}
+
+      <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(-5px); }
           to { opacity: 1; transform: translateY(0); }
