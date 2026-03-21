@@ -165,12 +165,17 @@ function ReserveRoom({ user, setView }) {
 
   const [calendarDays, setCalendarDays] = useState(generateCalendarDays(currentMonth, currentYear));
 
-  // Updated time slots with 2-hour durations (7 AM to 3 PM)
+  // Time slots from 7 AM to 3 PM (hourly)
   const timeSlots = [
-    { value: "07:00", display: "7:00 AM - 9:00 AM", start: "07:00", end: "09:00" },
-    { value: "09:00", display: "9:00 AM - 11:00 AM", start: "09:00", end: "11:00" },
-    { value: "11:00", display: "11:00 AM - 1:00 PM", start: "11:00", end: "13:00" },
-    { value: "13:00", display: "1:00 PM - 3:00 PM", start: "13:00", end: "15:00" }
+    { value: "07:00", display: "7:00 AM" },
+    { value: "08:00", display: "8:00 AM" },
+    { value: "09:00", display: "9:00 AM" },
+    { value: "10:00", display: "10:00 AM" },
+    { value: "11:00", display: "11:00 AM" },
+    { value: "12:00", display: "12:00 PM" },
+    { value: "13:00", display: "1:00 PM" },
+    { value: "14:00", display: "2:00 PM" },
+    { value: "15:00", display: "3:00 PM" }
   ];
 
   const formatDisplayTime = (timeValue) => {
@@ -178,24 +183,21 @@ function ReserveRoom({ user, setView }) {
     return slot ? slot.display : "Select Time";
   };
 
-  // Fetch room availability for selected date and time
-  const fetchRoomAvailability = async (date, time) => {
-    if (!date || !time) return;
+  // Fetch room availability for selected date
+  const fetchRoomAvailability = async (date, time = null) => {
+    if (!date) return;
     
     setAvailabilityLoading(true);
     setAvailabilityError(null);
     
     try {
-      const selectedTimeSlot = timeSlots.find(t => t.value === time);
-      const startTime = selectedTimeSlot ? selectedTimeSlot.start : time;
-      const endTime = selectedTimeSlot ? selectedTimeSlot.end : "15:00";
+      const params = { date: date };
+      if (time) {
+        params.time = time;
+      }
       
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations/room-availability`, {
-        params: {
-          date: date,
-          time: startTime,
-          endTime: endTime
-        }
+        params: params
       });
       
       setRoomAvailability(response.data.rooms || []);
@@ -209,23 +211,19 @@ function ReserveRoom({ user, setView }) {
     }
   };
 
-  // Handle date selection with availability check
+  // Handle date selection - show availability modal
   const handleDateSelect = async (date) => {
     setFormData({ ...formData, date: date.date });
     setShowDateModal(false);
-    
-    // If time is already selected, fetch availability
-    if (formData.time) {
-      await fetchRoomAvailability(date.date, formData.time);
-    }
+    // Show availability modal when date is selected
+    await fetchRoomAvailability(date.date, formData.time || null);
   };
 
-  // Handle time selection with availability check
+  // Handle time selection - show availability modal
   const handleTimeSelect = async (time) => {
     setFormData({ ...formData, time: time.value });
     setShowTimeModal(false);
-    
-    // If date is already selected, fetch availability
+    // Show availability modal when time is selected
     if (formData.date) {
       await fetchRoomAvailability(formData.date, time.value);
     }
@@ -754,21 +752,13 @@ function ReserveRoom({ user, setView }) {
     setLoading(true);
 
     try {
-      const selectedTimeSlot = timeSlots.find(t => t.value === formData.time);
-      const startTime = selectedTimeSlot ? selectedTimeSlot.start : formData.time;
-      const endTime = selectedTimeSlot ? selectedTimeSlot.end : "15:00";
-      
       const manilaTime = moment.tz(
-        `${formData.date}T${startTime}`,
+        `${formData.date}T${formData.time}`,
         "YYYY-MM-DDTHH:mm",
         "Asia/Manila"
       );
 
-      const endManilaTime = moment.tz(
-        `${formData.date}T${endTime}`,
-        "YYYY-MM-DDTHH:mm",
-        "Asia/Manila"
-      );
+      const endManilaTime = manilaTime.clone().add(1, 'hour');
 
       // For Faculty, filter out empty participants
       let participantsToSend = formData.participants;
@@ -793,7 +783,7 @@ function ReserveRoom({ user, setView }) {
         datetime: manilaTime.format(),
         datetimeUTC: manilaTime.utc().format(),
         date: formData.date,
-        time: startTime,
+        time: formData.time,
         endDatetime: endManilaTime.format(),
         endDatetimeUTC: endManilaTime.utc().format(),
         numUsers: isFacultyUser() ? participantsToSend.length : parseInt(formData.numUsers),
@@ -827,7 +817,7 @@ function ReserveRoom({ user, setView }) {
   ];
 
   // Helper function to check if a room is available for the selected time
-  const isRoomAvailableForTime = (room, selectedTimeSlot) => {
+  const isRoomAvailableForTime = (room, selectedTime) => {
     if (!roomAvailability || roomAvailability.length === 0) return true;
     
     const roomStatus = roomAvailability.find(r => r._id === room._id);
@@ -844,8 +834,7 @@ function ReserveRoom({ user, setView }) {
     setSelectedRoomDetails(room);
     
     // Check availability for selected date and time
-    const selectedTimeSlot = timeSlots.find(t => t.value === formData.time);
-    const isAvailable = isRoomAvailableForTime(room, selectedTimeSlot);
+    const isAvailable = isRoomAvailableForTime(room, formData.time);
     const canAccess = canReserveFloor(room.floor);
     
     // Only select the room if it's active, available, and user has access
@@ -1312,13 +1301,13 @@ function ReserveRoom({ user, setView }) {
               )}
             </div>
 
-            {/* Time Selector */}
+            {/* Time Selector - 7 AM to 3 PM */}
             <div className="space-y-1" ref={timeRef}>
               <p className="font-medium text-gray-700 flex items-center text-sm sm:text-base">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Time (2-hour slots)
+                Time (7:00 AM - 3:00 PM)
               </p>
               <button
                 onClick={() => setShowTimeModal(true)}
@@ -1327,7 +1316,7 @@ function ReserveRoom({ user, setView }) {
                 }`}
               >
                 <span className={formData.time ? "text-gray-800 truncate" : "text-gray-400 font-semibold truncate"}>
-                  {formData.time ? formatDisplayTime(formData.time) : "Select Time Slot"}
+                  {formData.time ? formatDisplayTime(formData.time) : "Select Time"}
                 </span>
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -1455,33 +1444,30 @@ function ReserveRoom({ user, setView }) {
           </div>
         )}
 
-        {/* Time Selection Modal - Updated with 2-hour slots */}
+        {/* Time Selection Modal - 7 AM to 3 PM */}
         {showTimeModal && (
           <div className="fixed top-0 left-0 w-screen h-screen bg-black/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[600px] max-h-[90vh] overflow-y-auto shadow-xl">
+            <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[500px] max-h-[90vh] overflow-y-auto shadow-xl">
               <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Select Time Slot (2-hour duration)
+                Select Time (7:00 AM - 3:00 PM)
               </h2>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {timeSlots.map((slot) => (
                   <button
                     key={slot.value}
                     onClick={() => handleTimeSelect(slot)}
-                    className={`p-4 border rounded-lg text-center cursor-pointer transition-all duration-200 min-h-[80px]
+                    className={`p-3 border rounded-lg text-center cursor-pointer transition-all duration-200 min-h-[60px]
                       ${formData.time === slot.value
                         ? "bg-[#CC0000] text-white border-[#CC0000] shadow-lg"
                         : "hover:bg-gray-100 border-gray-300 hover:border-gray-400"
                       }`}
                   >
-                    <div className="font-semibold text-base sm:text-lg">
+                    <div className="font-semibold text-base">
                       {slot.display}
-                    </div>
-                    <div className="text-xs mt-1 opacity-75">
-                      2-hour session
                     </div>
                   </button>
                 ))}
@@ -1636,8 +1622,7 @@ function ReserveRoom({ user, setView }) {
                   const roomImage = getRoomImage(room);
                   const isDisabled = !room.isActive;
                   const canReserve = canReserveFloor(room.floor);
-                  const selectedTimeSlot = timeSlots.find(t => t.value === formData.time);
-                  const isAvailable = isRoomAvailableForTime(room, selectedTimeSlot);
+                  const isAvailable = isRoomAvailableForTime(room, formData.time);
                   const isSelected = formData.room_Id === room._id;
                   const isBooked = !isAvailable && formData.date && formData.time;
 
@@ -2010,7 +1995,7 @@ function ReserveRoom({ user, setView }) {
           <ul className="space-y-1 sm:space-y-2">
             <li className="text-xs sm:text-sm text-gray-600 flex items-start">
               <span className="text-red-600 font-bold mr-1">•</span>
-              Reservations are for 2-hour sessions only. Available time slots: 7:00 AM - 9:00 AM, 9:00 AM - 11:00 AM, 11:00 AM - 1:00 PM, and 1:00 PM - 3:00 PM.
+              Reservations are available from 7:00 AM to 3:00 PM only.
             </li>
             <li className="text-xs sm:text-sm text-gray-600 flex items-start">
               <span className="text-red-600 font-bold mr-1">•</span>
