@@ -39,7 +39,7 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
     btn?.focus();
   }, [currentView]);
 
-  // Combined Navigation Items with categories - optimized for non-scrollable layout
+  // Combined Navigation Items with categories - icons slightly larger for better visibility
   const navItems = [
     // Main
     { 
@@ -189,29 +189,29 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
   return (
     <>
       <aside>
-        {/* Sidebar - Non-scrollable, all items visible without scrolling */}
-        <div className="fixed top-0 left-0 h-screen w-[280px] bg-[#030303] flex flex-col border-r border-gray-800 z-[99999] shadow-xl overflow-hidden">
+        {/* Sidebar - ORIGINAL WIDTH 250px preserved */}
+        <div className="fixed top-0 left-0 h-screen w-[250px] bg-[#030303] p-0 flex flex-col border-r border-gray-800 z-[99999] shadow-xl">
           
-          {/* Logo + Title - Fixed at top */}
-          <div className="flex items-center gap-3 p-4 border-b border-gray-800 bg-[#0a0a0a] flex-shrink-0">
+          {/* Logo + Title - Increased padding and font size */}
+          <div className="flex items-center gap-3 p-4 border-b border-gray-800 bg-[#0a0a0a] z-[9999] w-full">
             <img src={Logo} alt="Logo" className="h-[40px] w-[40px] flex-shrink-0 rounded-lg" />
             <h1 className="text-[16px] font-semibold text-gray-100 leading-tight truncate tracking-wide">
               USA | CircuLink
             </h1>
           </div>
 
-          {/* Navigation - NO SCROLLING, compact but readable layout */}
-          <div className="flex-1 flex flex-col bg-[#030303] w-full overflow-hidden">
-            <div className="flex-1 flex flex-col w-full py-1 overflow-y-auto">
+          {/* Navigation - Enhanced spacing and larger text, NO SCROLLING */}
+          <div className="flex flex-col h-full bg-[#030303] pointer-events-auto w-full overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+            <div className="flex flex-col flex-grow pointer-events-auto w-full py-2">
               
-              {/* Main Items - Compact yet readable */}
-              <div className="grid grid-cols-1 gap-0">
+              {/* Main Items - Most Used - INCREASED padding and text size */}
+              <div className="grid grid-cols-1 gap-0.5">
                 {mainItems.map(({ id, label, svg }) => (
                   <button
                     key={id}
                     ref={(el) => (navRefs.current[id] = el)}
                     onClick={() => handleNavClick(id)}
-                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
                       currentView === id
                         ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
                         : "text-gray-300 border-transparent hover:bg-gray-800/80 hover:text-white hover:border-gray-500"
@@ -221,27 +221,27 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                       <div className={`flex-shrink-0 ${currentView === id ? "text-red-400" : "text-gray-400"}`}>
                         {svg}
                       </div>
-                      <span className="text-[13px] font-medium truncate">{label}</span>
+                      <span className="text-sm font-medium truncate">{label}</span>
                     </div>
                   </button>
                 ))}
               </div>
 
-              {/* Section Divider - Analytics */}
-              <div className="px-4 py-1.5 mt-1">
-                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+              {/* Section Divider - Analytics - Enhanced typography */}
+              <div className="px-4 py-2 mt-2">
+                <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
                   Analytics
                 </h3>
               </div>
 
               {/* Analytics Items */}
-              <div className="grid grid-cols-1 gap-0">
+              <div className="grid grid-cols-1 gap-0.5">
                 {analyticsItems.map(({ id, label, svg }) => (
                   <button
                     key={id}
                     ref={(el) => (navRefs.current[id] = el)}
                     onClick={() => handleNavClick(id)}
-                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
                       currentView === id
                         ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
                         : "text-gray-300 border-transparent hover:bg-gray-800/80 hover:text-white hover:border-gray-500"
@@ -251,27 +251,27 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                       <div className={`flex-shrink-0 ${currentView === id ? "text-red-400" : "text-gray-400"}`}>
                         {svg}
                       </div>
-                      <span className="text-[13px] font-medium truncate">{label}</span>
+                      <span className="text-sm font-medium truncate">{label}</span>
                     </div>
                   </button>
                 ))}
               </div>
 
               {/* Section Divider - Archive */}
-              <div className="px-4 py-1.5 mt-1">
-                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+              <div className="px-4 py-2 mt-2">
+                <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
                   Archive
                 </h3>
               </div>
 
               {/* Archive Items */}
-              <div className="grid grid-cols-1 gap-0">
+              <div className="grid grid-cols-1 gap-0.5">
                 {archiveItems.map(({ id, label, svg }) => (
                   <button
                     key={id}
                     ref={(el) => (navRefs.current[id] = el)}
                     onClick={() => handleNavClick(id)}
-                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
                       currentView === id
                         ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
                         : "text-gray-300 border-transparent hover:bg-gray-800/80 hover:text-white hover:border-gray-500"
@@ -281,27 +281,27 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                       <div className={`flex-shrink-0 ${currentView === id ? "text-red-400" : "text-gray-400"}`}>
                         {svg}
                       </div>
-                      <span className="text-[13px] font-medium truncate">{label}</span>
+                      <span className="text-sm font-medium truncate">{label}</span>
                     </div>
                   </button>
                 ))}
               </div>
 
               {/* Section Divider - Settings */}
-              <div className="px-4 py-1.5 mt-1">
-                <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">
+              <div className="px-4 py-2 mt-2">
+                <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
                   Settings
                 </h3>
               </div>
 
               {/* Settings Items */}
-              <div className="grid grid-cols-1 gap-0">
+              <div className="grid grid-cols-1 gap-0.5">
                 {settingsItems.map(({ id, label, svg }) => (
                   <button
                     key={id}
                     ref={(el) => (navRefs.current[id] = el)}
                     onClick={() => handleNavClick(id)}
-                    className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
                       currentView === id
                         ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
                         : "text-gray-300 border-transparent hover:bg-gray-800/80 hover:text-white hover:border-gray-500"
@@ -311,15 +311,15 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                       <div className={`flex-shrink-0 ${currentView === id ? "text-red-400" : "text-gray-400"}`}>
                         {svg}
                       </div>
-                      <span className="text-[13px] font-medium truncate">{label}</span>
+                      <span className="text-sm font-medium truncate">{label}</span>
                     </div>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Logout - Fixed at bottom */}
-            <div className="border-t border-gray-800 bg-[#0a0a0a] w-full flex-shrink-0">
+            {/* Logout - Enhanced size and better visual */}
+            <div className="mt-auto border-t border-gray-800 bg-[#0a0a0a] w-full flex-shrink-0">
               <button
                 onClick={() => {
                   if (typeof window !== 'undefined') {
