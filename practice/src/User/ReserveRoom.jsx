@@ -59,6 +59,11 @@ function ReserveRoom({ user, setView }) {
   const [selectedRoomDetails, setSelectedRoomDetails] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   
+  // Time picker state
+  const [tempHour, setTempHour] = useState("07");
+  const [tempMinute, setTempMinute] = useState("00");
+  const [tempPeriod, setTempPeriod] = useState("AM");
+  
   // Add state for room availability
   const [roomAvailability, setRoomAvailability] = useState([]);
   const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
@@ -165,22 +170,41 @@ function ReserveRoom({ user, setView }) {
 
   const [calendarDays, setCalendarDays] = useState(generateCalendarDays(currentMonth, currentYear));
 
-  // Time slots from 7 AM to 3 PM (hourly)
-  const timeSlots = [
-    { value: "07:00", display: "7:00 AM" },
-    { value: "08:00", display: "8:00 AM" },
-    { value: "09:00", display: "9:00 AM" },
-    { value: "10:00", display: "10:00 AM" },
-    { value: "11:00", display: "11:00 AM" },
-    { value: "12:00", display: "12:00 PM" },
-    { value: "13:00", display: "1:00 PM" },
-    { value: "14:00", display: "2:00 PM" },
-    { value: "15:00", display: "3:00 PM" }
-  ];
+  // Generate hours from 7 to 15 (7 AM to 3 PM)
+  const generateHours = () => {
+    const hours = [];
+    for (let i = 7; i <= 15; i++) {
+      const hour12 = i > 12 ? i - 12 : i;
+      const period = i >= 12 ? "PM" : "AM";
+      hours.push({
+        value: i.toString().padStart(2, '0'),
+        display: `${hour12} ${period}`,
+        period: period,
+        hour24: i
+      });
+    }
+    return hours;
+  };
+
+  // Generate minutes from 00 to 59
+  const generateMinutes = () => {
+    const minutes = [];
+    for (let i = 0; i <= 59; i++) {
+      minutes.push(i.toString().padStart(2, '0'));
+    }
+    return minutes;
+  };
+
+  const hours = generateHours();
+  const minutes = generateMinutes();
 
   const formatDisplayTime = (timeValue) => {
-    const slot = timeSlots.find(t => t.value === timeValue);
-    return slot ? slot.display : "Select Time";
+    if (!timeValue) return "Select Time";
+    const [hour, minute] = timeValue.split(":");
+    const hourNum = parseInt(hour, 10);
+    const hour12 = hourNum > 12 ? hourNum - 12 : hourNum;
+    const period = hourNum >= 12 ? "PM" : "AM";
+    return `${hour12}:${minute} ${period}`;
   };
 
   // Fetch room availability for selected date
@@ -219,14 +243,43 @@ function ReserveRoom({ user, setView }) {
     await fetchRoomAvailability(date.date, formData.time || null);
   };
 
-  // Handle time selection - show availability modal
-  const handleTimeSelect = async (time) => {
-    setFormData({ ...formData, time: time.value });
+  // Handle time selection
+  const handleTimeSelect = () => {
+    let hour24 = parseInt(tempHour, 10);
+    
+    // Convert to 24-hour format
+    if (tempPeriod === "PM" && hour24 !== 12) {
+      hour24 += 12;
+    } else if (tempPeriod === "AM" && hour24 === 12) {
+      hour24 = 0;
+    }
+    
+    const timeString = `${hour24.toString().padStart(2, '0')}:${tempMinute}`;
+    setFormData({ ...formData, time: timeString });
     setShowTimeModal(false);
+    
     // Show availability modal when time is selected
     if (formData.date) {
-      await fetchRoomAvailability(formData.date, time.value);
+      fetchRoomAvailability(formData.date, timeString);
     }
+  };
+
+  // Reset time picker when opening modal
+  const openTimeModal = () => {
+    if (formData.time) {
+      const [hour, minute] = formData.time.split(":");
+      const hourNum = parseInt(hour, 10);
+      const period = hourNum >= 12 ? "PM" : "AM";
+      const displayHour = hourNum > 12 ? hourNum - 12 : (hourNum === 0 ? 12 : hourNum);
+      setTempHour(displayHour.toString().padStart(2, '0'));
+      setTempMinute(minute);
+      setTempPeriod(period);
+    } else {
+      setTempHour("07");
+      setTempMinute("00");
+      setTempPeriod("AM");
+    }
+    setShowTimeModal(true);
   };
 
   const groupedRooms = rooms.reduce((acc, room) => {
@@ -421,13 +474,6 @@ function ReserveRoom({ user, setView }) {
 
     const totalUsers = parseInt(formData.numUsers);
     
-    console.log('🔍 Form validation debug:', {
-      selectedUsers: totalUsers,
-      currentParticipants: formData.participants.length,
-      participants: formData.participants,
-      isFaculty: isFacultyUser()
-    });
-
     if (formData.participants.length !== totalUsers) {
       showAlert(`Form error: Expected ${totalUsers} participants for ${totalUsers} users. Please refresh the page and try again.`);
       return false;
@@ -620,24 +666,14 @@ function ReserveRoom({ user, setView }) {
 
   const validateParticipantFloorAccess = async () => {
     try {
-      console.log('🔍 Starting floor access validation...');
-      
       const participantIds = formData.participants
         .map(p => p.id_number)
         .filter(id => id && id.toString().trim() !== "" && id !== user.id_number);
 
-      console.log('📋 Validation data:', {
-        location: formData.location,
-        participantIds: participantIds,
-        totalParticipants: formData.participants.length
-      });
-
       if (participantIds.length === 0) {
-        console.log('✅ No additional participants to validate');
         return true;
       }
 
-      console.log('🔄 Sending validation request to server...');
       const response = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/reservations/validate-floor-access`, 
         {
@@ -651,8 +687,6 @@ function ReserveRoom({ user, setView }) {
           }
         }
       );
-
-      console.log('✅ Floor access validation response:', response.data);
 
       if (!response.data.valid) {
         const invalidNames = response.data.invalidParticipants.map(p => p.name || p.identifier).join(', ');
@@ -675,21 +709,16 @@ function ReserveRoom({ user, setView }) {
         return false;
       }
       
-      console.log('✅ All participants have floor access');
       return true;
     } catch (error) {
-      console.error("❌ Floor access validation error:", error);
-      
+      console.error("Floor access validation error:", error);
       let errorMsg = "Error validating participant access. Please try again.";
       
       if (error.response) {
-        console.error("Server response error:", error.response.data);
         errorMsg = error.response.data.message || `Server error: ${error.response.status}`;
       } else if (error.request) {
-        console.error("No response received:", error.request);
         errorMsg = "No response from server. Please check your connection.";
       } else {
-        console.error("Error message:", error.message);
         errorMsg = error.message;
       }
       
@@ -701,7 +730,6 @@ function ReserveRoom({ user, setView }) {
   // Submit reservation with Faculty participant filtering
   const submitReservation = async () => {
     if (isSubmitting) {
-      console.log("Submission already in progress, ignoring click");
       return;
     }
 
@@ -718,14 +746,11 @@ function ReserveRoom({ user, setView }) {
       return;
     }
 
-    console.log('🔄 Starting floor access validation before submission...');
     const allParticipantsHaveAccess = await validateParticipantFloorAccess();
     if (!allParticipantsHaveAccess) {
-      console.log('❌ Floor access validation failed - stopping submission');
       setIsSubmitting(false);
       return;
     }
-    console.log('✅ All participants have floor access - proceeding with submission');
 
     try {
       const check = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations/check-limit/${user._id}`, {
@@ -766,12 +791,6 @@ function ReserveRoom({ user, setView }) {
         participantsToSend = formData.participants.filter((p, index) => {
           if (index === 0) return true;
           return p.name && p.name.trim() && p.id_number && p.id_number.toString().trim();
-        });
-        
-        console.log('📋 Filtered participants for Faculty:', {
-          original: formData.participants.length,
-          filtered: participantsToSend.length,
-          participants: participantsToSend
         });
       }
 
@@ -1301,16 +1320,16 @@ function ReserveRoom({ user, setView }) {
               )}
             </div>
 
-            {/* Time Selector - 7 AM to 3 PM */}
+            {/* Time Selector - Full minute picker 7:00 AM to 3:00 PM */}
             <div className="space-y-1" ref={timeRef}>
               <p className="font-medium text-gray-700 flex items-center text-sm sm:text-base">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Time (7:00 AM - 3:00 PM)
+                Select Time (7:00 AM - 3:00 PM)
               </p>
               <button
-                onClick={() => setShowTimeModal(true)}
+                onClick={openTimeModal}
                 className={`w-full p-3 sm:p-3 border rounded-lg shadow-sm outline-none focus:border-[#CC0000] flex items-center cursor-pointer hover:bg-gray-50 transition-colors text-sm sm:text-base min-h-[44px] justify-between ${
                   !formData.time ? "border-red-300 bg-red-50" : "border-gray-300"
                 }`}
@@ -1444,10 +1463,10 @@ function ReserveRoom({ user, setView }) {
           </div>
         )}
 
-        {/* Time Selection Modal - 7 AM to 3 PM */}
+        {/* Time Selection Modal - Full minute picker */}
         {showTimeModal && (
           <div className="fixed top-0 left-0 w-screen h-screen bg-black/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[500px] max-h-[90vh] overflow-y-auto shadow-xl">
+            <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[500px] shadow-xl">
               <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1455,30 +1474,67 @@ function ReserveRoom({ user, setView }) {
                 Select Time (7:00 AM - 3:00 PM)
               </h2>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {timeSlots.map((slot) => (
-                  <button
-                    key={slot.value}
-                    onClick={() => handleTimeSelect(slot)}
-                    className={`p-3 border rounded-lg text-center cursor-pointer transition-all duration-200 min-h-[60px]
-                      ${formData.time === slot.value
-                        ? "bg-[#CC0000] text-white border-[#CC0000] shadow-lg"
-                        : "hover:bg-gray-100 border-gray-300 hover:border-gray-400"
-                      }`}
+              <div className="flex gap-4 mb-6">
+                {/* Hour Selector */}
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Hour</label>
+                  <select
+                    value={tempHour}
+                    onChange={(e) => setTempHour(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
                   >
-                    <div className="font-semibold text-base">
-                      {slot.display}
-                    </div>
-                  </button>
-                ))}
+                    {hours.map((hour) => (
+                      <option key={hour.value} value={hour.value}>
+                        {hour.display}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Minute Selector - Full 00-59 */}
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Minute</label>
+                  <select
+                    value={tempMinute}
+                    onChange={(e) => setTempMinute(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
+                  >
+                    {minutes.map((minute) => (
+                      <option key={minute} value={minute}>
+                        {minute}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Period Selector */}
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">AM/PM</label>
+                  <select
+                    value={tempPeriod}
+                    onChange={(e) => setTempPeriod(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
+                </div>
               </div>
 
-              <button
-                onClick={() => setShowTimeModal(false)}
-                className="mt-4 bg-[#CC0000] text-white px-4 py-3 rounded-lg hover:bg-red-700 transition w-full cursor-pointer font-semibold min-h-[44px]"
-              >
-                Cancel
-              </button>
+              <div className="flex gap-3">
+                <button
+                  onClick={handleTimeSelect}
+                  className="flex-1 bg-[#CC0000] text-white px-4 py-3 rounded-lg hover:bg-red-700 transition font-semibold min-h-[44px]"
+                >
+                  Confirm
+                </button>
+                <button
+                  onClick={() => setShowTimeModal(false)}
+                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-400 transition font-semibold min-h-[44px]"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         )}
