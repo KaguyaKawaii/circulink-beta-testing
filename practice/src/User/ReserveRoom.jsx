@@ -62,7 +62,6 @@ function ReserveRoom({ user, setView }) {
   // Time picker state
   const [tempHour, setTempHour] = useState("07");
   const [tempMinute, setTempMinute] = useState("00");
-  const [tempPeriod, setTempPeriod] = useState("AM");
   
   // Add state for room availability
   const [roomAvailability, setRoomAvailability] = useState([]);
@@ -170,16 +169,13 @@ function ReserveRoom({ user, setView }) {
 
   const [calendarDays, setCalendarDays] = useState(generateCalendarDays(currentMonth, currentYear));
 
-  // Generate hours from 7 to 15 (7 AM to 3 PM)
+  // Generate hours from 7 to 15 (7 AM to 3 PM) - Display in 24-hour format
   const generateHours = () => {
     const hours = [];
     for (let i = 7; i <= 15; i++) {
-      const hour12 = i > 12 ? i - 12 : i;
-      const period = i >= 12 ? "PM" : "AM";
       hours.push({
         value: i.toString().padStart(2, '0'),
-        display: `${hour12} ${period}`,
-        period: period,
+        display: `${i.toString().padStart(2, '0')}:00`,
         hour24: i
       });
     }
@@ -202,9 +198,8 @@ function ReserveRoom({ user, setView }) {
     if (!timeValue) return "Select Time";
     const [hour, minute] = timeValue.split(":");
     const hourNum = parseInt(hour, 10);
-    const hour12 = hourNum > 12 ? hourNum - 12 : hourNum;
-    const period = hourNum >= 12 ? "PM" : "AM";
-    return `${hour12}:${minute} ${period}`;
+    // Format as HH:MM in 24-hour format
+    return `${hourNum.toString().padStart(2, '0')}:${minute}`;
   };
 
   // Fetch room availability for selected date
@@ -245,15 +240,7 @@ function ReserveRoom({ user, setView }) {
 
   // Handle time selection
   const handleTimeSelect = () => {
-    let hour24 = parseInt(tempHour, 10);
-    
-    // Convert to 24-hour format
-    if (tempPeriod === "PM" && hour24 !== 12) {
-      hour24 += 12;
-    } else if (tempPeriod === "AM" && hour24 === 12) {
-      hour24 = 0;
-    }
-    
+    const hour24 = parseInt(tempHour, 10);
     const timeString = `${hour24.toString().padStart(2, '0')}:${tempMinute}`;
     setFormData({ ...formData, time: timeString });
     setShowTimeModal(false);
@@ -268,16 +255,11 @@ function ReserveRoom({ user, setView }) {
   const openTimeModal = () => {
     if (formData.time) {
       const [hour, minute] = formData.time.split(":");
-      const hourNum = parseInt(hour, 10);
-      const period = hourNum >= 12 ? "PM" : "AM";
-      const displayHour = hourNum > 12 ? hourNum - 12 : (hourNum === 0 ? 12 : hourNum);
-      setTempHour(displayHour.toString().padStart(2, '0'));
+      setTempHour(hour);
       setTempMinute(minute);
-      setTempPeriod(period);
     } else {
       setTempHour("07");
       setTempMinute("00");
-      setTempPeriod("AM");
     }
     setShowTimeModal(true);
   };
@@ -1326,7 +1308,7 @@ function ReserveRoom({ user, setView }) {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Select Time (7:00 AM - 3:00 PM)
+                Select Time (7:00 - 15:00)
               </p>
               <button
                 onClick={openTimeModal}
@@ -1463,15 +1445,15 @@ function ReserveRoom({ user, setView }) {
           </div>
         )}
 
-        {/* Time Selection Modal - Full minute picker */}
+        {/* Time Selection Modal - Full minute picker without AM/PM */}
         {showTimeModal && (
           <div className="fixed top-0 left-0 w-screen h-screen bg-black/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[500px] shadow-xl">
+            <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[400px] shadow-xl">
               <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Select Time (7:00 AM - 3:00 PM)
+                Select Time (7:00 - 15:00)
               </h2>
 
               <div className="flex gap-4 mb-6">
@@ -1504,19 +1486,6 @@ function ReserveRoom({ user, setView }) {
                         {minute}
                       </option>
                     ))}
-                  </select>
-                </div>
-
-                {/* Period Selector */}
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">AM/PM</label>
-                  <select
-                    value={tempPeriod}
-                    onChange={(e) => setTempPeriod(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
-                  >
-                    <option value="AM">AM</option>
-                    <option value="PM">PM</option>
                   </select>
                 </div>
               </div>
