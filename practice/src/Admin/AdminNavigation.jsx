@@ -18,6 +18,8 @@ import {
   TrendingUp,
   PieChart,
   Activity,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 
 function AdminNavigation({ admin, setView, currentView, onLogout }) {
@@ -25,6 +27,13 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
   const [profile, setProfile] = useState(() =>
     admin || JSON.parse(localStorage.getItem("admin") || "{}")
   );
+  
+  // Dropdown state
+  const [openDropdowns, setOpenDropdowns] = useState({
+    analytics: false,
+    archive: false,
+    settings: false,
+  });
 
   useEffect(() => {
     if (admin && admin.username) {
@@ -38,6 +47,13 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
     btn?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     btn?.focus();
   }, [currentView]);
+
+  const toggleDropdown = (dropdown) => {
+    setOpenDropdowns(prev => ({
+      ...prev,
+      [dropdown]: !prev[dropdown]
+    }));
+  };
 
   // Combined Navigation Items with categories - icons slightly larger for better visibility
   const navItems = [
@@ -186,6 +202,11 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
     setView(viewId);
   };
 
+  // Helper function to check if any item in a category is active
+  const isCategoryActive = (items) => {
+    return items.some(item => item.id === currentView);
+  };
+
   return (
     <>
       <aside>
@@ -227,94 +248,142 @@ function AdminNavigation({ admin, setView, currentView, onLogout }) {
                 ))}
               </div>
 
-              {/* Section Divider - Analytics - Enhanced typography */}
-              <div className="px-4 py-2 mt-2">
-                <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                  Analytics
-                </h3>
+              {/* Analytics Dropdown Section */}
+              <div className="mt-2">
+                <button
+                  onClick={() => toggleDropdown('analytics')}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 text-left transition-all duration-200 focus:outline-none cursor-pointer ${
+                    isCategoryActive(analyticsItems)
+                      ? "text-red-400 bg-gray-800/50"
+                      : "text-gray-300 hover:bg-gray-800/80 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <BarChart3 size={18} className="flex-shrink-0" />
+                    <span className="text-sm font-medium">Analytics</span>
+                  </div>
+                  {openDropdowns.analytics ? (
+                    <ChevronDown size={16} />
+                  ) : (
+                    <ChevronRight size={16} />
+                  )}
+                </button>
+                
+                {openDropdowns.analytics && (
+                  <div className="ml-4 pl-2 border-l border-gray-700/50">
+                    {analyticsItems.map(({ id, label, svg }) => (
+                      <button
+                        key={id}
+                        ref={(el) => (navRefs.current[id] = el)}
+                        onClick={() => handleNavClick(id)}
+                        className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
+                          currentView === id
+                            ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
+                            : "text-gray-300 border-transparent hover:bg-gray-800/80 hover:text-white hover:border-gray-500"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`flex-shrink-0 ${currentView === id ? "text-red-400" : "text-gray-400"}`}>
+                            {svg}
+                          </div>
+                          <span className="text-sm font-medium truncate">{label}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* Analytics Items */}
-              <div className="grid grid-cols-1 gap-0.5">
-                {analyticsItems.map(({ id, label, svg }) => (
-                  <button
-                    key={id}
-                    ref={(el) => (navRefs.current[id] = el)}
-                    onClick={() => handleNavClick(id)}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
-                      currentView === id
-                        ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
-                        : "text-gray-300 border-transparent hover:bg-gray-800/80 hover:text-white hover:border-gray-500"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`flex-shrink-0 ${currentView === id ? "text-red-400" : "text-gray-400"}`}>
-                        {svg}
-                      </div>
-                      <span className="text-sm font-medium truncate">{label}</span>
-                    </div>
-                  </button>
-                ))}
+              {/* Archive Dropdown Section */}
+              <div className="mt-1">
+                <button
+                  onClick={() => toggleDropdown('archive')}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 text-left transition-all duration-200 focus:outline-none cursor-pointer ${
+                    isCategoryActive(archiveItems)
+                      ? "text-red-400 bg-gray-800/50"
+                      : "text-gray-300 hover:bg-gray-800/80 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Archive size={18} className="flex-shrink-0" />
+                    <span className="text-sm font-medium">Archive</span>
+                  </div>
+                  {openDropdowns.archive ? (
+                    <ChevronDown size={16} />
+                  ) : (
+                    <ChevronRight size={16} />
+                  )}
+                </button>
+                
+                {openDropdowns.archive && (
+                  <div className="ml-4 pl-2 border-l border-gray-700/50">
+                    {archiveItems.map(({ id, label, svg }) => (
+                      <button
+                        key={id}
+                        ref={(el) => (navRefs.current[id] = el)}
+                        onClick={() => handleNavClick(id)}
+                        className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
+                          currentView === id
+                            ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
+                            : "text-gray-300 border-transparent hover:bg-gray-800/80 hover:text-white hover:border-gray-500"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`flex-shrink-0 ${currentView === id ? "text-red-400" : "text-gray-400"}`}>
+                            {svg}
+                          </div>
+                          <span className="text-sm font-medium truncate">{label}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {/* Section Divider - Archive */}
-              <div className="px-4 py-2 mt-2">
-                <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                  Archive
-                </h3>
-              </div>
-
-              {/* Archive Items */}
-              <div className="grid grid-cols-1 gap-0.5">
-                {archiveItems.map(({ id, label, svg }) => (
-                  <button
-                    key={id}
-                    ref={(el) => (navRefs.current[id] = el)}
-                    onClick={() => handleNavClick(id)}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
-                      currentView === id
-                        ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
-                        : "text-gray-300 border-transparent hover:bg-gray-800/80 hover:text-white hover:border-gray-500"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`flex-shrink-0 ${currentView === id ? "text-red-400" : "text-gray-400"}`}>
-                        {svg}
-                      </div>
-                      <span className="text-sm font-medium truncate">{label}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-
-              {/* Section Divider - Settings */}
-              <div className="px-4 py-2 mt-2">
-                <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-                  Settings
-                </h3>
-              </div>
-
-              {/* Settings Items */}
-              <div className="grid grid-cols-1 gap-0.5">
-                {settingsItems.map(({ id, label, svg }) => (
-                  <button
-                    key={id}
-                    ref={(el) => (navRefs.current[id] = el)}
-                    onClick={() => handleNavClick(id)}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
-                      currentView === id
-                        ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
-                        : "text-gray-300 border-transparent hover:bg-gray-800/80 hover:text-white hover:border-gray-500"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className={`flex-shrink-0 ${currentView === id ? "text-red-400" : "text-gray-400"}`}>
-                        {svg}
-                      </div>
-                      <span className="text-sm font-medium truncate">{label}</span>
-                    </div>
-                  </button>
-                ))}
+              {/* Settings Dropdown Section */}
+              <div className="mt-1">
+                <button
+                  onClick={() => toggleDropdown('settings')}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 text-left transition-all duration-200 focus:outline-none cursor-pointer ${
+                    isCategoryActive(settingsItems)
+                      ? "text-red-400 bg-gray-800/50"
+                      : "text-gray-300 hover:bg-gray-800/80 hover:text-white"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Cog size={18} className="flex-shrink-0" />
+                    <span className="text-sm font-medium">Settings</span>
+                  </div>
+                  {openDropdowns.settings ? (
+                    <ChevronDown size={16} />
+                  ) : (
+                    <ChevronRight size={16} />
+                  )}
+                </button>
+                
+                {openDropdowns.settings && (
+                  <div className="ml-4 pl-2 border-l border-gray-700/50">
+                    {settingsItems.map(({ id, label, svg }) => (
+                      <button
+                        key={id}
+                        ref={(el) => (navRefs.current[id] = el)}
+                        onClick={() => handleNavClick(id)}
+                        className={`w-full flex items-center gap-3 px-4 py-2 text-left transition-all duration-200 focus:outline-none border-l-4 cursor-pointer ${
+                          currentView === id
+                            ? "bg-gradient-to-r from-gray-800 to-gray-900 text-white font-medium border-red-500"
+                            : "text-gray-300 border-transparent hover:bg-gray-800/80 hover:text-white hover:border-gray-500"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`flex-shrink-0 ${currentView === id ? "text-red-400" : "text-gray-400"}`}>
+                            {svg}
+                          </div>
+                          <span className="text-sm font-medium truncate">{label}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
