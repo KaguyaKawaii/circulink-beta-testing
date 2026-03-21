@@ -170,9 +170,10 @@ function ReserveRoom({ user, setView }) {
 
   const [calendarDays, setCalendarDays] = useState(generateCalendarDays(currentMonth, currentYear));
 
-  // Generate hours from 7 AM to 3 PM (7:00 AM to 3:00 PM)
+  // Generate hours from 7 AM to 3 PM (7:00 AM to 3:00 PM only)
   const generateHours = () => {
     const hours = [];
+    // Only hours from 7 AM to 3 PM
     for (let i = 7; i <= 15; i++) {
       let displayHour = i;
       let ampm = "AM";
@@ -182,11 +183,16 @@ function ReserveRoom({ user, setView }) {
       } else if (i > 12) {
         displayHour = i - 12;
         ampm = "PM";
+      } else if (i < 12) {
+        displayHour = i;
+        ampm = "AM";
       }
       hours.push({
         value: i.toString(),
         display: `${displayHour}:00 ${ampm}`,
-        hour24: i
+        hour24: i,
+        displayHour: displayHour,
+        ampm: ampm
       });
     }
     return hours;
@@ -208,10 +214,17 @@ function ReserveRoom({ user, setView }) {
     if (!timeValue) return "Select Time";
     const [hour, minute] = timeValue.split(":");
     const hourNum = parseInt(hour, 10);
+    
+    // Validate that the time is within 7 AM to 3 PM
+    if (hourNum < 7 || hourNum > 15) {
+      return "Invalid Time";
+    }
+    
     let displayHour = hourNum;
     let ampm = "AM";
     if (hourNum === 12) {
       ampm = "PM";
+      displayHour = 12;
     } else if (hourNum > 12) {
       displayHour = hourNum - 12;
       ampm = "PM";
@@ -222,11 +235,20 @@ function ReserveRoom({ user, setView }) {
   // Convert 12-hour format to 24-hour format for storage
   const convertTo24Hour = (hour, minute, ampm) => {
     let hour24 = parseInt(hour, 10);
+    
+    // Convert 12-hour to 24-hour
     if (ampm === "PM" && hour24 !== 12) {
       hour24 += 12;
     } else if (ampm === "AM" && hour24 === 12) {
       hour24 = 0;
     }
+    
+    // Validate that the time is between 7 AM and 3 PM (7-15 in 24-hour)
+    if (hour24 < 7 || hour24 > 15) {
+      // If out of range, default to 7 AM
+      hour24 = 7;
+    }
+    
     return `${hour24.toString().padStart(2, '0')}:${minute}`;
   };
 
@@ -285,6 +307,7 @@ function ReserveRoom({ user, setView }) {
       const hourNum = parseInt(hour24, 10);
       let displayHour = hourNum;
       let ampm = "AM";
+      
       if (hourNum === 12) {
         ampm = "PM";
         displayHour = 12;
@@ -295,10 +318,12 @@ function ReserveRoom({ user, setView }) {
         displayHour = 12;
         ampm = "AM";
       }
+      
       setTempHour(displayHour.toString());
       setTempMinute(minute);
       setTempAmPm(ampm);
     } else {
+      // Default to 7:00 AM
       setTempHour("7");
       setTempMinute("00");
       setTempAmPm("AM");
@@ -447,6 +472,15 @@ function ReserveRoom({ user, setView }) {
 
     if (!formData.time) {
       showAlert("Please select a time.");
+      scrollToElement(timeRef);
+      return false;
+    }
+
+    // Validate time is within 7 AM to 3 PM
+    const [hour] = formData.time.split(":");
+    const hourNum = parseInt(hour, 10);
+    if (hourNum < 7 || hourNum > 15) {
+      showAlert("Reservations are only available from 7:00 AM to 3:00 PM.");
       scrollToElement(timeRef);
       return false;
     }
@@ -1344,7 +1378,7 @@ function ReserveRoom({ user, setView }) {
               )}
             </div>
 
-            {/* Time Selector - AM/PM format */}
+            {/* Time Selector - AM/PM format with 7:00 AM to 3:00 PM only */}
             <div className="space-y-1" ref={timeRef}>
               <p className="font-medium text-gray-700 flex items-center text-sm sm:text-base">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1487,7 +1521,7 @@ function ReserveRoom({ user, setView }) {
           </div>
         )}
 
-        {/* Time Selection Modal - AM/PM format */}
+        {/* Time Selection Modal - AM/PM format with ONLY 7:00 AM to 3:00 PM */}
         {showTimeModal && (
           <div className="fixed top-0 left-0 w-screen h-screen bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[400px] shadow-xl">
@@ -1499,7 +1533,7 @@ function ReserveRoom({ user, setView }) {
               </h2>
 
               <div className="flex gap-4 mb-6">
-                {/* Hour Selector */}
+                {/* Hour Selector - Only hours from 7 AM to 3 PM */}
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Hour</label>
                   <select
@@ -1507,24 +1541,15 @@ function ReserveRoom({ user, setView }) {
                     onChange={(e) => setTempHour(e.target.value)}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
                   >
-                    {[7, 8, 9, 10, 11, 12, 1, 2, 3].map((hour) => {
-                      let displayHour = hour;
-                      let ampm = "AM";
-                      if (hour === 12) {
-                        displayHour = 12;
-                        ampm = "PM";
-                      } else if (hour > 12) {
-                        displayHour = hour - 12;
-                        ampm = "PM";
-                      } else if (hour === 7 || hour === 8 || hour === 9 || hour === 10 || hour === 11) {
-                        ampm = "AM";
-                      }
-                      return (
-                        <option key={hour} value={hour}>
-                          {displayHour}:00 {ampm}
-                        </option>
-                      );
-                    })}
+                    <option value="7">7:00 AM</option>
+                    <option value="8">8:00 AM</option>
+                    <option value="9">9:00 AM</option>
+                    <option value="10">10:00 AM</option>
+                    <option value="11">11:00 AM</option>
+                    <option value="12">12:00 PM</option>
+                    <option value="1">1:00 PM</option>
+                    <option value="2">2:00 PM</option>
+                    <option value="3">3:00 PM</option>
                   </select>
                 </div>
 
@@ -1544,12 +1569,31 @@ function ReserveRoom({ user, setView }) {
                   </select>
                 </div>
 
-                {/* AM/PM Selector */}
+                {/* AM/PM Selector - But note that 7-11 AM, 12-3 PM */}
                 <div className="flex-1">
                   <label className="block text-sm font-medium text-gray-700 mb-2">AM/PM</label>
                   <select
                     value={tempAmPm}
-                    onChange={(e) => setTempAmPm(e.target.value)}
+                    onChange={(e) => {
+                      const newAmPm = e.target.value;
+                      // Auto-adjust hour if AM/PM doesn't match
+                      let hour = parseInt(tempHour, 10);
+                      if (newAmPm === "AM" && hour >= 12) {
+                        // If PM hour selected but AM chosen, adjust
+                        if (hour === 12) setTempHour("12");
+                        else if (hour === 1) setTempHour("1");
+                        else if (hour === 2) setTempHour("2");
+                        else if (hour === 3) setTempHour("3");
+                      } else if (newAmPm === "PM" && hour <= 11) {
+                        // If AM hour selected but PM chosen, adjust
+                        if (hour === 7) setTempHour("7");
+                        else if (hour === 8) setTempHour("8");
+                        else if (hour === 9) setTempHour("9");
+                        else if (hour === 10) setTempHour("10");
+                        else if (hour === 11) setTempHour("11");
+                      }
+                      setTempAmPm(newAmPm);
+                    }}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
                   >
                     <option value="AM">AM</option>
