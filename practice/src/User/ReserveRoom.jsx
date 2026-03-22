@@ -276,18 +276,17 @@ function ReserveRoom({ user, setView }) {
     await fetchRoomAvailability(date.date, formData.time || null);
   };
 
-  // Handle time selection
-// Handle time selection with dropdown values
-const handleTimeSelect = () => {
-  const timeString = convertTo24Hour(tempHour, tempMinute);
-  setFormData({ ...formData, time: timeString });
-  setShowTimeModal(false);
-  
-  // Show availability modal when time is selected
-  if (formData.date) {
-    fetchRoomAvailability(formData.date, timeString);
-  }
-};
+  // Handle time selection with dropdown values
+  const handleTimeSelect = () => {
+    const timeString = convertTo24Hour(tempHour, tempMinute);
+    setFormData({ ...formData, time: timeString });
+    setShowTimeModal(false);
+    
+    // Show availability modal when time is selected
+    if (formData.date) {
+      fetchRoomAvailability(formData.date, timeString);
+    }
+  };
 
   // Reset time picker when opening modal
   const openTimeModal = () => {
@@ -1365,7 +1364,7 @@ const handleTimeSelect = () => {
               )}
             </div>
 
-            {/* Time Selector - Simple hour and minute picker */}
+            {/* Time Selector - Improved Hour and Minute Picker */}
             <div className="space-y-1" ref={timeRef}>
               <p className="font-medium text-gray-700 flex items-center text-sm sm:text-base">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1508,71 +1507,71 @@ const handleTimeSelect = () => {
           </div>
         )}
 
-{/* Time Selection Modal - Dropdown with Hour and Minute */}
-{showTimeModal && (
-  <div className="fixed top-0 left-0 w-screen h-screen bg-black/40 flex items-center justify-center z-50 p-4">
-    <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[400px] shadow-xl">
-      <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center">
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        Select Time (7 AM - 3 PM)
-      </h2>
+        {/* Time Selection Modal - Enhanced Dropdown with Hour and Minute */}
+        {showTimeModal && (
+          <div className="fixed top-0 left-0 w-screen h-screen bg-black/40 flex items-center justify-center z-50 p-4">
+            <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[400px] shadow-xl">
+              <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Select Time (7 AM - 3 PM)
+              </h2>
 
-      {/* Hour Dropdown */}
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Hour</label>
-        <select
-          value={tempHour}
-          onChange={(e) => setTempHour(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
-        >
-          <option value="7">7:00 AM</option>
-          <option value="8">8:00 AM</option>
-          <option value="9">9:00 AM</option>
-          <option value="10">10:00 AM</option>
-          <option value="11">11:00 AM</option>
-          <option value="12">12:00 PM</option>
-          <option value="1">1:00 PM</option>
-          <option value="2">2:00 PM</option>
-          <option value="3">3:00 PM</option>
-        </select>
-      </div>
+              {/* Hour Dropdown */}
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Hour</label>
+                <select
+                  value={tempHour}
+                  onChange={(e) => setTempHour(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
+                >
+                  <option value="7">7:00 AM</option>
+                  <option value="8">8:00 AM</option>
+                  <option value="9">9:00 AM</option>
+                  <option value="10">10:00 AM</option>
+                  <option value="11">11:00 AM</option>
+                  <option value="12">12:00 PM</option>
+                  <option value="1">1:00 PM</option>
+                  <option value="2">2:00 PM</option>
+                  <option value="3">3:00 PM</option>
+                </select>
+              </div>
 
-      {/* Minute Dropdown */}
-      <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Minute</label>
-        <select
-          value={tempMinute}
-          onChange={(e) => setTempMinute(e.target.value)}
-          className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
-        >
-          {minutes.map((minute) => (
-            <option key={minute} value={minute}>
-              {minute}
-            </option>
-          ))}
-        </select>
-      </div>
+              {/* Minute Dropdown */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Minute</label>
+                <select
+                  value={tempMinute}
+                  onChange={(e) => setTempMinute(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
+                >
+                  {minutes.map((minute) => (
+                    <option key={minute} value={minute}>
+                      {minute}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-      {/* Buttons */}
-      <div className="flex gap-3">
-        <button
-          onClick={handleTimeSelect}
-          className="flex-1 bg-[#CC0000] text-white px-4 py-3 rounded-lg hover:bg-red-700 transition font-semibold min-h-[44px]"
-        >
-          Confirm
-        </button>
-        <button
-          onClick={() => setShowTimeModal(false)}
-          className="flex-1 bg-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-400 transition font-semibold min-h-[44px]"
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+              {/* Buttons */}
+              <div className="flex gap-3">
+                <button
+                  onClick={handleTimeSelect}
+                  className="flex-1 bg-[#CC0000] text-white px-4 py-3 rounded-lg hover:bg-red-700 transition font-semibold min-h-[44px]"
+                >
+                  Confirm
+                </button>
+                <button
+                  onClick={() => setShowTimeModal(false)}
+                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-400 transition font-semibold min-h-[44px]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Number of Users Modal */}
         {showUsersModal && (
@@ -1934,7 +1933,7 @@ const handleTimeSelect = () => {
                     <th className="py-2 px-2 sm:py-3 sm:px-4 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Year Level</th>
                     <th className="py-2 px-2 sm:py-3 sm:px-4 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Department</th>
                     <th className="py-2 px-2 sm:py-3 sm:px-4 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Status</th>
-                   </tr>
+                  </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {formData.participants.map((p, idx) => (
@@ -1980,7 +1979,7 @@ const handleTimeSelect = () => {
                         {!p.id_number && (
                           <p className="text-xs text-red-500 mt-1">ID is required</p>
                         )}
-                       </td>
+                      </td>
                       <td className="py-2 px-2 sm:py-3 sm:px-4">
                         <input
                           type="text"
@@ -1995,7 +1994,7 @@ const handleTimeSelect = () => {
                           }
                         />
                         
-                       </td>
+                      </td>
                       {!p.role || (p.role !== "Faculty" && p.role !== "Staff") ? (
                         <td className="py-2 px-2 sm:py-3 sm:px-4">
                           <input
@@ -2011,7 +2010,7 @@ const handleTimeSelect = () => {
                             }
                           />
                           
-                         </td>
+                        </td>
                       ) : (
                         <td className="py-2 px-2 sm:py-3 sm:px-4 text-gray-400 italic text-xs sm:text-sm">N/A</td>
                       )}
@@ -2030,7 +2029,7 @@ const handleTimeSelect = () => {
                             }
                           />
                          
-                         </td>
+                        </td>
                       ) : (
                         <td className="py-2 px-2 sm:py-3 sm:px-4 text-gray-400 italic text-xs sm:text-sm">N/A</td>
                       )}
@@ -2048,7 +2047,7 @@ const handleTimeSelect = () => {
                           }
                         />
                        
-                       </td>
+                      </td>
                       <td className="py-2 px-2 sm:py-3 sm:px-4">
                         {validation[idx]?.status === "valid" && (
                           <span className="text-green-600 text-xs sm:text-sm font-medium flex items-center">
@@ -2069,7 +2068,7 @@ const handleTimeSelect = () => {
                         {!validation[idx]?.status && p.id_number && (
                           <span className="text-gray-500 text-xs">Enter ID to verify</span>
                         )}
-                       </td>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
