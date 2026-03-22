@@ -3,10 +3,8 @@ import { useState, useEffect } from "react";
 import { Calendar, Clock, AlertTriangle, X, Edit, Trash2, RefreshCw } from "lucide-react";
 import axios from "axios";
 
-// Simple toast function (replace react-hot-toast)
+// Simple toast function
 const showToast = (message, type = "success") => {
-  // You can replace this with your existing notification system
-  // For now, use alert or console.log
   if (type === "error") {
     alert(`❌ Error: ${message}`);
   } else if (type === "success") {
@@ -45,6 +43,7 @@ const AdminClosures = ({ setView, admin }) => {
     fetchRooms();
   }, [filter, pagination.page]);
 
+  // FIXED: Safe fetchClosures function with error handling
   const fetchClosures = async () => {
     setLoading(true);
     try {
@@ -56,15 +55,41 @@ const AdminClosures = ({ setView, admin }) => {
       });
       
       const response = await axios.get(`${API_URL}/api/closures?${params}`);
-      setClosures(response.data.closures);
-      setPagination({
-        ...pagination,
-        totalPages: response.data.pagination.totalPages,
-        totalCount: response.data.pagination.totalCount
-      });
+      
+      // Safe check for response structure
+      if (response.data && response.data.success !== false) {
+        // Get closures array (could be empty)
+        const closuresData = response.data.closures || [];
+        
+        // Safely get pagination data
+        const paginationData = response.data.pagination || {};
+        
+        setClosures(closuresData);
+        setPagination({
+          page: paginationData.page || pagination.page,
+          limit: paginationData.limit || 20,
+          totalCount: paginationData.totalCount || 0,
+          totalPages: paginationData.totalPages || 1
+        });
+      } else {
+        // Handle error response
+        console.error("Invalid response structure:", response.data);
+        setClosures([]);
+        setPagination(prev => ({
+          ...prev,
+          totalCount: 0,
+          totalPages: 1
+        }));
+      }
     } catch (error) {
       console.error("Error fetching closures:", error);
       showToast("Failed to fetch closures", "error");
+      setClosures([]);
+      setPagination(prev => ({
+        ...prev,
+        totalCount: 0,
+        totalPages: 1
+      }));
     } finally {
       setLoading(false);
     }
@@ -336,7 +361,7 @@ const AdminClosures = ({ setView, admin }) => {
           )}
         </div>
 
-        {/* Pagination */}
+        {/* Pagination - Only show if totalPages > 1 */}
         {pagination.totalPages > 1 && (
           <div className="flex justify-center gap-2 mt-6">
             <button
@@ -360,7 +385,7 @@ const AdminClosures = ({ setView, admin }) => {
         )}
       </div>
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Modal - Keep as is */}
       {showModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
