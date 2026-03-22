@@ -31,6 +31,7 @@ import availabilityRoutes from "./routes/availabilityRoutes.js";
 import systemRoutes from "./routes/system.js";
 import announcementRoutes from './routes/announcement.js';
 import analyticsRoutes from "./routes/analyticsRoutes.js";
+import closureRoutes from "./routes/closureRoutes.js"; // ✅ ADD THIS IMPORT
 
 const app = express();
 const server = http.createServer(app);
@@ -78,7 +79,7 @@ app.use(
 );
 app.use("/uploads/news", express.static(path.join(__dirname, "uploads", "news")));
 
-// ✅ FIXED: Improved Socket.IO events for real-time messaging
+// ✅ Socket.IO events (keep your existing socket code)
 io.on("connection", (socket) => {
   console.log("✅ User connected:", socket.id);
 
@@ -106,13 +107,10 @@ io.on("connection", (socket) => {
     console.log(`👨‍💼 Admin joined admin room: ${socket.id}`);
   });
 
-  // 🆕 ADD THESE NEW EVENT HANDLERS:
-  
   // Handle when staff marks conversation as read
   socket.on("markConversationRead", (data) => {
     console.log("📋 Conversation marked as read:", data);
     
-    // Broadcast to relevant rooms
     if (data.staffId) {
       io.to(data.staffId).emit("conversationRead", data);
     }
@@ -121,16 +119,14 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Handle when staff sends a message (to update unread counts)
+  // Handle when staff sends a message
   socket.on("staffMessageSent", (data) => {
     console.log("📨 Staff message sent:", data);
     
-    // Notify floor room that unread counts should be updated
     if (data.floor) {
       io.to(data.floor).emit("refreshFloorUnreadCounts", data);
     }
     
-    // Notify staff that their unread count for this user should be 0
     if (data.staffId && data.userId) {
       io.to(data.staffId).emit("conversationUnreadUpdate", {
         staffId: data.staffId,
@@ -140,59 +136,49 @@ io.on("connection", (socket) => {
     }
   });
 
-  // FIXED: Improved message handling for all scenarios
+  // Handle message sending
   socket.on("sendMessage", (msg) => {
     console.log("📨 Message received:", msg);
     
-    // Send to sender
     io.to(msg.sender).emit("newMessage", msg);
     
-    // Send to receiver
     if (msg.receiver) {
       io.to(msg.receiver).emit("newMessage", msg);
     }
     
-    // Send to floor if it's a floor message
     if (msg.floor) {
       io.to(msg.floor).emit("newMessage", msg);
       console.log(`📢 Message broadcast to floor: ${msg.floor}`);
     }
     
-    // Send to admin if it's an admin message
     if (msg.receiver === "admin" || msg.sender === "admin") {
       io.to("admin-room").emit("newMessage", msg);
     }
     
-    // FIXED: Emit unread count updates
     if (msg.receiver && msg.sender !== msg.receiver) {
       io.to(msg.receiver).emit("unreadCountUpdate", {
         userId: msg.receiver,
-        count: 1 // This should be calculated from DB in production
+        count: 1
       });
     }
   });
 
-  // FIXED: Handle unread count updates
   socket.on("updateUnreadCount", (data) => {
     if (data.userId) {
       io.to(data.userId).emit("unreadCountUpdate", data);
     }
   });
 
-  // ✅ Handle message sent confirmation
   socket.on("messageSent", (msg) => {
     console.log("✅ Message sent confirmation received:", msg);
     
-    // Send confirmation back to sender
     io.to(msg.sender).emit("messageSent", msg);
     
-    // Also send to receiver if needed
     if (msg.receiver && msg.receiver !== msg.sender) {
       io.to(msg.receiver).emit("messageSent", msg);
     }
   });
 
-  // FIXED: Handle conversation-specific unread updates
   socket.on("updateConversationUnread", (data) => {
     if (data.staffId) {
       io.to(data.staffId).emit("conversationUnreadUpdate", data);
@@ -210,20 +196,17 @@ io.on("connection", (socket) => {
     socket.to(`user-${data.userId}`).emit("notifications-read");
   });
 
-  // FIXED: Handle refresh unread counts
   socket.on("refreshUnreadCounts", (data) => {
     if (data.userId) {
       io.to(data.userId).emit("refresh-unread-counts", data);
     }
   });
 
-  // ✅ Handle user verification notifications
   socket.on("join-user-verification-room", (userId) => {
     socket.join(`user-${userId}`);
     console.log(`✅ User ${userId} joined verification room`);
   });
 
-  // 🆕 ADD: Handle floor unread count refresh
   socket.on("refreshFloorUnreadCounts", (data) => {
     if (data.floor) {
       io.to(data.floor).emit("refreshFloorUnreadCounts", data);
@@ -240,8 +223,8 @@ io.on("connection", (socket) => {
 app.set("io", io);
 
 // ✅ FIXED: Mount news routes at both /news and /api/news for compatibility
-app.use("/news", newsRoutes);        // For frontend calls without /api
-app.use("/api/news", newsRoutes);    // For frontend calls with /api
+app.use("/news", newsRoutes);
+app.use("/api/news", newsRoutes);
 
 // ✅ FIXED: Consistent API routes for other modules
 app.use("/api/logs", logRoutes);
@@ -258,6 +241,7 @@ app.use("/api", availabilityRoutes);
 app.use("/api/system", systemRoutes);
 app.use("/api/announcements", announcementRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/closures", closureRoutes); // ✅ ADD THIS LINE - Mount closure routes
 
 // Database connection + Start Server
 mongoose
@@ -273,7 +257,6 @@ mongoose
         
         console.log(`🔍 Internal check running at: ${currentTime}`);
         
-        // Find reservations that have ended but are still marked as active
         const expiredReservations = await Reservation.find({
           endDatetime: { $lt: currentTime },
           status: { $in: ["Pending", "Approved", "Ongoing"] }
@@ -281,7 +264,6 @@ mongoose
 
         console.log(`📊 Found ${expiredReservations.length} expired reservations`);
 
-        // Update expired reservations to 'Expired' status
         if (expiredReservations.length > 0) {
           const reservationIds = expiredReservations.map(res => res._id);
           const updateResult = await Reservation.updateMany(
@@ -291,7 +273,6 @@ mongoose
           
           console.log(`✅ Auto-expired ${updateResult.modifiedCount} expired reservations`);
           
-          // Log details of expired reservations
           expiredReservations.forEach(res => {
             console.log(`  - ${res.roomName} (${res.date}) - Status was: ${res.status}`);
           });
@@ -307,15 +288,13 @@ mongoose
       }
     }
 
-    // CRON job to check expired reservations - FIXED
+    // CRON job to check expired reservations
     cron.schedule("*/5 * * * *", async () => {
       try {
         console.log("🔄 Running scheduled expired reservation check...");
         
-        // ✅ FIXED: Use process.env instead of import.meta.env
         const baseUrl = process.env.VITE_API_URL || `http://localhost:${process.env.PORT || 5000}`;
         
-        // Try API route first
         const { data } = await axios.post(
           `${baseUrl}/api/reservations/check-expired`
         );
@@ -323,7 +302,6 @@ mongoose
       } catch (err) {
         console.error("❌ CRON job API error:", err.message);
         
-        // Fallback to internal function if API fails
         console.log("⚠️ API route failed, using internal function");
         const result = await checkExpiredReservationsInternal();
         if (result.success) {
@@ -363,7 +341,8 @@ mongoose
         "/api/analytics",
         "/api/logs",
         "/api/reports",
-        "/api/system"
+        "/api/system",
+        "/api/closures" // ✅ ADD THIS to the routes list
       ];
       routes.forEach(route => console.log(`  ✅ ${route}`));
     });
