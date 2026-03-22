@@ -54,7 +54,6 @@ import AdminReports from "./Admin/AdminReports.jsx";
 import AdminNotification from "./Admin/AdminNotification.jsx";
 import AdminNews from "./Admin/AdminNews.jsx";
 import AdminLogs from "./Admin/AdminLogs.jsx";
-import AdminClosures from "./Admin/AdminClosures.jsx"; // Add this import
 
 /* ---- admin archive ---- */
 import ArchivedUsers from "./Admin/Archive/ArchivedUsers.jsx";
@@ -62,10 +61,13 @@ import ArchivedReservations from "./Admin/Archive/ArchivedReservations.jsx";
 import ArchivedReports from "./Admin/Archive/ArchivedReports.jsx";
 import ArchivedNews from "./Admin/Archive/ArchivedNews.jsx";
 
+
 /* ---- admin settings ---- */
 import ProfileSettings from "./Admin/Settings/ProfileSettings.jsx";
 import PasswordSecurity from "./Admin/Settings/PasswordSecurity.jsx";
 import SystemSettings from "./Admin/Settings/SystemSettings.jsx";
+import AdminClosures from "./Admin/SettingsAdminClosures.jsx"; // Add this import
+
 
 /* ---- admin analytics ---- */
 import AnalyticsOverview from "./Admin/Analytics/AnalyticsOverview.jsx";

@@ -1,10 +1,22 @@
-// components/admin/AdminClosures.jsx
+// src/Admin/AdminClosures.jsx
 import { useState, useEffect } from "react";
-import { Calendar, Clock, AlertTriangle, X, Check, Trash2, Edit, Eye, RefreshCw } from "lucide-react";
+import { Calendar, Clock, AlertTriangle, X, Edit, Trash2, RefreshCw } from "lucide-react";
 import axios from "axios";
-import toast from "react-hot-toast";
 
-const AdminClosures = () => {
+// Simple toast function (replace react-hot-toast)
+const showToast = (message, type = "success") => {
+  // You can replace this with your existing notification system
+  // For now, use alert or console.log
+  if (type === "error") {
+    alert(`❌ Error: ${message}`);
+  } else if (type === "success") {
+    alert(`✅ ${message}`);
+  } else {
+    alert(message);
+  }
+};
+
+const AdminClosures = ({ setView, admin }) => {
   const [closures, setClosures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -25,6 +37,8 @@ const AdminClosures = () => {
   const [filter, setFilter] = useState({ status: "Active", search: "" });
   const [pagination, setPagination] = useState({ page: 1, totalPages: 1, totalCount: 0 });
 
+  const API_URL = import.meta.env.VITE_API_URL || "";
+
   // Fetch closures on mount
   useEffect(() => {
     fetchClosures();
@@ -41,7 +55,7 @@ const AdminClosures = () => {
         ...(filter.search && { search: filter.search })
       });
       
-      const response = await axios.get(`/api/closures?${params}`);
+      const response = await axios.get(`${API_URL}/api/closures?${params}`);
       setClosures(response.data.closures);
       setPagination({
         ...pagination,
@@ -50,7 +64,7 @@ const AdminClosures = () => {
       });
     } catch (error) {
       console.error("Error fetching closures:", error);
-      toast.error("Failed to fetch closures");
+      showToast("Failed to fetch closures", "error");
     } finally {
       setLoading(false);
     }
@@ -58,7 +72,7 @@ const AdminClosures = () => {
 
   const fetchRooms = async () => {
     try {
-      const response = await axios.get("/api/rooms");
+      const response = await axios.get(`${API_URL}/api/rooms`);
       setAvailableRooms(response.data);
     } catch (error) {
       console.error("Error fetching rooms:", error);
@@ -84,14 +98,14 @@ const AdminClosures = () => {
 
   const handlePreviewConflicts = async () => {
     try {
-      const response = await axios.post("/api/closures/preview", {
+      const response = await axios.post(`${API_URL}/api/closures/preview`, {
         ...formData,
         affectedRooms: formData.affectedAllRooms ? [] : formData.affectedRooms
       });
       setConflictPreview(response.data);
     } catch (error) {
       console.error("Error previewing conflicts:", error);
-      toast.error("Failed to preview conflicts");
+      showToast("Failed to preview conflicts", "error");
     }
   };
 
@@ -100,23 +114,23 @@ const AdminClosures = () => {
     
     // Validate
     if (formData.startTime >= formData.endTime) {
-      toast.error("End time must be after start time");
+      showToast("End time must be after start time", "error");
       return;
     }
 
     if (!formData.affectedAllRooms && formData.affectedRooms.length === 0) {
-      toast.error("Please select at least one room or select 'All Rooms'");
+      showToast("Please select at least one room or select 'All Rooms'", "error");
       return;
     }
 
     try {
       let response;
       if (editingClosure) {
-        response = await axios.put(`/api/closures/${editingClosure._id}`, formData);
-        toast.success("Closure updated successfully");
+        response = await axios.put(`${API_URL}/api/closures/${editingClosure._id}`, formData);
+        showToast("Closure updated successfully", "success");
       } else {
-        response = await axios.post("/api/closures", formData);
-        toast.success(`Closure created. ${response.data.affectedReservations?.length || 0} reservations were cancelled.`);
+        response = await axios.post(`${API_URL}/api/closures`, formData);
+        showToast(`Closure created. ${response.data.affectedReservations?.length || 0} reservations were cancelled.`, "success");
       }
       
       setShowModal(false);
@@ -134,7 +148,7 @@ const AdminClosures = () => {
       fetchClosures();
     } catch (error) {
       console.error("Error saving closure:", error);
-      toast.error(error.response?.data?.message || "Failed to save closure");
+      showToast(error.response?.data?.message || "Failed to save closure", "error");
     }
   };
 
@@ -144,16 +158,16 @@ const AdminClosures = () => {
         "Do you want to restore the reservations that were cancelled due to this closure?"
       );
       
-      await axios.delete(`/api/closures/${closure._id}`, {
+      await axios.delete(`${API_URL}/api/closures/${closure._id}`, {
         data: { restoreReservations }
       });
       
-      toast.success("Closure deleted successfully");
+      showToast("Closure deleted successfully", "success");
       fetchClosures();
       setShowDeleteConfirm(null);
     } catch (error) {
       console.error("Error deleting closure:", error);
-      toast.error("Failed to delete closure");
+      showToast("Failed to delete closure", "error");
     }
   };
 
