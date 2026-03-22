@@ -906,7 +906,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                   <svg className="w-12 h-12 mx-auto text-gray-300 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  No active announcements at the moment.
+                  No active announcements at the moment...
                 </div>
               )}
             </div>
