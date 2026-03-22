@@ -12,6 +12,8 @@ import generateReservationEmail from "../utils/generateReservationEmail.js";
 /* ------------------------------------------------
    ✅ CREATE CLOSURE WITH CONFLICT DETECTION
 ------------------------------------------------ */
+// In closureController.js, update the createClosure function
+
 export const createClosure = async (req, res) => {
   try {
     const {
@@ -25,7 +27,17 @@ export const createClosure = async (req, res) => {
       location
     } = req.body;
 
-    const admin = req.admin; // Assuming admin is attached to request
+    // Remove the admin requirement - use a default admin or system user
+    // If you have a system admin user, you can fetch it, or use a default value
+    let admin = null;
+    
+    // Try to find a system admin user if needed
+    try {
+      const Admin = mongoose.model("Admin");
+      admin = await Admin.findOne({ role: "admin" });
+    } catch (err) {
+      console.log("No admin found, using default values");
+    }
 
     console.log("=".repeat(50));
     console.log("📝 CREATING CLOSURE");
@@ -108,7 +120,6 @@ export const createClosure = async (req, res) => {
       const resStartMinutes = timeToMinutes(resStartTime);
       const resEndMinutes = timeToMinutes(resEndTime);
 
-      // Check for overlap
       const overlap = (resStartMinutes < endTimeMinutes && resEndMinutes > startTimeMinutes);
       
       if (overlap) {
@@ -119,14 +130,14 @@ export const createClosure = async (req, res) => {
           date: reservation.date,
           startTime: resStartTime,
           endTime: resEndTime,
-          reservationData: reservation // Store for later use
+          reservationData: reservation
         });
       }
     }
 
     console.log(`Found ${affectedReservations.length} conflicting reservations`);
 
-    // Create the closure
+    // Create the closure - use admin._id if exists, otherwise use null
     const closure = await Closure.create({
       title,
       reason,
@@ -136,8 +147,8 @@ export const createClosure = async (req, res) => {
       affectedRooms: affectedAllRooms ? [] : affectedRooms,
       affectedAllRooms: affectedAllRooms || false,
       location: location || (affectedAllRooms ? "All Floors" : "Custom"),
-      createdBy: admin._id,
-      createdByAdminName: admin.name,
+      createdBy: admin?._id || null,
+      createdByAdminName: admin?.name || "System Admin",
       affectedReservations: affectedReservations.map(r => ({
         reservationId: r.reservationId,
         userId: r.userId,
@@ -156,7 +167,6 @@ export const createClosure = async (req, res) => {
       try {
         const reservation = conflict.reservationData;
         
-        // Update reservation status to Cancelled_Admin
         const updatedReservation = await Reservation.findByIdAndUpdate(
           reservation._id,
           {
@@ -171,51 +181,63 @@ export const createClosure = async (req, res) => {
         if (updatedReservation) {
           processedReservations.push(updatedReservation);
           
-          // Create notification for user
-          await notificationService.createNotification(
-            {
-              userId: reservation.userId._id,
-              reservationId: reservation._id,
-              type: "reservation",
-              status: "cancelled_admin",
-              targetRole: "user",
-              roomName: reservation.roomName,
-              date: reservation.date,
-              startTime: conflict.startTime,
-              endTime: conflict.endTime,
-              message: `Your reservation for ${reservation.roomName} on ${reservation.date} has been cancelled due to a facility closure: ${title}. Reason: ${reason}`
-            },
-            req.app.get("io")
-          );
+          // Create notification for user (skip if notification service not available)
+          try {
+            if (typeof notificationService.createNotification === 'function') {
+              await notificationService.createNotification(
+                {
+                  userId: reservation.userId._id,
+                  reservationId: reservation._id,
+                  type: "reservation",
+                  status: "cancelled_admin",
+                  targetRole: "user",
+                  roomName: reservation.roomName,
+                  date: reservation.date,
+                  startTime: conflict.startTime,
+                  endTime: conflict.endTime,
+                  message: `Your reservation for ${reservation.roomName} on ${reservation.date} has been cancelled due to a facility closure: ${title}. Reason: ${reason}`
+                },
+                req.app.get("io")
+              );
+            }
+          } catch (notifError) {
+            console.warn("Notification error:", notifError.message);
+          }
 
           // Send email notification
           try {
-            await sendEmail({
-              to: reservation.userId.email,
-              subject: "Reservation Cancelled Due to Facility Closure",
-              html: generateReservationEmail({
-                status: "Cancelled_Admin",
-                toName: reservation.userId.name,
-                reservation: updatedReservation,
-                formattedDate: reservation.date,
-                time: `${conflict.startTime} - ${conflict.endTime}`,
-                participants: reservation.participants,
-                extraNote: `Your reservation was cancelled due to a facility closure: ${title}. Reason: ${reason}`
-              })
-            });
+            if (reservation.userId.email) {
+              await sendEmail({
+                to: reservation.userId.email,
+                subject: "Reservation Cancelled Due to Facility Closure",
+                html: generateReservationEmail({
+                  status: "Cancelled_Admin",
+                  toName: reservation.userId.name,
+                  reservation: updatedReservation,
+                  formattedDate: reservation.date,
+                  time: `${conflict.startTime} - ${conflict.endTime}`,
+                  participants: reservation.participants,
+                  extraNote: `Your reservation was cancelled due to a facility closure: ${title}. Reason: ${reason}`
+                })
+              });
+            }
           } catch (emailError) {
             console.warn("⚠️ Failed to send cancellation email:", emailError.message);
           }
 
-          // Log the action
-          await logAction(
-            reservation.userId._id,
-            reservation.userId.id_number,
-            reservation.userId.name,
-            "Reservation Cancelled (Admin Closure)",
-            `Reservation for ${reservation.roomName} on ${reservation.date} cancelled due to closure: ${title}`,
-            req.headers['user-agent'] || ''
-          );
+          // Log the action (skip if logAction not available)
+          try {
+            await logAction(
+              reservation.userId._id,
+              reservation.userId.id_number,
+              reservation.userId.name,
+              "Reservation Cancelled (Admin Closure)",
+              `Reservation for ${reservation.roomName} on ${reservation.date} cancelled due to closure: ${title}`,
+              req.headers['user-agent'] || ''
+            );
+          } catch (logError) {
+            console.warn("Log error:", logError.message);
+          }
         }
       } catch (err) {
         console.error(`❌ Failed to process reservation ${conflict.reservationId}:`, err);
@@ -226,15 +248,19 @@ export const createClosure = async (req, res) => {
       }
     }
 
-    // Log closure creation
-    await logAction(
-      admin._id,
-      admin.id_number || "ADMIN",
-      admin.name,
-      "Closure Created",
-      `Created facility closure: ${title} on ${date} from ${startTime} to ${endTime}. Affected ${processedReservations.length} reservations.`,
-      req.headers['user-agent'] || ''
-    );
+    // Log closure creation (skip if logAction not available)
+    try {
+      await logAction(
+        admin?._id || null,
+        "ADMIN",
+        admin?.name || "System Admin",
+        "Closure Created",
+        `Created facility closure: ${title} on ${date} from ${startTime} to ${endTime}. Affected ${processedReservations.length} reservations.`,
+        req.headers['user-agent'] || ''
+      );
+    } catch (logError) {
+      console.warn("Log error:", logError.message);
+    }
 
     // Notify staff about the closure
     const io = req.app.get("io");
@@ -276,7 +302,6 @@ export const createClosure = async (req, res) => {
     });
   }
 };
-
 /* ------------------------------------------------
    ✅ GET ALL CLOSURES (WITH FILTERS)
 ------------------------------------------------ */

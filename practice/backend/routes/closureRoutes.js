@@ -10,19 +10,13 @@ import {
   getAvailabilityWithClosures,
   getUpcomingClosures
 } from "../controllers/closureController.js";
-import { protect, adminOnly } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-// Protect all routes
-router.use(protect);
-
-// Admin only routes
-router.post("/", adminOnly, createClosure);
-router.put("/:id", adminOnly, updateClosure);
-router.delete("/:id", adminOnly, deleteClosure);
-
-// Public (authenticated) routes
+// Public routes (no authentication required)
+router.post("/", createClosure);
+router.put("/:id", updateClosure);
+router.delete("/:id", deleteClosure);
 router.get("/", getClosures);
 router.get("/upcoming", getUpcomingClosures);
 router.get("/check-slot", checkSlotClosed);
