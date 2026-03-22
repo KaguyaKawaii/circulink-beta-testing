@@ -277,16 +277,17 @@ function ReserveRoom({ user, setView }) {
   };
 
   // Handle time selection
-  const handleTimeSelect = () => {
-    const timeString = convertTo24Hour(tempHour, tempMinute);
-    setFormData({ ...formData, time: timeString });
-    setShowTimeModal(false);
-    
-    // Show availability modal when time is selected
-    if (formData.date) {
-      fetchRoomAvailability(formData.date, timeString);
-    }
-  };
+// Handle time selection with dropdown values
+const handleTimeSelect = () => {
+  const timeString = convertTo24Hour(tempHour, tempMinute);
+  setFormData({ ...formData, time: timeString });
+  setShowTimeModal(false);
+  
+  // Show availability modal when time is selected
+  if (formData.date) {
+    fetchRoomAvailability(formData.date, timeString);
+  }
+};
 
   // Reset time picker when opening modal
   const openTimeModal = () => {
@@ -1507,72 +1508,71 @@ function ReserveRoom({ user, setView }) {
           </div>
         )}
 
-        {/* Time Selection Modal - Simple hour (with AM/PM) and minute picker */}
-        {showTimeModal && (
-          <div className="fixed top-0 left-0 w-screen h-screen bg-black/40 flex items-center justify-center z-50 p-4">
-            <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[400px] shadow-xl">
-              <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Select Time (7 AM - 3 PM)
-              </h2>
+{/* Time Selection Modal - Dropdown with Hour and Minute */}
+{showTimeModal && (
+  <div className="fixed top-0 left-0 w-screen h-screen bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[400px] shadow-xl">
+      <h2 className="text-lg sm:text-xl font-semibold mb-4 flex items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6 mr-2 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Select Time (7 AM - 3 PM)
+      </h2>
 
-              <div className="flex gap-4 mb-6">
-                {/* Hour Selector - Shows "7 AM", "8 AM", etc. */}
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Hour</label>
-                  <select
-                    value={tempHour}
-                    onChange={(e) => setTempHour(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
-                  >
-                    <option value="7">7 AM</option>
-                    <option value="8">8 AM</option>
-                    <option value="9">9 AM</option>
-                    <option value="10">10 AM</option>
-                    <option value="11">11 AM</option>
-                    <option value="12">12 PM</option>
-                    <option value="1">1 PM</option>
-                    <option value="2">2 PM</option>
-                    <option value="3">3 PM</option>
-                  </select>
-                </div>
+      {/* Hour Dropdown */}
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Hour</label>
+        <select
+          value={tempHour}
+          onChange={(e) => setTempHour(e.target.value)}
+          className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
+        >
+          <option value="7">7:00 AM</option>
+          <option value="8">8:00 AM</option>
+          <option value="9">9:00 AM</option>
+          <option value="10">10:00 AM</option>
+          <option value="11">11:00 AM</option>
+          <option value="12">12:00 PM</option>
+          <option value="1">1:00 PM</option>
+          <option value="2">2:00 PM</option>
+          <option value="3">3:00 PM</option>
+        </select>
+      </div>
 
-                {/* Minute Selector - Full 00-59 */}
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Minute</label>
-                  <select
-                    value={tempMinute}
-                    onChange={(e) => setTempMinute(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
-                  >
-                    {minutes.map((minute) => (
-                      <option key={minute} value={minute}>
-                        {minute}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+      {/* Minute Dropdown */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Minute</label>
+        <select
+          value={tempMinute}
+          onChange={(e) => setTempMinute(e.target.value)}
+          className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
+        >
+          {minutes.map((minute) => (
+            <option key={minute} value={minute}>
+              {minute}
+            </option>
+          ))}
+        </select>
+      </div>
 
-              <div className="flex gap-3">
-                <button
-                  onClick={handleTimeSelect}
-                  className="flex-1 bg-[#CC0000] text-white px-4 py-3 rounded-lg hover:bg-red-700 transition font-semibold min-h-[44px]"
-                >
-                  Confirm
-                </button>
-                <button
-                  onClick={() => setShowTimeModal(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-400 transition font-semibold min-h-[44px]"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+      {/* Buttons */}
+      <div className="flex gap-3">
+        <button
+          onClick={handleTimeSelect}
+          className="flex-1 bg-[#CC0000] text-white px-4 py-3 rounded-lg hover:bg-red-700 transition font-semibold min-h-[44px]"
+        >
+          Confirm
+        </button>
+        <button
+          onClick={() => setShowTimeModal(false)}
+          className="flex-1 bg-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-400 transition font-semibold min-h-[44px]"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
         {/* Number of Users Modal */}
         {showUsersModal && (
