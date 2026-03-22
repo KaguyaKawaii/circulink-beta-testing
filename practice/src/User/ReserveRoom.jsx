@@ -172,15 +172,15 @@ function ReserveRoom({ user, setView }) {
   // Generate hours from 7 AM to 3 PM with proper display
   const generateHours = () => {
     return [
-      { value: "7", display: "7 AM", hour24: 7 },
-      { value: "8", display: "8 AM", hour24: 8 },
-      { value: "9", display: "9 AM", hour24: 9 },
-      { value: "10", display: "10 AM", hour24: 10 },
-      { value: "11", display: "11 AM", hour24: 11 },
-      { value: "12", display: "12 PM", hour24: 12 },
-      { value: "1", display: "1 PM", hour24: 13 },
-      { value: "2", display: "2 PM", hour24: 14 },
-      { value: "3", display: "3 PM", hour24: 15 }
+      { value: "7", display: "7:00 AM", hour24: 7 },
+      { value: "8", display: "8:00 AM", hour24: 8 },
+      { value: "9", display: "9:00 AM", hour24: 9 },
+      { value: "10", display: "10:00 AM", hour24: 10 },
+      { value: "11", display: "11:00 AM", hour24: 11 },
+      { value: "12", display: "12:00 PM", hour24: 12 },
+      { value: "1", display: "1:00 PM", hour24: 13 },
+      { value: "2", display: "2:00 PM", hour24: 14 },
+      { value: "3", display: "3:00 PM", hour24: 15 }
     ];
   };
 
@@ -276,9 +276,9 @@ function ReserveRoom({ user, setView }) {
     await fetchRoomAvailability(date.date, formData.time || null);
   };
 
-  // Handle time selection
-  const handleTimeSelect = () => {
-    const timeString = convertTo24Hour(tempHour, tempMinute);
+  // Handle time selection - updated for dropdown design
+  const handleTimeSelect = (hour) => {
+    const timeString = convertTo24Hour(hour.value, "00");
     setFormData({ ...formData, time: timeString });
     setShowTimeModal(false);
     
@@ -290,30 +290,6 @@ function ReserveRoom({ user, setView }) {
 
   // Reset time picker when opening modal
   const openTimeModal = () => {
-    if (formData.time) {
-      const [hour24, minute] = formData.time.split(":");
-      const hourNum = parseInt(hour24, 10);
-      let displayHour = "";
-      
-      // Convert 24-hour to display hour
-      if (hourNum === 7) displayHour = "7";
-      else if (hourNum === 8) displayHour = "8";
-      else if (hourNum === 9) displayHour = "9";
-      else if (hourNum === 10) displayHour = "10";
-      else if (hourNum === 11) displayHour = "11";
-      else if (hourNum === 12) displayHour = "12";
-      else if (hourNum === 13) displayHour = "1";
-      else if (hourNum === 14) displayHour = "2";
-      else if (hourNum === 15) displayHour = "3";
-      else displayHour = "7";
-      
-      setTempHour(displayHour);
-      setTempMinute(minute);
-    } else {
-      // Default to 7:00 AM
-      setTempHour("7");
-      setTempMinute("00");
-    }
     setShowTimeModal(true);
   };
 
@@ -1364,7 +1340,7 @@ function ReserveRoom({ user, setView }) {
               )}
             </div>
 
-            {/* Time Selector - Simple hour and minute picker */}
+            {/* Time Selector - Dropdown Design */}
             <div className="space-y-1" ref={timeRef}>
               <p className="font-medium text-gray-700 flex items-center text-sm sm:text-base">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1507,7 +1483,7 @@ function ReserveRoom({ user, setView }) {
           </div>
         )}
 
-        {/* Time Selection Modal - Simple hour (with AM/PM) and minute picker */}
+        {/* Time Selection Modal - Dropdown Design (like Number of Users) */}
         {showTimeModal && (
           <div className="fixed top-0 left-0 w-screen h-screen bg-black/40 flex items-center justify-center z-50 p-4">
             <div className="bg-white p-4 sm:p-6 rounded-xl w-full max-w-[400px] shadow-xl">
@@ -1518,58 +1494,29 @@ function ReserveRoom({ user, setView }) {
                 Select Time (7 AM - 3 PM)
               </h2>
 
-              <div className="flex gap-4 mb-6">
-                {/* Hour Selector - Shows "7 AM", "8 AM", etc. */}
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Hour</label>
-                  <select
-                    value={tempHour}
-                    onChange={(e) => setTempHour(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
+              <div className="grid grid-cols-1 gap-2 sm:gap-3 font-bold mb-4">
+                {hours.map((hour) => (
+                  <button
+                    key={hour.value}
+                    onClick={() => handleTimeSelect(hour)}
+                    className={`p-4 sm:p-4 border border-gray-300 rounded-lg text-center cursor-pointer transition-colors text-sm sm:text-base min-h-[44px]
+                      ${
+                        formData.time === convertTo24Hour(hour.value, "00")
+                          ? "bg-[#CC0000] text-white border-[#CC0000]"
+                          : "hover:bg-gray-100"
+                      }`}
                   >
-                    <option value="7">7 AM</option>
-                    <option value="8">8 AM</option>
-                    <option value="9">9 AM</option>
-                    <option value="10">10 AM</option>
-                    <option value="11">11 AM</option>
-                    <option value="12">12 PM</option>
-                    <option value="1">1 PM</option>
-                    <option value="2">2 PM</option>
-                    <option value="3">3 PM</option>
-                  </select>
-                </div>
-
-                {/* Minute Selector - Full 00-59 */}
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Minute</label>
-                  <select
-                    value={tempMinute}
-                    onChange={(e) => setTempMinute(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:border-[#CC0000] focus:outline-none text-base"
-                  >
-                    {minutes.map((minute) => (
-                      <option key={minute} value={minute}>
-                        {minute}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                    {hour.display}
+                  </button>
+                ))}
               </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={handleTimeSelect}
-                  className="flex-1 bg-[#CC0000] text-white px-4 py-3 rounded-lg hover:bg-red-700 transition font-semibold min-h-[44px]"
-                >
-                  Confirm
-                </button>
-                <button
-                  onClick={() => setShowTimeModal(false)}
-                  className="flex-1 bg-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-400 transition font-semibold min-h-[44px]"
-                >
-                  Cancel
-                </button>
-              </div>
+              
+              <button
+                onClick={() => setShowTimeModal(false)}
+                className="mt-2 bg-[#CC0000] text-white px-4 py-3 rounded-lg hover:bg-red-700 transition w-full cursor-pointer font-semibold min-h-[44px]"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         )}
@@ -1934,7 +1881,7 @@ function ReserveRoom({ user, setView }) {
                     <th className="py-2 px-2 sm:py-3 sm:px-4 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Year Level</th>
                     <th className="py-2 px-2 sm:py-3 sm:px-4 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Department</th>
                     <th className="py-2 px-2 sm:py-3 sm:px-4 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Status</th>
-                   </tr>
+                  </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {formData.participants.map((p, idx) => (
@@ -1980,7 +1927,7 @@ function ReserveRoom({ user, setView }) {
                         {!p.id_number && (
                           <p className="text-xs text-red-500 mt-1">ID is required</p>
                         )}
-                       </td>
+                      </td>
                       <td className="py-2 px-2 sm:py-3 sm:px-4">
                         <input
                           type="text"
@@ -1995,7 +1942,7 @@ function ReserveRoom({ user, setView }) {
                           }
                         />
                         
-                       </td>
+                      </td>
                       {!p.role || (p.role !== "Faculty" && p.role !== "Staff") ? (
                         <td className="py-2 px-2 sm:py-3 sm:px-4">
                           <input
@@ -2011,7 +1958,7 @@ function ReserveRoom({ user, setView }) {
                             }
                           />
                           
-                         </td>
+                        </td>
                       ) : (
                         <td className="py-2 px-2 sm:py-3 sm:px-4 text-gray-400 italic text-xs sm:text-sm">N/A</td>
                       )}
@@ -2030,7 +1977,7 @@ function ReserveRoom({ user, setView }) {
                             }
                           />
                          
-                         </td>
+                        </td>
                       ) : (
                         <td className="py-2 px-2 sm:py-3 sm:px-4 text-gray-400 italic text-xs sm:text-sm">N/A</td>
                       )}
@@ -2048,7 +1995,7 @@ function ReserveRoom({ user, setView }) {
                           }
                         />
                        
-                       </td>
+                      </td>
                       <td className="py-2 px-2 sm:py-3 sm:px-4">
                         {validation[idx]?.status === "valid" && (
                           <span className="text-green-600 text-xs sm:text-sm font-medium flex items-center">
@@ -2069,7 +2016,7 @@ function ReserveRoom({ user, setView }) {
                         {!validation[idx]?.status && p.id_number && (
                           <span className="text-gray-500 text-xs">Enter ID to verify</span>
                         )}
-                       </td>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
