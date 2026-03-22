@@ -6,8 +6,9 @@ import RoomAvailabilityModal from "./RoomAvailabilityModal";
 import PropTypes from 'prop-types';
 import ReportProblemModal from "./Modals/ReportProblemModal";
 import AnnouncementModal from "./Modals/AnnouncementModal";
+import UpcomingClosuresWidget from "./UpcomingClosuresWidget"; // ADD THIS IMPORT
 
-// Helper functions
+// Helper functions (keep your existing ones)
 const formatPH = (date) => {
   if (!date) return "N/A";
   try {
@@ -768,6 +769,10 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
 
         {/* RIGHT SIDEBAR */}
         <aside className="w-full xl:w-80 flex flex-col gap-4 sm:gap-6 min-w-0">
+          
+          {/* ADDED: Upcoming Closures Widget */}
+          <UpcomingClosuresWidget user={user} setView={setView} />
+          
           {/* Calendar */}
           <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border border-gray-200 shadow-lg p-4 sm:p-6 hover:shadow-xl transition-all duration-300">
             <div className="flex items-center gap-2 mb-4">
@@ -790,8 +795,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
               prev2Label={null}
               next2Label={null}
               aria-label="Reservation calendar"
-              // Set calendar to show Sunday as first day
-              calendarType="gregory"  // This ensures Sunday as first day
+              calendarType="gregory"
               formatShortWeekday={(locale, date) => {
                 const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
                 return days[date.getDay()];
@@ -809,7 +813,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
             </div>
           </div>
 
-          {/* Reserve Room Button - UPDATED: No limit check */}
+          {/* Reserve Room Button */}
           <button
             className={`relative overflow-hidden rounded-2xl w-full h-28 sm:h-36 flex items-center justify-center transition-all duration-300 shadow-lg group bg-gradient-to-r from-red-500 via-red-600 to-red-700 hover:from-red-600 hover:via-red-700 hover:to-red-800 cursor-pointer focus:outline-none focus:ring-4 focus:ring-red-300 focus:ring-opacity-50`}
             onClick={handleReserveClick}
@@ -910,12 +914,11 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
         </aside>
       </div>
       
-      {/* Footer - Fixed to work with sidebar */}
+      {/* Footer */}
       <footer className="mt-auto bg-white border-t border-gray-200 w-full">
         <div className="px-4 sm:px-5 py-3 sm:py-2 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0 max-w-full">
           {/* Copyright */}
           <div className="text-xs sm:text-sm text-gray-500 order-2 sm:order-1 flex items-center gap-1">
-            
             © {new Date().getFullYear()} <span className="font-semibold">USA-FLD CircuLink</span>
           </div>
 

@@ -54,6 +54,7 @@ import AdminReports from "./Admin/AdminReports.jsx";
 import AdminNotification from "./Admin/AdminNotification.jsx";
 import AdminNews from "./Admin/AdminNews.jsx";
 import AdminLogs from "./Admin/AdminLogs.jsx";
+import AdminClosures from "./Admin/AdminClosures.jsx"; // Add this import
 
 /* ---- admin archive ---- */
 import ArchivedUsers from "./Admin/Archive/ArchivedUsers.jsx";
@@ -158,7 +159,7 @@ function App() {
       'adminLogs', 'archivedUsers', 'archivedReservations', 'archivedReports', 
       'archivedNews', 'profileSettings', 'passwordSecurity', 'systemSettings',
       'analyticsOverview', 'analyticsUsers', 'analyticsReservations', 
-      'analyticsRooms', 'analyticsEngagement'
+      'analyticsRooms', 'analyticsEngagement', 'adminClosures' // Add adminClosures here
     ];
     return adminRoutes.includes(viewFromPath);
   };
@@ -266,7 +267,8 @@ function App() {
             'adminNews', 'adminLogs', 'archivedUsers', 'archivedReservations', 
             'archivedReports', 'archivedNews', 'profileSettings', 'passwordSecurity', 
             'systemSettings', 'analyticsOverview', 'analyticsUsers', 
-            'analyticsReservations', 'analyticsRooms', 'analyticsEngagement'
+            'analyticsReservations', 'analyticsRooms', 'analyticsEngagement',
+            'adminClosures' // Add adminClosures here
           ];
           
           // If trying to access admin route via URL, check if it's allowed
@@ -664,6 +666,7 @@ function App() {
         {view === "adminNotifications" && renderAdminNavigation(<AdminNotification setView={setView} admin={user} />)}
         {view === "adminNews" && renderAdminNavigation(<AdminNews setView={setView} admin={user} />)}
         {view === "adminLogs" && renderAdminNavigation(<AdminLogs setView={setView} admin={user} />)}
+        {view === "adminClosures" && renderAdminNavigation(<AdminClosures setView={setView} admin={user} />)} {/* Add this line */}
 
         {/* Admin Archive Pages */}
         {view === "archivedUsers" && renderAdminNavigation(<ArchivedUsers setView={setView} admin={user} />)}

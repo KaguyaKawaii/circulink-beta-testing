@@ -4318,3 +4318,44 @@ export const getReservationsByStaffFloor = async (req, res) => {
     });
   }
 };
+
+// Add to reservationController.js
+
+/* ------------------------------------------------
+   ✅ CHECK IF TIME SLOT IS CLOSED BEFORE CREATING RESERVATION
+------------------------------------------------ */
+export const checkClosureBeforeReservation = async (date, time, roomName) => {
+  try {
+    const Closure = mongoose.model("Closure");
+    
+    const closureQuery = {
+      date: date,
+      status: "Active",
+      startTime: { $lte: time },
+      endTime: { $gt: time },
+      $or: [
+        { affectedAllRooms: true },
+        { affectedRooms: roomName }
+      ]
+    };
+
+    const activeClosure = await Closure.findOne(closureQuery);
+    
+    if (activeClosure) {
+      return {
+        isClosed: true,
+        closure: {
+          title: activeClosure.title,
+          reason: activeClosure.reason,
+          startTime: activeClosure.startTime,
+          endTime: activeClosure.endTime
+        }
+      };
+    }
+    
+    return { isClosed: false };
+  } catch (err) {
+    console.error("Error checking closure:", err);
+    return { isClosed: false, error: err.message };
+  }
+};

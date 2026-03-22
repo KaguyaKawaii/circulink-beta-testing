@@ -1,5 +1,7 @@
+// services/availabilityService.js
 import Room from "../models/Room.js";
 import Reservation from "../models/Reservation.js";
+import Closure from "../models/Closure.js";
 
 export const generateAvailability = async (date, userId) => {
   try {
@@ -26,10 +28,18 @@ export const generateAvailability = async (date, userId) => {
       status: { $in: ["Pending", "Approved", "Ongoing"] },
     })
     .populate('userId', 'name email')
-    .populate('room_Id', 'room floor') // FIXED: Changed from 'roomId' to 'room_Id'
+    .populate('room_Id', 'room floor')
     .lean();
 
     console.log(`📅 Found ${reservations.length} reservations for date: ${date}`);
+
+    // ✅ Fetch closures for this date
+    const closures = await Closure.find({
+      date: date,
+      status: "Active"
+    }).lean();
+
+    console.log(`🔒 Found ${closures.length} active closures for date: ${date}`);
 
     // ✅ Build availability for each room
     const availability = rooms.map((room) => {
@@ -41,16 +51,26 @@ export const generateAvailability = async (date, userId) => {
           room: room.room,
           isActive: false,
           occupied: [],
-          pending: []
+          pending: [],
+          closedTimeSlots: [],
+          isClosed: false
         };
       }
 
+      // ✅ Check if room is closed by any closure
+      const roomClosures = closures.filter(closure => 
+        closure.affectedAllRooms || closure.affectedRooms.includes(room.room)
+      );
+      
+      const isFullyClosed = roomClosures.some(closure => 
+        closure.startTime === "00:00" && closure.endTime === "23:59"
+      );
+
       // ✅ Filter reservations for this specific room
       const roomReservations = reservations.filter((reservation) => {
-        // Check multiple possible room identification methods
-        const reservationRoomId = reservation.room_Id?._id?.toString(); // FIXED: Changed from 'roomId' to 'room_Id'
-        const reservationRoomName = reservation.room_Id?.room || reservation.roomName; // FIXED: Changed from 'roomId' to 'room_Id'
-        const reservationFloor = reservation.room_Id?.floor || reservation.location; // FIXED: Changed from 'roomId' to 'room_Id'
+        const reservationRoomId = reservation.room_Id?._id?.toString();
+        const reservationRoomName = reservation.room_Id?.room || reservation.roomName;
+        const reservationFloor = reservation.room_Id?.floor || reservation.location;
         
         return (
           reservationRoomId === room._id.toString() ||
@@ -59,7 +79,7 @@ export const generateAvailability = async (date, userId) => {
         );
       });
 
-      console.log(`🏠 Room ${room.room} has ${roomReservations.length} reservations`);
+      console.log(`🏠 Room ${room.room} has ${roomReservations.length} reservations, ${roomClosures.length} closures`);
 
       // ✅ Separate occupied (approved/ongoing) from pending
       const occupied = roomReservations
@@ -84,13 +104,26 @@ export const generateAvailability = async (date, userId) => {
           mine: r.userId?._id?.toString() === userId
         }));
 
+      // ✅ Format closed time slots
+      const closedTimeSlots = roomClosures.map((closure) => ({
+        start: `${date}T${closure.startTime}:00`,
+        end: `${date}T${closure.endTime}:00`,
+        reason: closure.title,
+        closureId: closure._id,
+        startTime: closure.startTime,
+        endTime: closure.endTime
+      }));
+
       return {
         _id: room._id,
         floor: room.floor,
         room: room.room,
         isActive: true,
         occupied,
-        pending
+        pending,
+        closedTimeSlots,
+        isFullyClosed,
+        hasClosures: roomClosures.length > 0
       };
     });
 
