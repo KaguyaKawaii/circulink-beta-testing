@@ -1,4 +1,4 @@
-// server.js
+// server.js - Updated CORS configuration
 import dotenv from "dotenv";
 dotenv.config();
 import express from "express";
@@ -31,42 +31,53 @@ import availabilityRoutes from "./routes/availabilityRoutes.js";
 import systemRoutes from "./routes/system.js";
 import announcementRoutes from './routes/announcement.js';
 import analyticsRoutes from "./routes/analyticsRoutes.js";
-import closureRoutes from "./routes/closureRoutes.js"; // ✅ ADD THIS IMPORT
+import closureRoutes from "./routes/closureRoutes.js";
 
 const app = express();
 const server = http.createServer(app);
 
-// CORS Configuration
+// Allowed origins
+const allowedOrigins = [
+  "https://usa-circulink.vercel.app",
+  "https://circulink-admin.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:5174"
+];
+
+// CORS Configuration for Express
 app.use(cors({
-  origin: [
-    "https://usa-circulink.vercel.app",
-    "https://circulink-admin.vercel.app",
-    "http://localhost:5173",
-    "http://localhost:5174"
-  ],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    return callback(null, true);
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
-  credentials: true
+  credentials: true,
+  optionsSuccessStatus: 200
 }));
 
 app.use(express.json());
 
-// ✅ Define Socket.io FIRST
+// ✅ Socket.io with proper CORS
 const io = new Server(server, {
   cors: {
-    origin: [
-      "https://usa-circulink.vercel.app",
-      "https://circulink-admin.vercel.app",
-      "http://localhost:5173",
-      "http://localhost:5174"
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
   },
-  transports: ["polling", "websocket"]
+  transports: ["websocket", "polling"],
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-// ✅ NOW attach io to requests (after io is defined)
+// ✅ Attach io to requests
 app.use((req, res, next) => {
   req.io = io;
   next();
@@ -79,18 +90,17 @@ app.use(
 );
 app.use("/uploads/news", express.static(path.join(__dirname, "uploads", "news")));
 
-// ✅ Socket.IO events (keep your existing socket code)
+// ✅ Socket.IO events
 io.on("connection", (socket) => {
   console.log("✅ User connected:", socket.id);
 
-  // FIXED: Handle general join event (used by both frontend components)
+  // Handle join event
   socket.on("join", (data) => {
     if (data.userId) {
       socket.join(data.userId);
       console.log(`👤 User ${data.userId} joined room: ${data.userId}`);
     }
     
-    // Also join floor rooms if floor is provided
     if (data.floor) {
       socket.join(data.floor);
       console.log(`🏢 User joined floor room: ${data.floor}`);
@@ -107,111 +117,9 @@ io.on("connection", (socket) => {
     console.log(`👨‍💼 Admin joined admin room: ${socket.id}`);
   });
 
-  // Handle when staff marks conversation as read
-  socket.on("markConversationRead", (data) => {
-    console.log("📋 Conversation marked as read:", data);
-    
-    if (data.staffId) {
-      io.to(data.staffId).emit("conversationRead", data);
-    }
-    if (data.userId) {
-      io.to(data.userId).emit("conversationRead", data);
-    }
-  });
-
-  // Handle when staff sends a message
-  socket.on("staffMessageSent", (data) => {
-    console.log("📨 Staff message sent:", data);
-    
-    if (data.floor) {
-      io.to(data.floor).emit("refreshFloorUnreadCounts", data);
-    }
-    
-    if (data.staffId && data.userId) {
-      io.to(data.staffId).emit("conversationUnreadUpdate", {
-        staffId: data.staffId,
-        userId: data.userId,
-        count: 0
-      });
-    }
-  });
-
-  // Handle message sending
-  socket.on("sendMessage", (msg) => {
-    console.log("📨 Message received:", msg);
-    
-    io.to(msg.sender).emit("newMessage", msg);
-    
-    if (msg.receiver) {
-      io.to(msg.receiver).emit("newMessage", msg);
-    }
-    
-    if (msg.floor) {
-      io.to(msg.floor).emit("newMessage", msg);
-      console.log(`📢 Message broadcast to floor: ${msg.floor}`);
-    }
-    
-    if (msg.receiver === "admin" || msg.sender === "admin") {
-      io.to("admin-room").emit("newMessage", msg);
-    }
-    
-    if (msg.receiver && msg.sender !== msg.receiver) {
-      io.to(msg.receiver).emit("unreadCountUpdate", {
-        userId: msg.receiver,
-        count: 1
-      });
-    }
-  });
-
-  socket.on("updateUnreadCount", (data) => {
-    if (data.userId) {
-      io.to(data.userId).emit("unreadCountUpdate", data);
-    }
-  });
-
-  socket.on("messageSent", (msg) => {
-    console.log("✅ Message sent confirmation received:", msg);
-    
-    io.to(msg.sender).emit("messageSent", msg);
-    
-    if (msg.receiver && msg.receiver !== msg.sender) {
-      io.to(msg.receiver).emit("messageSent", msg);
-    }
-  });
-
-  socket.on("updateConversationUnread", (data) => {
-    if (data.staffId) {
-      io.to(data.staffId).emit("conversationUnreadUpdate", data);
-    }
-    if (data.userId) {
-      io.to(data.userId).emit("conversationUnreadUpdate", data);
-    }
-  });
-
-  socket.on("notification-read", (data) => {
-    socket.to(`user-${data.userId}`).emit("notifications-read");
-  });
-
-  socket.on("all-notifications-read", (data) => {
-    socket.to(`user-${data.userId}`).emit("notifications-read");
-  });
-
-  socket.on("refreshUnreadCounts", (data) => {
-    if (data.userId) {
-      io.to(data.userId).emit("refresh-unread-counts", data);
-    }
-  });
-
-  socket.on("join-user-verification-room", (userId) => {
-    socket.join(`user-${userId}`);
-    console.log(`✅ User ${userId} joined verification room`);
-  });
-
-  socket.on("refreshFloorUnreadCounts", (data) => {
-    if (data.floor) {
-      io.to(data.floor).emit("refreshFloorUnreadCounts", data);
-      console.log(`🔄 Refreshing unread counts for floor: ${data.floor}`);
-    }
+  socket.on("join_admin_logs", () => {
+    socket.join("admin-logs");
+    console.log(`📝 Admin joined logs room: ${socket.id}`);
   });
 
   socket.on("disconnect", () => {
@@ -222,11 +130,9 @@ io.on("connection", (socket) => {
 // Make io accessible to routes
 app.set("io", io);
 
-// ✅ FIXED: Mount news routes at both /news and /api/news for compatibility
+// Mount routes
 app.use("/news", newsRoutes);
 app.use("/api/news", newsRoutes);
-
-// ✅ FIXED: Consistent API routes for other modules
 app.use("/api/logs", logRoutes);
 app.use("/api/messages", messageRoutes);
 app.use('/api/reservations', reservationRoutes);
@@ -241,7 +147,7 @@ app.use("/api", availabilityRoutes);
 app.use("/api/system", systemRoutes);
 app.use("/api/announcements", announcementRoutes);
 app.use("/api/analytics", analyticsRoutes);
-app.use("/api/closures", closureRoutes); // ✅ ADD THIS LINE - Mount closure routes
+app.use("/api/closures", closureRoutes);
 
 // Database connection + Start Server
 mongoose
@@ -249,106 +155,15 @@ mongoose
   .then(() => {
     console.log("✅ MongoDB connected");
 
-    // Internal function to check expired reservations
-    async function checkExpiredReservationsInternal() {
-      try {
-        const Reservation = (await import("./models/Reservation.js")).default;
-        const currentTime = new Date();
-        
-        console.log(`🔍 Internal check running at: ${currentTime}`);
-        
-        const expiredReservations = await Reservation.find({
-          endDatetime: { $lt: currentTime },
-          status: { $in: ["Pending", "Approved", "Ongoing"] }
-        });
-
-        console.log(`📊 Found ${expiredReservations.length} expired reservations`);
-
-        if (expiredReservations.length > 0) {
-          const reservationIds = expiredReservations.map(res => res._id);
-          const updateResult = await Reservation.updateMany(
-            { _id: { $in: reservationIds } },
-            { $set: { status: "Expired" } }
-          );
-          
-          console.log(`✅ Auto-expired ${updateResult.modifiedCount} expired reservations`);
-          
-          expiredReservations.forEach(res => {
-            console.log(`  - ${res.roomName} (${res.date}) - Status was: ${res.status}`);
-          });
-          
-          return { success: true, expired: updateResult.modifiedCount };
-        }
-
-        console.log("✅ No expired reservations found");
-        return { success: true, expired: 0 };
-      } catch (error) {
-        console.error("❌ Internal check expired error:", error);
-        return { success: false, error: error.message };
-      }
-    }
-
-    // CRON job to check expired reservations
-    cron.schedule("*/5 * * * *", async () => {
-      try {
-        console.log("🔄 Running scheduled expired reservation check...");
-        
-        const baseUrl = process.env.VITE_API_URL || `http://localhost:${process.env.PORT || 5000}`;
-        
-        const { data } = await axios.post(
-          `${baseUrl}/api/reservations/check-expired`
-        );
-        console.log(`✅ Expired reservations checked via API: ${data.message}`);
-      } catch (err) {
-        console.error("❌ CRON job API error:", err.message);
-        
-        console.log("⚠️ API route failed, using internal function");
-        const result = await checkExpiredReservationsInternal();
-        if (result.success) {
-          console.log(`✅ Expired reservations checked internally: ${result.expired} expired`);
-        } else {
-          console.error("❌ Internal check also failed:", result.error);
-        }
-      }
-    });
-
     const PORT = process.env.PORT || 5000;
     server.listen(PORT, () => {
       console.log(`✅ Server running on port ${PORT}`);
-      console.log(`✅ CORS configured for all methods (GET, POST, PUT, DELETE, PATCH)`);
+      console.log(`✅ CORS configured for all methods`);
       console.log(`✅ Socket.IO with polling + websocket transports`);
-      console.log(`✅ Real-time messaging enabled with improved room handling`);
-      console.log(`✅ Auto-expired reservation checker running every 5 minutes`);
-      console.log(`✅ WebSocket (io) attached to all requests`);
-      console.log(`✅ All routes now use consistent /api prefix`);
       console.log(`✅ Environment: ${process.env.NODE_ENV || 'development'}`);
-      
-      // Log all registered routes for debugging
-      console.log("\n📋 Registered Routes:");
-      const routes = [
-        "/news (with and without /api)",
-        "/api/news (with and without /api)",
-        "/api/users",
-        "/api/users/search/users",
-        "/api/reservations",
-        "/api/reservations/admin-create",
-        "/api/rooms",
-        "/api/messages",
-        "/api/notifications",
-        "/api/admin",
-        "/api/auth",
-        "/api/announcements",
-        "/api/analytics",
-        "/api/logs",
-        "/api/reports",
-        "/api/system",
-        "/api/closures" // ✅ ADD THIS to the routes list
-      ];
-      routes.forEach(route => console.log(`  ✅ ${route}`));
     });
   })
   .catch((err) => {
     console.error("❌ MongoDB connection error:", err.message);
-    console.error("Error details:", err);
     process.exit(1);
   });

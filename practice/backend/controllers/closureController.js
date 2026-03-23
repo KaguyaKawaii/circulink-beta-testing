@@ -26,10 +26,8 @@ function isClosureExpired(closure) {
   return now > closureDate;
 }
 
-/* ------------------------------------------------
-   ✅ UPDATE CLOSURE STATUSES (REAL-TIME AUTO-END)
------------------------------------------------- */
-export const updateClosureStatuses = async (req, res) => {
+// Helper: Update expired closures (internal function, no req/res)
+async function updateExpiredClosures() {
   try {
     console.log("🔄 Updating closure statuses...");
     
@@ -50,13 +48,13 @@ export const updateClosureStatuses = async (req, res) => {
         
         console.log(`✅ Closure "${closure.title}" has expired automatically`);
         
-        // Optional: Send notifications about closure ending
+        // Optional: Send notifications about closure ending (don't await to avoid delay)
         try {
           // Notify admins that closure has ended
           const admins = await Admin.find({});
           for (const admin of admins) {
             if (admin.email) {
-              await sendEmail({
+              sendEmail({
                 to: admin.email,
                 subject: `Closure Ended: ${closure.title}`,
                 html: `
@@ -69,7 +67,7 @@ export const updateClosureStatuses = async (req, res) => {
                   </ul>
                   <p>No action is required.</p>
                 `
-              });
+              }).catch(err => console.warn("Email send error:", err.message));
             }
           }
         } catch (emailError) {
@@ -84,27 +82,36 @@ export const updateClosureStatuses = async (req, res) => {
       console.log("📊 No closures needed updating");
     }
     
-    if (res) {
-      res.json({
-        success: true,
-        message: `Updated ${updatedCount} closures to expired status`,
-        updatedCount,
-        expiredClosures: expiredClosures.map(c => ({ id: c._id, title: c.title }))
-      });
-    }
-    
     return { updatedCount, expiredClosures };
     
   } catch (err) {
     console.error("❌ Error updating closure statuses:", err);
-    if (res) {
-      res.status(500).json({
-        success: false,
-        message: "Failed to update closure statuses",
-        error: err.message
-      });
-    }
-    throw err;
+    return { updatedCount: 0, expiredClosures: [], error: err.message };
+  }
+}
+
+/* ------------------------------------------------
+   ✅ UPDATE CLOSURE STATUSES (API ENDPOINT)
+------------------------------------------------ */
+export const updateClosureStatuses = async (req, res) => {
+  try {
+    const result = await updateExpiredClosures();
+    
+    res.json({
+      success: true,
+      message: `Updated ${result.updatedCount} closures to expired status`,
+      updatedCount: result.updatedCount,
+      expiredClosures: result.expiredClosures.map(c => ({ id: c._id, title: c.title }))
+    });
+    
+    return result;
+  } catch (err) {
+    console.error("❌ Error in updateClosureStatuses:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to update closure statuses",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
   }
 };
 
@@ -372,7 +379,8 @@ export const createClosure = async (req, res) => {
         roomName: r.roomName,
         date: r.date,
         startTime: r.startTime,
-        endTime: r.endTime
+        endTime: r.endTime,
+        cancelledAt: new Date()
       })),
       status: "Active"
     };
@@ -401,10 +409,10 @@ export const createClosure = async (req, res) => {
         if (updatedReservation) {
           processedReservations.push(updatedReservation);
           
-          // Send email notification if user has email
+          // Send email notification if user has email (don't await to avoid delay)
           try {
             if (updatedReservation.userId?.email) {
-              await sendEmail({
+              sendEmail({
                 to: updatedReservation.userId.email,
                 subject: "Reservation Cancelled Due to Facility Closure",
                 html: `
@@ -420,7 +428,7 @@ export const createClosure = async (req, res) => {
                   </ul>
                   <p>We apologize for any inconvenience.</p>
                 `
-              });
+              }).catch(err => console.warn("Email send error:", err.message));
             }
           } catch (emailError) {
             console.warn("⚠️ Failed to send cancellation email:", emailError.message);
@@ -496,8 +504,8 @@ export const getClosures = async (req, res) => {
       .skip(skip)
       .limit(parseInt(limit));
 
-    // Auto-update statuses before returning
-    await updateClosureStatuses({}, {});
+    // Auto-update statuses asynchronously (don't await to avoid delay)
+    updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
 
     res.json({
       success: true,
@@ -790,8 +798,8 @@ export const checkSlotClosed = async (req, res) => {
       });
     }
 
-    // Update statuses first to ensure accuracy
-    await updateClosureStatuses({}, {});
+    // Update statuses first to ensure accuracy (don't await to avoid delay)
+    updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
 
     const query = {
       date: date,
@@ -841,8 +849,8 @@ export const getAvailabilityWithClosures = async (req, res) => {
       });
     }
 
-    // Update statuses first
-    await updateClosureStatuses({}, {});
+    // Update statuses first (don't await to avoid delay)
+    updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
 
     // Get all rooms
     const Room = mongoose.model("Room");
@@ -925,8 +933,8 @@ export const getUpcomingClosures = async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
     
-    // Update statuses first
-    await updateClosureStatuses({}, {});
+    // Update statuses first (don't await to avoid delay)
+    updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
     
     const closures = await Closure.find({
       date: { $gte: today },

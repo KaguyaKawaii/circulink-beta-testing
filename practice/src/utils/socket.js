@@ -1,7 +1,9 @@
+// socket.js
 import { io } from "socket.io-client";
 
 // Remove /api from socket URL since Socket.io doesn't use it
-const socketURL = import.meta.env.VITE_API_URL?.replace('/api', '') || import.meta.env.VITE_API_URL;
+const baseURL = import.meta.env.VITE_API_URL || "";
+const socketURL = baseURL.replace('/api', '');
 
 // Get token from localStorage
 const getToken = () => {
@@ -19,19 +21,20 @@ const getToken = () => {
 
 const socket = io(socketURL, {
   withCredentials: true,
-  autoConnect: false, // Changed to false to manually connect after login
+  autoConnect: false,
   reconnection: true,
   reconnectionDelay: 1000,
-  reconnectionAttempts: 10,
-  transports: ["polling", "websocket"],
-  auth: {
-    token: getToken()
+  reconnectionAttempts: 5,
+  transports: ["websocket", "polling"],
+  auth: (cb) => {
+    cb({ token: getToken() });
   }
 });
 
+// Add connection handlers
 socket.on('connect', () => {
   console.log('✅ Connected to server with ID:', socket.id);
-  // Join admin room after connection
+  // Join admin logs room
   socket.emit('join_admin_logs');
 });
 
@@ -43,12 +46,17 @@ socket.on('connect_error', (error) => {
   console.log('Connection error:', error.message);
 });
 
-// Function to update token (call this after login)
-socket.updateToken = () => {
-  socket.auth = { token: getToken() };
+// Function to connect socket (call after login)
+socket.connectToServer = () => {
+  if (!socket.connected) {
+    socket.connect();
+  }
+};
+
+// Function to disconnect socket (call on logout)
+socket.disconnectFromServer = () => {
   if (socket.connected) {
     socket.disconnect();
-    socket.connect();
   }
 };
 
