@@ -122,6 +122,8 @@ export const previewClosureConflicts = async (req, res) => {
 /* ------------------------------------------------
    ✅ CREATE CLOSURE WITH CONFLICT DETECTION (FIXED)
 ------------------------------------------------ */
+// In controllers/closureController.js, modify the createClosure function:
+
 export const createClosure = async (req, res) => {
   try {
     const {
@@ -147,8 +149,6 @@ export const createClosure = async (req, res) => {
     if (!date) missingFields.push("date");
     if (!startTime) missingFields.push("startTime");
     if (!endTime) missingFields.push("endTime");
-    if (!affectedAllRooms && (!affectedRooms || affectedRooms.length === 0)) 
-      missingFields.push("affectedRooms");
 
     if (missingFields.length > 0) {
       return res.status(400).json({
@@ -162,6 +162,14 @@ export const createClosure = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "End time must be after start time"
+      });
+    }
+
+    // Validate rooms selection
+    if (!affectedAllRooms && (!affectedRooms || affectedRooms.length === 0)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please select at least one room or choose 'All Rooms'"
       });
     }
 
@@ -243,16 +251,22 @@ export const createClosure = async (req, res) => {
 
     console.log(`Found ${affectedReservationsList.length} conflicting reservations`);
 
-    // Try to find an admin user
+    // Try to find an admin user - FIX: Use the admin from request if available
     let admin = null;
-    try {
-      admin = await Admin.findOne({});
-    } catch (err) {
-      console.log("No admin found, using default values");
+    if (req.admin) {
+      admin = req.admin;
+    } else {
+      try {
+        admin = await Admin.findOne({});
+      } catch (err) {
+        console.log("No admin found, creating default admin reference");
+        // Create a default admin if none exists
+        admin = { _id: null, name: "System Admin" };
+      }
     }
 
-    // Create the closure
-    const closure = await Closure.create({
+    // Create the closure - FIX: Ensure createdBy is not null
+    const closureData = {
       title,
       reason,
       date,
@@ -261,7 +275,7 @@ export const createClosure = async (req, res) => {
       affectedRooms: affectedAllRooms ? [] : (affectedRooms || []),
       affectedAllRooms: affectedAllRooms || false,
       location: location || (affectedAllRooms ? "All Floors" : "Custom"),
-      createdBy: admin?._id || null,
+      createdBy: admin?._id || new mongoose.Types.ObjectId(), // Create a dummy ObjectId if null
       createdByAdminName: admin?.name || "System Admin",
       affectedReservations: affectedReservationsList.map(r => ({
         reservationId: r.reservationId,
@@ -272,7 +286,9 @@ export const createClosure = async (req, res) => {
         endTime: r.endTime
       })),
       status: "Active"
-    });
+    };
+
+    const closure = await Closure.create(closureData);
 
     // Process each conflicting reservation
     const processedReservations = [];

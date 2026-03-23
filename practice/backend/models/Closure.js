@@ -46,12 +46,16 @@ const closureSchema = new mongoose.Schema({
   },
   affectedRooms: {
     type: [String],
-    required: [true, "Affected rooms are required"],
+    default: [],
+    // FIXED: Remove the required validation - it's handled by affectedAllRooms logic
     validate: {
       validator: function(v) {
+        // If affecting all rooms, empty array is valid
+        if (this.affectedAllRooms) return true;
+        // Otherwise, must have at least one room
         return v.length > 0;
       },
-      message: "At least one room must be selected"
+      message: "At least one room must be selected when not affecting all rooms"
     }
   },
   affectedAllRooms: {
