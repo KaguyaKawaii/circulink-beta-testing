@@ -119,7 +119,7 @@ function ReserveRoom({ user, setView }) {
       
       if (global) {
         showAlert(
-          `⚠️ FACILITY CLOSURE NOTICE\n\n${global.title}\n${global.reason}\n\nTime: ${global.startTime} - ${global.endTime}\n\nNo reservations can be made during this time.`,
+          `FACILITY CLOSURE NOTICE\n\n${global.title}\n${global.reason}\n\nTime: ${global.startTime} - ${global.endTime}\n\nNo reservations can be made during this time.`,
           8000
         );
       }
