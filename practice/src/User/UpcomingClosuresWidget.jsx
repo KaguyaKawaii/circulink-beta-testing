@@ -61,27 +61,27 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
   const getClosureStatus = (closure) => {
     const today = new Date().toISOString().split("T")[0];
     if (closure.date === today) {
-      return { text: "Today", color: "text-red-400" };
+      return { text: "Today", color: "text-red-600" };
     }
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split("T")[0];
     if (closure.date === tomorrowStr) {
-      return { text: "Tomorrow", color: "text-orange-400" };
+      return { text: "Tomorrow", color: "text-orange-600" };
     }
-    return { text: formatDate(closure.date), color: "text-gray-400" };
+    return { text: formatDate(closure.date), color: "text-gray-500" };
   };
 
   if (loading) {
     return (
-      <div className="bg-gray-800 rounded-lg p-4 animate-pulse">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="h-5 w-5 bg-gray-700 rounded"></div>
-          <div className="h-4 bg-gray-700 rounded w-32"></div>
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-4 sm:p-6 animate-pulse">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="h-5 w-5 bg-gray-200 rounded"></div>
+          <div className="h-5 bg-gray-200 rounded w-40"></div>
         </div>
-        <div className="space-y-2">
-          <div className="h-12 bg-gray-700 rounded"></div>
-          <div className="h-12 bg-gray-700 rounded"></div>
+        <div className="space-y-3">
+          <div className="h-16 bg-gray-100 rounded-xl"></div>
+          <div className="h-16 bg-gray-100 rounded-xl"></div>
         </div>
       </div>
     );
@@ -89,10 +89,10 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
 
   if (error) {
     return (
-      <div className="bg-gray-800 rounded-lg p-4">
-        <div className="flex items-center gap-2 text-yellow-500">
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-lg p-4 sm:p-6">
+        <div className="flex items-center gap-2 text-yellow-600">
           <AlertTriangle size={16} />
-          <p className="text-sm text-gray-400">{error}</p>
+          <p className="text-sm text-gray-600">{error}</p>
         </div>
       </div>
     );
@@ -106,20 +106,20 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
   const hasMore = closures.length > 2;
 
   return (
-    <div className="bg-gradient-to-r from-red-900/20 to-orange-900/20 border border-red-500/30 rounded-lg overflow-hidden">
+    <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border border-gray-200 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
       {/* Header */}
-      <div className="bg-red-600/20 px-4 py-3 border-b border-red-500/30">
+      <div className="px-4 sm:px-6 pt-4 sm:pt-6 pb-3 border-b border-gray-200">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <AlertTriangle className="text-red-400" size={18} />
-            <h3 className="text-white font-semibold text-sm">
+            <AlertTriangle className="text-red-500" size={18} />
+            <h3 className="text-gray-800 font-bold text-sm sm:text-base">
               Upcoming Facility Closures ({closures.length})
             </h3>
           </div>
           {hasMore && (
             <button
               onClick={() => setExpanded(!expanded)}
-              className="text-xs text-red-300 hover:text-red-200 transition flex items-center gap-1"
+              className="text-xs text-red-600 hover:text-red-700 transition flex items-center gap-1 font-medium"
             >
               {expanded ? (
                 <>
@@ -136,45 +136,45 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
       </div>
       
       {/* Closures List */}
-      <div className="divide-y divide-red-500/20">
+      <div className="divide-y divide-gray-100">
         {displayClosures.map((closure) => {
           const status = getClosureStatus(closure);
           return (
             <div
               key={closure._id}
-              className="p-3 hover:bg-red-900/20 cursor-pointer transition"
+              className="p-4 sm:p-5 hover:bg-red-50/50 cursor-pointer transition-all duration-200"
               onClick={() => setSelectedClosure(closure)}
             >
               <div className="flex items-start justify-between">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
                     <span className={`text-xs font-semibold ${status.color}`}>
                       {status.text}
                     </span>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-gray-500">
                       {closure.startTime} - {closure.endTime}
                     </span>
                   </div>
-                  <p className="text-white text-sm font-medium mb-1 truncate">
+                  <p className="text-gray-800 text-sm font-semibold mb-1 truncate">
                     {closure.title}
                   </p>
-                  <p className="text-gray-400 text-xs line-clamp-2">
+                  <p className="text-gray-500 text-xs line-clamp-2">
                     {closure.reason}
                   </p>
-                  <div className="mt-2 flex flex-wrap gap-1">
+                  <div className="mt-3 flex flex-wrap gap-1">
                     {closure.affectedAllRooms ? (
-                      <span className="text-xs bg-red-800/50 text-red-200 px-2 py-0.5 rounded">
+                      <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
                         All Rooms
                       </span>
                     ) : (
                       closure.affectedRooms?.slice(0, 3).map((room, idx) => (
-                        <span key={idx} className="text-xs bg-gray-700 text-gray-300 px-2 py-0.5 rounded">
+                        <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
                           {room}
                         </span>
                       ))
                     )}
                     {closure.affectedRooms?.length > 3 && (
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-400 px-2 py-1">
                         +{closure.affectedRooms.length - 3}
                       </span>
                     )}
@@ -188,40 +188,40 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
 
       {/* View All Button */}
       {closures.length > 0 && (
-        <div className="p-3 border-t border-red-500/20 bg-red-900/10">
+        <div className="px-4 sm:px-6 py-3 border-t border-gray-200 bg-gray-50/50">
           <button
             onClick={() => setView?.("calendar")}
-            className="w-full text-center text-xs text-red-300 hover:text-red-200 transition py-1"
+            className="w-full text-center text-xs text-red-600 hover:text-red-700 font-medium transition py-2 hover:bg-red-50 rounded-lg"
           >
             View All in Calendar
           </button>
         </div>
       )}
 
-      {/* Closure Details Modal */}
+      {/* Closure Details Modal - Light Theme */}
       {selectedClosure && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100000] p-4">
-          <div className="bg-gray-800 rounded-xl max-w-md w-full shadow-xl animate-fadeIn">
-            <div className="flex justify-between items-center p-4 border-b border-gray-700">
-              <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                <AlertTriangle size={20} className="text-red-400" />
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100000] p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl animate-fadeIn">
+            <div className="flex justify-between items-center p-5 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                <AlertTriangle size={20} className="text-red-500" />
                 {selectedClosure.title}
               </h3>
               <button
                 onClick={() => setSelectedClosure(null)}
-                className="p-1 hover:bg-gray-700 rounded-lg transition"
+                className="p-1 hover:bg-gray-100 rounded-lg transition"
               >
                 <X size={20} className="text-gray-400" />
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-5 space-y-4">
               {/* Date and Time */}
               <div className="flex flex-wrap gap-4 text-sm">
-                <div className="flex items-center gap-2 text-gray-300">
+                <div className="flex items-center gap-2 text-gray-600">
                   <Calendar size={16} className="text-gray-400" />
                   <span>{formatDate(selectedClosure.date)}</span>
                 </div>
-                <div className="flex items-center gap-2 text-gray-300">
+                <div className="flex items-center gap-2 text-gray-600">
                   <Clock size={16} className="text-gray-400" />
                   <span>{selectedClosure.startTime} - {selectedClosure.endTime}</span>
                 </div>
@@ -229,20 +229,20 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
               
               {/* Reason */}
               <div>
-                <p className="text-gray-300 text-sm whitespace-pre-wrap">
+                <p className="text-gray-600 text-sm whitespace-pre-wrap">
                   {selectedClosure.reason}
                 </p>
               </div>
               
               {/* Affected Areas */}
-              <div className="bg-gray-700 rounded-lg p-3">
-                <p className="text-xs text-gray-400 mb-2">Affected Areas:</p>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 mb-2 font-medium">Affected Areas:</p>
                 <div className="flex flex-wrap gap-1">
                   {selectedClosure.affectedAllRooms ? (
-                    <span className="text-sm text-red-300 font-medium">All Rooms</span>
+                    <span className="text-sm text-red-600 font-semibold">All Rooms</span>
                   ) : (
                     selectedClosure.affectedRooms?.map((room, idx) => (
-                      <span key={idx} className="text-xs bg-gray-600 text-gray-300 px-2 py-1 rounded">
+                      <span key={idx} className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full">
                         {room}
                       </span>
                     ))
@@ -257,13 +257,13 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
                     setSelectedClosure(null);
                     if (setView) setView("calendar");
                   }}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition text-sm"
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl transition text-sm font-medium shadow-sm hover:shadow-md"
                 >
                   View Calendar
                 </button>
                 <button
                   onClick={() => setSelectedClosure(null)}
-                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition text-sm"
+                  className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl transition text-sm font-medium"
                 >
                   Close
                 </button>
