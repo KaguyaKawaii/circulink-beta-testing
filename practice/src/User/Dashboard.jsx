@@ -6,7 +6,7 @@ import RoomAvailabilityModal from "./RoomAvailabilityModal";
 import PropTypes from 'prop-types';
 import ReportProblemModal from "./Modals/ReportProblemModal";
 import AnnouncementModal from "./Modals/AnnouncementModal";
-import UpcomingClosuresWidget from "./UpcomingClosuresWidget"; // ADD THIS IMPORT
+import UpcomingClosuresWidget from "./UpcomingClosuresWidget";
 
 // Helper functions (keep your existing ones)
 const formatPH = (date) => {
@@ -770,7 +770,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
         {/* RIGHT SIDEBAR */}
         <aside className="w-full xl:w-80 flex flex-col gap-4 sm:gap-6 min-w-0">
           
-          {/* ADDED: Upcoming Closures Widget */}
+          {/* Upcoming Closures Widget - Now with light theme */}
           <UpcomingClosuresWidget user={user} setView={setView} />
           
           {/* Calendar */}
