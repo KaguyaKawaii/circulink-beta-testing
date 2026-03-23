@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import moment from "moment-timezone";
 import CalendarModal from "./Modals/CalendarModal";
 
-// Define API base URL - adjust based on your environment
-const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+// ✅ Update this to match your backend URL
+const API_BASE_URL = "https://circulink-beta-testing.onrender.com";
 
 function Calendar() {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -19,7 +19,6 @@ function Calendar() {
 
   // Get current user ID from localStorage or context
   useEffect(() => {
-    // Assuming user data is stored in localStorage after login
     const userData = localStorage.getItem("user");
     if (userData) {
       try {
@@ -38,7 +37,7 @@ function Calendar() {
     try {
       const dateStr = selectedDate.toISOString().split("T")[0];
       const url = `${API_BASE_URL}/reservations/availability?date=${dateStr}`;
-      console.log("Fetching availability from:", url); // Debug log
+      console.log("Fetching availability from:", url);
       
       const res = await fetch(url);
 
@@ -74,8 +73,8 @@ function Calendar() {
 
     return {
       ...room,
-      occupied: approvedOccupied,
-      pending: visiblePending,
+      occupied: approvedOccupied, // Always show approved/ongoing
+      pending: visiblePending, // Only show user's own pending reservations
     };
   };
 
