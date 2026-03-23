@@ -1,7 +1,33 @@
 // src/Admin/AdminClosures.jsx
 import { useState, useEffect } from "react";
-import { Calendar, Clock, AlertTriangle, X, Edit, Trash2, RefreshCw } from "lucide-react";
+import { 
+  Calendar, 
+  Clock, 
+  AlertTriangle, 
+  X, 
+  Edit, 
+  Trash2, 
+  RefreshCw, 
+  Search, 
+  ChevronDown,
+  Plus,
+  Eye,
+  Home,
+  FileText,
+  BarChart3,
+  CheckCircle,
+  XCircle,
+  TrendingUp,
+  Users,
+  CalendarRange,
+  ChevronLeft,
+  ChevronRight,
+  Square,
+  CheckSquare,
+  Filter
+} from "lucide-react";
 import axios from "axios";
+import AdminNavigation from "./AdminNavigation";
 
 // Simple toast function
 const showToast = (message, type = "success") => {
@@ -14,9 +40,10 @@ const showToast = (message, type = "success") => {
   }
 };
 
-const AdminClosures = ({ setView, admin }) => {
+const AdminClosures = ({ setView, onLogout, admin }) => {
   const [closures, setClosures] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingClosure, setEditingClosure] = useState(null);
   const [formData, setFormData] = useState({
@@ -32,47 +59,113 @@ const AdminClosures = ({ setView, admin }) => {
   const [availableRooms, setAvailableRooms] = useState([]);
   const [conflictPreview, setConflictPreview] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-  const [filter, setFilter] = useState({ status: "Active", search: "" });
-  const [pagination, setPagination] = useState({ page: 1, totalPages: 1, totalCount: 0 });
+  const [filter, setFilter] = useState({ status: "All", search: "" });
+  const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0 });
+  const [itemsPerPage] = useState(20);
+  
+  // Selection State for bulk operations
+  const [selectedClosures, setSelectedClosures] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteResult, setDeleteResult] = useState({ show: false, message: "", isSuccess: false });
+  
+  // View Mode
+  const [viewMode, setViewMode] = useState("list");
+  
+  // Date Range Filter State
+  const [dateFilter, setDateFilter] = useState("all");
+  const [startDate, setStartDate] = useState(() => {
+    const date = new Date();
+    date.setDate(date.getDate() - 7);
+    return date;
+  });
+  const [endDate, setEndDate] = useState(new Date());
+  const [showDateRangePicker, setShowDateRangePicker] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || "";
+
+  const formatPHDateTime = (date) => {
+    if (!date) return "—";
+    try {
+      return new Date(date).toLocaleString("en-PH", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch (error) {
+      return "—";
+    }
+  };
+
+  const formatPHDate = (date) => {
+    if (!date) return "—";
+    try {
+      return new Date(date).toLocaleDateString("en-PH", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    } catch (error) {
+      return "—";
+    }
+  };
 
   // Fetch closures on mount
   useEffect(() => {
     fetchClosures();
     fetchRooms();
-  }, [filter, pagination.page]);
+  }, [filter, pagination.currentPage, dateFilter, startDate, endDate]);
 
-  // FIXED: Safe fetchClosures function with error handling
+  // Reset to first page when filters change
+  useEffect(() => {
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+  }, [filter, dateFilter, startDate, endDate]);
+
   const fetchClosures = async () => {
-    setLoading(true);
+    setIsLoading(true);
+    setFetchError(null);
     try {
+      // Build params for filtering
       const params = new URLSearchParams({
-        page: pagination.page,
-        limit: 20,
-        status: filter.status,
+        page: pagination.currentPage,
+        limit: itemsPerPage,
+        ...(filter.status !== "All" && { status: filter.status }),
         ...(filter.search && { search: filter.search })
       });
       
+      // Add date range filters
+      if (dateFilter === "today") {
+        const today = new Date().toISOString().split('T')[0];
+        params.append('date', today);
+      } else if (dateFilter === "range" && startDate && endDate) {
+        params.append('startDate', startDate.toISOString().split('T')[0]);
+        params.append('endDate', endDate.toISOString().split('T')[0]);
+      }
+      
       const response = await axios.get(`${API_URL}/api/closures?${params}`);
       
-      // Safe check for response structure
       if (response.data && response.data.success !== false) {
-        // Get closures array (could be empty)
         const closuresData = response.data.closures || [];
-        
-        // Safely get pagination data
         const paginationData = response.data.pagination || {};
         
         setClosures(closuresData);
         setPagination({
-          page: paginationData.page || pagination.page,
-          limit: paginationData.limit || 20,
-          totalCount: paginationData.totalCount || 0,
-          totalPages: paginationData.totalPages || 1
+          currentPage: paginationData.page || pagination.currentPage,
+          totalPages: paginationData.totalPages || 1,
+          totalCount: paginationData.totalCount || 0
         });
+        
+        // Clear selections when fetching new data
+        setSelectedClosures([]);
+        setSelectAll(false);
       } else {
-        // Handle error response
         console.error("Invalid response structure:", response.data);
         setClosures([]);
         setPagination(prev => ({
@@ -83,15 +176,10 @@ const AdminClosures = ({ setView, admin }) => {
       }
     } catch (error) {
       console.error("Error fetching closures:", error);
-      showToast("Failed to fetch closures", "error");
+      setFetchError(error.response?.data?.message || "Failed to fetch closures");
       setClosures([]);
-      setPagination(prev => ({
-        ...prev,
-        totalCount: 0,
-        totalPages: 1
-      }));
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -177,23 +265,136 @@ const AdminClosures = ({ setView, admin }) => {
     }
   };
 
-  const handleDelete = async (closure) => {
+  // Selection Handlers
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedClosures([]);
+    } else {
+      const filteredIds = paginatedClosures.map(closure => closure._id);
+      setSelectedClosures(filteredIds);
+    }
+    setSelectAll(!selectAll);
+  };
+
+  const handleSelectClosure = (closureId) => {
+    setSelectedClosures(prev => {
+      if (prev.includes(closureId)) {
+        const newSelected = prev.filter(id => id !== closureId);
+        setSelectAll(false);
+        return newSelected;
+      } else {
+        const newSelected = [...prev, closureId];
+        if (newSelected.length === paginatedClosures.length) {
+          setSelectAll(true);
+        }
+        return newSelected;
+      }
+    });
+  };
+
+  // Single Delete Handler
+  const handleDeleteClick = (closure) => {
+    setShowDeleteConfirm(closure);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!showDeleteConfirm) return;
+    
+    setIsDeleting(true);
+    
     try {
       const restoreReservations = window.confirm(
         "Do you want to restore the reservations that were cancelled due to this closure?"
       );
       
-      await axios.delete(`${API_URL}/api/closures/${closure._id}`, {
+      await axios.delete(`${API_URL}/api/closures/${showDeleteConfirm._id}`, {
         data: { restoreReservations }
       });
       
-      showToast("Closure deleted successfully", "success");
+      setDeleteResult({
+        show: true,
+        message: "Closure deleted successfully.",
+        isSuccess: true
+      });
+      
       fetchClosures();
       setShowDeleteConfirm(null);
     } catch (error) {
       console.error("Error deleting closure:", error);
-      showToast("Failed to delete closure", "error");
+      setDeleteResult({
+        show: true,
+        message: error.response?.data?.message || "Failed to delete closure",
+        isSuccess: false
+      });
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(null);
+  };
+
+  // Bulk Delete Handler
+  const handleBulkDeleteClick = () => {
+    if (selectedClosures.length === 0) {
+      setDeleteResult({
+        show: true,
+        message: "Please select at least one closure to delete.",
+        isSuccess: false
+      });
+      return;
+    }
+    setShowBulkDeleteConfirm(true);
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    if (selectedClosures.length === 0) return;
+    
+    setIsBulkDeleting(true);
+    
+    try {
+      const restoreReservations = window.confirm(
+        "Do you want to restore the reservations that were cancelled due to these closures?"
+      );
+      
+      const response = await axios.post(`${API_URL}/api/closures/bulk-delete`, {
+        closureIds: selectedClosures,
+        restoreReservations
+      });
+
+      if (response.data.success) {
+        setDeleteResult({
+          show: true,
+          message: `Successfully deleted ${response.data.count} closures.`,
+          isSuccess: true
+        });
+        
+        setSelectedClosures([]);
+        setSelectAll(false);
+        fetchClosures();
+      } else {
+        throw new Error(response.data.message || "Failed to delete closures");
+      }
+    } catch (error) {
+      console.error("Bulk delete error:", error);
+      setDeleteResult({
+        show: true,
+        message: error.response?.data?.message || "Failed to delete closures. Please try again.",
+        isSuccess: false
+      });
+    } finally {
+      setIsBulkDeleting(false);
+      setShowBulkDeleteConfirm(false);
+    }
+  };
+
+  const handleBulkDeleteCancel = () => {
+    setShowBulkDeleteConfirm(false);
+  };
+
+  const handleCloseResultModal = () => {
+    setDeleteResult({ show: false, message: "", isSuccess: false });
   };
 
   const formatTime = (time) => {
@@ -207,230 +408,770 @@ const AdminClosures = ({ setView, admin }) => {
   const getStatusBadge = (closure) => {
     const today = new Date().toISOString().split("T")[0];
     if (closure.date < today) {
-      return <span className="px-2 py-1 text-xs rounded-full bg-gray-600 text-white">Expired</span>;
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          Expired
+        </span>
+      );
     }
     if (closure.status === "Active") {
-      return <span className="px-2 py-1 text-xs rounded-full bg-green-600 text-white">Active</span>;
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          Active
+        </span>
+      );
     }
-    return <span className="px-2 py-1 text-xs rounded-full bg-red-600 text-white">{closure.status}</span>;
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+        {closure.status}
+      </span>
+    );
+  };
+
+  // Date Range Handlers
+  const handleApplyDateRange = () => {
+    setShowDateRangePicker(false);
+    setDateFilter("range");
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+  };
+
+  const handleClearDateRange = () => {
+    setDateFilter("all");
+    setStartDate(new Date(new Date().setDate(new Date().getDate() - 7)));
+    setEndDate(new Date());
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+  };
+
+  // Filter closures based on status, search, and date
+  const filteredClosures = closures.filter((closure) => {
+    const matchesStatus = filter.status === "All" || closure.status === filter.status;
+    const matchesSearch = 
+      closure.title?.toLowerCase().includes(filter.search.toLowerCase()) ||
+      closure.reason?.toLowerCase().includes(filter.search.toLowerCase());
+    
+    // Date filter logic
+    let matchesDate = true;
+    const closureDate = closure.date ? new Date(closure.date) : null;
+    
+    if (dateFilter === "today" && closureDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      matchesDate = closureDate >= today && closureDate < tomorrow;
+    } else if (dateFilter === "range" && closureDate && startDate && endDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      matchesDate = closureDate >= start && closureDate <= end;
+    }
+    
+    return matchesStatus && matchesSearch && matchesDate;
+  });
+
+  // Pagination logic
+  const indexOfLastItem = pagination.currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const paginatedClosures = filteredClosures.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredClosures.length / itemsPerPage);
+
+  // Pagination Handlers
+  const handlePageChange = (pageNumber) => {
+    setPagination(prev => ({ ...prev, currentPage: pageNumber }));
+    setSelectedClosures([]);
+    setSelectAll(false);
+  };
+
+  const handlePreviousPage = () => {
+    if (pagination.currentPage > 1) {
+      setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }));
+      setSelectedClosures([]);
+      setSelectAll(false);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (pagination.currentPage < totalPages) {
+      setPagination(prev => ({ ...prev, currentPage: prev.currentPage + 1 }));
+      setSelectedClosures([]);
+      setSelectAll(false);
+    }
+  };
+
+  // Stat Card Component
+  const StatCard = ({ title, value, icon, color, subtitle }) => (
+    <div className={`bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 ${color}`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-2xl font-bold text-gray-900">{value}</p>
+          <p className="text-gray-500 text-sm font-medium">{title}</p>
+          {subtitle && <p className="text-xs text-gray-400 mt-1">{subtitle}</p>}
+        </div>
+        <div className="p-3 rounded-xl bg-gray-100 text-gray-600">
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+
+  // Pagination Component
+  const Pagination = () => {
+    if (totalPages <= 1) return null;
+
+    const getVisiblePages = () => {
+      const delta = 2;
+      const range = [];
+      const rangeWithDots = [];
+      let l;
+
+      for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= pagination.currentPage - delta && i <= pagination.currentPage + delta)) {
+          range.push(i);
+        }
+      }
+
+      range.forEach((i) => {
+        if (l) {
+          if (i - l === 2) {
+            rangeWithDots.push(l + 1);
+          } else if (i - l !== 1) {
+            rangeWithDots.push('...');
+          }
+        }
+        rangeWithDots.push(i);
+        l = i;
+      });
+
+      return rangeWithDots;
+    };
+
+    const visiblePages = getVisiblePages();
+
+    return (
+      <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
+        <div className="flex flex-1 justify-between sm:hidden">
+          <button
+            onClick={handlePreviousPage}
+            disabled={pagination.currentPage === 1}
+            className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+          <button
+            onClick={handleNextPage}
+            disabled={pagination.currentPage === totalPages}
+            className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+        <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm text-gray-700">
+              Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to{' '}
+              <span className="font-medium">
+                {Math.min(indexOfLastItem, filteredClosures.length)}
+              </span>{' '}
+              of <span className="font-medium">{filteredClosures.length}</span> results
+            </p>
+          </div>
+          <div>
+            <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+              <button
+                onClick={handlePreviousPage}
+                disabled={pagination.currentPage === 1}
+                className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="sr-only">Previous</span>
+                <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+              </button>
+              {visiblePages.map((page, index) => (
+                <button
+                  key={index}
+                  onClick={() => page !== '...' && handlePageChange(page)}
+                  disabled={page === '...'}
+                  className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold ${
+                    page === pagination.currentPage
+                      ? 'z-10 bg-[#CC0000] text-white focus-visible:outline focus-visible:outline-offset-2 focus-visible:outline-[#CC0000]'
+                      : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0'
+                  } ${page === '...' ? 'cursor-default' : 'cursor-pointer'}`}
+                >
+                  {page}
+                </button>
+              ))}
+              <button
+                onClick={handleNextPage}
+                disabled={pagination.currentPage === totalPages}
+                className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className="sr-only">Next</span>
+                <ChevronRight className="h-5 w-5" aria-hidden="true" />
+              </button>
+            </nav>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
-    <div className="p-6 bg-gray-900 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+    <>
+      <AdminNavigation setView={setView} currentView="adminClosures" onLogout={onLogout} />
+      <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50 relative z-10">
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Facility Closures</h1>
-            <p className="text-gray-400 mt-1">Manage closures for university events and facility maintenance</p>
-          </div>
-          <button
-            onClick={() => {
-              setEditingClosure(null);
-              setFormData({
-                title: "",
-                reason: "",
-                date: "",
-                startTime: "",
-                endTime: "",
-                affectedAllRooms: false,
-                affectedRooms: [],
-                location: "All Floors"
-              });
-              setShowModal(true);
-            }}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
-          >
-            <Calendar size={18} />
-            Create Closure
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-gray-800 rounded-lg p-4 mb-6">
-          <div className="flex flex-wrap gap-4">
-            <div className="flex-1 min-w-[200px]">
-              <label className="block text-sm text-gray-400 mb-1">Search</label>
-              <input
-                type="text"
-                placeholder="Search by title, reason..."
-                value={filter.search}
-                onChange={(e) => setFilter(prev => ({ ...prev, search: e.target.value }))}
-                className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-red-500"
-              />
-            </div>
+        <header className="bg-white px-6 py-4 border-b border-gray-200 z-20">
+          <div className="flex justify-between items-center">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Status</label>
-              <select
-                value={filter.status}
-                onChange={(e) => setFilter(prev => ({ ...prev, status: e.target.value }))}
-                className="bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-red-500"
-              >
-                <option value="Active">Active</option>
-                <option value="Expired">Expired</option>
-                <option value="All">All</option>
-              </select>
+              <h1 className="text-2xl font-bold text-[#CC0000]">
+                Facility Closures
+              </h1>
+              <p className="text-gray-600">
+                Manage closures for university events and facility maintenance
+              </p>
             </div>
-            <div className="flex items-end">
+            <div className="flex items-center space-x-4">
+              <span className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
+                {new Date().toLocaleDateString("en-US", {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </span>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <div className="p-6">
+          {/* Error Display */}
+          {fetchError && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center">
+                <AlertTriangle className="text-red-500 mr-2" size={20} />
+                <p className="text-red-700">Error loading closures: {fetchError}</p>
+              </div>
               <button
                 onClick={fetchClosures}
-                className="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+                className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
               >
-                <RefreshCw size={16} />
-                Refresh
+                Try Again
               </button>
             </div>
-          </div>
-        </div>
+          )}
 
-        {/* Closures List */}
-        <div className="bg-gray-800 rounded-lg overflow-hidden">
-          {loading ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
-            </div>
-          ) : closures.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">
-              <Calendar size={48} className="mx-auto mb-3 opacity-50" />
-              <p>No closures found</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-700">
-              {closures.map((closure) => (
-                <div key={closure._id} className="p-4 hover:bg-gray-750 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-lg font-semibold text-white">{closure.title}</h3>
-                        {getStatusBadge(closure)}
-                      </div>
-                      <p className="text-gray-400 text-sm mb-2">{closure.reason}</p>
-                      <div className="flex flex-wrap gap-4 text-sm text-gray-400">
-                        <div className="flex items-center gap-1">
-                          <Calendar size={14} />
-                          <span>{new Date(closure.date).toLocaleDateString()}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock size={14} />
-                          <span>{formatTime(closure.startTime)} - {formatTime(closure.endTime)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <AlertTriangle size={14} />
-                          <span>
-                            {closure.affectedAllRooms ? "All Rooms" : `${closure.affectedRooms.length} room(s)`}
-                          </span>
+          {/* View Mode Toggle */}
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
+            <div className="flex flex-col md:flex-row md:items-center gap-4">
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setViewMode("list")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    viewMode === "list" 
+                      ? "bg-[#CC0000] text-white" 
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  <FileText size={16} className="inline mr-2" />
+                  List View
+                </button>
+                <button
+                  onClick={() => setViewMode("stats")}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                    viewMode === "stats" 
+                      ? "bg-[#CC0000] text-white" 
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  <BarChart3 size={16} className="inline mr-2" />
+                  Statistics
+                </button>
+              </div>
+
+              {/* Date Filters */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setDateFilter("all")}
+                  className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    dateFilter === "all" 
+                      ? "bg-blue-600 text-white" 
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  All Closures
+                </button>
+                <button
+                  onClick={() => setDateFilter("today")}
+                  className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
+                    dateFilter === "today" 
+                      ? "bg-blue-600 text-white" 
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  Today's Closures
+                </button>
+                <div className="relative">
+                  <button
+                    onClick={() => setShowDateRangePicker(!showDateRangePicker)}
+                    className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
+                      dateFilter === "range" 
+                        ? "bg-blue-600 text-white" 
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    <CalendarRange size={14} />
+                    <span>Date Range</span>
+                  </button>
+                  
+                  {/* Date Range Picker Dropdown */}
+                  {showDateRangePicker && (
+                    <div className="absolute right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50 w-80">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            Start Date
+                          </label>
+                          <input
+                            type="date"
+                            value={startDate.toISOString().split('T')[0]}
+                            onChange={(e) => setStartDate(new Date(e.target.value))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          />
                         </div>
                         <div>
-                          <span className="text-yellow-500">
-                            {closure.affectedReservations?.length || 0} reservations affected
-                          </span>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">
+                            End Date
+                          </label>
+                          <input
+                            type="date"
+                            value={endDate.toISOString().split('T')[0]}
+                            onChange={(e) => setEndDate(new Date(e.target.value))}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                          />
                         </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleApplyDateRange}
+                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                          >
+                            Apply
+                          </button>
+                          <button
+                            onClick={() => setShowDateRangePicker(false)}
+                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        {dateFilter === "range" && (
+                          <button
+                            onClick={handleClearDateRange}
+                            className="w-full px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            Clear Range
+                          </button>
+                        )}
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => {
-                          setEditingClosure(closure);
-                          setFormData({
-                            title: closure.title,
-                            reason: closure.reason,
-                            date: closure.date,
-                            startTime: closure.startTime,
-                            endTime: closure.endTime,
-                            affectedAllRooms: closure.affectedAllRooms,
-                            affectedRooms: closure.affectedRooms,
-                            location: closure.location
-                          });
-                          setShowModal(true);
-                        }}
-                        className="p-2 hover:bg-gray-700 rounded-lg text-blue-400"
-                      >
-                        <Edit size={18} />
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(closure)}
-                        className="p-2 hover:bg-gray-700 rounded-lg text-red-400"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Search */}
+              <div className="relative flex-1">
+                <Search
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  size={18}
+                />
+                <input
+                  type="text"
+                  value={filter.search}
+                  onChange={(e) => setFilter(prev => ({ ...prev, search: e.target.value }))}
+                  placeholder="Search by title, reason..."
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-red-600 outline-0"
+                />
+                {filter.search && (
+                  <button
+                    onClick={() => setFilter(prev => ({ ...prev, search: "" }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
+              {/* Status filter */}
+              <div className="relative">
+                <select
+                  value={filter.status}
+                  onChange={(e) => setFilter(prev => ({ ...prev, status: e.target.value }))}
+                  className="appearance-none pl-4 pr-8 py-2 border outline-0 border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-red-600 cursor-pointer"
+                >
+                  <option value="All">All Status</option>
+                  <option value="Active">Active</option>
+                  <option value="Expired">Expired</option>
+                </select>
+                <ChevronDown
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                  size={16}
+                />
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setEditingClosure(null);
+                    setFormData({
+                      title: "",
+                      reason: "",
+                      date: "",
+                      startTime: "",
+                      endTime: "",
+                      affectedAllRooms: false,
+                      affectedRooms: [],
+                      location: "All Floors"
+                    });
+                    setShowModal(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
+                >
+                  <Plus size={16} />
+                  <span>Create Closure</span>
+                </button>
+                <button
+                  onClick={fetchClosures}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+                >
+                  <RefreshCw size={16} />
+                  <span>Refresh</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Bulk Actions Row */}
+            <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSelectAll}
+                  className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer text-sm"
+                >
+                  {selectAll ? <Square size={16} /> : <CheckSquare size={16} />}
+                  <span>{selectAll ? "Deselect All" : "Select All"}</span>
+                </button>
+                <span className="text-sm text-gray-600">
+                  {selectedClosures.length} closure{selectedClosures.length !== 1 ? 's' : ''} selected
+                </span>
+              </div>
+
+              {selectedClosures.length > 0 && (
+                <button
+                  onClick={handleBulkDeleteClick}
+                  className="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer text-sm"
+                >
+                  <Trash2 size={16} />
+                  <span>Delete Selected</span>
+                </button>
+              )}
+            </div>
+
+            {/* Active Filters Display */}
+            {dateFilter !== "all" && (
+              <div className="mt-4 flex items-center gap-2">
+                <div className="flex items-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-sm">
+                  <CalendarIcon size={14} className="mr-1" />
+                  {dateFilter === "today" ? (
+                    <span>Showing today's closures only</span>
+                  ) : (
+                    <span>
+                      Showing closures from {formatPHDate(startDate)} to {formatPHDate(endDate)}
+                    </span>
+                  )}
+                  <button
+                    onClick={handleClearDateRange}
+                    className="ml-2 hover:text-blue-900"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* STATISTICS VIEW */}
+          {viewMode === "stats" ? (
+            <div className="space-y-6">
+              {/* Statistics Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <StatCard
+                  title="Total Closures"
+                  value={filteredClosures.length}
+                  icon={<Calendar size={24} />}
+                  color="border-l-4 border-l-blue-500"
+                />
+                <StatCard
+                  title="Active Closures"
+                  value={filteredClosures.filter(c => c.status === "Active").length}
+                  icon={<CheckCircle size={24} />}
+                  color="border-l-4 border-l-green-500"
+                  subtitle="Currently in effect"
+                />
+                <StatCard
+                  title="Expired Closures"
+                  value={filteredClosures.filter(c => c.status === "Expired").length}
+                  icon={<XCircle size={24} />}
+                  color="border-l-4 border-l-gray-500"
+                  subtitle="Past closures"
+                />
+                <StatCard
+                  title="Total Affected Reservations"
+                  value={filteredClosures.reduce((sum, c) => sum + (c.affectedReservations?.length || 0), 0)}
+                  icon={<Users size={24} />}
+                  color="border-l-4 border-l-red-500"
+                  subtitle="Reservations cancelled"
+                />
+              </div>
+
+              {/* Additional Stats */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+                    <Home className="mr-2 text-blue-600" size={20} />
+                    Closures by Type
+                  </h2>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                      <span className="text-gray-700">All Rooms Closures</span>
+                      <span className="font-semibold text-lg text-blue-600">
+                        {filteredClosures.filter(c => c.affectedAllRooms).length}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                      <span className="text-gray-700">Specific Rooms Closures</span>
+                      <span className="font-semibold text-lg text-green-600">
+                        {filteredClosures.filter(c => !c.affectedAllRooms).length}
+                      </span>
                     </div>
                   </div>
                 </div>
-              ))}
+
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                  <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
+                    <TrendingUp className="mr-2 text-green-600" size={20} />
+                    Impact Summary
+                  </h2>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                      <span className="text-gray-700">Total Affected Reservations</span>
+                      <span className="font-semibold text-lg text-red-600">
+                        {filteredClosures.reduce((sum, c) => sum + (c.affectedReservations?.length || 0), 0)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                      <span className="text-gray-700">Average Affected per Closure</span>
+                      <span className="font-semibold text-lg text-purple-600">
+                        {filteredClosures.length > 0 
+                          ? Math.round(filteredClosures.reduce((sum, c) => sum + (c.affectedReservations?.length || 0), 0) / filteredClosures.length)
+                          : 0}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* LIST VIEW */
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 text-gray-700 border-b border-gray-200">
+                    <tr>
+                      <th className="px-6 py-3 text-left font-medium w-10">
+                        <button
+                          onClick={handleSelectAll}
+                          className="text-gray-600 hover:text-gray-800"
+                        >
+                          {selectAll ? <CheckSquare size={18} /> : <Square size={18} />}
+                        </button>
+                      </th>
+                      <th className="px-6 py-3 text-left font-medium">#</th>
+                      <th className="px-6 py-3 text-left font-medium">Title</th>
+                      <th className="px-6 py-3 text-left font-medium">Date</th>
+                      <th className="px-6 py-3 text-left font-medium">Time</th>
+                      <th className="px-6 py-3 text-left font-medium">Affected Rooms</th>
+                      <th className="px-6 py-3 text-left font-medium">Status</th>
+                      <th className="px-6 py-3 text-left font-medium">Affected Reservations</th>
+                      <th className="px-6 py-3 text-center font-medium">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {isLoading ? (
+                      <tr>
+                        <td colSpan={9} className="px-6 py-4 text-center text-gray-500 font-bold">
+                          Loading closures...
+                        </td>
+                      </tr>
+                    ) : paginatedClosures.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
+                          No closures found
+                        </td>
+                      </tr>
+                    ) : (
+                      paginatedClosures.map((closure, i) => {
+                        return (
+                          <tr key={closure._id} className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <button
+                                onClick={() => handleSelectClosure(closure._id)}
+                                className="text-gray-600 hover:text-gray-800"
+                              >
+                                {selectedClosures.includes(closure._id) ? (
+                                  <CheckSquare size={18} className="text-[#CC0000]" />
+                                ) : (
+                                  <Square size={18} />
+                                )}
+                              </button>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">{indexOfFirstItem + i + 1}</td>
+                            <td className="px-6 py-4">
+                              <div className="font-medium text-gray-900">{closure.title}</div>
+                              <div className="text-gray-500 text-xs line-clamp-1">{closure.reason}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {new Date(closure.date).toLocaleDateString("en-PH", {
+                                year: "numeric",
+                                month: "long",
+                                day: "numeric",
+                              })}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {formatTime(closure.startTime)} — {formatTime(closure.endTime)}
+                            </td>
+                            <td className="px-6 py-4">
+                              {closure.affectedAllRooms ? (
+                                <span className="text-blue-600 font-medium">All Rooms</span>
+                              ) : (
+                                <div className="flex flex-wrap gap-1">
+                                  <span className="text-gray-700">
+                                    {closure.affectedRooms?.length || 0} room(s)
+                                  </span>
+                                  <button
+                                    onClick={() => {
+                                      const roomList = closure.affectedRooms?.join(", ") || "None";
+                                      alert(`Affected Rooms:\n${roomList}`);
+                                    }}
+                                    className="text-xs text-blue-500 hover:text-blue-700"
+                                  >
+                                    View
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {getStatusBadge(closure)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                (closure.affectedReservations?.length || 0) > 0
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-gray-100 text-gray-800"
+                              }`}>
+                                {closure.affectedReservations?.length || 0} cancelled
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right">
+                              <div className="flex justify-end space-x-2">
+                                <button
+                                  onClick={() => {
+                                    setEditingClosure(closure);
+                                    setFormData({
+                                      title: closure.title,
+                                      reason: closure.reason,
+                                      date: closure.date,
+                                      startTime: closure.startTime,
+                                      endTime: closure.endTime,
+                                      affectedAllRooms: closure.affectedAllRooms,
+                                      affectedRooms: closure.affectedRooms || [],
+                                      location: closure.location || "All Floors"
+                                    });
+                                    setShowModal(true);
+                                  }}
+                                  className="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition-colors cursor-pointer"
+                                  title="Edit Closure"
+                                >
+                                  <Edit size={18} />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClick(closure)}
+                                  className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={18} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* Pagination */}
+              {filteredClosures.length > 0 && <Pagination />}
             </div>
           )}
         </div>
+      </main>
 
-        {/* Pagination - Only show if totalPages > 1 */}
-        {pagination.totalPages > 1 && (
-          <div className="flex justify-center gap-2 mt-6">
-            <button
-              onClick={() => setPagination(prev => ({ ...prev, page: Math.max(1, prev.page - 1) }))}
-              disabled={pagination.page === 1}
-              className="px-3 py-1 bg-gray-700 rounded-lg disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <span className="px-3 py-1 text-white">
-              Page {pagination.page} of {pagination.totalPages}
-            </span>
-            <button
-              onClick={() => setPagination(prev => ({ ...prev, page: Math.min(prev.totalPages, prev.page + 1) }))}
-              disabled={pagination.page === pagination.totalPages}
-              className="px-3 py-1 bg-gray-700 rounded-lg disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Create/Edit Modal - Keep as is */}
+      {/* Create/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-white">
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+              <h2 className="text-xl font-bold text-gray-900">
                 {editingClosure ? "Edit Closure" : "Create Facility Closure"}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="p-1 hover:bg-gray-700 rounded-lg"
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <X size={20} />
+                <X size={20} className="text-gray-500" />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-4 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Title *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
                 <input
                   type="text"
                   name="title"
                   value={formData.title}
                   onChange={handleInputChange}
                   required
-                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-red-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
                   placeholder="e.g., University Foundation Day"
                 />
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Reason *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
                 <textarea
                   name="reason"
                   value={formData.reason}
                   onChange={handleInputChange}
                   required
                   rows={3}
-                  className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-red-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
                   placeholder="Explain why the facility is closed..."
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Date *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
                   <input
                     type="date"
                     name="date"
@@ -438,29 +1179,29 @@ const AdminClosures = ({ setView, admin }) => {
                     onChange={handleInputChange}
                     required
                     min={new Date().toISOString().split("T")[0]}
-                    className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-red-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">Start Time *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
                   <input
                     type="time"
                     name="startTime"
                     value={formData.startTime}
                     onChange={handleInputChange}
                     required
-                    className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-red-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">End Time *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
                   <input
                     type="time"
                     name="endTime"
                     value={formData.endTime}
                     onChange={handleInputChange}
                     required
-                    className="w-full bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:outline-none focus:border-red-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
                   />
                 </div>
               </div>
@@ -472,22 +1213,22 @@ const AdminClosures = ({ setView, admin }) => {
                     name="affectedAllRooms"
                     checked={formData.affectedAllRooms}
                     onChange={handleInputChange}
-                    className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-red-600 focus:ring-red-500"
+                    className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
                   />
-                  <span className="text-white">Affect all rooms</span>
+                  <span className="text-gray-700">Affect all rooms</span>
                 </label>
 
                 {!formData.affectedAllRooms && (
                   <div>
-                    <label className="block text-sm text-gray-400 mb-2">Affected Rooms</label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-2 border border-gray-700 rounded-lg">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Affected Rooms</label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-3 border border-gray-200 rounded-lg bg-gray-50">
                       {availableRooms.map((room) => (
-                        <label key={room._id} className="flex items-center gap-2 text-white text-sm">
+                        <label key={room._id} className="flex items-center gap-2 text-gray-700 text-sm">
                           <input
                             type="checkbox"
                             checked={formData.affectedRooms.includes(room.room)}
                             onChange={() => handleRoomSelection(room.room)}
-                            className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-red-600"
+                            className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
                           />
                           <span>{room.room} ({room.floor})</span>
                         </label>
@@ -497,17 +1238,17 @@ const AdminClosures = ({ setView, admin }) => {
                 )}
               </div>
 
-              <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
                 <button
                   type="button"
                   onClick={handlePreviewConflicts}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white"
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
                 >
                   Preview Conflicts
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-white"
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
                 >
                   {editingClosure ? "Update Closure" : "Create Closure"}
                 </button>
@@ -517,34 +1258,146 @@ const AdminClosures = ({ setView, admin }) => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Single Delete Confirmation Modal */}
       {showDeleteConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-xl max-w-md w-full p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <AlertTriangle size={24} className="text-yellow-500" />
-              <h3 className="text-xl font-bold text-white">Delete Closure</h3>
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                <Trash2 className="text-red-600" size={20} />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Delete Closure</h3>
             </div>
-            <p className="text-gray-300 mb-2">
+            <p className="text-gray-600 mb-2">
               Are you sure you want to delete "{showDeleteConfirm.title}"?
             </p>
-            <p className="text-gray-400 text-sm mb-4">
+            <p className="text-gray-500 text-sm mb-4">
               This closure affected {showDeleteConfirm.affectedReservations?.length || 0} reservations.
-              {showDeleteConfirm.affectedReservations?.length > 0 && " You will have the option to restore them."}
+              You will have the option to restore them.
             </p>
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end space-x-3">
               <button
-                onClick={() => setShowDeleteConfirm(null)}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
+                onClick={handleDeleteCancel}
+                disabled={isDeleting}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
               >
                 Cancel
               </button>
               <button
-                onClick={() => handleDelete(showDeleteConfirm)}
-                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg"
+                onClick={handleDeleteConfirm}
+                disabled={isDeleting}
+                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
               >
-                Delete
+                {isDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete'
+                )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
+                <AlertTriangle className="text-red-600" size={20} />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Delete Multiple Closures
+              </h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete {selectedClosures.length} selected closure{selectedClosures.length !== 1 ? 's' : ''}? 
+              You will have the option to restore affected reservations.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={handleBulkDeleteCancel}
+                disabled={isBulkDeleting}
+                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDeleteConfirm}
+                disabled={isBulkDeleting}
+                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
+              >
+                {isBulkDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Deleting...
+                  </>
+                ) : (
+                  'Delete All'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Result Modal */}
+      {deleteResult.show && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
+            <div className="flex items-center mb-4">
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${
+                deleteResult.isSuccess ? "bg-green-100" : "bg-red-100"
+              }`}>
+                {deleteResult.isSuccess ? (
+                  <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {deleteResult.isSuccess ? "Success" : "Error"}
+              </h3>
+            </div>
+            <p className="text-gray-600 mb-6">{deleteResult.message}</p>
+            <div className="flex justify-end">
+              <button
+                onClick={handleCloseResultModal}
+                className={`px-4 py-2 text-white rounded-lg transition-colors cursor-pointer ${
+                  deleteResult.isSuccess 
+                    ? "bg-green-600 hover:bg-green-700" 
+                    : "bg-red-600 hover:bg-red-700"
+                }`}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Overlay for Delete Operations */}
+      {(isDeleting || isBulkDeleting) && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
+            <div className="flex flex-col items-center justify-center">
+              <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                {isBulkDeleting ? 'Deleting Closures' : 'Deleting Closure'}
+              </h3>
+              <p className="text-gray-600 text-center">
+                {isBulkDeleting 
+                  ? `Please wait while we delete ${selectedClosures.length} closures...`
+                  : 'Please wait while we delete the closure...'}
+              </p>
             </div>
           </div>
         </div>
@@ -552,36 +1405,38 @@ const AdminClosures = ({ setView, admin }) => {
 
       {/* Conflict Preview Modal */}
       {conflictPreview && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-4 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-white">Conflict Preview</h3>
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-900">Conflict Preview</h3>
               <button
                 onClick={() => setConflictPreview(null)}
-                className="p-1 hover:bg-gray-700 rounded-lg"
+                className="p-1 hover:bg-gray-100 rounded-lg"
               >
-                <X size={20} />
+                <X size={20} className="text-gray-500" />
               </button>
             </div>
-            <div className="p-4">
-              <p className="text-yellow-500 mb-4">
-                ⚠️ This closure will affect {conflictPreview.affectedCount} reservation(s):
-              </p>
+            <div className="p-6">
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+                <p className="text-yellow-800">
+                  ⚠️ This closure will affect {conflictPreview.affectedCount} reservation(s):
+                </p>
+              </div>
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {conflictPreview.reservations?.map((res, idx) => (
-                  <div key={idx} className="bg-gray-700 p-3 rounded-lg">
-                    <p className="font-semibold text-white">{res.roomName}</p>
-                    <p className="text-sm text-gray-300">
+                  <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <p className="font-semibold text-gray-900">{res.roomName}</p>
+                    <p className="text-sm text-gray-600">
                       {res.userName} - {res.date} {res.startTime}-{res.endTime}
                     </p>
-                    <p className="text-xs text-gray-400">Status: {res.status}</p>
+                    <p className="text-xs text-gray-500">Status: {res.status}</p>
                   </div>
                 ))}
               </div>
               <div className="flex justify-end mt-4">
                 <button
                   onClick={() => setConflictPreview(null)}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg"
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   Close
                 </button>
@@ -590,7 +1445,7 @@ const AdminClosures = ({ setView, admin }) => {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 
