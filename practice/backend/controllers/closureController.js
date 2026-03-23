@@ -9,12 +9,17 @@ import sendEmail from "../utils/sendEmail.js";
 import logAction from "../utils/logAction.js";
 import generateReservationEmail from "../utils/generateReservationEmail.js";
 
-/* ------------------------------------------------
-   ✅ CREATE CLOSURE WITH CONFLICT DETECTION
------------------------------------------------- */
-// In closureController.js, update the createClosure function
+// Helper: Convert time string to minutes
+function timeToMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+}
 
-export const createClosure = async (req, res) => {
+/* ------------------------------------------------
+   ✅ PREVIEW CLOSURE CONFLICTS (NEW ENDPOINT)
+------------------------------------------------ */
+export const previewClosureConflicts = async (req, res) => {
   try {
     const {
       title,
@@ -27,17 +32,108 @@ export const createClosure = async (req, res) => {
       location
     } = req.body;
 
-    // Remove the admin requirement - use a default admin or system user
-    // If you have a system admin user, you can fetch it, or use a default value
-    let admin = null;
-    
-    // Try to find a system admin user if needed
-    try {
-      const Admin = mongoose.model("Admin");
-      admin = await Admin.findOne({ role: "admin" });
-    } catch (err) {
-      console.log("No admin found, using default values");
+    console.log("📝 Previewing closure conflicts:", { date, startTime, endTime, affectedAllRooms, affectedRoomsCount: affectedRooms?.length });
+
+    // Validate required fields
+    if (!date || !startTime || !endTime) {
+      return res.status(400).json({
+        success: false,
+        message: "Date, startTime, and endTime are required"
+      });
     }
+
+    // Validate time range
+    if (startTime >= endTime) {
+      return res.status(400).json({
+        success: false,
+        message: "End time must be after start time"
+      });
+    }
+
+    // Find conflicting reservations
+    const conflictQuery = {
+      date: date,
+      status: { $in: ["Pending", "Approved", "Ongoing"] }
+    };
+
+    // Build room filter
+    if (!affectedAllRooms && affectedRooms && affectedRooms.length > 0) {
+      conflictQuery.roomName = { $in: affectedRooms };
+    }
+
+    const conflictingReservations = await Reservation.find(conflictQuery)
+      .populate("userId", "name email id_number");
+
+    // Filter by time overlap
+    const affectedReservationsList = [];
+    const startTimeMinutes = timeToMinutes(startTime);
+    const endTimeMinutes = timeToMinutes(endTime);
+
+    for (const reservation of conflictingReservations) {
+      // Get start and end times from reservation
+      let resStartTime, resEndTime;
+      
+      if (reservation.datetime && reservation.endDatetime) {
+        resStartTime = new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        resEndTime = new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      } else if (reservation.time && reservation.endTime) {
+        resStartTime = reservation.time;
+        resEndTime = reservation.endTime;
+      } else {
+        continue; // Skip if no time data
+      }
+      
+      const resStartMinutes = timeToMinutes(resStartTime);
+      const resEndMinutes = timeToMinutes(resEndTime);
+
+      const overlap = (resStartMinutes < endTimeMinutes && resEndMinutes > startTimeMinutes);
+      
+      if (overlap) {
+        affectedReservationsList.push({
+          reservationId: reservation._id,
+          userName: reservation.userId?.name || "Unknown User",
+          roomName: reservation.roomName,
+          date: reservation.date,
+          startTime: resStartTime,
+          endTime: resEndTime,
+          status: reservation.status
+        });
+      }
+    }
+
+    console.log(`Found ${affectedReservationsList.length} conflicting reservations`);
+
+    res.json({
+      success: true,
+      affectedCount: affectedReservationsList.length,
+      reservations: affectedReservationsList
+    });
+
+  } catch (err) {
+    console.error("❌ Error previewing conflicts:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to preview conflicts",
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+  }
+};
+
+/* ------------------------------------------------
+   ✅ CREATE CLOSURE WITH CONFLICT DETECTION (FIXED)
+------------------------------------------------ */
+export const createClosure = async (req, res) => {
+  try {
+    const {
+      title,
+      reason,
+      date,
+      startTime,
+      endTime,
+      affectedRooms,
+      affectedAllRooms,
+      location
+    } = req.body;
 
     console.log("=".repeat(50));
     console.log("📝 CREATING CLOSURE");
@@ -108,14 +204,23 @@ export const createClosure = async (req, res) => {
       .populate("userId", "name email id_number");
 
     // Filter by time overlap
-    const affectedReservations = [];
+    const affectedReservationsList = [];
     const startTimeMinutes = timeToMinutes(startTime);
     const endTimeMinutes = timeToMinutes(endTime);
 
     for (const reservation of conflictingReservations) {
-      const resStartTime = reservation.time || 
-        new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-      const resEndTime = new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      // Get start and end times from reservation
+      let resStartTime, resEndTime;
+      
+      if (reservation.datetime && reservation.endDatetime) {
+        resStartTime = new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+        resEndTime = new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      } else if (reservation.time && reservation.endTime) {
+        resStartTime = reservation.time;
+        resEndTime = reservation.endTime;
+      } else {
+        continue;
+      }
       
       const resStartMinutes = timeToMinutes(resStartTime);
       const resEndMinutes = timeToMinutes(resEndTime);
@@ -123,9 +228,10 @@ export const createClosure = async (req, res) => {
       const overlap = (resStartMinutes < endTimeMinutes && resEndMinutes > startTimeMinutes);
       
       if (overlap) {
-        affectedReservations.push({
+        affectedReservationsList.push({
           reservationId: reservation._id,
-          userId: reservation.userId._id,
+          userId: reservation.userId?._id,
+          user: reservation.userId,
           roomName: reservation.roomName,
           date: reservation.date,
           startTime: resStartTime,
@@ -135,42 +241,51 @@ export const createClosure = async (req, res) => {
       }
     }
 
-    console.log(`Found ${affectedReservations.length} conflicting reservations`);
+    console.log(`Found ${affectedReservationsList.length} conflicting reservations`);
 
-    // Create the closure - use admin._id if exists, otherwise use null
+    // Try to find an admin user
+    let admin = null;
+    try {
+      admin = await Admin.findOne({});
+    } catch (err) {
+      console.log("No admin found, using default values");
+    }
+
+    // Create the closure
     const closure = await Closure.create({
       title,
       reason,
       date,
       startTime,
       endTime,
-      affectedRooms: affectedAllRooms ? [] : affectedRooms,
+      affectedRooms: affectedAllRooms ? [] : (affectedRooms || []),
       affectedAllRooms: affectedAllRooms || false,
       location: location || (affectedAllRooms ? "All Floors" : "Custom"),
       createdBy: admin?._id || null,
       createdByAdminName: admin?.name || "System Admin",
-      affectedReservations: affectedReservations.map(r => ({
+      affectedReservations: affectedReservationsList.map(r => ({
         reservationId: r.reservationId,
         userId: r.userId,
         roomName: r.roomName,
         date: r.date,
         startTime: r.startTime,
         endTime: r.endTime
-      }))
+      })),
+      status: "Active"
     });
 
     // Process each conflicting reservation
     const processedReservations = [];
     const failedReservations = [];
 
-    for (const conflict of affectedReservations) {
+    for (const conflict of affectedReservationsList) {
       try {
         const reservation = conflict.reservationData;
         
         const updatedReservation = await Reservation.findByIdAndUpdate(
           reservation._id,
           {
-            status: "Cancelled_Admin",
+            status: "Cancelled",
             cancellationReason: `Cancelled due to facility closure: ${title} - ${reason}`,
             cancelledBy: "Admin",
             cancelledAt: new Date()
@@ -181,62 +296,29 @@ export const createClosure = async (req, res) => {
         if (updatedReservation) {
           processedReservations.push(updatedReservation);
           
-          // Create notification for user (skip if notification service not available)
+          // Send email notification if user has email
           try {
-            if (typeof notificationService.createNotification === 'function') {
-              await notificationService.createNotification(
-                {
-                  userId: reservation.userId._id,
-                  reservationId: reservation._id,
-                  type: "reservation",
-                  status: "cancelled_admin",
-                  targetRole: "user",
-                  roomName: reservation.roomName,
-                  date: reservation.date,
-                  startTime: conflict.startTime,
-                  endTime: conflict.endTime,
-                  message: `Your reservation for ${reservation.roomName} on ${reservation.date} has been cancelled due to a facility closure: ${title}. Reason: ${reason}`
-                },
-                req.app.get("io")
-              );
-            }
-          } catch (notifError) {
-            console.warn("Notification error:", notifError.message);
-          }
-
-          // Send email notification
-          try {
-            if (reservation.userId.email) {
+            if (updatedReservation.userId?.email) {
               await sendEmail({
-                to: reservation.userId.email,
+                to: updatedReservation.userId.email,
                 subject: "Reservation Cancelled Due to Facility Closure",
-                html: generateReservationEmail({
-                  status: "Cancelled_Admin",
-                  toName: reservation.userId.name,
-                  reservation: updatedReservation,
-                  formattedDate: reservation.date,
-                  time: `${conflict.startTime} - ${conflict.endTime}`,
-                  participants: reservation.participants,
-                  extraNote: `Your reservation was cancelled due to a facility closure: ${title}. Reason: ${reason}`
-                })
+                html: `
+                  <h2>Reservation Cancelled</h2>
+                  <p>Dear ${updatedReservation.userId.name || "User"},</p>
+                  <p>Your reservation has been cancelled due to a facility closure:</p>
+                  <ul>
+                    <li><strong>Room:</strong> ${updatedReservation.roomName}</li>
+                    <li><strong>Date:</strong> ${updatedReservation.date}</li>
+                    <li><strong>Time:</strong> ${conflict.startTime} - ${conflict.endTime}</li>
+                    <li><strong>Closure:</strong> ${title}</li>
+                    <li><strong>Reason:</strong> ${reason}</li>
+                  </ul>
+                  <p>We apologize for any inconvenience.</p>
+                `
               });
             }
           } catch (emailError) {
             console.warn("⚠️ Failed to send cancellation email:", emailError.message);
-          }
-
-          // Log the action (skip if logAction not available)
-          try {
-            await logAction(
-              reservation.userId._id,
-              reservation.userId.id_number,
-              reservation.userId.name,
-              "Reservation Cancelled (Admin Closure)",
-              `Reservation for ${reservation.roomName} on ${reservation.date} cancelled due to closure: ${title}`,
-              req.headers['user-agent'] || ''
-            );
-          } catch (logError) {
-            console.warn("Log error:", logError.message);
           }
         }
       } catch (err) {
@@ -246,37 +328,6 @@ export const createClosure = async (req, res) => {
           error: err.message
         });
       }
-    }
-
-    // Log closure creation (skip if logAction not available)
-    try {
-      await logAction(
-        admin?._id || null,
-        "ADMIN",
-        admin?.name || "System Admin",
-        "Closure Created",
-        `Created facility closure: ${title} on ${date} from ${startTime} to ${endTime}. Affected ${processedReservations.length} reservations.`,
-        req.headers['user-agent'] || ''
-      );
-    } catch (logError) {
-      console.warn("Log error:", logError.message);
-    }
-
-    // Notify staff about the closure
-    const io = req.app.get("io");
-    if (io) {
-      io.emit("closure-created", {
-        closure: {
-          _id: closure._id,
-          title,
-          date,
-          startTime,
-          endTime,
-          affectedAllRooms,
-          affectedRooms: affectedRooms || []
-        },
-        affectedCount: processedReservations.length
-      });
     }
 
     console.log("=".repeat(50));
@@ -302,6 +353,7 @@ export const createClosure = async (req, res) => {
     });
   }
 };
+
 /* ------------------------------------------------
    ✅ GET ALL CLOSURES (WITH FILTERS)
 ------------------------------------------------ */
@@ -313,21 +365,29 @@ export const getClosures = async (req, res) => {
       status = "Active",
       dateFrom,
       dateTo,
-      search
+      search,
+      startDate,
+      endDate,
+      date
     } = req.query;
 
     const query = {};
 
+    // Handle status filter
     if (status && status !== "All") {
       query.status = status;
     }
 
-    if (dateFrom || dateTo) {
+    // Handle date filters
+    if (date) {
+      query.date = date;
+    } else if (startDate || dateFrom) {
       query.date = {};
-      if (dateFrom) query.date.$gte = dateFrom;
-      if (dateTo) query.date.$lte = dateTo;
+      if (startDate || dateFrom) query.date.$gte = startDate || dateFrom;
+      if (endDate || dateTo) query.date.$lte = endDate || dateTo;
     }
 
+    // Handle search
     if (search) {
       query.$or = [
         { title: { $regex: search, $options: 'i' } },
@@ -424,8 +484,6 @@ export const updateClosure = async (req, res) => {
       status
     } = req.body;
 
-    const admin = req.admin;
-
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
@@ -442,14 +500,6 @@ export const updateClosure = async (req, res) => {
       });
     }
 
-    // Store old data for logging
-    const oldData = {
-      title: closure.title,
-      date: closure.date,
-      startTime: closure.startTime,
-      endTime: closure.endTime
-    };
-
     // Update fields
     if (title) closure.title = title;
     if (reason) closure.reason = reason;
@@ -462,25 +512,6 @@ export const updateClosure = async (req, res) => {
     if (status) closure.status = status;
 
     await closure.save();
-
-    // Log the update
-    await logAction(
-      admin._id,
-      admin.id_number || "ADMIN",
-      admin.name,
-      "Closure Updated",
-      `Updated closure: ${oldData.title} (${oldData.date}) to ${closure.title} (${closure.date})`,
-      req.headers['user-agent'] || ''
-    );
-
-    // Emit socket event
-    const io = req.app.get("io");
-    if (io) {
-      io.emit("closure-updated", {
-        closureId: closure._id,
-        updatedData: closure
-      });
-    }
 
     res.json({
       success: true,
@@ -499,13 +530,12 @@ export const updateClosure = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ DELETE CLOSURE (WITH OPTION TO RESTORE RESERVATIONS)
+   ✅ DELETE CLOSURE
 ------------------------------------------------ */
 export const deleteClosure = async (req, res) => {
   try {
     const { id } = req.params;
-    const { restoreReservations } = req.body; // Optional: restore affected reservations
-    const admin = req.admin;
+    const { restoreReservations } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -523,21 +553,17 @@ export const deleteClosure = async (req, res) => {
       });
     }
 
-    // Store affected reservations for potential restoration
-    const affectedReservationIds = closure.affectedReservations.map(r => r.reservationId);
-
     // If restoreReservations is true, attempt to restore cancelled reservations
     const restoredReservations = [];
-    if (restoreReservations && affectedReservationIds.length > 0) {
-      for (const reservationId of affectedReservationIds) {
+    if (restoreReservations && closure.affectedReservations?.length > 0) {
+      for (const affected of closure.affectedReservations) {
         try {
-          const reservation = await Reservation.findById(reservationId);
-          if (reservation && reservation.status === "Cancelled_Admin") {
+          const reservation = await Reservation.findById(affected.reservationId);
+          if (reservation && reservation.status === "Cancelled") {
             // Check if the original time slot is still available
             const conflictExists = await Reservation.findOne({
               _id: { $ne: reservation._id },
               roomName: reservation.roomName,
-              location: reservation.location,
               date: reservation.date,
               status: { $in: ["Approved", "Ongoing", "Pending"] },
               datetime: { $lt: reservation.endDatetime },
@@ -545,58 +571,22 @@ export const deleteClosure = async (req, res) => {
             });
 
             if (!conflictExists) {
-              // Restore the reservation
-              reservation.status = "Approved";
+              reservation.status = "Pending";
               reservation.cancellationReason = undefined;
               reservation.cancelledBy = undefined;
               reservation.cancelledAt = undefined;
               await reservation.save();
-
               restoredReservations.push(reservation);
-
-              // Notify user about restoration
-              await notificationService.createNotification(
-                {
-                  userId: reservation.userId,
-                  reservationId: reservation._id,
-                  type: "reservation",
-                  status: "restored",
-                  targetRole: "user",
-                  roomName: reservation.roomName,
-                  date: reservation.date,
-                  message: `Your reservation for ${reservation.roomName} on ${reservation.date} has been restored after the cancellation of a facility closure.`
-                },
-                req.app.get("io")
-              );
             }
           }
         } catch (err) {
-          console.warn(`⚠️ Failed to restore reservation ${reservationId}:`, err.message);
+          console.warn(`⚠️ Failed to restore reservation ${affected.reservationId}:`, err.message);
         }
       }
     }
 
     // Delete the closure
     await Closure.findByIdAndDelete(id);
-
-    // Log the deletion
-    await logAction(
-      admin._id,
-      admin.id_number || "ADMIN",
-      admin.name,
-      "Closure Deleted",
-      `Deleted closure: ${closure.title} on ${closure.date}. Restored ${restoredReservations.length} reservations.`,
-      req.headers['user-agent'] || ''
-    );
-
-    // Emit socket event
-    const io = req.app.get("io");
-    if (io) {
-      io.emit("closure-deleted", {
-        closureId: closure._id,
-        restoredCount: restoredReservations.length
-      });
-    }
 
     res.json({
       success: true,
@@ -663,7 +653,7 @@ export const checkSlotClosed = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ GET AVAILABILITY WITH CLOSURES (Enhanced)
+   ✅ GET AVAILABILITY WITH CLOSURES
 ------------------------------------------------ */
 export const getAvailabilityWithClosures = async (req, res) => {
   try {
@@ -698,7 +688,6 @@ export const getAvailabilityWithClosures = async (req, res) => {
         r => r.location === room.floor && r.roomName === room.room
       );
 
-      // Check if room is closed during any time slot
       const roomClosures = closures.filter(c => 
         c.affectedAllRooms || c.affectedRooms.includes(room.room)
       );
@@ -706,7 +695,7 @@ export const getAvailabilityWithClosures = async (req, res) => {
       const occupied = roomReservations.map((r) => ({
         start: r.datetime,
         end: r.endDatetime,
-        mine: r.userId.toString() === userId,
+        mine: userId && r.userId.toString() === userId,
         status: r.status
       }));
 
@@ -777,11 +766,3 @@ export const getUpcomingClosures = async (req, res) => {
     });
   }
 };
-
-/* ------------------------------------------------
-   ✅ HELPER: Convert time string to minutes
------------------------------------------------- */
-function timeToMinutes(timeStr) {
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + minutes;
-}

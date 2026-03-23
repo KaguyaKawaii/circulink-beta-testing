@@ -8,13 +8,15 @@ import {
   deleteClosure,
   checkSlotClosed,
   getAvailabilityWithClosures,
-  getUpcomingClosures
+  getUpcomingClosures,
+  previewClosureConflicts  // Add this import
 } from "../controllers/closureController.js";
 
 const router = express.Router();
 
 // Public routes (no authentication required)
 router.post("/", createClosure);
+router.post("/preview", previewClosureConflicts);  // Add preview endpoint
 router.put("/:id", updateClosure);
 router.delete("/:id", deleteClosure);
 router.get("/", getClosures);
