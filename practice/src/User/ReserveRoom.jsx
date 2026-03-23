@@ -3,6 +3,7 @@ import axios from "axios";
 import socket from "../utils/socket";
 import moment from "moment-timezone";
 import RoomAvailabilityModal from "./RoomAvailabilityModal";
+import { AlertTriangle, Calendar, Clock, X } from "lucide-react"; // ✅ ADDED THIS LINE - missing import
 
 // Import shared room images configuration
 import { availableRoomImages, getRoomImageById } from "../data/roomImages";
