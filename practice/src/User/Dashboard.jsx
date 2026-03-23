@@ -401,6 +401,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
   };
 
   const handleDateClick = async (date) => {
+    console.log("Date clicked:", date); // Debug log
     setSelectedDate(date);
     setModalDate(date);
     setAvailLoading(true);
@@ -409,9 +410,13 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
 
     try {
       const manilaDateStr = getManilaDateString(date);
+      console.log("Fetching availability for date:", manilaDateStr); // Debug log
+      
       const { data } = await axios.get(`${RESERVATIONS_ENDPOINT}/availability`, {
         params: { date: manilaDateStr },
       });
+
+      console.log("Availability data received:", data); // Debug log
 
       setRoomStatuses(
         Array.isArray(data)
@@ -782,21 +787,22 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <h2 className="text-lg font-bold text-gray-800">Calendar</h2>
+              <span className="text-xs text-gray-500 ml-auto">Click any date to view room availability</span>
             </div>
             <Calendar
               onClickDay={handleDateClick}
               value={selectedDate}
-              className="border-0 w-full"
+              className="border-0 w-full cursor-pointer"
               tileContent={renderCalendarTile}
               tileClassName={({ date, view }) => {
                 if (view !== "month") return "";
-                return "relative h-10 sm:h-12 hover:bg-gray-50 rounded-lg transition-colors duration-200";
+                return "relative h-10 sm:h-12 hover:bg-red-50 hover:shadow-md rounded-lg transition-all duration-200 cursor-pointer";
               }}
-              prevLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">◀</span>}
-              nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors">▶</span>}
+              prevLabel={<span className="text-gray-600 hover:text-red-600 transition-colors cursor-pointer">◀</span>}
+              nextLabel={<span className="text-gray-600 hover:text-red-600 transition-colors cursor-pointer">▶</span>}
               prev2Label={null}
               next2Label={null}
-              aria-label="Reservation calendar"
+              aria-label="Reservation calendar - click any date to view room availability"
               calendarType="gregory"
               formatShortWeekday={(locale, date) => {
                 const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -810,7 +816,11 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
               </div>
               <div className="flex items-center">
                 <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500 mr-2"></div>
-                <span className="text-xs text-gray-600">Reserved</span>
+                <span className="text-xs text-gray-600">Has Reservation</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500 mr-2"></div>
+                <span className="text-xs text-gray-600">Click to view</span>
               </div>
             </div>
           </div>
