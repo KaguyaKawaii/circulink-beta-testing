@@ -240,15 +240,7 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
               
               {/* Action Buttons */}
               <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => {
-                    setSelectedClosure(null);
-                    if (setView) setView("calendar");
-                  }}
-                  className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-xl transition text-sm font-medium shadow-sm hover:shadow-md"
-                >
-                  View Calendar
-                </button>
+                
                 <button
                   onClick={() => setSelectedClosure(null)}
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl transition text-sm font-medium"

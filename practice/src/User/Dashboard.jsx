@@ -823,9 +823,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
               </div>
 
             </div>
-<div className="flex justify-center align-center">
-                                                    <span className="text-xs text-gray-500 ml-auto text-center">Click any date to view room availability</span>
-</div>
+
 
           </div>
 
