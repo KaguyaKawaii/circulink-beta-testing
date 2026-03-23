@@ -27,7 +27,7 @@ import {
   Filter
 } from "lucide-react";
 import axios from "axios";
-import AdminNavigation from "./AdminNavigation";
+import AdminNavigation from "../AdminNavigation"; // Fixed: go up one level to Admin folder
 
 // Simple toast function
 const showToast = (message, type = "success") => {
