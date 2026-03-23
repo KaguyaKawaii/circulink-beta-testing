@@ -2,6 +2,9 @@ import React, { useEffect, useState } from "react";
 import moment from "moment-timezone";
 import CalendarModal from "./Modals/CalendarModal";
 
+// Define API base URL - adjust based on your environment
+const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 function Calendar() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [roomStatuses, setRoomStatuses] = useState([]);
@@ -34,9 +37,10 @@ function Calendar() {
 
     try {
       const dateStr = selectedDate.toISOString().split("T")[0];
-      const res = await fetch(
-        `${API_BASE_URL}/reservations/availability?date=${dateStr}`
-      );
+      const url = `${API_BASE_URL}/reservations/availability?date=${dateStr}`;
+      console.log("Fetching availability from:", url); // Debug log
+      
+      const res = await fetch(url);
 
       if (!res.ok) throw new Error(`Server returned ${res.status}`);
       const data = await res.json();
@@ -46,7 +50,7 @@ function Calendar() {
       setRoomStatuses(data);
     } catch (err) {
       console.error("Error fetching availability:", err);
-      setError("Failed to load room availability");
+      setError(`Failed to load room availability: ${err.message}`);
     } finally {
       setLoading(false);
     }
