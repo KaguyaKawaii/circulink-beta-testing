@@ -27,7 +27,7 @@ import {
   Filter
 } from "lucide-react";
 import axios from "axios";
-import AdminNavigation from "../AdminNavigation"; // Fixed: go up one level to Admin folder
+import AdminNavigation from "../AdminNavigation";
 
 // Simple toast function
 const showToast = (message, type = "success") => {
@@ -73,18 +73,28 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   
   // View Mode
   const [viewMode, setViewMode] = useState("list");
-  
-  // Date Range Filter State
-  const [dateFilter, setDateFilter] = useState("all");
-  const [startDate, setStartDate] = useState(() => {
-    const date = new Date();
-    date.setDate(date.getDate() - 7);
-    return date;
-  });
-  const [endDate, setEndDate] = useState(new Date());
-  const [showDateRangePicker, setShowDateRangePicker] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || "";
+
+  // Auto-update closure statuses every minute
+  useEffect(() => {
+    const updateClosureStatuses = async () => {
+      try {
+        await axios.post(`${API_URL}/api/closures/update-status`);
+        fetchClosures();
+      } catch (error) {
+        console.error("Error updating closure statuses:", error);
+      }
+    };
+
+    // Update immediately on mount
+    updateClosureStatuses();
+
+    // Set up interval to update every minute
+    const interval = setInterval(updateClosureStatuses, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const formatPHDateTime = (date) => {
     if (!date) return "—";
@@ -121,12 +131,12 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   useEffect(() => {
     fetchClosures();
     fetchRooms();
-  }, [filter, pagination.currentPage, dateFilter, startDate, endDate]);
+  }, [filter, pagination.currentPage]);
 
   // Reset to first page when filters change
   useEffect(() => {
     setPagination(prev => ({ ...prev, currentPage: 1 }));
-  }, [filter, dateFilter, startDate, endDate]);
+  }, [filter]);
 
   const fetchClosures = async () => {
     setIsLoading(true);
@@ -139,15 +149,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         ...(filter.status !== "All" && { status: filter.status }),
         ...(filter.search && { search: filter.search })
       });
-      
-      // Add date range filters
-      if (dateFilter === "today") {
-        const today = new Date().toISOString().split('T')[0];
-        params.append('date', today);
-      } else if (dateFilter === "range" && startDate && endDate) {
-        params.append('startDate', startDate.toISOString().split('T')[0]);
-        params.append('endDate', endDate.toISOString().split('T')[0]);
-      }
       
       const response = await axios.get(`${API_URL}/api/closures?${params}`);
       
@@ -406,8 +407,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   };
 
   const getStatusBadge = (closure) => {
-    const today = new Date().toISOString().split("T")[0];
-    if (closure.date < today) {
+    if (closure.status === "Expired") {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
           Expired
@@ -415,6 +415,20 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       );
     }
     if (closure.status === "Active") {
+      // Check if the closure should be expired
+      const now = new Date();
+      const closureDate = new Date(closure.date);
+      const [hours, minutes] = closure.endTime.split(":").map(Number);
+      closureDate.setHours(hours, minutes, 0, 0);
+      
+      if (now > closureDate) {
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+            Ending Soon
+          </span>
+        );
+      }
+      
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
           Active
@@ -428,46 +442,14 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     );
   };
 
-  // Date Range Handlers
-  const handleApplyDateRange = () => {
-    setShowDateRangePicker(false);
-    setDateFilter("range");
-    setPagination(prev => ({ ...prev, currentPage: 1 }));
-  };
-
-  const handleClearDateRange = () => {
-    setDateFilter("all");
-    setStartDate(new Date(new Date().setDate(new Date().getDate() - 7)));
-    setEndDate(new Date());
-    setPagination(prev => ({ ...prev, currentPage: 1 }));
-  };
-
-  // Filter closures based on status, search, and date
+  // Filter closures based on status and search
   const filteredClosures = closures.filter((closure) => {
     const matchesStatus = filter.status === "All" || closure.status === filter.status;
     const matchesSearch = 
       closure.title?.toLowerCase().includes(filter.search.toLowerCase()) ||
       closure.reason?.toLowerCase().includes(filter.search.toLowerCase());
     
-    // Date filter logic
-    let matchesDate = true;
-    const closureDate = closure.date ? new Date(closure.date) : null;
-    
-    if (dateFilter === "today" && closureDate) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      matchesDate = closureDate >= today && closureDate < tomorrow;
-    } else if (dateFilter === "range" && closureDate && startDate && endDate) {
-      const start = new Date(startDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(endDate);
-      end.setHours(23, 59, 59, 999);
-      matchesDate = closureDate >= start && closureDate <= end;
-    }
-    
-    return matchesStatus && matchesSearch && matchesDate;
+    return matchesStatus && matchesSearch;
   });
 
   // Pagination logic
@@ -688,95 +670,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 </button>
               </div>
 
-              {/* Date Filters */}
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  onClick={() => setDateFilter("all")}
-                  className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
-                    dateFilter === "all" 
-                      ? "bg-blue-600 text-white" 
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  All Closures
-                </button>
-                <button
-                  onClick={() => setDateFilter("today")}
-                  className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors ${
-                    dateFilter === "today" 
-                      ? "bg-blue-600 text-white" 
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }`}
-                >
-                  Today's Closures
-                </button>
-                <div className="relative">
-                  <button
-                    onClick={() => setShowDateRangePicker(!showDateRangePicker)}
-                    className={`px-3 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
-                      dateFilter === "range" 
-                        ? "bg-blue-600 text-white" 
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    <CalendarRange size={14} />
-                    <span>Date Range</span>
-                  </button>
-                  
-                  {/* Date Range Picker Dropdown */}
-                  {showDateRangePicker && (
-                    <div className="absolute right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 p-4 z-50 w-80">
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Start Date
-                          </label>
-                          <input
-                            type="date"
-                            value={startDate.toISOString().split('T')[0]}
-                            onChange={(e) => setStartDate(new Date(e.target.value))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            End Date
-                          </label>
-                          <input
-                            type="date"
-                            value={endDate.toISOString().split('T')[0]}
-                            onChange={(e) => setEndDate(new Date(e.target.value))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={handleApplyDateRange}
-                            className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
-                          >
-                            Apply
-                          </button>
-                          <button
-                            onClick={() => setShowDateRangePicker(false)}
-                            className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                        {dateFilter === "range" && (
-                          <button
-                            onClick={handleClearDateRange}
-                            className="w-full px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            Clear Range
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
               {/* Search */}
               <div className="relative flex-1">
                 <Search
@@ -874,28 +767,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 </button>
               )}
             </div>
-
-            {/* Active Filters Display */}
-            {dateFilter !== "all" && (
-              <div className="mt-4 flex items-center gap-2">
-                <div className="flex items-center bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-sm">
-                  <CalendarIcon size={14} className="mr-1" />
-                  {dateFilter === "today" ? (
-                    <span>Showing today's closures only</span>
-                  ) : (
-                    <span>
-                      Showing closures from {formatPHDate(startDate)} to {formatPHDate(endDate)}
-                    </span>
-                  )}
-                  <button
-                    onClick={handleClearDateRange}
-                    className="ml-2 hover:text-blue-900"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* STATISTICS VIEW */}

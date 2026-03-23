@@ -16,8 +16,100 @@ function timeToMinutes(timeStr) {
   return hours * 60 + minutes;
 }
 
+// Helper: Check if a closure has expired
+function isClosureExpired(closure) {
+  const now = new Date();
+  const closureDate = new Date(closure.date);
+  const [endHours, endMinutes] = closure.endTime.split(":").map(Number);
+  closureDate.setHours(endHours, endMinutes, 0, 0);
+  
+  return now > closureDate;
+}
+
 /* ------------------------------------------------
-   ✅ PREVIEW CLOSURE CONFLICTS (NEW ENDPOINT)
+   ✅ UPDATE CLOSURE STATUSES (REAL-TIME AUTO-END)
+------------------------------------------------ */
+export const updateClosureStatuses = async (req, res) => {
+  try {
+    console.log("🔄 Updating closure statuses...");
+    
+    // Find all active closures
+    const activeClosures = await Closure.find({ status: "Active" });
+    
+    let updatedCount = 0;
+    const expiredClosures = [];
+    
+    for (const closure of activeClosures) {
+      if (isClosureExpired(closure)) {
+        // Update status to Expired
+        closure.status = "Expired";
+        closure.endedAt = new Date();
+        await closure.save();
+        updatedCount++;
+        expiredClosures.push(closure);
+        
+        console.log(`✅ Closure "${closure.title}" has expired automatically`);
+        
+        // Optional: Send notifications about closure ending
+        try {
+          // Notify admins that closure has ended
+          const admins = await Admin.find({});
+          for (const admin of admins) {
+            if (admin.email) {
+              await sendEmail({
+                to: admin.email,
+                subject: `Closure Ended: ${closure.title}`,
+                html: `
+                  <h2>Closure Has Ended</h2>
+                  <p>The facility closure "${closure.title}" has ended automatically.</p>
+                  <ul>
+                    <li><strong>Date:</strong> ${closure.date}</li>
+                    <li><strong>Time:</strong> ${closure.startTime} - ${closure.endTime}</li>
+                    <li><strong>Reason:</strong> ${closure.reason}</li>
+                  </ul>
+                  <p>No action is required.</p>
+                `
+              });
+            }
+          }
+        } catch (emailError) {
+          console.warn("⚠️ Failed to send closure ended email:", emailError.message);
+        }
+      }
+    }
+    
+    if (updatedCount > 0) {
+      console.log(`📊 Updated ${updatedCount} closures to Expired status`);
+    } else {
+      console.log("📊 No closures needed updating");
+    }
+    
+    if (res) {
+      res.json({
+        success: true,
+        message: `Updated ${updatedCount} closures to expired status`,
+        updatedCount,
+        expiredClosures: expiredClosures.map(c => ({ id: c._id, title: c.title }))
+      });
+    }
+    
+    return { updatedCount, expiredClosures };
+    
+  } catch (err) {
+    console.error("❌ Error updating closure statuses:", err);
+    if (res) {
+      res.status(500).json({
+        success: false,
+        message: "Failed to update closure statuses",
+        error: err.message
+      });
+    }
+    throw err;
+  }
+};
+
+/* ------------------------------------------------
+   ✅ PREVIEW CLOSURE CONFLICTS
 ------------------------------------------------ */
 export const previewClosureConflicts = async (req, res) => {
   try {
@@ -120,10 +212,8 @@ export const previewClosureConflicts = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ CREATE CLOSURE WITH CONFLICT DETECTION (FIXED)
+   ✅ CREATE CLOSURE WITH CONFLICT DETECTION
 ------------------------------------------------ */
-// In controllers/closureController.js, modify the createClosure function:
-
 export const createClosure = async (req, res) => {
   try {
     const {
@@ -251,7 +341,7 @@ export const createClosure = async (req, res) => {
 
     console.log(`Found ${affectedReservationsList.length} conflicting reservations`);
 
-    // Try to find an admin user - FIX: Use the admin from request if available
+    // Try to find an admin user
     let admin = null;
     if (req.admin) {
       admin = req.admin;
@@ -260,12 +350,11 @@ export const createClosure = async (req, res) => {
         admin = await Admin.findOne({});
       } catch (err) {
         console.log("No admin found, creating default admin reference");
-        // Create a default admin if none exists
         admin = { _id: null, name: "System Admin" };
       }
     }
 
-    // Create the closure - FIX: Ensure createdBy is not null
+    // Create the closure
     const closureData = {
       title,
       reason,
@@ -275,7 +364,7 @@ export const createClosure = async (req, res) => {
       affectedRooms: affectedAllRooms ? [] : (affectedRooms || []),
       affectedAllRooms: affectedAllRooms || false,
       location: location || (affectedAllRooms ? "All Floors" : "Custom"),
-      createdBy: admin?._id || new mongoose.Types.ObjectId(), // Create a dummy ObjectId if null
+      createdBy: admin?._id || new mongoose.Types.ObjectId(),
       createdByAdminName: admin?.name || "System Admin",
       affectedReservations: affectedReservationsList.map(r => ({
         reservationId: r.reservationId,
@@ -378,13 +467,8 @@ export const getClosures = async (req, res) => {
     const {
       page = 1,
       limit = 20,
-      status = "Active",
-      dateFrom,
-      dateTo,
-      search,
-      startDate,
-      endDate,
-      date
+      status = "All",
+      search
     } = req.query;
 
     const query = {};
@@ -392,15 +476,6 @@ export const getClosures = async (req, res) => {
     // Handle status filter
     if (status && status !== "All") {
       query.status = status;
-    }
-
-    // Handle date filters
-    if (date) {
-      query.date = date;
-    } else if (startDate || dateFrom) {
-      query.date = {};
-      if (startDate || dateFrom) query.date.$gte = startDate || dateFrom;
-      if (endDate || dateTo) query.date.$lte = endDate || dateTo;
     }
 
     // Handle search
@@ -420,6 +495,9 @@ export const getClosures = async (req, res) => {
       .sort({ date: -1, startTime: 1 })
       .skip(skip)
       .limit(parseInt(limit));
+
+    // Auto-update statuses before returning
+    await updateClosureStatuses({}, {});
 
     res.json({
       success: true,
@@ -621,6 +699,84 @@ export const deleteClosure = async (req, res) => {
 };
 
 /* ------------------------------------------------
+   ✅ BULK DELETE CLOSURES
+------------------------------------------------ */
+export const bulkDeleteClosures = async (req, res) => {
+  try {
+    const { closureIds, restoreReservations } = req.body;
+
+    if (!closureIds || !Array.isArray(closureIds) || closureIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide an array of closure IDs to delete"
+      });
+    }
+
+    let deletedCount = 0;
+    const restoredReservations = [];
+
+    for (const id of closureIds) {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        console.warn(`⚠️ Invalid closure ID: ${id}`);
+        continue;
+      }
+
+      const closure = await Closure.findById(id);
+      if (!closure) continue;
+
+      // Restore reservations if requested
+      if (restoreReservations && closure.affectedReservations?.length > 0) {
+        for (const affected of closure.affectedReservations) {
+          try {
+            const reservation = await Reservation.findById(affected.reservationId);
+            if (reservation && reservation.status === "Cancelled") {
+              // Check if the original time slot is still available
+              const conflictExists = await Reservation.findOne({
+                _id: { $ne: reservation._id },
+                roomName: reservation.roomName,
+                date: reservation.date,
+                status: { $in: ["Approved", "Ongoing", "Pending"] },
+                datetime: { $lt: reservation.endDatetime },
+                endDatetime: { $gt: reservation.datetime }
+              });
+
+              if (!conflictExists) {
+                reservation.status = "Pending";
+                reservation.cancellationReason = undefined;
+                reservation.cancelledBy = undefined;
+                reservation.cancelledAt = undefined;
+                await reservation.save();
+                restoredReservations.push(reservation);
+              }
+            }
+          } catch (err) {
+            console.warn(`⚠️ Failed to restore reservation ${affected.reservationId}:`, err.message);
+          }
+        }
+      }
+
+      await Closure.findByIdAndDelete(id);
+      deletedCount++;
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deletedCount} closures. ${restoredReservations.length} reservations were restored.`,
+      count: deletedCount,
+      restoredReservations: restoredReservations.length > 0 ? restoredReservations : undefined
+    });
+
+  } catch (err) {
+    console.error("Error bulk deleting closures:", err);
+    res.status(500).json({
+      success: false,
+      message: "Failed to delete closures",
+      error: err.message
+    });
+  }
+};
+
+/* ------------------------------------------------
    ✅ CHECK IF A TIME SLOT IS CLOSED
 ------------------------------------------------ */
 export const checkSlotClosed = async (req, res) => {
@@ -633,6 +789,9 @@ export const checkSlotClosed = async (req, res) => {
         message: "Date, time, and roomName are required"
       });
     }
+
+    // Update statuses first to ensure accuracy
+    await updateClosureStatuses({}, {});
 
     const query = {
       date: date,
@@ -682,6 +841,9 @@ export const getAvailabilityWithClosures = async (req, res) => {
       });
     }
 
+    // Update statuses first
+    await updateClosureStatuses({}, {});
+
     // Get all rooms
     const Room = mongoose.model("Room");
     const rooms = await Room.find({}).sort({ floor: 1, room: 1 });
@@ -692,7 +854,7 @@ export const getAvailabilityWithClosures = async (req, res) => {
       status: { $in: ["Pending", "Approved", "Ongoing"] }
     });
 
-    // Get all closures for this date
+    // Get all active closures for this date
     const closures = await Closure.find({
       date,
       status: "Active"
@@ -762,6 +924,9 @@ export const getAvailabilityWithClosures = async (req, res) => {
 export const getUpcomingClosures = async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
+    
+    // Update statuses first
+    await updateClosureStatuses({}, {});
     
     const closures = await Closure.find({
       date: { $gte: today },

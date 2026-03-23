@@ -9,14 +9,18 @@ import {
   checkSlotClosed,
   getAvailabilityWithClosures,
   getUpcomingClosures,
-  previewClosureConflicts  // Add this import
+  previewClosureConflicts,
+  updateClosureStatuses,
+  bulkDeleteClosures
 } from "../controllers/closureController.js";
 
 const router = express.Router();
 
 // Public routes (no authentication required)
 router.post("/", createClosure);
-router.post("/preview", previewClosureConflicts);  // Add preview endpoint
+router.post("/preview", previewClosureConflicts);
+router.post("/update-status", updateClosureStatuses);  // New endpoint for real-time auto-end
+router.post("/bulk-delete", bulkDeleteClosures);  // New endpoint for bulk delete
 router.put("/:id", updateClosure);
 router.delete("/:id", deleteClosure);
 router.get("/", getClosures);
