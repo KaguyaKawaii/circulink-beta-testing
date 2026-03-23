@@ -808,7 +808,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                 return days[date.getDay()];
               }}
             />
-            <div className="mt-4 flex items-center justify-center space-x-4 flex-wrap gap-2">
+            <div className="mt-4 flex items-center justify-center space-x-4 gap-2">
               <div className="flex items-center">
                 <div className="w-3 h-3 rounded-full bg-yellow-400/20 border border-yellow-400 mr-2"></div>
                 <span className="text-xs text-gray-600">Today</span>
@@ -821,9 +821,9 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                 <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500 mr-2"></div>
                 <span className="text-xs text-gray-600">Click to view</span>
               </div>
-              
+                                        <span className="text-xs text-gray-500 ml-auto text-center">Click any date to view room availability</span>
+
             </div>
-                          <span className="text-xs text-gray-500 ml-auto text-center">Click any date to view room availability</span>
 
           </div>
 
