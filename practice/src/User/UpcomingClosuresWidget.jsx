@@ -186,18 +186,6 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
         })}
       </div>
 
-      {/* View All Button */}
-      {closures.length > 0 && (
-        <div className="px-4 sm:px-6 py-3 border-t border-gray-200 bg-gray-50/50">
-          <button
-            onClick={() => setView?.("calendar")}
-            className="w-full text-center text-xs text-red-600 hover:text-red-700 font-medium transition py-2 hover:bg-red-50 rounded-lg"
-          >
-            View All in Calendar
-          </button>
-        </div>
-      )}
-
       {/* Closure Details Modal - Light Theme */}
       {selectedClosure && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100000] p-4">

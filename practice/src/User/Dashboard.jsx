@@ -787,7 +787,6 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
               <h2 className="text-lg font-bold text-gray-800">Calendar</h2>
-              <span className="text-xs text-gray-500 ml-auto">Click any date to view room availability</span>
             </div>
             <Calendar
               onClickDay={handleDateClick}
@@ -822,7 +821,10 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                 <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500 mr-2"></div>
                 <span className="text-xs text-gray-600">Click to view</span>
               </div>
+              
             </div>
+                          <span className="text-xs text-gray-500 ml-auto">Click any date to view room availability</span>
+
           </div>
 
           {/* Reserve Room Button */}
