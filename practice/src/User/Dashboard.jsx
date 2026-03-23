@@ -330,6 +330,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
             ? data.map((r) => ({
                 floor: r.floor || "Unknown Floor",
                 room: r.room || "Unnamed Room",
+                location: r.location || "Main Building",
                 isActive: r.isActive !== false,
                 occupied: Array.isArray(r.occupied) ? r.occupied : [],
               }))
@@ -417,6 +418,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
           ? data.map((r) => ({
               floor: r.floor || "Unknown Floor",
               room: r.room || "Unnamed Room",
+              location: r.location || "Main Building",
               isActive: r.isActive !== false,
               occupied: Array.isArray(r.occupied) ? r.occupied : [],
             }))
