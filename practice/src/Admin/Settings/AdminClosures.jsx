@@ -31,6 +31,48 @@ import {
 import axios from "axios";
 import AdminNavigation from "../AdminNavigation";
 
+// Helper functions for timezone handling
+const getManilaTime = () => {
+  return new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' });
+};
+
+const getTodayInManila = () => {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const isValidTimeFormat = (time) => {
+  return /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time);
+};
+
+// Format time for display (e.g., "05:46 PM")
+const formatDisplayTime = (timeStr) => {
+  if (!timeStr) return "";
+  const [hours, minutes] = timeStr.split(":");
+  const date = new Date();
+  date.setHours(parseInt(hours), parseInt(minutes));
+  return date.toLocaleTimeString("en-PH", {
+    timeZone: "Asia/Manila",
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+};
+
+// Format date for display (e.g., "March 25, 2026")
+const formatDate = (date) => {
+  if (!date) return "";
+  return new Date(date).toLocaleDateString("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
+
 // Toast notification component
 const Toast = ({ message, type, onClose }) => {
   useEffect(() => {
@@ -112,10 +154,14 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   useEffect(() => {
     const updateClosureStatuses = async () => {
       try {
-        await axios.post(`${API_URL}/api/closures/update-status`);
-        fetchClosures();
+        const response = await axios.post(`${API_URL}/api/closures/update-status`);
+        if (response.data.success) {
+          console.log("Status update successful:", response.data.message);
+          await fetchClosures(); // Refresh after update
+        }
       } catch (error) {
         console.error("Error updating closure statuses:", error);
+        // Don't show toast for auto-update to avoid spam
       }
     };
 
@@ -125,41 +171,13 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     return () => clearInterval(interval);
   }, []);
 
-  const formatPHDateTime = (date) => {
-    if (!date) return "—";
-    try {
-      return new Date(date).toLocaleString("en-PH", {
-        timeZone: "Asia/Manila",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
-    } catch (error) {
-      return "—";
-    }
-  };
-
-  const formatPHDate = (date) => {
-    if (!date) return "—";
-    try {
-      return new Date(date).toLocaleDateString("en-PH", {
-        timeZone: "Asia/Manila",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    } catch (error) {
-      return "—";
-    }
-  };
-
   useEffect(() => {
     fetchClosures();
-    fetchRooms();
   }, [filter, pagination.currentPage]);
+
+  useEffect(() => {
+    fetchRooms();
+  }, []);
 
   useEffect(() => {
     setPagination(prev => ({ ...prev, currentPage: 1 }));
@@ -192,18 +210,17 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         setSelectedClosures([]);
         setSelectAll(false);
       } else {
-        console.error("Invalid response structure:", response.data);
-        setClosures([]);
-        setPagination(prev => ({
-          ...prev,
-          totalCount: 0,
-          totalPages: 1
-        }));
+        throw new Error(response.data?.message || "Invalid response from server");
       }
     } catch (error) {
       console.error("Error fetching closures:", error);
-      setFetchError(error.response?.data?.message || "Failed to fetch closures");
+      setFetchError(error.response?.data?.message || error.message || "Failed to fetch closures");
       setClosures([]);
+      setPagination(prev => ({
+        ...prev,
+        totalCount: 0,
+        totalPages: 1
+      }));
     } finally {
       setIsLoading(false);
     }
@@ -212,9 +229,10 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const fetchRooms = async () => {
     try {
       const response = await axios.get(`${API_URL}/api/rooms`);
-      setAvailableRooms(response.data);
+      setAvailableRooms(response.data || []);
     } catch (error) {
       console.error("Error fetching rooms:", error);
+      showToast("Failed to fetch rooms list", "error");
     }
   };
 
@@ -237,6 +255,12 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
 
   const handlePreviewConflicts = async () => {
     try {
+      // Validate required fields before preview
+      if (!formData.date || !formData.startTime || !formData.endTime) {
+        showToast("Please fill in date and time first", "error");
+        return;
+      }
+
       const response = await axios.post(`${API_URL}/api/closures/preview`, {
         ...formData,
         affectedRooms: formData.affectedAllRooms ? [] : formData.affectedRooms
@@ -244,7 +268,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       setConflictPreview(response.data);
     } catch (error) {
       console.error("Error previewing conflicts:", error);
-      showToast("Failed to preview conflicts", "error");
+      showToast(error.response?.data?.message || "Failed to preview conflicts", "error");
     }
   };
 
@@ -253,7 +277,17 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     
     if (isCreating) return;
     
-    if (formData.startTime >= formData.endTime) {
+    // Validate time format
+    if (!isValidTimeFormat(formData.startTime) || !isValidTimeFormat(formData.endTime)) {
+      showToast("Invalid time format. Use HH:MM (24-hour format, e.g., 17:46)", "error");
+      return;
+    }
+    
+    // Validate time range
+    const startMinutes = parseInt(formData.startTime.split(':')[0]) * 60 + parseInt(formData.startTime.split(':')[1]);
+    const endMinutes = parseInt(formData.endTime.split(':')[0]) * 60 + parseInt(formData.endTime.split(':')[1]);
+    
+    if (endMinutes <= startMinutes) {
       showToast("End time must be after start time", "error");
       return;
     }
@@ -272,7 +306,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         showToast("Closure updated successfully", "success");
       } else {
         response = await axios.post(`${API_URL}/api/closures`, formData);
-        showToast(`Closure created. ${response.data.affectedReservations?.length || 0} reservations were cancelled.`, "success");
+        const cancelledCount = response.data.affectedReservations?.length || 0;
+        showToast(`Closure created with status: ${response.data.closure.status}. ${cancelledCount} reservations were cancelled.`, "success");
       }
       
       setShowModal(false);
@@ -287,7 +322,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         affectedRooms: [],
         location: "All Floors"
       });
-      fetchClosures();
+      await fetchClosures();
     } catch (error) {
       console.error("Error saving closure:", error);
       showToast(error.response?.data?.message || "Failed to save closure", "error");
@@ -315,7 +350,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         isSuccess: true
       });
       
-      fetchClosures();
+      await fetchClosures();
     } catch (error) {
       console.error("Error activating closure:", error);
       setDeleteResult({
@@ -349,7 +384,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         isSuccess: true
       });
       
-      fetchClosures();
+      await fetchClosures();
     } catch (error) {
       console.error("Error deactivating closure:", error);
       setDeleteResult({
@@ -417,7 +452,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
           isSuccess: true
         });
         
-        fetchClosures();
+        await fetchClosures();
       } catch (error) {
         console.error("Error deleting closure:", error);
         setDeleteResult({
@@ -450,7 +485,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
           
           setSelectedClosures([]);
           setSelectAll(false);
-          fetchClosures();
+          await fetchClosures();
         } else {
           throw new Error(response.data.message || "Failed to delete closures");
         }
@@ -507,23 +542,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
 
   const handleCloseResultModal = () => {
     setDeleteResult({ show: false, message: "", isSuccess: false });
-  };
-
-  const formatTime = (time) => {
-    if (!time) return "";
-    const [hours, minutes] = time.split(":");
-    const date = new Date();
-    date.setHours(parseInt(hours), parseInt(minutes));
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
-
-  const formatDate = (date) => {
-    if (!date) return "";
-    return new Date(date).toLocaleDateString("en-PH", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
   };
 
   const getStatusBadge = (closure) => {
@@ -744,6 +762,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
             <div className="flex items-center space-x-4">
               <span className="text-sm font-medium text-gray-700 bg-gray-100 px-3 py-1 rounded-full">
                 {new Date().toLocaleDateString("en-US", {
+                  timeZone: "Asia/Manila",
                   weekday: "long",
                   month: "long",
                   day: "numeric",
@@ -1012,8 +1031,11 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   <tbody className="divide-y divide-gray-200">
                     {isLoading ? (
                       <tr>
-                        <td colSpan={9} className="px-6 py-4 text-center text-gray-500 font-bold">
-                          Loading closures...
+                        <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
+                          <div className="flex items-center justify-center">
+                            <div className="w-6 h-6 border-2 border-red-600 border-t-transparent rounded-full animate-spin mr-2"></div>
+                            Loading closures...
+                          </div>
                         </td>
                       </tr>
                     ) : paginatedClosures.length === 0 ? (
@@ -1047,7 +1069,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                               {formatDate(closure.date)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              {formatTime(closure.startTime)} — {formatTime(closure.endTime)}
+                              {formatDisplayTime(closure.startTime)} — {formatDisplayTime(closure.endTime)}
                             </td>
                             <td className="px-6 py-4">
                               {closure.affectedAllRooms ? (
@@ -1202,7 +1224,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                     onChange={handleInputChange}
                     required
                     disabled={isCreating}
-                    min={new Date().toISOString().split("T")[0]}
+                    min={getTodayInManila()}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
@@ -1217,6 +1239,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                     disabled={isCreating}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
+                  <p className="text-xs text-gray-500 mt-1">Use 24-hour format (e.g., 14:00 for 2:00 PM)</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
@@ -1249,18 +1272,22 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Affected Rooms</label>
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-3 border border-gray-200 rounded-lg bg-gray-50">
-                      {availableRooms.map((room) => (
-                        <label key={room._id} className="flex items-center gap-2 text-gray-700 text-sm">
-                          <input
-                            type="checkbox"
-                            checked={formData.affectedRooms.includes(room.room)}
-                            onChange={() => handleRoomSelection(room.room)}
-                            disabled={isCreating}
-                            className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 disabled:opacity-50"
-                          />
-                          <span>{room.room} ({room.floor})</span>
-                        </label>
-                      ))}
+                      {availableRooms.length === 0 ? (
+                        <p className="text-gray-500 col-span-2 md:col-span-3 text-center">Loading rooms...</p>
+                      ) : (
+                        availableRooms.map((room) => (
+                          <label key={room._id} className="flex items-center gap-2 text-gray-700 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={formData.affectedRooms.includes(room.room)}
+                              onChange={() => handleRoomSelection(room.room)}
+                              disabled={isCreating}
+                              className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 disabled:opacity-50"
+                            />
+                            <span>{room.room} ({room.floor})</span>
+                          </label>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
@@ -1270,7 +1297,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 <button
                   type="button"
                   onClick={handlePreviewConflicts}
-                  disabled={isCreating}
+                  disabled={isCreating || !formData.date || !formData.startTime || !formData.endTime}
                   className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Preview Conflicts
@@ -1657,7 +1684,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
                     <p className="font-semibold text-gray-900">{res.roomName}</p>
                     <p className="text-sm text-gray-600">
-                      {res.userName} - {res.date} {res.startTime}-{res.endTime}
+                      {res.userName} - {res.date} {formatDisplayTime(res.startTime)}-{formatDisplayTime(res.endTime)}
                     </p>
                     <p className="text-xs text-gray-500">Status: {res.status}</p>
                   </div>
