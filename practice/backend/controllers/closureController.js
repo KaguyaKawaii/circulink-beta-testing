@@ -10,22 +10,39 @@ import logAction from "../utils/logAction.js";
 import generateReservationEmail from "../utils/generateReservationEmail.js";
 import timeService from "../services/timeService.js";
 
-// Helper: Convert time string to minutes (using timeService)
+// Helper: Convert time string to minutes
 function timeToMinutes(timeStr) {
-  return timeService.timeToMinutes(timeStr);
+  if (!timeStr) return 0;
+  const [hours, minutes] = timeStr.split(":");
+  return parseInt(hours) * 60 + parseInt(minutes);
 }
 
-// Helper: Check if a closure has expired (using timeService)
+// Helper: Check if a closure has expired
 function isClosureExpired(closure) {
-  return timeService.isExpired(closure);
+  if (!closure || closure.status !== "Active") return false;
+  
+  const now = timeService.getCurrentTime();
+  const closureDate = closure.date;
+  const closureEndTime = closure.endTime;
+  
+  // Parse closure end datetime
+  const closureEndDateTime = timeService.parseClosureDateTime(closureDate, closureEndTime);
+  
+  // Check if current time is after closure end time
+  return now.isAfter(closureEndDateTime);
 }
 
-// Helper: Check if a scheduled closure should be activated (using timeService)
+// Helper: Check if a scheduled closure should be activated
 function shouldActivateClosure(closure) {
-  return timeService.shouldBeActive(closure) && closure.status === "Scheduled";
+  if (!closure || closure.status !== "Scheduled") return false;
+  
+  const now = timeService.getCurrentTime();
+  const closureStartDateTime = timeService.parseClosureDateTime(closure.date, closure.startTime);
+  
+  return now.isSameOrAfter(closureStartDateTime);
 }
 
-// Helper: Update expired closures (internal function, no req/res)
+// Helper: Update expired closures
 async function updateExpiredClosures() {
   try {
     console.log("🔄 Updating closure statuses...");
@@ -47,11 +64,12 @@ async function updateExpiredClosures() {
         
         console.log(`✅ Closure "${closure.title}" has expired automatically`);
         
+        // Notify admins
         try {
           const admins = await Admin.find({});
           for (const admin of admins) {
             if (admin.email) {
-              sendEmail({
+              await sendEmail({
                 to: admin.email,
                 subject: `Closure Ended: ${closure.title}`,
                 html: `
@@ -75,8 +93,6 @@ async function updateExpiredClosures() {
     
     if (updatedCount > 0) {
       console.log(`📊 Updated ${updatedCount} closures to Expired status`);
-    } else {
-      console.log("📊 No closures needed updating");
     }
     
     return { updatedCount, expiredClosures };
@@ -87,13 +103,12 @@ async function updateExpiredClosures() {
   }
 }
 
-// Helper: Auto-activate scheduled closures (using timeService)
+// Helper: Auto-activate scheduled closures
 async function activateScheduledClosures() {
   try {
     console.log("🔄 Checking for scheduled closures to activate...");
     
-    const now = timeService.getCurrentTime();
-    const today = now.format('YYYY-MM-DD');
+    const today = timeService.getCurrentDate();
     
     // Find all scheduled closures with date <= today
     const scheduledClosures = await Closure.find({ 
@@ -124,6 +139,24 @@ async function activateScheduledClosures() {
           continue;
         }
         
+        // Check for overlapping scheduled closures that should also activate
+        const overlappingScheduled = await Closure.find({
+          _id: { $ne: closure._id },
+          date: closure.date,
+          status: "Scheduled",
+          $or: [
+            {
+              startTime: { $lt: closure.endTime },
+              endTime: { $gt: closure.startTime }
+            }
+          ]
+        });
+        
+        if (overlappingScheduled.length > 0) {
+          console.log(`⚠️ Cannot auto-activate "${closure.title}" - overlapping with scheduled closure`);
+          continue;
+        }
+        
         // Activate the closure
         closure.status = "Active";
         closure.activatedAt = new Date();
@@ -136,90 +169,8 @@ async function activateScheduledClosures() {
         
         console.log(`✅ Closure "${closure.title}" activated automatically`);
         
-        // Find and cancel conflicting reservations
-        const conflictQuery = {
-          date: closure.date,
-          status: { $in: ["Pending", "Approved", "Ongoing"] }
-        };
-        
-        if (!closure.affectedAllRooms && closure.affectedRooms?.length > 0) {
-          conflictQuery.roomName = { $in: closure.affectedRooms };
-        }
-        
-        const conflictingReservations = await Reservation.find(conflictQuery)
-          .populate("userId", "name email id_number");
-        
-        const startTimeMinutes = timeToMinutes(closure.startTime);
-        const endTimeMinutes = timeToMinutes(closure.endTime);
-        const affectedList = [];
-        
-        for (const reservation of conflictingReservations) {
-          let resStartTime, resEndTime;
-          
-          if (reservation.datetime && reservation.endDatetime) {
-            resStartTime = new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-            resEndTime = new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-          } else if (reservation.time && reservation.endTime) {
-            resStartTime = reservation.time;
-            resEndTime = reservation.endTime;
-          } else {
-            continue;
-          }
-          
-          const resStartMinutes = timeToMinutes(resStartTime);
-          const resEndMinutes = timeToMinutes(resEndTime);
-          
-          const overlap = (resStartMinutes < endTimeMinutes && resEndMinutes > startTimeMinutes);
-          
-          if (overlap) {
-            affectedList.push(reservation);
-            
-            reservation.status = "Cancelled";
-            reservation.cancellationReason = `Cancelled due to facility closure activation: ${closure.title} - ${closure.reason}`;
-            reservation.cancelledBy = "System";
-            reservation.cancelledAt = new Date();
-            await reservation.save();
-            
-            try {
-              if (reservation.userId?.email) {
-                sendEmail({
-                  to: reservation.userId.email,
-                  subject: "Reservation Cancelled Due to Facility Closure",
-                  html: `
-                    <h2>Reservation Cancelled</h2>
-                    <p>Dear ${reservation.userId.name || "User"},</p>
-                    <p>Your reservation has been cancelled due to a facility closure:</p>
-                    <ul>
-                      <li><strong>Room:</strong> ${reservation.roomName}</li>
-                      <li><strong>Date:</strong> ${reservation.date}</li>
-                      <li><strong>Time:</strong> ${resStartTime} - ${resEndTime}</li>
-                      <li><strong>Closure:</strong> ${closure.title}</li>
-                      <li><strong>Reason:</strong> ${closure.reason}</li>
-                    </ul>
-                    <p>We apologize for any inconvenience.</p>
-                  `
-                }).catch(err => console.warn("Email send error:", err.message));
-              }
-            } catch (emailError) {
-              console.warn("⚠️ Failed to send cancellation email:", emailError.message);
-            }
-          }
-        }
-        
-        // Update affected reservations in closure
-        closure.affectedReservations = affectedList.map(r => ({
-          reservationId: r._id,
-          userId: r.userId?._id,
-          roomName: r.roomName,
-          date: r.date,
-          startTime: r.datetime ? new Date(r.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : r.time,
-          endTime: r.endDatetime ? new Date(r.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : r.endTime,
-          cancelledAt: new Date()
-        }));
-        
-        await closure.save();
-        
-        console.log(`   Cancelled ${affectedList.length} reservations`);
+        // Cancel conflicting reservations
+        await cancelConflictingReservations(closure, "System (Auto)");
       }
     }
     
@@ -235,15 +186,106 @@ async function activateScheduledClosures() {
   }
 }
 
+// Helper: Cancel conflicting reservations for a closure
+async function cancelConflictingReservations(closure, cancelledBy = "System") {
+  if (!closure || closure.status !== "Active") return [];
+  
+  const conflictQuery = {
+    date: closure.date,
+    status: { $in: ["Pending", "Approved", "Ongoing"] }
+  };
+  
+  if (!closure.affectedAllRooms && closure.affectedRooms?.length > 0) {
+    conflictQuery.roomName = { $in: closure.affectedRooms };
+  }
+  
+  const conflictingReservations = await Reservation.find(conflictQuery)
+    .populate("userId", "name email id_number");
+  
+  const startTimeMinutes = timeToMinutes(closure.startTime);
+  const endTimeMinutes = timeToMinutes(closure.endTime);
+  const affectedList = [];
+  
+  for (const reservation of conflictingReservations) {
+    let resStartTime, resEndTime;
+    
+    if (reservation.datetime && reservation.endDatetime) {
+      resStartTime = new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+      resEndTime = new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    } else if (reservation.time && reservation.endTime) {
+      resStartTime = reservation.time;
+      resEndTime = reservation.endTime;
+    } else {
+      continue;
+    }
+    
+    const resStartMinutes = timeToMinutes(resStartTime);
+    const resEndMinutes = timeToMinutes(resEndTime);
+    
+    const overlap = (resStartMinutes < endTimeMinutes && resEndMinutes > startTimeMinutes);
+    
+    if (overlap) {
+      affectedList.push(reservation);
+      
+      reservation.status = "Cancelled";
+      reservation.cancellationReason = `Cancelled due to facility closure activation: ${closure.title} - ${closure.reason}`;
+      reservation.cancelledBy = cancelledBy;
+      reservation.cancelledAt = new Date();
+      await reservation.save();
+      
+      // Send cancellation email
+      try {
+        if (reservation.userId?.email) {
+          await sendEmail({
+            to: reservation.userId.email,
+            subject: "Reservation Cancelled Due to Facility Closure",
+            html: `
+              <h2>Reservation Cancelled</h2>
+              <p>Dear ${reservation.userId.name || "User"},</p>
+              <p>Your reservation has been cancelled due to a facility closure:</p>
+              <ul>
+                <li><strong>Room:</strong> ${reservation.roomName}</li>
+                <li><strong>Date:</strong> ${reservation.date}</li>
+                <li><strong>Time:</strong> ${resStartTime} - ${resEndTime}</li>
+                <li><strong>Closure:</strong> ${closure.title}</li>
+                <li><strong>Reason:</strong> ${closure.reason}</li>
+              </ul>
+              <p>We apologize for any inconvenience.</p>
+            `
+          }).catch(err => console.warn("Email send error:", err.message));
+        }
+      } catch (emailError) {
+        console.warn("⚠️ Failed to send cancellation email:", emailError.message);
+      }
+    }
+  }
+  
+  // Update affected reservations in closure
+  closure.affectedReservations = affectedList.map(r => ({
+    reservationId: r._id,
+    userId: r.userId?._id,
+    roomName: r.roomName,
+    date: r.date,
+    startTime: r.datetime ? new Date(r.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : r.time,
+    endTime: r.endDatetime ? new Date(r.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : r.endTime,
+    cancelledAt: new Date()
+  }));
+  
+  await closure.save();
+  
+  return affectedList;
+}
+
 /* ------------------------------------------------
    ✅ UPDATE CLOSURE STATUSES (API ENDPOINT)
 ------------------------------------------------ */
 export const updateClosureStatuses = async (req, res) => {
   try {
-    // Update expired closures
-    const expiredResult = await updateExpiredClosures();
-    // Activate scheduled closures
+    // First, activate scheduled closures that should be active
     const activatedResult = await activateScheduledClosures();
+    
+    // Then, update expired closures
+    const expiredResult = await updateExpiredClosures();
     
     res.json({
       success: true,
@@ -305,10 +347,12 @@ export const activateClosure = async (req, res) => {
     const now = timeService.getCurrentTime();
     const closureStartDateTime = timeService.parseClosureDateTime(closure.date, closure.startTime);
 
+    // If not activating now and start time is in the future, just schedule it
     if (!activateNow && now.isBefore(closureStartDateTime)) {
       closure.status = "Scheduled";
       closure.activatedAt = null;
       closure.activatedBy = null;
+      closure.activatedByName = null;
       await closure.save();
       
       return res.json({
@@ -343,6 +387,32 @@ export const activateClosure = async (req, res) => {
       });
     }
 
+    // Check for overlapping scheduled closures that might conflict
+    const overlappingScheduled = await Closure.find({
+      _id: { $ne: id },
+      date: closure.date,
+      status: "Scheduled",
+      $or: [
+        {
+          startTime: { $lt: closure.endTime },
+          endTime: { $gt: closure.startTime }
+        }
+      ]
+    });
+
+    if (overlappingScheduled.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot activate: There is a scheduled closure during this time period that will conflict",
+        overlappingClosures: overlappingScheduled.map(c => ({
+          title: c.title,
+          time: `${c.startTime} - ${c.endTime}`,
+          rooms: c.affectedAllRooms ? "All Rooms" : c.affectedRooms.join(", ")
+        }))
+      });
+    }
+
+    // Activate the closure
     closure.status = "Active";
     closure.activatedAt = new Date();
     closure.activatedBy = req.admin?._id || null;
@@ -351,92 +421,14 @@ export const activateClosure = async (req, res) => {
 
     console.log(`✅ Closure "${closure.title}" activated manually by ${req.admin?.name || "System"}`);
 
-    const conflictQuery = {
-      date: closure.date,
-      status: { $in: ["Pending", "Approved", "Ongoing"] }
-    };
-
-    if (!closure.affectedAllRooms && closure.affectedRooms?.length > 0) {
-      conflictQuery.roomName = { $in: closure.affectedRooms };
-    }
-
-    const conflictingReservations = await Reservation.find(conflictQuery)
-      .populate("userId", "name email id_number");
-
-    const startTimeMinutes = timeToMinutes(closure.startTime);
-    const endTimeMinutes = timeToMinutes(closure.endTime);
-    const affectedReservationsList = [];
-
-    for (const reservation of conflictingReservations) {
-      let resStartTime, resEndTime;
-      
-      if (reservation.datetime && reservation.endDatetime) {
-        resStartTime = new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-        resEndTime = new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-      } else if (reservation.time && reservation.endTime) {
-        resStartTime = reservation.time;
-        resEndTime = reservation.endTime;
-      } else {
-        continue;
-      }
-      
-      const resStartMinutes = timeToMinutes(resStartTime);
-      const resEndMinutes = timeToMinutes(resEndTime);
-
-      const overlap = (resStartMinutes < endTimeMinutes && resEndMinutes > startTimeMinutes);
-      
-      if (overlap) {
-        affectedReservationsList.push(reservation);
-        
-        reservation.status = "Cancelled";
-        reservation.cancellationReason = `Cancelled due to facility closure activation: ${closure.title} - ${closure.reason}`;
-        reservation.cancelledBy = "Admin";
-        reservation.cancelledAt = new Date();
-        await reservation.save();
-        
-        try {
-          if (reservation.userId?.email) {
-            sendEmail({
-              to: reservation.userId.email,
-              subject: "Reservation Cancelled Due to Facility Closure",
-              html: `
-                <h2>Reservation Cancelled</h2>
-                <p>Dear ${reservation.userId.name || "User"},</p>
-                <p>Your reservation has been cancelled due to a facility closure:</p>
-                <ul>
-                  <li><strong>Room:</strong> ${reservation.roomName}</li>
-                  <li><strong>Date:</strong> ${reservation.date}</li>
-                  <li><strong>Time:</strong> ${resStartTime} - ${resEndTime}</li>
-                  <li><strong>Closure:</strong> ${closure.title}</li>
-                  <li><strong>Reason:</strong> ${closure.reason}</li>
-                </ul>
-                <p>We apologize for any inconvenience.</p>
-              `
-            }).catch(err => console.warn("Email send error:", err.message));
-          }
-        } catch (emailError) {
-          console.warn("⚠️ Failed to send cancellation email:", emailError.message);
-        }
-      }
-    }
-
-    closure.affectedReservations = affectedReservationsList.map(r => ({
-      reservationId: r._id,
-      userId: r.userId?._id,
-      roomName: r.roomName,
-      date: r.date,
-      startTime: r.datetime ? new Date(r.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : r.time,
-      endTime: r.endDatetime ? new Date(r.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : r.endTime,
-      cancelledAt: new Date()
-    }));
-    
-    await closure.save();
+    // Cancel conflicting reservations
+    const cancelledReservations = await cancelConflictingReservations(closure, req.admin?.name || "System");
 
     res.json({
       success: true,
-      message: `Closure activated successfully. ${affectedReservationsList.length} reservations were cancelled.`,
+      message: `Closure activated successfully. ${cancelledReservations.length} reservations were cancelled.`,
       closure,
-      cancelledReservations: affectedReservationsList.length
+      cancelledReservations: cancelledReservations.length
     });
 
   } catch (err) {
@@ -483,27 +475,48 @@ export const deactivateClosure = async (req, res) => {
     if (closure.status === "Expired") {
       return res.status(400).json({
         success: false,
-        message: "Closure is already expired"
+        message: "Cannot deactivate an expired closure"
       });
     }
 
     const previousStatus = closure.status;
     
-    closure.status = "Deactivated";
+    // Determine new status based on whether it's in the past or future
+    const now = timeService.getCurrentTime();
+    const closureStartDateTime = timeService.parseClosureDateTime(closure.date, closure.startTime);
+    const closureEndDateTime = timeService.parseClosureDateTime(closure.date, closure.endTime);
+    
+    let newStatus = "Deactivated";
+    
+    // If the closure hasn't started yet, we can set it back to Scheduled
+    if (now.isBefore(closureStartDateTime) && previousStatus === "Active") {
+      newStatus = "Scheduled";
+    }
+    
+    closure.status = newStatus;
     closure.deactivatedAt = new Date();
     closure.deactivatedBy = req.admin?._id || null;
     closure.deactivatedByName = req.admin?.name || "System";
     closure.deactivatedReason = reason || "Manually deactivated by admin";
+    
+    // Clear activation info if reverting to scheduled
+    if (newStatus === "Scheduled") {
+      closure.activatedAt = null;
+      closure.activatedBy = null;
+      closure.activatedByName = null;
+    }
+    
     await closure.save();
 
-    console.log(`⏸️ Closure "${closure.title}" deactivated manually by ${req.admin?.name || "System"}`);
+    console.log(`⏸️ Closure "${closure.title}" ${newStatus === "Scheduled" ? "reverted to scheduled" : "deactivated"} by ${req.admin?.name || "System"}`);
 
     const restoredReservations = [];
     if (restoreReservations && closure.affectedReservations?.length > 0) {
       for (const affected of closure.affectedReservations) {
         try {
-          const reservation = await Reservation.findById(affected.reservationId);
+          const reservation = await Reservation.findById(affected.reservationId).populate("userId", "name email");
           if (reservation && reservation.status === "Cancelled") {
+            // Check if the time slot is still available
             const conflictExists = await Reservation.findOne({
               _id: { $ne: reservation._id },
               roomName: reservation.roomName,
@@ -517,7 +530,20 @@ export const deactivateClosure = async (req, res) => {
               ]
             });
 
-            if (!conflictExists) {
+            // Check if there's still an active closure
+            const activeClosureExists = await Closure.findOne({
+              _id: { $ne: id },
+              date: reservation.date,
+              status: "Active",
+              $or: [
+                { affectedAllRooms: true },
+                { affectedRooms: reservation.roomName }
+              ],
+              startTime: { $lte: affected.endTime },
+              endTime: { $gt: affected.startTime }
+            });
+
+            if (!conflictExists && !activeClosureExists) {
               reservation.status = "Pending";
               reservation.cancellationReason = undefined;
               reservation.cancelledBy = undefined;
@@ -525,9 +551,10 @@ export const deactivateClosure = async (req, res) => {
               await reservation.save();
               restoredReservations.push(reservation);
               
+              // Send restoration email
               try {
                 if (reservation.userId?.email) {
-                  sendEmail({
+                  await sendEmail({
                     to: reservation.userId.email,
                     subject: "Reservation Restored",
                     html: `
@@ -557,10 +584,11 @@ export const deactivateClosure = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Closure deactivated successfully. ${restoredReservations.length} reservations were restored.`,
+      message: `Closure ${newStatus === "Scheduled" ? "reverted to scheduled" : "deactivated"} successfully. ${restoredReservations.length} reservations were restored.`,
       closure,
       restoredReservations: restoredReservations.length,
-      previousStatus
+      previousStatus,
+      newStatus
     });
 
   } catch (err) {
@@ -741,11 +769,11 @@ export const createClosure = async (req, res) => {
     console.log(`Closure start time: ${closureStartDateTime.format()}`);
     console.log(`Initial status determined: ${initialStatus}`);
 
-    // Check for overlapping active closures only if we're setting to Active
+    // Check for overlapping closures
     if (initialStatus === "Active") {
       const overlappingClosures = await Closure.find({
         date,
-        status: "Active",
+        status: { $in: ["Active", "Scheduled"] },
         $or: [
           {
             startTime: { $lt: endTime },
@@ -757,8 +785,33 @@ export const createClosure = async (req, res) => {
       if (overlappingClosures.length > 0) {
         return res.status(400).json({
           success: false,
-          message: "There is already an active closure during this time period",
+          message: "There is already a closure during this time period",
           overlappingClosures: overlappingClosures.map(c => ({
+            title: c.title,
+            time: `${c.startTime} - ${c.endTime}`,
+            status: c.status,
+            rooms: c.affectedAllRooms ? "All Rooms" : c.affectedRooms.join(", ")
+          }))
+        });
+      }
+    } else {
+      // Check for scheduled closures that would conflict when activated
+      const conflictingScheduled = await Closure.find({
+        date,
+        status: "Scheduled",
+        $or: [
+          {
+            startTime: { $lt: endTime },
+            endTime: { $gt: startTime }
+          }
+        ]
+      });
+
+      if (conflictingScheduled.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: "There is already a scheduled closure during this time period",
+          conflictingClosures: conflictingScheduled.map(c => ({
             title: c.title,
             time: `${c.startTime} - ${c.endTime}`,
             rooms: c.affectedAllRooms ? "All Rooms" : c.affectedRooms.join(", ")
@@ -769,52 +822,10 @@ export const createClosure = async (req, res) => {
 
     let affectedReservationsList = [];
     if (initialStatus === "Active") {
-      const conflictQuery = {
-        date: date,
-        status: { $in: ["Pending", "Approved", "Ongoing"] }
-      };
-
-      if (!affectedAllRooms && affectedRooms && affectedRooms.length > 0) {
-        conflictQuery.roomName = { $in: affectedRooms };
-      }
-
-      const conflictingReservations = await Reservation.find(conflictQuery)
-        .populate("userId", "name email id_number");
-
-      const startTimeMinutes = timeToMinutes(startTime);
-      const endTimeMinutes = timeToMinutes(endTime);
-
-      for (const reservation of conflictingReservations) {
-        let resStartTime, resEndTime;
-        
-        if (reservation.datetime && reservation.endDatetime) {
-          resStartTime = new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-          resEndTime = new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-        } else if (reservation.time && reservation.endTime) {
-          resStartTime = reservation.time;
-          resEndTime = reservation.endTime;
-        } else {
-          continue;
-        }
-        
-        const resStartMinutes = timeToMinutes(resStartTime);
-        const resEndMinutes = timeToMinutes(resEndTime);
-
-        const overlap = (resStartMinutes < endTimeMinutes && resEndMinutes > startTimeMinutes);
-        
-        if (overlap) {
-          affectedReservationsList.push({
-            reservationId: reservation._id,
-            userId: reservation.userId?._id,
-            user: reservation.userId,
-            roomName: reservation.roomName,
-            date: reservation.date,
-            startTime: resStartTime,
-            endTime: resEndTime,
-            reservationData: reservation
-          });
-        }
-      }
+      affectedReservationsList = await cancelConflictingReservations(
+        { ...req.body, status: initialStatus },
+        req.admin?.name || "System"
+      );
     }
 
     let admin = null;
@@ -841,8 +852,8 @@ export const createClosure = async (req, res) => {
       createdBy: admin?._id || new mongoose.Types.ObjectId(),
       createdByAdminName: admin?.name || "System Admin",
       affectedReservations: affectedReservationsList.map(r => ({
-        reservationId: r.reservationId,
-        userId: r.userId,
+        reservationId: r._id,
+        userId: r.userId?._id,
         roomName: r.roomName,
         date: r.date,
         startTime: r.startTime,
@@ -857,73 +868,16 @@ export const createClosure = async (req, res) => {
 
     const closure = await Closure.create(closureData);
 
-    const processedReservations = [];
-    const failedReservations = [];
-
-    if (initialStatus === "Active") {
-      for (const conflict of affectedReservationsList) {
-        try {
-          const reservation = conflict.reservationData;
-          
-          const updatedReservation = await Reservation.findByIdAndUpdate(
-            reservation._id,
-            {
-              status: "Cancelled",
-              cancellationReason: `Cancelled due to facility closure: ${title} - ${reason}`,
-              cancelledBy: "Admin",
-              cancelledAt: new Date()
-            },
-            { new: true }
-          ).populate("userId");
-
-          if (updatedReservation) {
-            processedReservations.push(updatedReservation);
-            
-            try {
-              if (updatedReservation.userId?.email) {
-                sendEmail({
-                  to: updatedReservation.userId.email,
-                  subject: "Reservation Cancelled Due to Facility Closure",
-                  html: `
-                    <h2>Reservation Cancelled</h2>
-                    <p>Dear ${updatedReservation.userId.name || "User"},</p>
-                    <p>Your reservation has been cancelled due to a facility closure:</p>
-                    <ul>
-                      <li><strong>Room:</strong> ${updatedReservation.roomName}</li>
-                      <li><strong>Date:</strong> ${updatedReservation.date}</li>
-                      <li><strong>Time:</strong> ${conflict.startTime} - ${conflict.endTime}</li>
-                      <li><strong>Closure:</strong> ${title}</li>
-                      <li><strong>Reason:</strong> ${reason}</li>
-                    </ul>
-                    <p>We apologize for any inconvenience.</p>
-                  `
-                }).catch(err => console.warn("Email send error:", err.message));
-              }
-            } catch (emailError) {
-              console.warn("⚠️ Failed to send cancellation email:", emailError.message);
-            }
-          }
-        } catch (err) {
-          console.error(`❌ Failed to process reservation ${conflict.reservationId}:`, err);
-          failedReservations.push({
-            reservationId: conflict.reservationId,
-            error: err.message
-          });
-        }
-      }
-    }
-
     console.log("=".repeat(50));
     console.log(`✅ CLOSURE CREATED SUCCESSFULLY with status: ${initialStatus}`);
-    console.log(`Affected: ${processedReservations.length} reservations`);
+    console.log(`Affected: ${affectedReservationsList.length} reservations`);
     console.log("=".repeat(50));
 
     res.status(201).json({
       success: true,
-      message: `Closure created successfully with status: ${initialStatus}. ${processedReservations.length} reservations were automatically cancelled.`,
+      message: `Closure created successfully with status: ${initialStatus}. ${affectedReservationsList.length} reservations were automatically cancelled.`,
       closure,
-      affectedReservations: processedReservations,
-      failedReservations: failedReservations.length > 0 ? failedReservations : undefined
+      affectedReservations: affectedReservationsList
     });
 
   } catch (err) {
@@ -1092,6 +1046,14 @@ export const updateClosure = async (req, res) => {
       });
     }
 
+    if (closure.status === "Active") {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot edit an active closure. Please deactivate it first."
+      });
+    }
+
+    // Update fields
     if (title) closure.title = title;
     if (reason) closure.reason = reason;
     if (date) closure.date = date;
@@ -1100,7 +1062,9 @@ export const updateClosure = async (req, res) => {
     if (affectedRooms) closure.affectedRooms = affectedRooms;
     if (affectedAllRooms !== undefined) closure.affectedAllRooms = affectedAllRooms;
     if (location) closure.location = location;
-    if (status && status !== closure.status && status !== "Expired") {
+    
+    // Only update status if it's not expired and not active
+    if (status && status !== closure.status && status !== "Expired" && status !== "Active") {
       closure.status = status;
     }
 
@@ -1150,8 +1114,9 @@ export const deleteClosure = async (req, res) => {
     if (restoreReservations && closure.affectedReservations?.length > 0) {
       for (const affected of closure.affectedReservations) {
         try {
-          const reservation = await Reservation.findById(affected.reservationId);
+          const reservation = await Reservation.findById(affected.reservationId).populate("userId", "name email");
           if (reservation && reservation.status === "Cancelled") {
+            // Check if the time slot is still available
             const conflictExists = await Reservation.findOne({
               _id: { $ne: reservation._id },
               roomName: reservation.roomName,
@@ -1165,7 +1130,20 @@ export const deleteClosure = async (req, res) => {
               ]
             });
 
-            if (!conflictExists) {
+            // Check if there's still an active closure
+            const activeClosureExists = await Closure.findOne({
+              _id: { $ne: id },
+              date: reservation.date,
+              status: "Active",
+              $or: [
+                { affectedAllRooms: true },
+                { affectedRooms: reservation.roomName }
+              ],
+              startTime: { $lte: affected.endTime },
+              endTime: { $gt: affected.startTime }
+            });
+
+            if (!conflictExists && !activeClosureExists) {
               reservation.status = "Pending";
               reservation.cancellationReason = undefined;
               reservation.cancelledBy = undefined;
@@ -1213,7 +1191,7 @@ export const bulkDeleteClosures = async (req, res) => {
     }
 
     let deletedCount = 0;
-    const restoredReservations = [];
+    let restoredReservationsCount = 0;
 
     for (const id of closureIds) {
       if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -1248,7 +1226,7 @@ export const bulkDeleteClosures = async (req, res) => {
                 reservation.cancelledBy = undefined;
                 reservation.cancelledAt = undefined;
                 await reservation.save();
-                restoredReservations.push(reservation);
+                restoredReservationsCount++;
               }
             }
           } catch (err) {
@@ -1263,9 +1241,9 @@ export const bulkDeleteClosures = async (req, res) => {
 
     res.json({
       success: true,
-      message: `Successfully deleted ${deletedCount} closures. ${restoredReservations.length} reservations were restored.`,
+      message: `Successfully deleted ${deletedCount} closures. ${restoredReservationsCount} reservations were restored.`,
       count: deletedCount,
-      restoredReservations: restoredReservations.length > 0 ? restoredReservations : undefined
+      restoredCount: restoredReservationsCount
     });
 
   } catch (err) {
@@ -1292,8 +1270,9 @@ export const checkSlotClosed = async (req, res) => {
       });
     }
 
-    updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
-    activateScheduledClosures().catch(err => console.error("Auto-activate error:", err));
+    // Update statuses before checking
+    await updateExpiredClosures();
+    await activateScheduledClosures();
 
     const query = {
       date: date,
@@ -1343,8 +1322,9 @@ export const getAvailabilityWithClosures = async (req, res) => {
       });
     }
 
-    updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
-    activateScheduledClosures().catch(err => console.error("Auto-activate error:", err));
+    // Update statuses before checking
+    await updateExpiredClosures();
+    await activateScheduledClosures();
 
     const Room = mongoose.model("Room");
     const rooms = await Room.find({}).sort({ floor: 1, room: 1 });
@@ -1423,8 +1403,9 @@ export const getUpcomingClosures = async (req, res) => {
   try {
     const today = timeService.getCurrentDate();
     
-    updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
-    activateScheduledClosures().catch(err => console.error("Auto-activate error:", err));
+    // Update statuses before fetching
+    await updateExpiredClosures();
+    await activateScheduledClosures();
     
     const closures = await Closure.find({
       date: { $gte: today },
@@ -1451,6 +1432,10 @@ export const getUpcomingClosures = async (req, res) => {
 ------------------------------------------------ */
 export const getClosureStats = async (req, res) => {
   try {
+    // Update statuses before counting
+    await updateExpiredClosures();
+    await activateScheduledClosures();
+    
     const stats = {
       total: await Closure.countDocuments(),
       active: await Closure.countDocuments({ status: "Active" }),

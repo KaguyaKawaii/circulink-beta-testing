@@ -1,5 +1,5 @@
 // src/Admin/AdminClosures.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { 
   Calendar, 
   Clock, 
@@ -113,7 +113,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   });
   const [availableRooms, setAvailableRooms] = useState([]);
   const [conflictPreview, setConflictPreview] = useState(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   const [filter, setFilter] = useState({ status: "All", search: "" });
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0 });
   const [itemsPerPage] = useState(20);
@@ -124,31 +123,34 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   // Selection State for bulk operations
   const [selectedClosures, setSelectedClosures] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
-  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
-  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteResult, setDeleteResult] = useState({ show: false, message: "", isSuccess: false });
   
-  // Restore Confirmation Modal State
+  // Modal States
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(null);
-  const [restoreAction, setRestoreAction] = useState(null);
-  const [pendingDeleteClosure, setPendingDeleteClosure] = useState(null);
-  const [pendingBulkDeleteIds, setPendingBulkDeleteIds] = useState([]);
-  
-  // Activation/Deactivation States
   const [showActivateConfirm, setShowActivateConfirm] = useState(null);
   const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(null);
+  
+  // Loading States
   const [isActivating, setIsActivating] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  
+  // Result Modal State
+  const [deleteResult, setDeleteResult] = useState({ show: false, message: "", isSuccess: false });
+  
+  // Pending Actions State
+  const [pendingDeleteClosure, setPendingDeleteClosure] = useState(null);
+  const [pendingBulkDeleteIds, setPendingBulkDeleteIds] = useState([]);
+  const [restoreAction, setRestoreAction] = useState(null);
   
   // View Mode
   const [viewMode, setViewMode] = useState("list");
 
   const API_URL = import.meta.env.VITE_API_URL || "";
 
-  const showToast = (message, type = "success") => {
+  const showToast = useCallback((message, type = "success") => {
     setToast({ message, type });
-  };
+  }, []);
 
   // Auto-update closure statuses every minute
   useEffect(() => {
@@ -161,7 +163,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         }
       } catch (error) {
         console.error("Error updating closure statuses:", error);
-        // Don't show toast for auto-update to avoid spam
       }
     };
 
@@ -171,19 +172,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    fetchClosures();
-  }, [filter, pagination.currentPage]);
-
-  useEffect(() => {
-    fetchRooms();
-  }, []);
-
-  useEffect(() => {
-    setPagination(prev => ({ ...prev, currentPage: 1 }));
-  }, [filter]);
-
-  const fetchClosures = async () => {
+  const fetchClosures = useCallback(async () => {
     setIsLoading(true);
     setFetchError(null);
     try {
@@ -207,6 +196,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
           totalCount: paginationData.totalCount || 0
         });
         
+        // Reset selections when data changes
         setSelectedClosures([]);
         setSelectAll(false);
       } else {
@@ -224,7 +214,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [pagination.currentPage, filter.status, filter.search, itemsPerPage, API_URL]);
 
   const fetchRooms = async () => {
     try {
@@ -235,6 +225,19 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       showToast("Failed to fetch rooms list", "error");
     }
   };
+
+  useEffect(() => {
+    fetchClosures();
+  }, [fetchClosures]);
+
+  useEffect(() => {
+    fetchRooms();
+  }, []);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+  }, [filter.status, filter.search]);
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -255,7 +258,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
 
   const handlePreviewConflicts = async () => {
     try {
-      // Validate required fields before preview
       if (!formData.date || !formData.startTime || !formData.endTime) {
         showToast("Please fill in date and time first", "error");
         return;
@@ -277,13 +279,11 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     
     if (isCreating) return;
     
-    // Validate time format
     if (!isValidTimeFormat(formData.startTime) || !isValidTimeFormat(formData.endTime)) {
       showToast("Invalid time format. Use HH:MM (24-hour format, e.g., 17:46)", "error");
       return;
     }
     
-    // Validate time range
     const startMinutes = parseInt(formData.startTime.split(':')[0]) * 60 + parseInt(formData.startTime.split(':')[1]);
     const endMinutes = parseInt(formData.endTime.split(':')[0]) * 60 + parseInt(formData.endTime.split(':')[1]);
     
@@ -401,24 +401,23 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const handleSelectAll = () => {
     if (selectAll) {
       setSelectedClosures([]);
+      setSelectAll(false);
     } else {
-      const filteredIds = paginatedClosures.map(closure => closure._id);
-      setSelectedClosures(filteredIds);
+      const allIds = closures.map(closure => closure._id);
+      setSelectedClosures(allIds);
+      setSelectAll(true);
     }
-    setSelectAll(!selectAll);
   };
 
   const handleSelectClosure = (closureId) => {
     setSelectedClosures(prev => {
       if (prev.includes(closureId)) {
         const newSelected = prev.filter(id => id !== closureId);
-        setSelectAll(false);
+        setSelectAll(newSelected.length === closures.length);
         return newSelected;
       } else {
         const newSelected = [...prev, closureId];
-        if (newSelected.length === paginatedClosures.length) {
-          setSelectAll(true);
-        }
+        setSelectAll(newSelected.length === closures.length);
         return newSelected;
       }
     });
@@ -431,8 +430,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       title: closure.title,
       affectedCount: closure.affectedReservations?.length || 0,
       affectedReservations: closure.affectedReservations || [],
-      date: closure.date,
-      show: true
+      date: closure.date
     });
   };
 
@@ -500,14 +498,12 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         setIsBulkDeleting(false);
         setShowRestoreConfirm(null);
         setPendingBulkDeleteIds([]);
-        setShowBulkDeleteConfirm(false);
         setRestoreAction(null);
       }
     }
   };
 
   const handleDeleteCancel = () => {
-    setShowDeleteConfirm(null);
     setShowRestoreConfirm(null);
     setPendingDeleteClosure(null);
     setPendingBulkDeleteIds([]);
@@ -535,8 +531,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       title: `${selectedClosures.length} selected closures`,
       affectedCount: totalAffected,
       affectedReservations: [],
-      date: null,
-      show: true
+      date: null
     });
   };
 
@@ -580,20 +575,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     );
   };
 
-  const filteredClosures = closures.filter((closure) => {
-    const matchesStatus = filter.status === "All" || closure.status === filter.status;
-    const matchesSearch = 
-      closure.title?.toLowerCase().includes(filter.search.toLowerCase()) ||
-      closure.reason?.toLowerCase().includes(filter.search.toLowerCase());
-    
-    return matchesStatus && matchesSearch;
-  });
-
-  const indexOfLastItem = pagination.currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const paginatedClosures = filteredClosures.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredClosures.length / itemsPerPage);
-
   const handlePageChange = (pageNumber) => {
     setPagination(prev => ({ ...prev, currentPage: pageNumber }));
     setSelectedClosures([]);
@@ -609,7 +590,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   };
 
   const handleNextPage = () => {
-    if (pagination.currentPage < totalPages) {
+    if (pagination.currentPage < pagination.totalPages) {
       setPagination(prev => ({ ...prev, currentPage: prev.currentPage + 1 }));
       setSelectedClosures([]);
       setSelectAll(false);
@@ -632,7 +613,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   );
 
   const Pagination = () => {
-    if (totalPages <= 1) return null;
+    if (pagination.totalPages <= 1) return null;
 
     const getVisiblePages = () => {
       const delta = 2;
@@ -640,8 +621,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       const rangeWithDots = [];
       let l;
 
-      for (let i = 1; i <= totalPages; i++) {
-        if (i === 1 || i === totalPages || (i >= pagination.currentPage - delta && i <= pagination.currentPage + delta)) {
+      for (let i = 1; i <= pagination.totalPages; i++) {
+        if (i === 1 || i === pagination.totalPages || (i >= pagination.currentPage - delta && i <= pagination.currentPage + delta)) {
           range.push(i);
         }
       }
@@ -662,6 +643,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     };
 
     const visiblePages = getVisiblePages();
+    const startIndex = (pagination.currentPage - 1) * itemsPerPage + 1;
+    const endIndex = Math.min(pagination.currentPage * itemsPerPage, pagination.totalCount);
 
     return (
       <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
@@ -675,7 +658,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
           </button>
           <button
             onClick={handleNextPage}
-            disabled={pagination.currentPage === totalPages}
+            disabled={pagination.currentPage === pagination.totalPages}
             className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Next
@@ -684,11 +667,9 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
           <div>
             <p className="text-sm text-gray-700">
-              Showing <span className="font-medium">{indexOfFirstItem + 1}</span> to{' '}
-              <span className="font-medium">
-                {Math.min(indexOfLastItem, filteredClosures.length)}
-              </span>{' '}
-              of <span className="font-medium">{filteredClosures.length}</span> results
+              Showing <span className="font-medium">{startIndex}</span> to{' '}
+              <span className="font-medium">{endIndex}</span>{' '}
+              of <span className="font-medium">{pagination.totalCount}</span> results
             </p>
           </div>
           <div>
@@ -717,7 +698,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               ))}
               <button
                 onClick={handleNextPage}
-                disabled={pagination.currentPage === totalPages}
+                disabled={pagination.currentPage === pagination.totalPages}
                 className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="sr-only">Next</span>
@@ -734,6 +715,23 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     const roomList = rooms?.join(", ") || "None";
     showToast(`Affected Rooms: ${roomList}`, "info");
   };
+
+  // Calculate statistics from current data (not filtered)
+  const getStats = () => {
+    const stats = {
+      total: pagination.totalCount,
+      active: closures.filter(c => c.status === "Active").length,
+      scheduled: closures.filter(c => c.status === "Scheduled").length,
+      deactivated: closures.filter(c => c.status === "Deactivated").length,
+      expired: closures.filter(c => c.status === "Expired").length,
+      allRooms: closures.filter(c => c.affectedAllRooms).length,
+      specificRooms: closures.filter(c => !c.affectedAllRooms).length,
+      totalAffected: closures.reduce((sum, c) => sum + (c.affectedReservations?.length || 0), 0)
+    };
+    return stats;
+  };
+
+  const stats = getStats();
 
   return (
     <>
@@ -917,41 +915,41 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
                   title="Total Closures"
-                  value={filteredClosures.length}
+                  value={stats.total}
                   icon={<Calendar size={24} />}
                   color="border-l-4 border-l-blue-500"
                 />
                 <StatCard
                   title="Active Closures"
-                  value={filteredClosures.filter(c => c.status === "Active").length}
+                  value={stats.active}
                   icon={<CheckCircle size={24} />}
                   color="border-l-4 border-l-green-500"
                   subtitle="Currently in effect"
                 />
                 <StatCard
                   title="Scheduled Closures"
-                  value={filteredClosures.filter(c => c.status === "Scheduled").length}
+                  value={stats.scheduled}
                   icon={<CalendarRange size={24} />}
                   color="border-l-4 border-l-blue-500"
                   subtitle="Upcoming closures"
                 />
                 <StatCard
                   title="Deactivated Closures"
-                  value={filteredClosures.filter(c => c.status === "Deactivated").length}
+                  value={stats.deactivated}
                   icon={<XCircle size={24} />}
                   color="border-l-4 border-l-yellow-500"
                   subtitle="Manually stopped"
                 />
                 <StatCard
                   title="Expired Closures"
-                  value={filteredClosures.filter(c => c.status === "Expired").length}
+                  value={stats.expired}
                   icon={<Clock size={24} />}
                   color="border-l-4 border-l-gray-500"
                   subtitle="Past closures"
                 />
                 <StatCard
                   title="Total Affected Reservations"
-                  value={filteredClosures.reduce((sum, c) => sum + (c.affectedReservations?.length || 0), 0)}
+                  value={stats.totalAffected}
                   icon={<Users size={24} />}
                   color="border-l-4 border-l-red-500"
                   subtitle="Reservations cancelled"
@@ -968,13 +966,13 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                     <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                       <span className="text-gray-700">All Rooms Closures</span>
                       <span className="font-semibold text-lg text-blue-600">
-                        {filteredClosures.filter(c => c.affectedAllRooms).length}
+                        {stats.allRooms}
                       </span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                       <span className="text-gray-700">Specific Rooms Closures</span>
                       <span className="font-semibold text-lg text-green-600">
-                        {filteredClosures.filter(c => !c.affectedAllRooms).length}
+                        {stats.specificRooms}
                       </span>
                     </div>
                   </div>
@@ -989,14 +987,14 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                     <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                       <span className="text-gray-700">Total Affected Reservations</span>
                       <span className="font-semibold text-lg text-red-600">
-                        {filteredClosures.reduce((sum, c) => sum + (c.affectedReservations?.length || 0), 0)}
+                        {stats.totalAffected}
                       </span>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
                       <span className="text-gray-700">Average Affected per Closure</span>
                       <span className="font-semibold text-lg text-purple-600">
-                        {filteredClosures.length > 0 
-                          ? Math.round(filteredClosures.reduce((sum, c) => sum + (c.affectedReservations?.length || 0), 0) / filteredClosures.length)
+                        {stats.total > 0 
+                          ? Math.round(stats.totalAffected / stats.total)
                           : 0}
                       </span>
                     </div>
@@ -1038,14 +1036,15 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                           </div>
                         </td>
                       </tr>
-                    ) : paginatedClosures.length === 0 ? (
+                    ) : closures.length === 0 ? (
                       <tr>
                         <td colSpan={9} className="px-6 py-4 text-center text-gray-500">
                           No closures found
                         </td>
                       </tr>
                     ) : (
-                      paginatedClosures.map((closure, i) => {
+                      closures.map((closure, i) => {
+                        const globalIndex = (pagination.currentPage - 1) * itemsPerPage + i + 1;
                         return (
                           <tr key={closure._id} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -1060,7 +1059,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                                 )}
                               </button>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">{indexOfFirstItem + i + 1}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{globalIndex}</td>
                             <td className="px-6 py-4">
                               <div className="font-medium text-gray-900">{closure.title}</div>
                               <div className="text-gray-500 text-xs line-clamp-1">{closure.reason}</div>
@@ -1122,7 +1121,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                                   </button>
                                 )}
                                 
-                                {closure.status !== "Expired" && (
+                                {closure.status !== "Expired" && closure.status !== "Active" && (
                                   <button
                                     onClick={() => {
                                       setEditingClosure(closure);
@@ -1162,7 +1161,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 </table>
               </div>
               
-              {filteredClosures.length > 0 && <Pagination />}
+              {pagination.totalCount > 0 && <Pagination />}
             </div>
           )}
         </div>
@@ -1239,7 +1238,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                     disabled={isCreating}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Use 24-hour format (e.g., 14:00 for 2:00 PM)</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
