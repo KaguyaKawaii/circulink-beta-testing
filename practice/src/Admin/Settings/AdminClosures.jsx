@@ -24,7 +24,9 @@ import {
   ChevronRight,
   Square,
   CheckSquare,
-  Filter
+  Filter,
+  Play,
+  Pause
 } from "lucide-react";
 import axios from "axios";
 import AdminNavigation from "../AdminNavigation";
@@ -76,6 +78,12 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const [restoreAction, setRestoreAction] = useState(null); // 'single' or 'bulk'
   const [pendingDeleteClosure, setPendingDeleteClosure] = useState(null);
   const [pendingBulkDeleteIds, setPendingBulkDeleteIds] = useState([]);
+  
+  // Activation/Deactivation States
+  const [showActivateConfirm, setShowActivateConfirm] = useState(null);
+  const [showDeactivateConfirm, setShowDeactivateConfirm] = useState(null);
+  const [isActivating, setIsActivating] = useState(false);
+  const [isDeactivating, setIsDeactivating] = useState(false);
   
   // View Mode
   const [viewMode, setViewMode] = useState("list");
@@ -272,6 +280,75 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     }
   };
 
+  // Activation Handler
+  const handleActivateClick = (closure) => {
+    setShowActivateConfirm(closure);
+  };
+
+  const handleActivateConfirm = async (activateNow) => {
+    if (!showActivateConfirm) return;
+    
+    setIsActivating(true);
+    try {
+      const response = await axios.post(`${API_URL}/api/closures/${showActivateConfirm._id}/activate`, {
+        activateNow: activateNow
+      });
+      
+      setDeleteResult({
+        show: true,
+        message: response.data.message,
+        isSuccess: true
+      });
+      
+      fetchClosures();
+    } catch (error) {
+      console.error("Error activating closure:", error);
+      setDeleteResult({
+        show: true,
+        message: error.response?.data?.message || "Failed to activate closure",
+        isSuccess: false
+      });
+    } finally {
+      setIsActivating(false);
+      setShowActivateConfirm(null);
+    }
+  };
+
+  // Deactivation Handler
+  const handleDeactivateClick = (closure) => {
+    setShowDeactivateConfirm(closure);
+  };
+
+  const handleDeactivateConfirm = async (restoreReservations) => {
+    if (!showDeactivateConfirm) return;
+    
+    setIsDeactivating(true);
+    try {
+      const response = await axios.post(`${API_URL}/api/closures/${showDeactivateConfirm._id}/deactivate`, {
+        restoreReservations: restoreReservations,
+        reason: "Manually deactivated by admin"
+      });
+      
+      setDeleteResult({
+        show: true,
+        message: response.data.message,
+        isSuccess: true
+      });
+      
+      fetchClosures();
+    } catch (error) {
+      console.error("Error deactivating closure:", error);
+      setDeleteResult({
+        show: true,
+        message: error.response?.data?.message || "Failed to deactivate closure",
+        isSuccess: false
+      });
+    } finally {
+      setIsDeactivating(false);
+      setShowDeactivateConfirm(null);
+    }
+  };
+
   // Selection Handlers
   const handleSelectAll = () => {
     if (selectAll) {
@@ -448,23 +525,23 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       );
     }
     if (closure.status === "Active") {
-      // Check if the closure should be expired
-      const now = new Date();
-      const closureDate = new Date(closure.date);
-      const [hours, minutes] = closure.endTime.split(":").map(Number);
-      closureDate.setHours(hours, minutes, 0, 0);
-      
-      if (now > closureDate) {
-        return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-            Ending Soon
-          </span>
-        );
-      }
-      
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
           Active
+        </span>
+      );
+    }
+    if (closure.status === "Scheduled") {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+          Scheduled
+        </span>
+      );
+    }
+    if (closure.status === "Deactivated") {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+          Deactivated
         </span>
       );
     }
@@ -726,7 +803,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 )}
               </div>
 
-              {/* Status filter */}
+              {/* Status filter - UPDATED with all statuses */}
               <div className="relative">
                 <select
                   value={filter.status}
@@ -735,6 +812,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 >
                   <option value="All">All Status</option>
                   <option value="Active">Active</option>
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="Deactivated">Deactivated</option>
                   <option value="Expired">Expired</option>
                 </select>
                 <ChevronDown
@@ -821,9 +900,23 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   subtitle="Currently in effect"
                 />
                 <StatCard
+                  title="Scheduled Closures"
+                  value={filteredClosures.filter(c => c.status === "Scheduled").length}
+                  icon={<CalendarRange size={24} />}
+                  color="border-l-4 border-l-blue-500"
+                  subtitle="Upcoming closures"
+                />
+                <StatCard
+                  title="Deactivated Closures"
+                  value={filteredClosures.filter(c => c.status === "Deactivated").length}
+                  icon={<XCircle size={24} />}
+                  color="border-l-4 border-l-yellow-500"
+                  subtitle="Manually stopped"
+                />
+                <StatCard
                   title="Expired Closures"
                   value={filteredClosures.filter(c => c.status === "Expired").length}
-                  icon={<XCircle size={24} />}
+                  icon={<Clock size={24} />}
                   color="border-l-4 border-l-gray-500"
                   subtitle="Past closures"
                 />
@@ -982,26 +1075,53 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right">
                               <div className="flex justify-end space-x-2">
-                                <button
-                                  onClick={() => {
-                                    setEditingClosure(closure);
-                                    setFormData({
-                                      title: closure.title,
-                                      reason: closure.reason,
-                                      date: closure.date,
-                                      startTime: closure.startTime,
-                                      endTime: closure.endTime,
-                                      affectedAllRooms: closure.affectedAllRooms,
-                                      affectedRooms: closure.affectedRooms || [],
-                                      location: closure.location || "All Floors"
-                                    });
-                                    setShowModal(true);
-                                  }}
-                                  className="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition-colors cursor-pointer"
-                                  title="Edit Closure"
-                                >
-                                  <Edit size={18} />
-                                </button>
+                                {/* Activate Button - Only show for Scheduled or Deactivated */}
+                                {(closure.status === "Scheduled" || closure.status === "Deactivated") && (
+                                  <button
+                                    onClick={() => handleActivateClick(closure)}
+                                    className="p-1.5 text-green-600 hover:text-green-800 hover:bg-green-50 rounded transition-colors cursor-pointer"
+                                    title="Activate Closure"
+                                  >
+                                    <Play size={18} />
+                                  </button>
+                                )}
+                                
+                                {/* Deactivate Button - Only show for Active */}
+                                {closure.status === "Active" && (
+                                  <button
+                                    onClick={() => handleDeactivateClick(closure)}
+                                    className="p-1.5 text-yellow-600 hover:text-yellow-800 hover:bg-yellow-50 rounded transition-colors cursor-pointer"
+                                    title="Deactivate Closure"
+                                  >
+                                    <Pause size={18} />
+                                  </button>
+                                )}
+                                
+                                {/* Edit Button - Show for non-expired */}
+                                {closure.status !== "Expired" && (
+                                  <button
+                                    onClick={() => {
+                                      setEditingClosure(closure);
+                                      setFormData({
+                                        title: closure.title,
+                                        reason: closure.reason,
+                                        date: closure.date,
+                                        startTime: closure.startTime,
+                                        endTime: closure.endTime,
+                                        affectedAllRooms: closure.affectedAllRooms,
+                                        affectedRooms: closure.affectedRooms || [],
+                                        location: closure.location || "All Floors"
+                                      });
+                                      setShowModal(true);
+                                    }}
+                                    className="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded transition-colors cursor-pointer"
+                                    title="Edit Closure"
+                                  >
+                                    <Edit size={18} />
+                                  </button>
+                                )}
+                                
+                                {/* Delete Button */}
                                 <button
                                   onClick={() => handleDeleteClick(closure)}
                                   className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors cursor-pointer"
@@ -1158,6 +1278,172 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         </div>
       )}
 
+      {/* Activate Confirmation Modal */}
+      {showActivateConfirm && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-start mb-4">
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                  <Play className="text-green-600" size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Activate Closure</h3>
+                  <p className="text-gray-600 mt-1">
+                    You're about to activate "<span className="font-medium">{showActivateConfirm.title}</span>"
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <p className="text-yellow-800 text-sm">
+                  ⚠️ Activating this closure will cancel any conflicting reservations during this time period.
+                </p>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                <button
+                  onClick={() => handleActivateConfirm(true)}
+                  disabled={isActivating}
+                  className="w-full text-left p-4 rounded-lg border-2 border-green-200 hover:border-green-400 bg-green-50 hover:bg-green-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <CheckCircle size={20} className="text-green-600" />
+                    </div>
+                    <div className="ml-3">
+                      <p className="font-medium text-gray-900">Activate Now</p>
+                      <p className="text-sm text-gray-600">
+                        Activate immediately and cancel conflicting reservations
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleActivateConfirm(false)}
+                  disabled={isActivating}
+                  className="w-full text-left p-4 rounded-lg border-2 border-gray-200 hover:border-gray-400 bg-white hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <Calendar size={20} className="text-gray-500" />
+                    </div>
+                    <div className="ml-3">
+                      <p className="font-medium text-gray-900">Schedule for Later</p>
+                      <p className="text-sm text-gray-600">
+                        Activate at the scheduled date and time
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowActivateConfirm(null)}
+                  disabled={isActivating}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Deactivate Confirmation Modal */}
+      {showDeactivateConfirm && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-start mb-4">
+                <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                  <Pause className="text-yellow-600" size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Deactivate Closure</h3>
+                  <p className="text-gray-600 mt-1">
+                    You're about to deactivate "<span className="font-medium">{showDeactivateConfirm.title}</span>"
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">Affected Reservations:</span>
+                  <span className="text-lg font-bold text-red-600">
+                    {showDeactivateConfirm.affectedReservations?.length || 0}
+                  </span>
+                </div>
+                <div className="text-xs text-gray-500">
+                  <p>These reservations were cancelled when this closure was activated.</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 mb-6">
+                <button
+                  onClick={() => handleDeactivateConfirm(true)}
+                  disabled={isDeactivating}
+                  className="w-full text-left p-4 rounded-lg border-2 border-green-200 hover:border-green-400 bg-green-50 hover:bg-green-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <CheckCircle size={20} className="text-green-600" />
+                    </div>
+                    <div className="ml-3">
+                      <p className="font-medium text-gray-900">Deactivate & Restore</p>
+                      <p className="text-sm text-gray-600">
+                        Deactivate closure and restore cancelled reservations (if available)
+                      </p>
+                      {(showDeactivateConfirm.affectedReservations?.length || 0) > 0 && (
+                        <p className="text-xs text-green-600 mt-1">
+                          ✓ {showDeactivateConfirm.affectedReservations?.length || 0} reservation(s) will be restored
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleDeactivateConfirm(false)}
+                  disabled={isDeactivating}
+                  className="w-full text-left p-4 rounded-lg border-2 border-gray-200 hover:border-gray-400 bg-white hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <XCircle size={20} className="text-gray-500" />
+                    </div>
+                    <div className="ml-3">
+                      <p className="font-medium text-gray-900">Deactivate Only</p>
+                      <p className="text-sm text-gray-600">
+                        Deactivate closure without restoring reservations
+                      </p>
+                      {(showDeactivateConfirm.affectedReservations?.length || 0) > 0 && (
+                        <p className="text-xs text-red-600 mt-1">
+                          ⚠️ {showDeactivateConfirm.affectedReservations?.length || 0} reservation(s) will remain cancelled
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowDeactivateConfirm(null)}
+                  disabled={isDeactivating}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Improved Restore Confirmation Modal */}
       {showRestoreConfirm && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
@@ -1303,17 +1589,21 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       )}
 
       {/* Loading Overlay for Delete Operations */}
-      {(isDeleting || isBulkDeleting) && !showRestoreConfirm && (
+      {(isDeleting || isBulkDeleting || isActivating || isDeactivating) && !showRestoreConfirm && !showActivateConfirm && !showDeactivateConfirm && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
             <div className="flex flex-col items-center justify-center">
               <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {isBulkDeleting ? 'Deleting Closures' : 'Deleting Closure'}
+                {isBulkDeleting ? 'Deleting Closures' : isActivating ? 'Activating Closure' : isDeactivating ? 'Deactivating Closure' : 'Deleting Closure'}
               </h3>
               <p className="text-gray-600 text-center">
                 {isBulkDeleting 
                   ? `Please wait while we delete ${selectedClosures.length} closures...`
+                  : isActivating
+                  ? 'Please wait while we activate the closure...'
+                  : isDeactivating
+                  ? 'Please wait while we deactivate the closure...'
                   : 'Please wait while we delete the closure...'}
               </p>
             </div>
