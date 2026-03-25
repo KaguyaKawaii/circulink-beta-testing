@@ -71,6 +71,12 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteResult, setDeleteResult] = useState({ show: false, message: "", isSuccess: false });
   
+  // Restore Confirmation Modal State
+  const [showRestoreConfirm, setShowRestoreConfirm] = useState(null);
+  const [restoreAction, setRestoreAction] = useState(null); // 'single' or 'bulk'
+  const [pendingDeleteClosure, setPendingDeleteClosure] = useState(null);
+  const [pendingBulkDeleteIds, setPendingBulkDeleteIds] = useState([]);
+  
   // View Mode
   const [viewMode, setViewMode] = useState("list");
 
@@ -293,47 +299,95 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     });
   };
 
-  // Single Delete Handler
+  // Single Delete Handler with Restore Confirmation Modal
   const handleDeleteClick = (closure) => {
-    setShowDeleteConfirm(closure);
+    setPendingDeleteClosure(closure);
+    setRestoreAction('single');
+    setShowRestoreConfirm({
+      title: closure.title,
+      affectedCount: closure.affectedReservations?.length || 0,
+      affectedReservations: closure.affectedReservations || [],
+      date: closure.date,
+      show: true
+    });
   };
 
-  const handleDeleteConfirm = async () => {
-    if (!showDeleteConfirm) return;
-    
-    setIsDeleting(true);
-    
-    try {
-      const restoreReservations = window.confirm(
-        "Do you want to restore the reservations that were cancelled due to this closure?"
-      );
-      
-      await axios.delete(`${API_URL}/api/closures/${showDeleteConfirm._id}`, {
-        data: { restoreReservations }
-      });
-      
-      setDeleteResult({
-        show: true,
-        message: "Closure deleted successfully.",
-        isSuccess: true
-      });
-      
-      fetchClosures();
-      setShowDeleteConfirm(null);
-    } catch (error) {
-      console.error("Error deleting closure:", error);
-      setDeleteResult({
-        show: true,
-        message: error.response?.data?.message || "Failed to delete closure",
-        isSuccess: false
-      });
-    } finally {
-      setIsDeleting(false);
+  const handleRestoreConfirm = async (shouldRestore) => {
+    if (restoreAction === 'single' && pendingDeleteClosure) {
+      setIsDeleting(true);
+      try {
+        await axios.delete(`${API_URL}/api/closures/${pendingDeleteClosure._id}`, {
+          data: { restoreReservations: shouldRestore }
+        });
+        
+        setDeleteResult({
+          show: true,
+          message: shouldRestore 
+            ? `Closure deleted successfully. ${pendingDeleteClosure.affectedReservations?.length || 0} reservation(s) have been restored.`
+            : "Closure deleted successfully.",
+          isSuccess: true
+        });
+        
+        fetchClosures();
+      } catch (error) {
+        console.error("Error deleting closure:", error);
+        setDeleteResult({
+          show: true,
+          message: error.response?.data?.message || "Failed to delete closure",
+          isSuccess: false
+        });
+      } finally {
+        setIsDeleting(false);
+        setShowRestoreConfirm(null);
+        setPendingDeleteClosure(null);
+        setRestoreAction(null);
+      }
+    } else if (restoreAction === 'bulk' && pendingBulkDeleteIds.length > 0) {
+      setIsBulkDeleting(true);
+      try {
+        const response = await axios.post(`${API_URL}/api/closures/bulk-delete`, {
+          closureIds: pendingBulkDeleteIds,
+          restoreReservations: shouldRestore
+        });
+
+        if (response.data.success) {
+          setDeleteResult({
+            show: true,
+            message: shouldRestore
+              ? `Successfully deleted ${response.data.count} closures. Affected reservations have been restored.`
+              : `Successfully deleted ${response.data.count} closures.`,
+            isSuccess: true
+          });
+          
+          setSelectedClosures([]);
+          setSelectAll(false);
+          fetchClosures();
+        } else {
+          throw new Error(response.data.message || "Failed to delete closures");
+        }
+      } catch (error) {
+        console.error("Bulk delete error:", error);
+        setDeleteResult({
+          show: true,
+          message: error.response?.data?.message || "Failed to delete closures. Please try again.",
+          isSuccess: false
+        });
+      } finally {
+        setIsBulkDeleting(false);
+        setShowRestoreConfirm(null);
+        setPendingBulkDeleteIds([]);
+        setShowBulkDeleteConfirm(false);
+        setRestoreAction(null);
+      }
     }
   };
 
   const handleDeleteCancel = () => {
     setShowDeleteConfirm(null);
+    setShowRestoreConfirm(null);
+    setPendingDeleteClosure(null);
+    setPendingBulkDeleteIds([]);
+    setRestoreAction(null);
   };
 
   // Bulk Delete Handler
@@ -346,52 +400,22 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       });
       return;
     }
-    setShowBulkDeleteConfirm(true);
-  };
-
-  const handleBulkDeleteConfirm = async () => {
-    if (selectedClosures.length === 0) return;
     
-    setIsBulkDeleting(true);
+    // Calculate total affected reservations
+    const totalAffected = selectedClosures.reduce((total, id) => {
+      const closure = closures.find(c => c._id === id);
+      return total + (closure?.affectedReservations?.length || 0);
+    }, 0);
     
-    try {
-      const restoreReservations = window.confirm(
-        "Do you want to restore the reservations that were cancelled due to these closures?"
-      );
-      
-      const response = await axios.post(`${API_URL}/api/closures/bulk-delete`, {
-        closureIds: selectedClosures,
-        restoreReservations
-      });
-
-      if (response.data.success) {
-        setDeleteResult({
-          show: true,
-          message: `Successfully deleted ${response.data.count} closures.`,
-          isSuccess: true
-        });
-        
-        setSelectedClosures([]);
-        setSelectAll(false);
-        fetchClosures();
-      } else {
-        throw new Error(response.data.message || "Failed to delete closures");
-      }
-    } catch (error) {
-      console.error("Bulk delete error:", error);
-      setDeleteResult({
-        show: true,
-        message: error.response?.data?.message || "Failed to delete closures. Please try again.",
-        isSuccess: false
-      });
-    } finally {
-      setIsBulkDeleting(false);
-      setShowBulkDeleteConfirm(false);
-    }
-  };
-
-  const handleBulkDeleteCancel = () => {
-    setShowBulkDeleteConfirm(false);
+    setPendingBulkDeleteIds([...selectedClosures]);
+    setRestoreAction('bulk');
+    setShowRestoreConfirm({
+      title: `${selectedClosures.length} selected closures`,
+      affectedCount: totalAffected,
+      affectedReservations: [],
+      date: null,
+      show: true
+    });
   };
 
   const handleCloseResultModal = () => {
@@ -404,6 +428,15 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     const date = new Date();
     date.setHours(parseInt(hours), parseInt(minutes));
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "";
+    return new Date(date).toLocaleDateString("en-PH", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
   };
 
   const getStatusBadge = (closure) => {
@@ -910,11 +943,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                               <div className="text-gray-500 text-xs line-clamp-1">{closure.reason}</div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              {new Date(closure.date).toLocaleDateString("en-PH", {
-                                year: "numeric",
-                                month: "long",
-                                day: "numeric",
-                              })}
+                              {formatDate(closure.date)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               {formatTime(closure.startTime)} — {formatTime(closure.endTime)}
@@ -1129,88 +1158,106 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         </div>
       )}
 
-      {/* Single Delete Confirmation Modal */}
-      {showDeleteConfirm && (
+      {/* Improved Restore Confirmation Modal */}
+      {showRestoreConfirm && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
-            <div className="flex items-center mb-4">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
-                <Trash2 className="text-red-600" size={20} />
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4">
+            <div className="p-6">
+              <div className="flex items-start mb-4">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3 flex-shrink-0">
+                  <Trash2 className="text-red-600" size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Delete Closure</h3>
+                  <p className="text-gray-600 mt-1">
+                    {restoreAction === 'single' ? (
+                      <>You're about to delete "<span className="font-medium">{showRestoreConfirm.title}</span>"</>
+                    ) : (
+                      <>You're about to delete {showRestoreConfirm.title}</>
+                    )}
+                  </p>
+                </div>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">Delete Closure</h3>
-            </div>
-            <p className="text-gray-600 mb-2">
-              Are you sure you want to delete "{showDeleteConfirm.title}"?
-            </p>
-            <p className="text-gray-500 text-sm mb-4">
-              This closure affected {showDeleteConfirm.affectedReservations?.length || 0} reservations.
-              You will have the option to restore them.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={handleDeleteCancel}
-                disabled={isDeleting}
-                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleDeleteConfirm}
-                disabled={isDeleting}
-                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
-              >
-                {isDeleting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Deleting...
-                  </>
-                ) : (
-                  'Delete'
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
-      {/* Bulk Delete Confirmation Modal */}
-      {showBulkDeleteConfirm && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
-          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4">
-            <div className="flex items-center mb-4">
-              <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mr-3">
-                <AlertTriangle className="text-red-600" size={20} />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                Delete Multiple Closures
-              </h3>
-            </div>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete {selectedClosures.length} selected closure{selectedClosures.length !== 1 ? 's' : ''}? 
-              You will have the option to restore affected reservations.
-            </p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={handleBulkDeleteCancel}
-                disabled={isBulkDeleting}
-                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleBulkDeleteConfirm}
-                disabled={isBulkDeleting}
-                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 cursor-pointer"
-              >
-                {isBulkDeleting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Deleting...
-                  </>
-                ) : (
-                  'Delete All'
+              {/* Impact Summary */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-gray-600">Affected Reservations:</span>
+                  <span className="text-lg font-bold text-red-600">{showRestoreConfirm.affectedCount}</span>
+                </div>
+                <div className="text-xs text-gray-500">
+                  {showRestoreConfirm.affectedCount > 0 ? (
+                    <p>These reservations were automatically cancelled when this closure was created.</p>
+                  ) : (
+                    <p>No reservations were affected by this closure.</p>
+                  )}
+                </div>
+                {showRestoreConfirm.date && (
+                  <div className="text-xs text-gray-500 mt-2">
+                    <p>Closure Date: {formatDate(showRestoreConfirm.date)}</p>
+                  </div>
                 )}
-              </button>
+              </div>
+
+              {/* Option Cards */}
+              <div className="space-y-3 mb-6">
+                <button
+                  onClick={() => handleRestoreConfirm(true)}
+                  disabled={isDeleting || isBulkDeleting}
+                  className="w-full text-left p-4 rounded-lg border-2 border-green-200 hover:border-green-400 bg-green-50 hover:bg-green-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <CheckCircle size={20} className="text-green-600" />
+                    </div>
+                    <div className="ml-3">
+                      <p className="font-medium text-gray-900">Restore & Delete</p>
+                      <p className="text-sm text-gray-600">
+                        Restore cancelled reservations and remove this closure
+                      </p>
+                      {showRestoreConfirm.affectedCount > 0 && (
+                        <p className="text-xs text-green-600 mt-1">
+                          ✓ {showRestoreConfirm.affectedCount} reservation{showRestoreConfirm.affectedCount !== 1 ? 's' : ''} will be restored
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => handleRestoreConfirm(false)}
+                  disabled={isDeleting || isBulkDeleting}
+                  className="w-full text-left p-4 rounded-lg border-2 border-gray-200 hover:border-gray-400 bg-white hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0 mt-0.5">
+                      <Trash2 size={20} className="text-gray-500" />
+                    </div>
+                    <div className="ml-3">
+                      <p className="font-medium text-gray-900">Delete Only</p>
+                      <p className="text-sm text-gray-600">
+                        Delete closure without restoring cancelled reservations
+                      </p>
+                      {showRestoreConfirm.affectedCount > 0 && (
+                        <p className="text-xs text-red-600 mt-1">
+                          ⚠️ {showRestoreConfirm.affectedCount} reservation{showRestoreConfirm.affectedCount !== 1 ? 's' : ''} will remain cancelled
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Cancel Button */}
+              <div className="flex justify-end">
+                <button
+                  onClick={handleDeleteCancel}
+                  disabled={isDeleting || isBulkDeleting}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1256,7 +1303,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       )}
 
       {/* Loading Overlay for Delete Operations */}
-      {(isDeleting || isBulkDeleting) && (
+      {(isDeleting || isBulkDeleting) && !showRestoreConfirm && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
             <div className="flex flex-col items-center justify-center">
