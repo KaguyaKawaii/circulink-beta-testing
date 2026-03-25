@@ -31,7 +31,6 @@ async function updateExpiredClosures() {
   try {
     console.log("🔄 Updating closure statuses...");
     
-    // Find all active closures
     const activeClosures = await Closure.find({ status: "Active" });
     
     let updatedCount = 0;
@@ -39,7 +38,6 @@ async function updateExpiredClosures() {
     
     for (const closure of activeClosures) {
       if (isClosureExpired(closure)) {
-        // Update status to Expired
         closure.status = "Expired";
         closure.endedAt = new Date();
         closure.endedBy = "System";
@@ -50,7 +48,6 @@ async function updateExpiredClosures() {
         
         console.log(`✅ Closure "${closure.title}" has expired automatically`);
         
-        // Send notifications about closure ending
         try {
           const admins = await Admin.find({});
           for (const admin of admins) {
@@ -122,7 +119,7 @@ export const updateClosureStatuses = async (req, res) => {
 export const activateClosure = async (req, res) => {
   try {
     const { id } = req.params;
-    const { activateNow } = req.body; // If true, activate immediately regardless of date/time
+    const { activateNow } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -140,7 +137,6 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    // Check if already active
     if (closure.status === "Active") {
       return res.status(400).json({
         success: false,
@@ -148,7 +144,6 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    // Check if expired
     if (closure.status === "Expired") {
       return res.status(400).json({
         success: false,
@@ -161,7 +156,6 @@ export const activateClosure = async (req, res) => {
     const [startHours, startMinutes] = closure.startTime.split(":").map(Number);
     closureDate.setHours(startHours, startMinutes, 0, 0);
 
-    // If not activating now and the date/time hasn't arrived yet, just set to pending/scheduled
     if (!activateNow && now < closureDate) {
       closure.status = "Scheduled";
       closure.activatedAt = null;
@@ -175,7 +169,6 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    // Check for overlapping active closures
     const overlappingClosures = await Closure.find({
       _id: { $ne: id },
       date: closure.date,
@@ -200,7 +193,6 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    // Activate the closure
     closure.status = "Active";
     closure.activatedAt = new Date();
     closure.activatedBy = req.admin?._id || null;
@@ -209,7 +201,6 @@ export const activateClosure = async (req, res) => {
 
     console.log(`✅ Closure "${closure.title}" activated manually by ${req.admin?.name || "System"}`);
 
-    // Find and cancel conflicting reservations
     const conflictQuery = {
       date: closure.date,
       status: { $in: ["Pending", "Approved", "Ongoing"] }
@@ -247,14 +238,12 @@ export const activateClosure = async (req, res) => {
       if (overlap) {
         affectedReservationsList.push(reservation);
         
-        // Cancel the reservation
         reservation.status = "Cancelled";
         reservation.cancellationReason = `Cancelled due to facility closure activation: ${closure.title} - ${closure.reason}`;
         reservation.cancelledBy = "Admin";
         reservation.cancelledAt = new Date();
         await reservation.save();
         
-        // Send email notification
         try {
           if (reservation.userId?.email) {
             sendEmail({
@@ -281,7 +270,6 @@ export const activateClosure = async (req, res) => {
       }
     }
 
-    // Update affected reservations in closure
     closure.affectedReservations = affectedReservationsList.map(r => ({
       reservationId: r._id,
       userId: r.userId?._id,
@@ -335,7 +323,6 @@ export const deactivateClosure = async (req, res) => {
       });
     }
 
-    // Check if already inactive
     if (closure.status === "Deactivated") {
       return res.status(400).json({
         success: false,
@@ -352,7 +339,6 @@ export const deactivateClosure = async (req, res) => {
 
     const previousStatus = closure.status;
     
-    // Deactivate the closure
     closure.status = "Deactivated";
     closure.deactivatedAt = new Date();
     closure.deactivatedBy = req.admin?._id || null;
@@ -362,14 +348,12 @@ export const deactivateClosure = async (req, res) => {
 
     console.log(`⏸️ Closure "${closure.title}" deactivated manually by ${req.admin?.name || "System"}`);
 
-    // Restore reservations if requested
     const restoredReservations = [];
     if (restoreReservations && closure.affectedReservations?.length > 0) {
       for (const affected of closure.affectedReservations) {
         try {
           const reservation = await Reservation.findById(affected.reservationId);
           if (reservation && reservation.status === "Cancelled") {
-            // Check if the original time slot is still available
             const conflictExists = await Reservation.findOne({
               _id: { $ne: reservation._id },
               roomName: reservation.roomName,
@@ -391,7 +375,6 @@ export const deactivateClosure = async (req, res) => {
               await reservation.save();
               restoredReservations.push(reservation);
               
-              // Send email notification about restoration
               try {
                 if (reservation.userId?.email) {
                   sendEmail({
@@ -458,7 +441,6 @@ export const previewClosureConflicts = async (req, res) => {
 
     console.log("📝 Previewing closure conflicts:", { date, startTime, endTime, affectedAllRooms, affectedRoomsCount: affectedRooms?.length });
 
-    // Validate required fields
     if (!date || !startTime || !endTime) {
       return res.status(400).json({
         success: false,
@@ -466,7 +448,6 @@ export const previewClosureConflicts = async (req, res) => {
       });
     }
 
-    // Validate time range
     if (startTime >= endTime) {
       return res.status(400).json({
         success: false,
@@ -474,13 +455,11 @@ export const previewClosureConflicts = async (req, res) => {
       });
     }
 
-    // Find conflicting reservations
     const conflictQuery = {
       date: date,
       status: { $in: ["Pending", "Approved", "Ongoing"] }
     };
 
-    // Build room filter
     if (!affectedAllRooms && affectedRooms && affectedRooms.length > 0) {
       conflictQuery.roomName = { $in: affectedRooms };
     }
@@ -488,13 +467,11 @@ export const previewClosureConflicts = async (req, res) => {
     const conflictingReservations = await Reservation.find(conflictQuery)
       .populate("userId", "name email id_number");
 
-    // Filter by time overlap
     const affectedReservationsList = [];
     const startTimeMinutes = timeToMinutes(startTime);
     const endTimeMinutes = timeToMinutes(endTime);
 
     for (const reservation of conflictingReservations) {
-      // Get start and end times from reservation
       let resStartTime, resEndTime;
       
       if (reservation.datetime && reservation.endDatetime) {
@@ -504,7 +481,7 @@ export const previewClosureConflicts = async (req, res) => {
         resStartTime = reservation.time;
         resEndTime = reservation.endTime;
       } else {
-        continue; // Skip if no time data
+        continue;
       }
       
       const resStartMinutes = timeToMinutes(resStartTime);
@@ -557,7 +534,7 @@ export const createClosure = async (req, res) => {
       affectedRooms,
       affectedAllRooms,
       location,
-      status // Allow setting initial status
+      status
     } = req.body;
 
     console.log("=".repeat(50));
@@ -565,7 +542,6 @@ export const createClosure = async (req, res) => {
     console.log("=".repeat(50));
     console.log("Request body:", req.body);
 
-    // Validate required fields
     const missingFields = [];
     if (!title) missingFields.push("title");
     if (!reason) missingFields.push("reason");
@@ -580,7 +556,6 @@ export const createClosure = async (req, res) => {
       });
     }
 
-    // Validate time range
     if (startTime >= endTime) {
       return res.status(400).json({
         success: false,
@@ -588,7 +563,6 @@ export const createClosure = async (req, res) => {
       });
     }
 
-    // Validate rooms selection
     if (!affectedAllRooms && (!affectedRooms || affectedRooms.length === 0)) {
       return res.status(400).json({
         success: false,
@@ -596,14 +570,12 @@ export const createClosure = async (req, res) => {
       });
     }
 
-    // Determine initial status
     let initialStatus = status || "Scheduled";
     const now = new Date();
     const closureDate = new Date(date);
     const [startHours, startMinutes] = startTime.split(":").map(Number);
     closureDate.setHours(startHours, startMinutes, 0, 0);
 
-    // If status is not specified, determine based on date/time
     if (!status) {
       if (now >= closureDate) {
         initialStatus = "Active";
@@ -612,7 +584,6 @@ export const createClosure = async (req, res) => {
       }
     }
 
-    // Check for overlapping active closures if trying to activate immediately
     if (initialStatus === "Active") {
       const overlappingClosures = await Closure.find({
         date,
@@ -638,7 +609,6 @@ export const createClosure = async (req, res) => {
       }
     }
 
-    // Find conflicting reservations only if activating immediately
     let affectedReservationsList = [];
     if (initialStatus === "Active") {
       const conflictQuery = {
@@ -689,7 +659,6 @@ export const createClosure = async (req, res) => {
       }
     }
 
-    // Try to find an admin user
     let admin = null;
     if (req.admin) {
       admin = req.admin;
@@ -702,7 +671,6 @@ export const createClosure = async (req, res) => {
       }
     }
 
-    // Create the closure
     const closureData = {
       title,
       reason,
@@ -731,7 +699,6 @@ export const createClosure = async (req, res) => {
 
     const closure = await Closure.create(closureData);
 
-    // Process conflicting reservations if activated immediately
     const processedReservations = [];
     const failedReservations = [];
 
@@ -754,7 +721,6 @@ export const createClosure = async (req, res) => {
           if (updatedReservation) {
             processedReservations.push(updatedReservation);
             
-            // Send email notification if user has email
             try {
               if (updatedReservation.userId?.email) {
                 sendEmail({
@@ -814,10 +780,13 @@ export const createClosure = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ GET ALL CLOSURES (WITH FILTERS)
+   ✅ GET ALL CLOSURES (WITH FILTERS) - FIXED
 ------------------------------------------------ */
 export const getClosures = async (req, res) => {
   try {
+    console.log("=== GET CLOSURES CALLED ===");
+    console.log("Query params:", req.query);
+    
     const {
       page = 1,
       limit = 20,
@@ -827,13 +796,11 @@ export const getClosures = async (req, res) => {
 
     const query = {};
 
-    // Handle status filter - include all statuses: Active, Scheduled, Deactivated, Expired
     if (status && status !== "All") {
       query.status = status;
     }
 
-    // Handle search
-    if (search) {
+    if (search && search.trim()) {
       query.$or = [
         { title: { $regex: search, $options: 'i' } },
         { reason: { $regex: search, $options: 'i' } },
@@ -841,18 +808,23 @@ export const getClosures = async (req, res) => {
       ];
     }
 
+    console.log("MongoDB Query:", JSON.stringify(query, null, 2));
+
     const skip = (parseInt(page) - 1) * parseInt(limit);
     const totalCount = await Closure.countDocuments(query);
+    
+    console.log("Total count:", totalCount);
 
+    // FIXED: Only populate fields that exist
     const closures = await Closure.find(query)
       .populate("createdBy", "name email")
-      .populate("activatedBy", "name email")
-      .populate("deactivatedBy", "name email")
       .sort({ date: -1, startTime: 1, createdAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
-    // Auto-update statuses asynchronously (don't await to avoid delay)
+    console.log(`Found ${closures.length} closures`);
+
+    // Auto-update statuses asynchronously
     updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
 
     res.json({
@@ -867,21 +839,25 @@ export const getClosures = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Error fetching closures:", err);
+    console.error("❌ Error fetching closures:", err);
+    console.error("Error stack:", err.stack);
     res.status(500).json({
       success: false,
       message: "Failed to fetch closures",
-      error: err.message
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
 
 /* ------------------------------------------------
-   ✅ GET SINGLE CLOSURE BY ID
+   ✅ GET SINGLE CLOSURE BY ID - FIXED
 ------------------------------------------------ */
 export const getClosureById = async (req, res) => {
   try {
     const { id } = req.params;
+
+    console.log("=== GET CLOSURE BY ID ===");
+    console.log("ID:", id);
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -892,8 +868,6 @@ export const getClosureById = async (req, res) => {
 
     const closure = await Closure.findById(id)
       .populate("createdBy", "name email")
-      .populate("activatedBy", "name email")
-      .populate("deactivatedBy", "name email")
       .populate("affectedReservations.reservationId", "roomName date datetime endDatetime status");
 
     if (!closure) {
@@ -909,11 +883,12 @@ export const getClosureById = async (req, res) => {
     });
 
   } catch (err) {
-    console.error("Error fetching closure:", err);
+    console.error("❌ Error fetching closure:", err);
+    console.error("Error stack:", err.stack);
     res.status(500).json({
       success: false,
       message: "Failed to fetch closure",
-      error: err.message
+      error: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
   }
 };
@@ -952,7 +927,6 @@ export const updateClosure = async (req, res) => {
       });
     }
 
-    // Prevent editing if already expired
     if (closure.status === "Expired") {
       return res.status(400).json({
         success: false,
@@ -960,7 +934,6 @@ export const updateClosure = async (req, res) => {
       });
     }
 
-    // Update fields
     if (title) closure.title = title;
     if (reason) closure.reason = reason;
     if (date) closure.date = date;
@@ -969,11 +942,8 @@ export const updateClosure = async (req, res) => {
     if (affectedRooms) closure.affectedRooms = affectedRooms;
     if (affectedAllRooms !== undefined) closure.affectedAllRooms = affectedAllRooms;
     if (location) closure.location = location;
-    if (status && status !== closure.status) {
-      // Don't allow setting to Expired manually
-      if (status !== "Expired") {
-        closure.status = status;
-      }
+    if (status && status !== closure.status && status !== "Expired") {
+      closure.status = status;
     }
 
     await closure.save();
@@ -1018,14 +988,12 @@ export const deleteClosure = async (req, res) => {
       });
     }
 
-    // If restoreReservations is true, attempt to restore cancelled reservations
     const restoredReservations = [];
     if (restoreReservations && closure.affectedReservations?.length > 0) {
       for (const affected of closure.affectedReservations) {
         try {
           const reservation = await Reservation.findById(affected.reservationId);
           if (reservation && reservation.status === "Cancelled") {
-            // Check if the original time slot is still available
             const conflictExists = await Reservation.findOne({
               _id: { $ne: reservation._id },
               roomName: reservation.roomName,
@@ -1054,7 +1022,6 @@ export const deleteClosure = async (req, res) => {
       }
     }
 
-    // Delete the closure
     await Closure.findByIdAndDelete(id);
 
     res.json({
@@ -1099,13 +1066,11 @@ export const bulkDeleteClosures = async (req, res) => {
       const closure = await Closure.findById(id);
       if (!closure) continue;
 
-      // Restore reservations if requested
       if (restoreReservations && closure.affectedReservations?.length > 0) {
         for (const affected of closure.affectedReservations) {
           try {
             const reservation = await Reservation.findById(affected.reservationId);
             if (reservation && reservation.status === "Cancelled") {
-              // Check if the original time slot is still available
               const conflictExists = await Reservation.findOne({
                 _id: { $ne: reservation._id },
                 roomName: reservation.roomName,
@@ -1169,12 +1134,11 @@ export const checkSlotClosed = async (req, res) => {
       });
     }
 
-    // Update statuses first to ensure accuracy (don't await to avoid delay)
     updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
 
     const query = {
       date: date,
-      status: "Active", // Only active closures block reservations
+      status: "Active",
       startTime: { $lte: time },
       endTime: { $gt: time },
       $or: [
@@ -1220,26 +1184,21 @@ export const getAvailabilityWithClosures = async (req, res) => {
       });
     }
 
-    // Update statuses first (don't await to avoid delay)
     updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
 
-    // Get all rooms
     const Room = mongoose.model("Room");
     const rooms = await Room.find({}).sort({ floor: 1, room: 1 });
 
-    // Get all reservations for this date
     const reservations = await Reservation.find({
       date,
       status: { $in: ["Pending", "Approved", "Ongoing"] }
     });
 
-    // Get all active closures for this date
     const closures = await Closure.find({
       date,
       status: "Active"
     });
 
-    // Build availability data
     const availability = rooms.map((room) => {
       const roomReservations = reservations.filter(
         r => r.location === room.floor && r.roomName === room.room
@@ -1304,7 +1263,6 @@ export const getUpcomingClosures = async (req, res) => {
   try {
     const today = new Date().toISOString().split("T")[0];
     
-    // Update statuses first (don't await to avoid delay)
     updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
     
     const closures = await Closure.find({
@@ -1344,7 +1302,6 @@ export const getClosureStats = async (req, res) => {
       }
     };
 
-    // Get total affected reservations
     const closures = await Closure.find({});
     let totalAffected = 0;
     for (const closure of closures) {

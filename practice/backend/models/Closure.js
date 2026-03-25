@@ -47,12 +47,9 @@ const closureSchema = new mongoose.Schema({
   affectedRooms: {
     type: [String],
     default: [],
-    // FIXED: Remove the required validation - it's handled by affectedAllRooms logic
     validate: {
       validator: function(v) {
-        // If affecting all rooms, empty array is valid
         if (this.affectedAllRooms) return true;
-        // Otherwise, must have at least one room
         return v.length > 0;
       },
       message: "At least one room must be selected when not affecting all rooms"
@@ -64,13 +61,14 @@ const closureSchema = new mongoose.Schema({
   },
   location: {
     type: String,
-    enum: ["Ground Floor", "2nd Floor", "3rd Floor", "4th Floor", "5th Floor", "All Floors"],
+    enum: ["Ground Floor", "2nd Floor", "3rd Floor", "4th Floor", "5th Floor", "All Floors", "Custom"],
     default: "All Floors"
   },
+  // UPDATED: Added more status values for better control
   status: {
     type: String,
-    enum: ["Active", "Expired", "Cancelled"],
-    default: "Active"
+    enum: ["Active", "Expired", "Cancelled", "Scheduled", "Deactivated"],
+    default: "Scheduled"
   },
   affectedReservations: [{
     reservationId: {
@@ -99,6 +97,46 @@ const closureSchema = new mongoose.Schema({
     type: String,
     required: true
   },
+  
+  // ========== NEW FIELDS FOR ACTIVATION ==========
+  activatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Admin"
+  },
+  activatedByName: {
+    type: String
+  },
+  activatedAt: {
+    type: Date
+  },
+  
+  // ========== NEW FIELDS FOR DEACTIVATION ==========
+  deactivatedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Admin"
+  },
+  deactivatedByName: {
+    type: String
+  },
+  deactivatedAt: {
+    type: Date
+  },
+  deactivatedReason: {
+    type: String
+  },
+  
+  // ========== NEW FIELDS FOR EXPIRATION ==========
+  endedBy: {
+    type: String,
+    default: "System"
+  },
+  endedAt: {
+    type: Date
+  },
+  endedReason: {
+    type: String
+  },
+  
   createdAt: {
     type: Date,
     default: Date.now
@@ -109,7 +147,6 @@ const closureSchema = new mongoose.Schema({
   },
   expiresAt: {
     type: Date,
-    // Auto-expire closures after their date has passed
     default: function() {
       const closureDate = new Date(this.date);
       closureDate.setHours(23, 59, 59, 999);
@@ -123,14 +160,30 @@ const closureSchema = new mongoose.Schema({
 // Index for faster queries
 closureSchema.index({ date: 1, status: 1 });
 closureSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+closureSchema.index({ status: 1, date: 1 });
 
-// Pre-save middleware to update expiresAt
+// Pre-save middleware to update expiresAt and handle status
 closureSchema.pre('save', function(next) {
   if (this.isModified('date')) {
     const closureDate = new Date(this.date);
     closureDate.setHours(23, 59, 59, 999);
     this.expiresAt = closureDate;
   }
+  
+  // Auto-set status based on date if not manually set
+  if (!this.isModified('status')) {
+    const now = new Date();
+    const closureDate = new Date(this.date);
+    const [startHours, startMinutes] = this.startTime.split(":").map(Number);
+    closureDate.setHours(startHours, startMinutes, 0, 0);
+    
+    if (now >= closureDate && this.status !== "Deactivated") {
+      this.status = "Active";
+    } else if (now < closureDate && this.status !== "Deactivated") {
+      this.status = "Scheduled";
+    }
+  }
+  
   this.updatedAt = new Date();
   next();
 });
@@ -145,34 +198,56 @@ closureSchema.methods.isTimeOverlapping = function(checkTime) {
 
 // Method to check if a reservation conflicts with this closure
 closureSchema.methods.conflictsWithReservation = function(reservation) {
-  // Check if date matches
   if (reservation.date !== this.date) return false;
   
-  // Check if affected rooms include the reservation's room
   const roomAffected = this.affectedAllRooms || 
     this.affectedRooms.includes(reservation.roomName);
   
   if (!roomAffected) return false;
   
-  // Check time overlap
   const resStartTime = reservation.time || new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   const resEndTime = new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   
-  // Check if reservation time overlaps with closure time
   const closureStart = this.startTime;
   const closureEnd = this.endTime;
   
-  // Overlap exists if:
-  // - Reservation starts during closure
-  // - Reservation ends during closure
-  // - Closure starts during reservation
-  // - Reservation completely contains closure
   const overlap = (resStartTime >= closureStart && resStartTime < closureEnd) ||
                   (resEndTime > closureStart && resEndTime <= closureEnd) ||
                   (closureStart >= resStartTime && closureStart < resEndTime);
   
   return overlap;
 };
+
+// Virtual property to check if closure is currently active
+closureSchema.virtual('isCurrentlyActive').get(function() {
+  if (this.status !== "Active") return false;
+  
+  const now = new Date();
+  const closureDate = new Date(this.date);
+  const [startHours, startMinutes] = this.startTime.split(":").map(Number);
+  const [endHours, endMinutes] = this.endTime.split(":").map(Number);
+  
+  const startDateTime = new Date(this.date);
+  startDateTime.setHours(startHours, startMinutes, 0, 0);
+  
+  const endDateTime = new Date(this.date);
+  endDateTime.setHours(endHours, endMinutes, 0, 0);
+  
+  return now >= startDateTime && now < endDateTime;
+});
+
+// Virtual property to check if closure is scheduled for future
+closureSchema.virtual('isScheduled').get(function() {
+  if (this.status !== "Scheduled") return false;
+  
+  const now = new Date();
+  const closureDate = new Date(this.date);
+  const [startHours, startMinutes] = this.startTime.split(":").map(Number);
+  const startDateTime = new Date(this.date);
+  startDateTime.setHours(startHours, startMinutes, 0, 0);
+  
+  return now < startDateTime;
+});
 
 const Closure = mongoose.model("Closure", closureSchema);
 
