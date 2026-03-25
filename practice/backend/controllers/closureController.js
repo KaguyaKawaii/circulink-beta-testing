@@ -734,20 +734,39 @@ export const createClosure = async (req, res) => {
       });
     }
 
+    // FIX: Properly determine initial status based on current time and closure start time
     let initialStatus = status || "Scheduled";
+    
+    // Get current time in Asia/Manila timezone
     const now = new Date();
-    const closureDate = new Date(date);
+    const philippinesTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+    
+    // Parse the closure date and time
+    const [year, month, day] = date.split("-");
     const [startHours, startMinutes] = startTime.split(":").map(Number);
-    closureDate.setHours(startHours, startMinutes, 0, 0);
-
+    
+    // Create a Date object for the closure start time in Asia/Manila
+    const closureStartDateTime = new Date(year, month - 1, day, startHours, startMinutes, 0, 0);
+    
+    // If no status provided, determine based on current time vs closure start time
     if (!status) {
-      if (now >= closureDate) {
+      // Compare dates (considering timezone)
+      if (philippinesTime >= closureStartDateTime) {
+        // If current time is at or after the closure start time, activate immediately
         initialStatus = "Active";
+        console.log(`⏰ Closure start time ${startTime} on ${date} has passed or is now. Setting status to ACTIVE`);
       } else {
+        // If closure start time is in the future, schedule it
         initialStatus = "Scheduled";
+        console.log(`⏰ Closure start time ${startTime} on ${date} is in the future. Setting status to SCHEDULED`);
       }
     }
+    
+    console.log(`Current time (Philippines): ${philippinesTime.toISOString()}`);
+    console.log(`Closure start time: ${closureStartDateTime.toISOString()}`);
+    console.log(`Initial status determined: ${initialStatus}`);
 
+    // Check for overlapping active closures only if we're setting to Active
     if (initialStatus === "Active") {
       const overlappingClosures = await Closure.find({
         date,
