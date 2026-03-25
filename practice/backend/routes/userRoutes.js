@@ -4,47 +4,64 @@ import upload from "../middleware/upload.js";
 
 const router = express.Router();
 
-// ================== PUBLIC ROUTES ==================
+// ============================================
+// PUBLIC ROUTES (No authentication required)
+// ============================================
+
+// Auth routes
 router.post("/signup", upload.single("profile"), userController.signup);
 router.post("/login", userController.login);
 router.post("/logout/:userId", userController.logout);
 router.post("/validate-session", userController.validateSession);
 
-// ================== SEARCH ROUTES (MUST COME BEFORE /:id) ==================
+// ============================================
+// SEARCH & STATIC ROUTES (MUST COME BEFORE /:id)
+// ============================================
+
+// Search routes
 router.get("/search", userController.searchUsers);
 router.get("/search/users", userController.searchUsers);
 router.get("/check-participant", userController.checkParticipant);
 
-// ================== STATIC ROUTES (MUST COME BEFORE /:id) ==================
+// Static routes (these must be before the dynamic /:id route)
 router.get("/archived/all", userController.getArchivedUsers);
-
-// ✅ FIX: Add multiple aliases for getAllUsers to handle different frontend patterns
-router.get("/all/users", userController.getAllUsers);      // Your current backend route
-router.get("/all", userController.getAllUsers);            // Alternative pattern
-router.get("/list", userController.getAllUsers);           // Another alternative
-router.get("/users/all", userController.getAllUsers);      // What frontend is trying to access
-
+router.get("/all/users", userController.getAllUsers);
+router.get("/all", userController.getAllUsers);
+router.get("/list", userController.getAllUsers);
+router.get("/users/all", userController.getAllUsers);
 router.get("/role/users", userController.getUsersByRole);
 router.get("/test/cloudinary", userController.testCloudinary);
 router.get("/verification-stats", userController.getVerificationStats);
 router.get("/messaging", userController.getAllUsersForMessaging);
 
-// ================== UNREAD COUNTS ROUTES (MUST COME BEFORE /:id) ==================
+// ============================================
+// UNREAD COUNTS ROUTES
+// ============================================
 router.get("/:userId/unread-counts", userController.getUserUnreadCounts);
 
-// ================== USER BY ID ROUTE (GET) ==================
+// ============================================
+// DYNAMIC USER ID ROUTES (MUST BE AFTER STATIC ROUTES)
+// ============================================
+
+// Get user by ID - THIS IS WHAT FIXES THE 404 ERROR
 router.get("/:id", userController.getUserById);
 
-// ================== UPDATE PROFILE ROUTE (PUT by ID) ==================
+// Update user by ID
 router.put("/:id", userController.updateProfile);
 
-// ================== PROFILE ROUTES ==================
+// ============================================
+// PROFILE ROUTES
+// ============================================
 router.put("/profile/:id", userController.updateProfile);
 router.post("/:id/upload-picture", upload.single("profile"), userController.uploadPicture);
 router.delete("/:id/remove-picture", userController.removePicture);
 router.put("/change-password/:id", userController.changePassword);
 
-// ================== ADMIN ROUTES ==================
+// ============================================
+// ADMIN ROUTES
+// ============================================
+
+// User management
 router.put("/toggle-suspend/:id", userController.toggleSuspendUser);
 router.put("/toggle-verify/:id", userController.toggleVerifyUser);
 router.put("/suspend/:id", userController.suspendUser);
@@ -57,7 +74,9 @@ router.post("/add-user", upload.single("profile"), userController.addUser);
 router.delete("/archived/:id", userController.deleteArchivedUser);
 router.post("/force-logout/:userId", userController.forceLogoutUser);
 
-// ================== BULK OPERATIONS ROUTES ==================
+// ============================================
+// BULK OPERATIONS ROUTES
+// ============================================
 router.post("/revoke-all-verification", userController.revokeAllVerification);
 router.post("/bulk-verify", userController.bulkVerifyUsers);
 router.post("/bulk-archive", userController.bulkArchiveUsers);
