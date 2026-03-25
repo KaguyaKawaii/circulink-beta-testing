@@ -8,32 +8,21 @@ import notificationService from "../services/notificationService.js";
 import sendEmail from "../utils/sendEmail.js";
 import logAction from "../utils/logAction.js";
 import generateReservationEmail from "../utils/generateReservationEmail.js";
+import timeService from "../services/timeService.js";
 
-// Helper: Convert time string to minutes
+// Helper: Convert time string to minutes (using timeService)
 function timeToMinutes(timeStr) {
-  if (!timeStr) return 0;
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + minutes;
+  return timeService.timeToMinutes(timeStr);
 }
 
-// Helper: Check if a closure has expired
+// Helper: Check if a closure has expired (using timeService)
 function isClosureExpired(closure) {
-  const now = new Date();
-  const closureDate = new Date(closure.date);
-  const [endHours, endMinutes] = closure.endTime.split(":").map(Number);
-  closureDate.setHours(endHours, endMinutes, 0, 0);
-  
-  return now > closureDate;
+  return timeService.isExpired(closure);
 }
 
-// Helper: Check if a scheduled closure should be activated
+// Helper: Check if a scheduled closure should be activated (using timeService)
 function shouldActivateClosure(closure) {
-  const now = new Date();
-  const closureDate = new Date(closure.date);
-  const [startHours, startMinutes] = closure.startTime.split(":").map(Number);
-  closureDate.setHours(startHours, startMinutes, 0, 0);
-  
-  return now >= closureDate;
+  return timeService.shouldBeActive(closure) && closure.status === "Scheduled";
 }
 
 // Helper: Update expired closures (internal function, no req/res)
@@ -98,14 +87,13 @@ async function updateExpiredClosures() {
   }
 }
 
-// Helper: Auto-activate scheduled closures
+// Helper: Auto-activate scheduled closures (using timeService)
 async function activateScheduledClosures() {
   try {
     console.log("🔄 Checking for scheduled closures to activate...");
     
-    const now = new Date();
-    const today = now.toISOString().split("T")[0];
-    const currentTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    const now = timeService.getCurrentTime();
+    const today = now.format('YYYY-MM-DD');
     
     // Find all scheduled closures with date <= today
     const scheduledClosures = await Closure.find({ 
@@ -314,12 +302,10 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    const now = new Date();
-    const closureDate = new Date(closure.date);
-    const [startHours, startMinutes] = closure.startTime.split(":").map(Number);
-    closureDate.setHours(startHours, startMinutes, 0, 0);
+    const now = timeService.getCurrentTime();
+    const closureStartDateTime = timeService.parseClosureDateTime(closure.date, closure.startTime);
 
-    if (!activateNow && now < closureDate) {
+    if (!activateNow && now.isBefore(closureStartDateTime)) {
       closure.status = "Scheduled";
       closure.activatedAt = null;
       closure.activatedBy = null;
@@ -612,7 +598,7 @@ export const previewClosureConflicts = async (req, res) => {
       });
     }
 
-    if (startTime >= endTime) {
+    if (!timeService.isValidTimeRange(startTime, endTime)) {
       return res.status(400).json({
         success: false,
         message: "End time must be after start time"
@@ -720,7 +706,7 @@ export const createClosure = async (req, res) => {
       });
     }
 
-    if (startTime >= endTime) {
+    if (!timeService.isValidTimeRange(startTime, endTime)) {
       return res.status(400).json({
         success: false,
         message: "End time must be after start time"
@@ -734,36 +720,25 @@ export const createClosure = async (req, res) => {
       });
     }
 
-    // FIX: Properly determine initial status based on current time and closure start time
+    // Determine initial status based on current time and closure start time
     let initialStatus = status || "Scheduled";
     
-    // Get current time in Asia/Manila timezone
-    const now = new Date();
-    const philippinesTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-    
-    // Parse the closure date and time
-    const [year, month, day] = date.split("-");
-    const [startHours, startMinutes] = startTime.split(":").map(Number);
-    
-    // Create a Date object for the closure start time in Asia/Manila
-    const closureStartDateTime = new Date(year, month - 1, day, startHours, startMinutes, 0, 0);
+    const now = timeService.getCurrentTime();
+    const closureStartDateTime = timeService.parseClosureDateTime(date, startTime);
     
     // If no status provided, determine based on current time vs closure start time
     if (!status) {
-      // Compare dates (considering timezone)
-      if (philippinesTime >= closureStartDateTime) {
-        // If current time is at or after the closure start time, activate immediately
+      if (now.isSameOrAfter(closureStartDateTime)) {
         initialStatus = "Active";
         console.log(`⏰ Closure start time ${startTime} on ${date} has passed or is now. Setting status to ACTIVE`);
       } else {
-        // If closure start time is in the future, schedule it
         initialStatus = "Scheduled";
         console.log(`⏰ Closure start time ${startTime} on ${date} is in the future. Setting status to SCHEDULED`);
       }
     }
     
-    console.log(`Current time (Philippines): ${philippinesTime.toISOString()}`);
-    console.log(`Closure start time: ${closureStartDateTime.toISOString()}`);
+    console.log(`Current time (Philippines): ${now.format()}`);
+    console.log(`Closure start time: ${closureStartDateTime.format()}`);
     console.log(`Initial status determined: ${initialStatus}`);
 
     // Check for overlapping active closures only if we're setting to Active
@@ -1446,7 +1421,7 @@ export const getAvailabilityWithClosures = async (req, res) => {
 ------------------------------------------------ */
 export const getUpcomingClosures = async (req, res) => {
   try {
-    const today = new Date().toISOString().split("T")[0];
+    const today = timeService.getCurrentDate();
     
     updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
     activateScheduledClosures().catch(err => console.error("Auto-activate error:", err));
