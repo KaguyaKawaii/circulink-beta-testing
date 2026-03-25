@@ -31,15 +31,25 @@ import {
 import axios from "axios";
 import AdminNavigation from "../AdminNavigation";
 
-// Simple toast function
-const showToast = (message, type = "success") => {
-  if (type === "error") {
-    alert(`❌ Error: ${message}`);
-  } else if (type === "success") {
-    alert(`✅ ${message}`);
-  } else {
-    alert(message);
-  }
+// Toast notification component
+const Toast = ({ message, type, onClose }) => {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onClose();
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  const bgColor = type === "error" ? "bg-red-500" : type === "success" ? "bg-green-500" : "bg-blue-500";
+  const icon = type === "error" ? "❌" : type === "success" ? "✅" : "ℹ️";
+
+  return (
+    <div className={`fixed top-4 right-4 z-[100] ${bgColor} text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-slide-in`}>
+      <span>{icon}</span>
+      <span>{message}</span>
+      <button onClick={onClose} className="ml-4 hover:opacity-70">×</button>
+    </div>
+  );
 };
 
 const AdminClosures = ({ setView, onLogout, admin }) => {
@@ -48,7 +58,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const [fetchError, setFetchError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingClosure, setEditingClosure] = useState(null);
-  const [isCreating, setIsCreating] = useState(false); // NEW: Loading state for create/update
+  const [isCreating, setIsCreating] = useState(false);
   const [formData, setFormData] = useState({
     title: "",
     reason: "",
@@ -66,6 +76,9 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const [pagination, setPagination] = useState({ currentPage: 1, totalPages: 1, totalCount: 0 });
   const [itemsPerPage] = useState(20);
   
+  // Toast notification state
+  const [toast, setToast] = useState(null);
+  
   // Selection State for bulk operations
   const [selectedClosures, setSelectedClosures] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
@@ -76,7 +89,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   
   // Restore Confirmation Modal State
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(null);
-  const [restoreAction, setRestoreAction] = useState(null); // 'single' or 'bulk'
+  const [restoreAction, setRestoreAction] = useState(null);
   const [pendingDeleteClosure, setPendingDeleteClosure] = useState(null);
   const [pendingBulkDeleteIds, setPendingBulkDeleteIds] = useState([]);
   
@@ -91,6 +104,10 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
 
   const API_URL = import.meta.env.VITE_API_URL || "";
 
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+  };
+
   // Auto-update closure statuses every minute
   useEffect(() => {
     const updateClosureStatuses = async () => {
@@ -102,10 +119,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       }
     };
 
-    // Update immediately on mount
     updateClosureStatuses();
-
-    // Set up interval to update every minute
     const interval = setInterval(updateClosureStatuses, 60000);
 
     return () => clearInterval(interval);
@@ -142,13 +156,11 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     }
   };
 
-  // Fetch closures on mount
   useEffect(() => {
     fetchClosures();
     fetchRooms();
   }, [filter, pagination.currentPage]);
 
-  // Reset to first page when filters change
   useEffect(() => {
     setPagination(prev => ({ ...prev, currentPage: 1 }));
   }, [filter]);
@@ -157,7 +169,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     setIsLoading(true);
     setFetchError(null);
     try {
-      // Build params for filtering
       const params = new URLSearchParams({
         page: pagination.currentPage,
         limit: itemsPerPage,
@@ -178,7 +189,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
           totalCount: paginationData.totalCount || 0
         });
         
-        // Clear selections when fetching new data
         setSelectedClosures([]);
         setSelectAll(false);
       } else {
@@ -241,10 +251,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Prevent double submission
     if (isCreating) return;
     
-    // Validate
     if (formData.startTime >= formData.endTime) {
       showToast("End time must be after start time", "error");
       return;
@@ -255,7 +263,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       return;
     }
 
-    setIsCreating(true); // Set loading state
+    setIsCreating(true);
 
     try {
       let response;
@@ -284,11 +292,10 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       console.error("Error saving closure:", error);
       showToast(error.response?.data?.message || "Failed to save closure", "error");
     } finally {
-      setIsCreating(false); // Clear loading state
+      setIsCreating(false);
     }
   };
 
-  // Activation Handler
   const handleActivateClick = (closure) => {
     setShowActivateConfirm(closure);
   };
@@ -322,7 +329,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     }
   };
 
-  // Deactivation Handler
   const handleDeactivateClick = (closure) => {
     setShowDeactivateConfirm(closure);
   };
@@ -357,7 +363,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     }
   };
 
-  // Selection Handlers
   const handleSelectAll = () => {
     if (selectAll) {
       setSelectedClosures([]);
@@ -384,7 +389,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     });
   };
 
-  // Single Delete Handler with Restore Confirmation Modal
   const handleDeleteClick = (closure) => {
     setPendingDeleteClosure(closure);
     setRestoreAction('single');
@@ -475,7 +479,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     setRestoreAction(null);
   };
 
-  // Bulk Delete Handler
   const handleBulkDeleteClick = () => {
     if (selectedClosures.length === 0) {
       setDeleteResult({
@@ -486,7 +489,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       return;
     }
     
-    // Calculate total affected reservations
     const totalAffected = selectedClosures.reduce((total, id) => {
       const closure = closures.find(c => c._id === id);
       return total + (closure?.affectedReservations?.length || 0);
@@ -560,7 +562,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     );
   };
 
-  // Filter closures based on status and search
   const filteredClosures = closures.filter((closure) => {
     const matchesStatus = filter.status === "All" || closure.status === filter.status;
     const matchesSearch = 
@@ -570,13 +571,11 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     return matchesStatus && matchesSearch;
   });
 
-  // Pagination logic
   const indexOfLastItem = pagination.currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const paginatedClosures = filteredClosures.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredClosures.length / itemsPerPage);
 
-  // Pagination Handlers
   const handlePageChange = (pageNumber) => {
     setPagination(prev => ({ ...prev, currentPage: pageNumber }));
     setSelectedClosures([]);
@@ -599,7 +598,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     }
   };
 
-  // Stat Card Component
   const StatCard = ({ title, value, icon, color, subtitle }) => (
     <div className={`bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300 ${color}`}>
       <div className="flex items-center justify-between">
@@ -615,7 +613,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     </div>
   );
 
-  // Pagination Component
   const Pagination = () => {
     if (totalPages <= 1) return null;
 
@@ -715,11 +712,25 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     );
   };
 
+  const handleViewRooms = (rooms) => {
+    const roomList = rooms?.join(", ") || "None";
+    showToast(`Affected Rooms: ${roomList}`, "info");
+  };
+
   return (
     <>
       <AdminNavigation setView={setView} currentView="adminClosures" onLogout={onLogout} />
+      
+      {/* Toast Notification */}
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
+      
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50 relative z-10">
-        {/* Header */}
         <header className="bg-white px-6 py-4 border-b border-gray-200 z-20">
           <div className="flex justify-between items-center">
             <div>
@@ -742,9 +753,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
           </div>
         </header>
 
-        {/* Main Content */}
         <div className="p-6">
-          {/* Error Display */}
           {fetchError && (
             <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-center">
@@ -760,7 +769,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
             </div>
           )}
 
-          {/* View Mode Toggle */}
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-6">
             <div className="flex flex-col md:flex-row md:items-center gap-4">
               <div className="flex items-center space-x-2">
@@ -788,7 +796,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 </button>
               </div>
 
-              {/* Search */}
               <div className="relative flex-1">
                 <Search
                   className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
@@ -811,7 +818,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 )}
               </div>
 
-              {/* Status filter - UPDATED with all statuses */}
               <div className="relative">
                 <select
                   value={filter.status}
@@ -830,7 +836,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 />
               </div>
 
-              {/* Action Buttons */}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => {
@@ -862,7 +867,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               </div>
             </div>
 
-            {/* Bulk Actions Row */}
             <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-gray-200">
               <div className="flex items-center gap-2">
                 <button
@@ -889,10 +893,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
             </div>
           </div>
 
-          {/* STATISTICS VIEW */}
           {viewMode === "stats" ? (
             <div className="space-y-6">
-              {/* Statistics Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <StatCard
                   title="Total Closures"
@@ -937,7 +939,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 />
               </div>
 
-              {/* Additional Stats */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                   <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
@@ -985,7 +986,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               </div>
             </div>
           ) : (
-            /* LIST VIEW */
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -1058,10 +1058,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                                     {closure.affectedRooms?.length || 0} room(s)
                                   </span>
                                   <button
-                                    onClick={() => {
-                                      const roomList = closure.affectedRooms?.join(", ") || "None";
-                                      alert(`Affected Rooms:\n${roomList}`);
-                                    }}
+                                    onClick={() => handleViewRooms(closure.affectedRooms)}
                                     className="text-xs text-blue-500 hover:text-blue-700"
                                   >
                                     View
@@ -1083,7 +1080,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right">
                               <div className="flex justify-end space-x-2">
-                                {/* Activate Button - Only show for Scheduled or Deactivated */}
                                 {(closure.status === "Scheduled" || closure.status === "Deactivated") && (
                                   <button
                                     onClick={() => handleActivateClick(closure)}
@@ -1094,7 +1090,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                                   </button>
                                 )}
                                 
-                                {/* Deactivate Button - Only show for Active */}
                                 {closure.status === "Active" && (
                                   <button
                                     onClick={() => handleDeactivateClick(closure)}
@@ -1105,7 +1100,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                                   </button>
                                 )}
                                 
-                                {/* Edit Button - Show for non-expired */}
                                 {closure.status !== "Expired" && (
                                   <button
                                     onClick={() => {
@@ -1129,7 +1123,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                                   </button>
                                 )}
                                 
-                                {/* Delete Button */}
                                 <button
                                   onClick={() => handleDeleteClick(closure)}
                                   className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors cursor-pointer"
@@ -1147,14 +1140,13 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 </table>
               </div>
               
-              {/* Pagination */}
               {filteredClosures.length > 0 && <Pagination />}
             </div>
           )}
         </div>
       </main>
 
-      {/* Create/Edit Modal with Loading State */}
+      {/* Create/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -1471,7 +1463,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         </div>
       )}
 
-      {/* Improved Restore Confirmation Modal */}
+      {/* Restore Confirmation Modal */}
       {showRestoreConfirm && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full mx-4">
@@ -1492,7 +1484,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 </div>
               </div>
 
-              {/* Impact Summary */}
               <div className="bg-gray-50 rounded-lg p-4 mb-6">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-gray-600">Affected Reservations:</span>
@@ -1512,7 +1503,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 )}
               </div>
 
-              {/* Option Cards */}
               <div className="space-y-3 mb-6">
                 <button
                   onClick={() => handleRestoreConfirm(true)}
@@ -1561,7 +1551,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 </button>
               </div>
 
-              {/* Cancel Button */}
               <div className="flex justify-end">
                 <button
                   onClick={handleDeleteCancel}
@@ -1615,7 +1604,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         </div>
       )}
 
-      {/* Loading Overlay for All Operations */}
+      {/* Loading Overlay */}
       {(isDeleting || isBulkDeleting || isActivating || isDeactivating || isCreating) && !showRestoreConfirm && !showActivateConfirm && !showDeactivateConfirm && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
