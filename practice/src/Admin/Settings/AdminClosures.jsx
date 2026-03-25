@@ -48,6 +48,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const [fetchError, setFetchError] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [editingClosure, setEditingClosure] = useState(null);
+  const [isCreating, setIsCreating] = useState(false); // NEW: Loading state for create/update
   const [formData, setFormData] = useState({
     title: "",
     reason: "",
@@ -240,6 +241,9 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Prevent double submission
+    if (isCreating) return;
+    
     // Validate
     if (formData.startTime >= formData.endTime) {
       showToast("End time must be after start time", "error");
@@ -250,6 +254,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       showToast("Please select at least one room or select 'All Rooms'", "error");
       return;
     }
+
+    setIsCreating(true); // Set loading state
 
     try {
       let response;
@@ -277,6 +283,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     } catch (error) {
       console.error("Error saving closure:", error);
       showToast(error.response?.data?.message || "Failed to save closure", "error");
+    } finally {
+      setIsCreating(false); // Clear loading state
     }
   };
 
@@ -1146,7 +1154,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         </div>
       </main>
 
-      {/* Create/Edit Modal */}
+      {/* Create/Edit Modal with Loading State */}
       {showModal && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 transition-all duration-300">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -1156,7 +1164,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               </h2>
               <button
                 onClick={() => setShowModal(false)}
-                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                disabled={isCreating}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
               >
                 <X size={20} className="text-gray-500" />
               </button>
@@ -1171,7 +1180,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   value={formData.title}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
+                  disabled={isCreating}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="e.g., University Foundation Day"
                 />
               </div>
@@ -1183,8 +1193,9 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   value={formData.reason}
                   onChange={handleInputChange}
                   required
+                  disabled={isCreating}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   placeholder="Explain why the facility is closed..."
                 />
               </div>
@@ -1198,8 +1209,9 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                     value={formData.date}
                     onChange={handleInputChange}
                     required
+                    disabled={isCreating}
                     min={new Date().toISOString().split("T")[0]}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -1210,7 +1222,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                     value={formData.startTime}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
+                    disabled={isCreating}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
                 <div>
@@ -1221,7 +1234,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                     value={formData.endTime}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none"
+                    disabled={isCreating}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -1233,7 +1247,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                     name="affectedAllRooms"
                     checked={formData.affectedAllRooms}
                     onChange={handleInputChange}
-                    className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                    disabled={isCreating}
+                    className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 disabled:opacity-50"
                   />
                   <span className="text-gray-700">Affect all rooms</span>
                 </label>
@@ -1248,7 +1263,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                             type="checkbox"
                             checked={formData.affectedRooms.includes(room.room)}
                             onChange={() => handleRoomSelection(room.room)}
-                            className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            disabled={isCreating}
+                            className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500 disabled:opacity-50"
                           />
                           <span>{room.room} ({room.floor})</span>
                         </label>
@@ -1262,15 +1278,26 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 <button
                   type="button"
                   onClick={handlePreviewConflicts}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer"
+                  disabled={isCreating}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Preview Conflicts
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
+                  disabled={isCreating}
+                  className={`px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors cursor-pointer flex items-center gap-2 ${
+                    isCreating ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
                 >
-                  {editingClosure ? "Update Closure" : "Create Closure"}
+                  {isCreating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      {editingClosure ? "Updating..." : "Creating..."}
+                    </>
+                  ) : (
+                    editingClosure ? "Update Closure" : "Create Closure"
+                  )}
                 </button>
               </div>
             </form>
@@ -1588,14 +1615,18 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         </div>
       )}
 
-      {/* Loading Overlay for Delete Operations */}
-      {(isDeleting || isBulkDeleting || isActivating || isDeactivating) && !showRestoreConfirm && !showActivateConfirm && !showDeactivateConfirm && (
+      {/* Loading Overlay for All Operations */}
+      {(isDeleting || isBulkDeleting || isActivating || isDeactivating || isCreating) && !showRestoreConfirm && !showActivateConfirm && !showDeactivateConfirm && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full mx-4">
             <div className="flex flex-col items-center justify-center">
               <div className="w-12 h-12 border-4 border-red-600 border-t-transparent rounded-full animate-spin mb-4"></div>
               <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                {isBulkDeleting ? 'Deleting Closures' : isActivating ? 'Activating Closure' : isDeactivating ? 'Deactivating Closure' : 'Deleting Closure'}
+                {isBulkDeleting ? 'Deleting Closures' : 
+                 isActivating ? 'Activating Closure' : 
+                 isDeactivating ? 'Deactivating Closure' : 
+                 isCreating ? (editingClosure ? 'Updating Closure' : 'Creating Closure') : 
+                 'Deleting Closure'}
               </h3>
               <p className="text-gray-600 text-center">
                 {isBulkDeleting 
@@ -1604,6 +1635,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   ? 'Please wait while we activate the closure...'
                   : isDeactivating
                   ? 'Please wait while we deactivate the closure...'
+                  : isCreating
+                  ? (editingClosure ? 'Please wait while we update the closure...' : 'Please wait while we create the closure...')
                   : 'Please wait while we delete the closure...'}
               </p>
             </div>

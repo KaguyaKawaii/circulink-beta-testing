@@ -26,6 +26,16 @@ function isClosureExpired(closure) {
   return now > closureDate;
 }
 
+// Helper: Check if a scheduled closure should be activated
+function shouldActivateClosure(closure) {
+  const now = new Date();
+  const closureDate = new Date(closure.date);
+  const [startHours, startMinutes] = closure.startTime.split(":").map(Number);
+  closureDate.setHours(startHours, startMinutes, 0, 0);
+  
+  return now >= closureDate;
+}
+
 // Helper: Update expired closures (internal function, no req/res)
 async function updateExpiredClosures() {
   try {
@@ -88,21 +98,174 @@ async function updateExpiredClosures() {
   }
 }
 
+// Helper: Auto-activate scheduled closures
+async function activateScheduledClosures() {
+  try {
+    console.log("🔄 Checking for scheduled closures to activate...");
+    
+    const now = new Date();
+    const today = now.toISOString().split("T")[0];
+    const currentTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    
+    // Find all scheduled closures with date <= today
+    const scheduledClosures = await Closure.find({ 
+      status: "Scheduled",
+      date: { $lte: today }
+    });
+    
+    let activatedCount = 0;
+    const activatedClosures = [];
+    
+    for (const closure of scheduledClosures) {
+      if (shouldActivateClosure(closure)) {
+        // Check for overlapping active closures
+        const overlappingClosures = await Closure.find({
+          _id: { $ne: closure._id },
+          date: closure.date,
+          status: "Active",
+          $or: [
+            {
+              startTime: { $lt: closure.endTime },
+              endTime: { $gt: closure.startTime }
+            }
+          ]
+        });
+        
+        if (overlappingClosures.length > 0) {
+          console.log(`⚠️ Cannot auto-activate "${closure.title}" - overlapping with active closure`);
+          continue;
+        }
+        
+        // Activate the closure
+        closure.status = "Active";
+        closure.activatedAt = new Date();
+        closure.activatedBy = null;
+        closure.activatedByName = "System (Auto)";
+        await closure.save();
+        
+        activatedCount++;
+        activatedClosures.push(closure);
+        
+        console.log(`✅ Closure "${closure.title}" activated automatically`);
+        
+        // Find and cancel conflicting reservations
+        const conflictQuery = {
+          date: closure.date,
+          status: { $in: ["Pending", "Approved", "Ongoing"] }
+        };
+        
+        if (!closure.affectedAllRooms && closure.affectedRooms?.length > 0) {
+          conflictQuery.roomName = { $in: closure.affectedRooms };
+        }
+        
+        const conflictingReservations = await Reservation.find(conflictQuery)
+          .populate("userId", "name email id_number");
+        
+        const startTimeMinutes = timeToMinutes(closure.startTime);
+        const endTimeMinutes = timeToMinutes(closure.endTime);
+        const affectedList = [];
+        
+        for (const reservation of conflictingReservations) {
+          let resStartTime, resEndTime;
+          
+          if (reservation.datetime && reservation.endDatetime) {
+            resStartTime = new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+            resEndTime = new Date(reservation.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+          } else if (reservation.time && reservation.endTime) {
+            resStartTime = reservation.time;
+            resEndTime = reservation.endTime;
+          } else {
+            continue;
+          }
+          
+          const resStartMinutes = timeToMinutes(resStartTime);
+          const resEndMinutes = timeToMinutes(resEndTime);
+          
+          const overlap = (resStartMinutes < endTimeMinutes && resEndMinutes > startTimeMinutes);
+          
+          if (overlap) {
+            affectedList.push(reservation);
+            
+            reservation.status = "Cancelled";
+            reservation.cancellationReason = `Cancelled due to facility closure activation: ${closure.title} - ${closure.reason}`;
+            reservation.cancelledBy = "System";
+            reservation.cancelledAt = new Date();
+            await reservation.save();
+            
+            try {
+              if (reservation.userId?.email) {
+                sendEmail({
+                  to: reservation.userId.email,
+                  subject: "Reservation Cancelled Due to Facility Closure",
+                  html: `
+                    <h2>Reservation Cancelled</h2>
+                    <p>Dear ${reservation.userId.name || "User"},</p>
+                    <p>Your reservation has been cancelled due to a facility closure:</p>
+                    <ul>
+                      <li><strong>Room:</strong> ${reservation.roomName}</li>
+                      <li><strong>Date:</strong> ${reservation.date}</li>
+                      <li><strong>Time:</strong> ${resStartTime} - ${resEndTime}</li>
+                      <li><strong>Closure:</strong> ${closure.title}</li>
+                      <li><strong>Reason:</strong> ${closure.reason}</li>
+                    </ul>
+                    <p>We apologize for any inconvenience.</p>
+                  `
+                }).catch(err => console.warn("Email send error:", err.message));
+              }
+            } catch (emailError) {
+              console.warn("⚠️ Failed to send cancellation email:", emailError.message);
+            }
+          }
+        }
+        
+        // Update affected reservations in closure
+        closure.affectedReservations = affectedList.map(r => ({
+          reservationId: r._id,
+          userId: r.userId?._id,
+          roomName: r.roomName,
+          date: r.date,
+          startTime: r.datetime ? new Date(r.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : r.time,
+          endTime: r.endDatetime ? new Date(r.endDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }) : r.endTime,
+          cancelledAt: new Date()
+        }));
+        
+        await closure.save();
+        
+        console.log(`   Cancelled ${affectedList.length} reservations`);
+      }
+    }
+    
+    if (activatedCount > 0) {
+      console.log(`📊 Activated ${activatedCount} scheduled closures`);
+    }
+    
+    return { activatedCount, activatedClosures };
+    
+  } catch (err) {
+    console.error("❌ Error activating scheduled closures:", err);
+    return { activatedCount: 0, activatedClosures: [], error: err.message };
+  }
+}
+
 /* ------------------------------------------------
    ✅ UPDATE CLOSURE STATUSES (API ENDPOINT)
 ------------------------------------------------ */
 export const updateClosureStatuses = async (req, res) => {
   try {
-    const result = await updateExpiredClosures();
+    // Update expired closures
+    const expiredResult = await updateExpiredClosures();
+    // Activate scheduled closures
+    const activatedResult = await activateScheduledClosures();
     
     res.json({
       success: true,
-      message: `Updated ${result.updatedCount} closures to expired status`,
-      updatedCount: result.updatedCount,
-      expiredClosures: result.expiredClosures.map(c => ({ id: c._id, title: c.title }))
+      message: `Updated ${expiredResult.updatedCount} closures to expired, activated ${activatedResult.activatedCount} scheduled closures`,
+      updatedCount: expiredResult.updatedCount,
+      activatedCount: activatedResult.activatedCount,
+      expiredClosures: expiredResult.expiredClosures.map(c => ({ id: c._id, title: c.title })),
+      activatedClosures: activatedResult.activatedClosures.map(c => ({ id: c._id, title: c.title }))
     });
     
-    return result;
   } catch (err) {
     console.error("❌ Error in updateClosureStatuses:", err);
     res.status(500).json({
@@ -169,6 +332,7 @@ export const activateClosure = async (req, res) => {
       });
     }
 
+    // Check for overlapping active closures
     const overlappingClosures = await Closure.find({
       _id: { $ne: id },
       date: closure.date,
@@ -780,7 +944,7 @@ export const createClosure = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ GET ALL CLOSURES (WITH FILTERS) - FIXED
+   ✅ GET ALL CLOSURES (WITH FILTERS)
 ------------------------------------------------ */
 export const getClosures = async (req, res) => {
   try {
@@ -815,7 +979,6 @@ export const getClosures = async (req, res) => {
     
     console.log("Total count:", totalCount);
 
-    // FIXED: Only populate fields that exist
     const closures = await Closure.find(query)
       .populate("createdBy", "name email")
       .sort({ date: -1, startTime: 1, createdAt: -1 })
@@ -824,8 +987,9 @@ export const getClosures = async (req, res) => {
 
     console.log(`Found ${closures.length} closures`);
 
-    // Auto-update statuses asynchronously
+    // Auto-update statuses asynchronously (don't await to avoid delay)
     updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
+    activateScheduledClosures().catch(err => console.error("Auto-activate error:", err));
 
     res.json({
       success: true,
@@ -850,7 +1014,7 @@ export const getClosures = async (req, res) => {
 };
 
 /* ------------------------------------------------
-   ✅ GET SINGLE CLOSURE BY ID - FIXED
+   ✅ GET SINGLE CLOSURE BY ID
 ------------------------------------------------ */
 export const getClosureById = async (req, res) => {
   try {
@@ -1135,6 +1299,7 @@ export const checkSlotClosed = async (req, res) => {
     }
 
     updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
+    activateScheduledClosures().catch(err => console.error("Auto-activate error:", err));
 
     const query = {
       date: date,
@@ -1185,6 +1350,7 @@ export const getAvailabilityWithClosures = async (req, res) => {
     }
 
     updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
+    activateScheduledClosures().catch(err => console.error("Auto-activate error:", err));
 
     const Room = mongoose.model("Room");
     const rooms = await Room.find({}).sort({ floor: 1, room: 1 });
@@ -1264,6 +1430,7 @@ export const getUpcomingClosures = async (req, res) => {
     const today = new Date().toISOString().split("T")[0];
     
     updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
+    activateScheduledClosures().catch(err => console.error("Auto-activate error:", err));
     
     const closures = await Closure.find({
       date: { $gte: today },
