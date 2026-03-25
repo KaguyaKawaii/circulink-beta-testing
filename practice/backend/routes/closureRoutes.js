@@ -11,22 +11,38 @@ import {
   getUpcomingClosures,
   previewClosureConflicts,
   updateClosureStatuses,
-  bulkDeleteClosures
+  bulkDeleteClosures,
+  activateClosure,
+  deactivateClosure,
+  getClosureStats
 } from "../controllers/closureController.js";
 
 const router = express.Router();
 
-// Public routes (no authentication required)
-router.post("/", createClosure);
-router.post("/preview", previewClosureConflicts);
-router.post("/update-status", updateClosureStatuses);  // New endpoint for real-time auto-end
-router.post("/bulk-delete", bulkDeleteClosures);  // New endpoint for bulk delete
-router.put("/:id", updateClosure);
-router.delete("/:id", deleteClosure);
-router.get("/", getClosures);
-router.get("/upcoming", getUpcomingClosures);
+// ============================================
+// PUBLIC ROUTES (No authentication required)
+// ============================================
 router.get("/check-slot", checkSlotClosed);
 router.get("/availability", getAvailabilityWithClosures);
-router.get("/:id", getClosureById);
+router.get("/upcoming", getUpcomingClosures);
+router.post("/preview", previewClosureConflicts);
+router.post("/update-status", updateClosureStatuses);
+router.get("/stats", getClosureStats);
+
+// ============================================
+// CRUD OPERATIONS
+// ============================================
+router.post("/", createClosure);           // Create
+router.get("/", getClosures);              // Read all
+router.get("/:id", getClosureById);        // Read one
+router.put("/:id", updateClosure);         // Update
+router.delete("/:id", deleteClosure);      // Delete
+router.post("/bulk-delete", bulkDeleteClosures); // Bulk delete
+
+// ============================================
+// STATUS MANAGEMENT
+// ============================================
+router.post("/:id/activate", activateClosure);     // Manual activate
+router.post("/:id/deactivate", deactivateClosure); // Manual deactivate
 
 export default router;
