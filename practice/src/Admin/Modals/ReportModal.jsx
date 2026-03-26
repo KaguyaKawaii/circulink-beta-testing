@@ -284,7 +284,7 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
             ) : report ? (
               <div className="space-y-6">
                 {/* Quick Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <InfoCard
                     title="Category"
                     value={report.category || "N/A"}
@@ -296,12 +296,6 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
                     value={report.reportedBy || "N/A"}
                     icon={<User size={20} />}
                     subtitle="Reporter"
-                  />
-                  <InfoCard
-                    title="Assigned To"
-                    value={report.assignedTo?.name || "Unassigned"}
-                    icon={<Wrench size={20} />}
-                    subtitle="Staff member"
                   />
                 </div>
 
@@ -344,12 +338,6 @@ const ReportModal = ({ reportId, onClose, onReportUpdated }) => {
                         <div className="flex justify-between py-2 border-b border-gray-100">
                           <span className="text-gray-600">Room</span>
                           <span className="font-medium text-gray-900">{report.room}</span>
-                        </div>
-                        <div className="flex justify-between py-2 border-b border-gray-100">
-                          <span className="text-gray-600">Assigned To</span>
-                          <span className="font-medium text-gray-900">
-                            {report.assignedTo?.name || "Unassigned"}
-                          </span>
                         </div>
                         {report.assignedBy && (
                           <div className="flex justify-between py-2 border-b border-gray-100">
