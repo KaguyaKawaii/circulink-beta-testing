@@ -387,7 +387,7 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    // ✅ FIX: Force activation if activateNow is true (regardless of time)
+    // Force activation if activateNow is true
     if (activateNow === true || activateNow === "true") {
       console.log("🚀 FORCE ACTIVATION requested - ignoring time check");
       
@@ -439,7 +439,7 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    // Original logic for non-force activation (scheduling)
+    // Original logic for non-force activation
     const now = timeService.getCurrentTime();
     const closureStartDateTime = timeService.parseClosureDateTime(closure.date, closure.startTime);
     
@@ -585,15 +585,6 @@ export const deactivateClosure = async (req, res) => {
 
     const restoredReservations = [];
     if (restoreReservations && closure.affectedReservations?.length > 0) {
-      let affectedRoomNames = [];
-      
-      if (closure.affectedAllFloors) {
-        const allRooms = await Room.find({});
-        affectedRoomNames = allRooms.map(r => r.room);
-      } else if (closure.affectedFloors && closure.affectedFloors.length > 0) {
-        affectedRoomNames = await getRoomsOnFloors(closure.affectedFloors);
-      }
-      
       for (const affected of closure.affectedReservations) {
         try {
           const reservation = await Reservation.findById(affected.reservationId).populate("userId", "name email");
@@ -985,6 +976,7 @@ export const createClosure = async (req, res) => {
   }
 };
 
+// FIXED: getClosures with proper date filtering
 export const getClosures = async (req, res) => {
   try {
     console.log("=== GET CLOSURES CALLED ===");
@@ -994,13 +986,20 @@ export const getClosures = async (req, res) => {
       page = 1,
       limit = 20,
       status = "All",
+      date,  // Add date parameter support
       search
     } = req.query;
 
     const query = {};
 
+    // Filter by status if specified
     if (status && status !== "All") {
       query.status = status;
+    }
+
+    // Filter by date if provided
+    if (date) {
+      query.date = date;
     }
 
     if (search && search.trim()) {
@@ -1026,6 +1025,7 @@ export const getClosures = async (req, res) => {
 
     console.log(`Found ${closures.length} closures`);
 
+    // Run auto-updates in background (don't await)
     updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
     activateScheduledClosures().catch(err => console.error("Auto-activate error:", err));
 
@@ -1344,6 +1344,7 @@ export const checkSlotClosed = async (req, res) => {
     const room = await Room.findOne({ room: roomName });
     const roomFloor = room?.floor;
 
+    // Update statuses before checking
     await updateExpiredClosures();
     await activateScheduledClosures();
 

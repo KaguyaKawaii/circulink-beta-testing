@@ -1,10 +1,10 @@
-// src/ReserveRoom.jsx - COMPLETE with closure popup modal
+// src/ReserveRoom.jsx - COMPLETE with closure popup modal and header warnings
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import socket from "../utils/socket";
 import moment from "moment-timezone";
 import RoomAvailabilityModal from "./RoomAvailabilityModal";
-import { AlertTriangle, Calendar, Clock, X, Building2 } from "lucide-react";
+import { AlertTriangle, Calendar, Clock, X, Building2, Info } from "lucide-react";
 
 // Import shared room images configuration
 import { availableRoomImages, getRoomImageById } from "../data/roomImages";
@@ -99,8 +99,11 @@ function ReserveRoom({ user, setView }) {
   const [closedFloors, setClosedFloors] = useState([]);
   // Track floor-specific closure info
   const [floorClosures, setFloorClosures] = useState({});
+  // Track if current selected time is within any closure
+  const [isCurrentTimeClosed, setIsCurrentTimeClosed] = useState(false);
+  const [currentTimeClosures, setCurrentTimeClosures] = useState([]);
 
-  // Fetch closures for selected date (UPDATED with popup modal)
+  // Fetch closures for selected date
   const fetchClosuresForDate = useCallback(async (date) => {
     if (!date) return;
     
@@ -117,6 +120,8 @@ function ReserveRoom({ user, setView }) {
       const activeClosures = (response.data.closures || []).filter(
         closure => closure.status === "Active" && closure.date === date
       );
+      
+      console.log("Active closures for date:", activeClosures);
       
       setClosures(activeClosures);
       setActiveClosuresList(activeClosures);
@@ -152,7 +157,7 @@ function ReserveRoom({ user, setView }) {
       setFloorClosures(floorClosuresMap);
       
       // SHOW CLOSURE LIST MODAL if there are closures
-      if (activeClosures.length > 0) {
+      if (activeClosures.length > 0 && !showClosureListModal) {
         setShowClosureListModal(true);
       }
       
@@ -176,6 +181,24 @@ function ReserveRoom({ user, setView }) {
       setClosureLoading(false);
     }
   }, []);
+
+  // Check if a specific time is within any closure period
+  const updateCurrentTimeClosureStatus = useCallback((date, time) => {
+    if (!date || !time) {
+      setIsCurrentTimeClosed(false);
+      setCurrentTimeClosures([]);
+      return;
+    }
+    
+    const activeClosuresAtTime = closures.filter(closure => {
+      if (closure.date !== date) return false;
+      const isTimeInClosure = time >= closure.startTime && time < closure.endTime;
+      return isTimeInClosure;
+    });
+    
+    setIsCurrentTimeClosed(activeClosuresAtTime.length > 0);
+    setCurrentTimeClosures(activeClosuresAtTime);
+  }, [closures]);
 
   // Check if a specific floor is closed at the selected time
   const isFloorClosed = useCallback((floor, date, time) => {
@@ -501,6 +524,11 @@ function ReserveRoom({ user, setView }) {
     // Fetch closures for the selected date (this will show the popup)
     await fetchClosuresForDate(date.date);
     
+    // Update closure status for current time if time is already selected
+    if (formData.time) {
+      updateCurrentTimeClosureStatus(date.date, formData.time);
+    }
+    
     // Show availability modal when date is selected
     await fetchRoomAvailability(date.date, formData.time || null);
   };
@@ -512,8 +540,9 @@ function ReserveRoom({ user, setView }) {
     setSelectedRoomDetails(null);
     setShowTimeModal(false);
     
-    // Show availability modal when time is selected
+    // Update closure status for the selected time
     if (formData.date) {
+      updateCurrentTimeClosureStatus(formData.date, timeString);
       fetchRoomAvailability(formData.date, timeString);
     }
   };
@@ -1559,6 +1588,11 @@ function ReserveRoom({ user, setView }) {
     setLoadedImages(prev => new Set(prev).add(imageId));
   };
 
+  // Helper to check if a floor has active closure at current time
+  const getFloorClosureForCurrentTime = (floor) => {
+    return getFloorClosureInfo(floor, formData.date, formData.time);
+  };
+
   return (
     <main className="w-full min-h-screen flex flex-col bg-gray-50 lg:pl-[250px]">
       {loading && (
@@ -1586,29 +1620,82 @@ function ReserveRoom({ user, setView }) {
         </div>
       )}
 
-      {/* Global Closure Alert Banner */}
-      {globalClosure && formData.date === globalClosure.date && (
-        <div className="bg-red-600 text-white px-4 py-3 sticky top-0 z-40">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={20} />
-              <div>
-                <strong className="font-semibold">{globalClosure.title}</strong>
-                <span className="text-sm ml-2">
-                  {globalClosure.startTime} - {globalClosure.endTime}
-                </span>
-                <p className="text-xs opacity-90">{globalClosure.reason}</p>
+      {/* CLOSURE WARNING HEADER - ALWAYS VISIBLE WHEN THERE ARE CLOSURES */}
+      {(globalClosure || closedFloors.length > 0 || isCurrentTimeClosed) && formData.date && (
+        <div className={`sticky top-0 z-40 px-4 py-2 shadow-md ${
+          globalClosure ? "bg-red-600" : isCurrentTimeClosed ? "bg-red-500" : "bg-orange-500"
+        } text-white`}>
+          <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <AlertTriangle size={18} className="flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                {globalClosure ? (
+                  <>
+                    <span className="font-semibold">⚠️ FACILITY CLOSURE:</span>
+                    <span className="ml-1 text-sm">{globalClosure.title}</span>
+                    <span className="hidden sm:inline text-xs ml-2">
+                      ({globalClosure.startTime} - {globalClosure.endTime})
+                    </span>
+                  </>
+                ) : isCurrentTimeClosed ? (
+                  <>
+                    <span className="font-semibold">⛔ TIME SLOT CLOSED:</span>
+                    <span className="ml-1 text-sm">
+                      {currentTimeClosures.map(c => c.title).join(", ")}
+                    </span>
+                    <span className="hidden sm:inline text-xs ml-2">
+                      ({formData.time} is within closure period)
+                    </span>
+                  </>
+                ) : closedFloors.length > 0 ? (
+                  <>
+                    <span className="font-semibold">⚠️ FLOOR CLOSURE NOTICE:</span>
+                    <span className="ml-1 text-sm">
+                      {closedFloors.join(", ")} {closedFloors.length === 1 ? "is" : "are"} CLOSED
+                    </span>
+                    <span className="hidden sm:inline text-xs ml-2">
+                      at {formData.time || "selected time"}
+                    </span>
+                  </>
+                ) : null}
               </div>
             </div>
             <button
-              onClick={() => setShowClosureModal(true)}
-              className="text-white hover:text-red-200 text-sm underline"
+              onClick={() => setShowClosureListModal(true)}
+              className="text-white hover:text-gray-200 text-xs sm:text-sm underline whitespace-nowrap flex items-center gap-1"
             >
-              Details
+              <Info size={14} />
+              View Details
             </button>
           </div>
         </div>
       )}
+
+      {/* Specific closure alert for selected floor (if applicable) */}
+      {formData.location && formData.date && formData.time && (() => {
+        const floorClosure = getFloorClosureForCurrentTime(formData.location);
+        if (floorClosure && !globalClosure && !isCurrentTimeClosed) {
+          return (
+            <div className="bg-red-500 text-white px-4 py-2 sticky top-0 z-40 shadow-md">
+              <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle size={18} />
+                  <span className="font-semibold">⛔ FLOOR CLOSED:</span>
+                  <span className="text-sm">{floorClosure.title}</span>
+                  <span className="text-xs ml-1">({floorClosure.startTime} - {floorClosure.endTime})</span>
+                </div>
+                <button
+                  onClick={() => setShowClosureListModal(true)}
+                  className="text-white hover:text-gray-200 text-xs underline"
+                >
+                  Details
+                </button>
+              </div>
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm bg-white sticky top-0 z-30">
         <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-wide">Room Reservation Request</h1>
@@ -2543,9 +2630,9 @@ function ReserveRoom({ user, setView }) {
           <button
             onClick={submitReservation}
             type="button"
-            disabled={loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting || (globalClosure && isTimeSlotClosed(formData.date, formData.time)) || (closedFloors.length > 0 && closedFloors.includes(formData.location)) || (formData.location && isFloorClosed(formData.location, formData.date, formData.time))}
+            disabled={loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting || (globalClosure && isTimeSlotClosed(formData.date, formData.time)) || (closedFloors.length > 0 && closedFloors.includes(formData.location)) || (formData.location && isFloorClosed(formData.location, formData.date, formData.time)) || isCurrentTimeClosed}
             className={`px-6 sm:px-8 py-3 sm:py-3 rounded-lg transition cursor-pointer flex items-center text-sm sm:text-base min-h-[44px] min-w-[140px] justify-center ${
-              loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting || (globalClosure && isTimeSlotClosed(formData.date, formData.time)) || (closedFloors.length > 0 && closedFloors.includes(formData.location)) || (formData.location && isFloorClosed(formData.location, formData.date, formData.time))
+              loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting || (globalClosure && isTimeSlotClosed(formData.date, formData.time)) || (closedFloors.length > 0 && closedFloors.includes(formData.location)) || (formData.location && isFloorClosed(formData.location, formData.date, formData.time)) || isCurrentTimeClosed
                 ? "bg-gray-400 text-gray-200 cursor-not-allowed" 
                 : "bg-[#CC0000] text-white hover:bg-red-700 hover:shadow-md"
             }`}
@@ -2579,6 +2666,7 @@ function ReserveRoom({ user, setView }) {
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
                 {globalClosure && isTimeSlotClosed(formData.date, formData.time) ? "Time Slot CLOSED" : 
+                 isCurrentTimeClosed ? "Time Slot CLOSED" :
                  (closedFloors.length > 0 && closedFloors.includes(formData.location) ? "Floor CLOSED" :
                  (formData.location && isFloorClosed(formData.location, formData.date, formData.time) ? "Floor CLOSED" :
                  (selectedRoomDetails && !selectedRoomDetails.isActive ? "Room Unavailable" : "Submit Reservation")))}
@@ -2738,7 +2826,7 @@ function ReserveRoom({ user, setView }) {
         </div>
       )}
 
-      {/* CLOSURE LIST MODAL - NEW! */}
+      {/* CLOSURE LIST MODAL */}
       {showClosureListModal && activeClosuresList.length > 0 && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
