@@ -484,33 +484,35 @@ function ReserveRoom({ user, setView }) {
     return `${hour24.toString().padStart(2, '0')}:${minute}`;
   };
 
-  // Fetch room availability for selected date
-  const fetchRoomAvailability = async (date, time = null) => {
-    if (!date) return;
-    
-    setAvailabilityLoading(true);
-    setAvailabilityError(null);
-    
-    try {
-      const params = { date: date };
-      if (time) {
-        params.time = time;
-      }
-      
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations/room-availability`, {
-        params: params
-      });
-      
-      setRoomAvailability(response.data.rooms || []);
-      setSelectedAvailabilityDate(new Date(date));
-      setShowAvailabilityModal(true);
-    } catch (error) {
-      console.error("Failed to fetch room availability:", error);
-      setAvailabilityError("Failed to load room availability. Please try again.");
-    } finally {
-      setAvailabilityLoading(false);
+// In ReserveRoom.jsx, update the fetchRoomAvailability function:
+
+const fetchRoomAvailability = async (date, time = null) => {
+  if (!date) return;
+  
+  setAvailabilityLoading(true);
+  setAvailabilityError(null);
+  
+  try {
+    const params = { date: date };
+    if (time) {
+      params.time = time;
     }
-  };
+    
+    // FIXED: Use the correct endpoint - /availability instead of /room-availability
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations/availability`, {
+      params: params
+    });
+    
+    setRoomAvailability(response.data || []);
+    setSelectedAvailabilityDate(new Date(date));
+    setShowAvailabilityModal(true);
+  } catch (error) {
+    console.error("Failed to fetch room availability:", error);
+    setAvailabilityError("Failed to load room availability. Please try again.");
+  } finally {
+    setAvailabilityLoading(false);
+  }
+};
 
   // Handle date selection
   const handleDateSelect = async (date) => {
