@@ -339,6 +339,20 @@ function AnalyticsReservations({ setView, admin }) {
       addBlankRow();
       addBlankRow();
 
+      addSectionHeader('DEPARTMENT RESERVATION BREAKDOWN');
+      addRow(['Department', 'Reservations', 'Percentage']);
+      
+      if (reservationData.userDepartmentStats && reservationData.userDepartmentStats.length > 0) {
+        reservationData.userDepartmentStats.forEach(dept => {
+          const percentage = Math.min(Math.round((dept.count / total) * 100), 100);
+          addRow([dept.name || 'Unknown', dept.count.toLocaleString(), percentage + '%']);
+        });
+      } else {
+        addRow(['No department data available', '0', '0%']);
+      }
+      addBlankRow();
+      addBlankRow();
+
       addSectionHeader('DAY OF WEEK DISTRIBUTION');
       addRow(['Day', 'Reservations', 'Percentage']);
       
