@@ -336,11 +336,20 @@ export const updateClosureStatuses = async (req, res) => {
 
 export const activateClosure = async (req, res) => {
   try {
-    console.log("=== ACTIVATE CLOSURE START ===");
+    console.log("=".repeat(50));
+    console.log("🔴 ACTIVATE CLOSURE CALLED");
+    console.log("=".repeat(50));
+    
     const { id } = req.params;
     const { activateNow } = req.body;
+    
+    console.log("Closure ID:", id);
+    console.log("activateNow value:", activateNow);
+    console.log("activateNow type:", typeof activateNow);
+    console.log("Request body:", req.body);
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
+      console.log("❌ Invalid ID format");
       return res.status(400).json({
         success: false,
         message: "Invalid closure ID format"
@@ -350,13 +359,24 @@ export const activateClosure = async (req, res) => {
     const closure = await Closure.findById(id);
     
     if (!closure) {
+      console.log("❌ Closure not found");
       return res.status(404).json({
         success: false,
         message: "Closure not found"
       });
     }
 
+    console.log("Found closure:", {
+      id: closure._id,
+      title: closure.title,
+      status: closure.status,
+      date: closure.date,
+      startTime: closure.startTime,
+      endTime: closure.endTime
+    });
+
     if (closure.status === "Active") {
+      console.log("❌ Already active");
       return res.status(400).json({
         success: false,
         message: "Closure is already active"
@@ -364,6 +384,7 @@ export const activateClosure = async (req, res) => {
     }
 
     if (closure.status === "Expired") {
+      console.log("❌ Already expired");
       return res.status(400).json({
         success: false,
         message: "Cannot activate an expired closure. Please create a new one."
@@ -372,8 +393,17 @@ export const activateClosure = async (req, res) => {
 
     const now = timeService.getCurrentTime();
     const closureStartDateTime = timeService.parseClosureDateTime(closure.date, closure.startTime);
+    
+    console.log("Time comparison:");
+    console.log("  Current time (PH):", now.format());
+    console.log("  Closure start:", closureStartDateTime.format());
+    console.log("  Is now before start?", now.isBefore(closureStartDateTime));
+    console.log("  !activateNow:", !activateNow);
+    console.log("  Condition result:", (!activateNow && now.isBefore(closureStartDateTime)));
 
+    // CRITICAL: Check if we're in the scheduling branch
     if (!activateNow && now.isBefore(closureStartDateTime)) {
+      console.log("⚠️ Entering SCHEDULED branch - NOT activating");
       closure.status = "Scheduled";
       closure.activatedAt = null;
       closure.activatedBy = null;
@@ -387,6 +417,9 @@ export const activateClosure = async (req, res) => {
       });
     }
 
+    console.log("✅ Proceeding to ACTIVATION branch");
+    
+    // Check for overlapping active closures
     const overlappingClosures = await Closure.find({
       _id: { $ne: id },
       date: closure.date,
@@ -400,6 +433,7 @@ export const activateClosure = async (req, res) => {
     });
 
     if (overlappingClosures.length > 0) {
+      console.log("❌ Found overlapping active closures:", overlappingClosures.length);
       return res.status(400).json({
         success: false,
         message: "Cannot activate: There is already an active closure during this time period",
@@ -411,6 +445,7 @@ export const activateClosure = async (req, res) => {
       });
     }
 
+    // Check for overlapping scheduled closures
     const overlappingScheduled = await Closure.find({
       _id: { $ne: id },
       date: closure.date,
@@ -424,6 +459,7 @@ export const activateClosure = async (req, res) => {
     });
 
     if (overlappingScheduled.length > 0) {
+      console.log("❌ Found overlapping scheduled closures:", overlappingScheduled.length);
       return res.status(400).json({
         success: false,
         message: "Cannot activate: There is a scheduled closure during this time period that will conflict",
@@ -435,6 +471,8 @@ export const activateClosure = async (req, res) => {
       });
     }
 
+    // ACTIVATE THE CLOSURE
+    console.log("🚀 ACTIVATING CLOSURE NOW");
     closure.status = "Active";
     closure.activatedAt = new Date();
     closure.activatedBy = req.admin?._id || null;
@@ -443,7 +481,9 @@ export const activateClosure = async (req, res) => {
 
     console.log(`✅ Closure "${closure.title}" activated manually by ${req.admin?.name || "System"}`);
 
+    // Cancel conflicting reservations
     const cancelledReservations = await cancelConflictingReservations(closure, req.admin?.name || "System");
+    console.log(`📊 Cancelled ${cancelledReservations.length} reservations`);
 
     res.json({
       success: true,
