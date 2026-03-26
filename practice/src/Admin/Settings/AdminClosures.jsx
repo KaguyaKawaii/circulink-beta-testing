@@ -266,24 +266,24 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     setShowStartConfirm(closure);
   };
 
-const handleStartConfirm = async () => {
-  if (!showStartConfirm) return;
-  
-  setIsActivating(true);
-  try {
-    const response = await axios.post(`${API_URL}/api/closures/${showStartConfirm._id}/activate`, {
-      activateNow: true  // ← THIS IS CORRECT!
-    });
+  const handleStartConfirm = async () => {
+    if (!showStartConfirm) return;
     
-    showToast(response.data.message, "success");
-    await fetchClosures();
-  } catch (error) {
-    showToast(error.response?.data?.message || "Failed to activate closure", "error");
-  } finally {
-    setIsActivating(false);
-    setShowStartConfirm(null);
-  }
-};
+    setIsActivating(true);
+    try {
+      const response = await axios.post(`${API_URL}/api/closures/${showStartConfirm._id}/activate`, {
+        activateNow: true
+      });
+      
+      showToast(response.data.message, "success");
+      await fetchClosures();
+    } catch (error) {
+      showToast(error.response?.data?.message || "Failed to activate closure", "error");
+    } finally {
+      setIsActivating(false);
+      setShowStartConfirm(null);
+    }
+  };
 
   const handleStopClick = (closure) => {
     setShowStopConfirm(closure);
@@ -456,6 +456,7 @@ const handleStartConfirm = async () => {
               <span className="text-sm font-medium hidden sm:inline">View</span>
             </button>
             
+            {/* Edit button - only for Scheduled or Deactivated closures */}
             {(isScheduled || isDeactivated) && (
               <button
                 onClick={() => handleEditClick(closure)}
@@ -467,6 +468,7 @@ const handleStartConfirm = async () => {
               </button>
             )}
             
+            {/* Stop button - only for Active closures */}
             {isActive && (
               <button
                 onClick={() => handleStopClick(closure)}
@@ -478,6 +480,7 @@ const handleStartConfirm = async () => {
               </button>
             )}
             
+            {/* Start button - only for Scheduled closures */}
             {isScheduled && (
               <button
                 onClick={() => handleStartClick(closure)}
@@ -489,6 +492,7 @@ const handleStartConfirm = async () => {
               </button>
             )}
             
+            {/* Delete button - only for Deactivated or Scheduled closures */}
             {(isDeactivated || isScheduled) && (
               <button
                 onClick={() => handleDeleteClick(closure)}
@@ -937,10 +941,17 @@ const handleStartConfirm = async () => {
                 <div className="flex gap-2">
                   <AlertTriangle size={18} className="text-yellow-600 flex-shrink-0" />
                   <p className="text-yellow-800 text-sm">
-                    Starting this closure will cancel any conflicting reservations during this time period.
-                    This action cannot be undone.
+                    Starting this closure will:
                   </p>
                 </div>
+                <ul className="text-yellow-700 text-sm mt-2 ml-6 list-disc">
+                  <li>Change the closure status from "Scheduled" to "Active"</li>
+                  <li>Cancel any conflicting reservations during this time period</li>
+                  <li>Send email notifications to affected users</li>
+                </ul>
+                <p className="text-yellow-800 text-sm mt-2 font-medium">
+                  This action cannot be undone.
+                </p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-3 mb-6">
@@ -950,6 +961,11 @@ const handleStartConfirm = async () => {
                 <p className="text-sm text-gray-600 mt-1">
                   <strong>Duration:</strong> {formatDisplayTime(showStartConfirm.startTime)} — {formatDisplayTime(showStartConfirm.endTime)}
                 </p>
+                {showStartConfirm.reason && (
+                  <p className="text-sm text-gray-600 mt-1">
+                    <strong>Reason:</strong> {showStartConfirm.reason}
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end gap-3">
@@ -962,9 +978,16 @@ const handleStartConfirm = async () => {
                 <button
                   onClick={handleStartConfirm}
                   disabled={isActivating}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isActivating ? "Starting..." : "Yes, Start"}
+                  {isActivating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Starting...
+                    </>
+                  ) : (
+                    "Yes, Start Closure"
+                  )}
                 </button>
               </div>
             </div>
@@ -995,9 +1018,34 @@ const handleStartConfirm = async () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <p className="text-blue-800 text-sm">
-                    Stopping this closure will restore any cancelled reservations (if still available and no conflicts exist).
+                    Stopping this closure will:
                   </p>
                 </div>
+                <ul className="text-blue-700 text-sm mt-2 ml-6 list-disc">
+                  <li>Change the closure status to "Stopped"</li>
+                  <li>Restore any cancelled reservations (if still available and no conflicts exist)</li>
+                  <li>Send email notifications to restored users</li>
+                </ul>
+                <p className="text-blue-800 text-sm mt-2">
+                  You can always start it again later if needed.
+                </p>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3 mb-6">
+                <p className="text-sm text-gray-600">
+                  <strong>Current Status:</strong> <span className="text-green-600 font-medium">Active</span>
+                </p>
+                <p className="text-sm text-gray-600 mt-1">
+                  <strong>Affected Floors:</strong> {formatAffectedFloors(showStopConfirm)}
+                </p>
+                <p className="text-sm text-gray-600 mt-1">
+                  <strong>Duration:</strong> {formatDisplayTime(showStopConfirm.startTime)} — {formatDisplayTime(showStopConfirm.endTime)}
+                </p>
+                {showStopConfirm.affectedReservations?.length > 0 && (
+                  <p className="text-sm text-red-600 mt-1">
+                    <strong>Cancelled Reservations:</strong> {showStopConfirm.affectedReservations.length} reservations will be restored if possible
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end gap-3">
@@ -1010,9 +1058,16 @@ const handleStartConfirm = async () => {
                 <button
                   onClick={handleStopConfirm}
                   disabled={isDeactivating}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isDeactivating ? "Stopping..." : "Yes, Stop"}
+                  {isDeactivating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Stopping...
+                    </>
+                  ) : (
+                    "Yes, Stop Closure"
+                  )}
                 </button>
               </div>
             </div>
@@ -1032,15 +1087,43 @@ const handleStartConfirm = async () => {
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Delete Closure?</h3>
                   <p className="text-gray-600 mt-1">
-                    Delete "<span className="font-medium">{showDeleteConfirm.title}</span>" permanently?
+                    You're about to delete "<span className="font-medium">{showDeleteConfirm.title}</span>"
                   </p>
                 </div>
               </div>
 
-              <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                <p className="text-gray-600 text-sm">
-                  This action cannot be undone. Cancelled reservations will remain cancelled.
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                <div className="flex gap-2">
+                  <AlertTriangle size={18} className="text-red-600 flex-shrink-0" />
+                  <p className="text-red-800 text-sm font-medium">
+                    This action is permanent and cannot be undone!
+                  </p>
+                </div>
+                <ul className="text-red-700 text-sm mt-2 ml-6 list-disc">
+                  <li>The closure record will be permanently deleted</li>
+                  <li>Any cancelled reservations will NOT be restored</li>
+                  <li>This action cannot be reversed</li>
+                </ul>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3 mb-6">
+                <p className="text-sm text-gray-600">
+                  <strong>Closure Details:</strong>
                 </p>
+                <p className="text-sm text-gray-900 mt-1">
+                  {showDeleteConfirm.title}
+                </p>
+                <p className="text-sm text-gray-600">
+                  {formatDate(showDeleteConfirm.date)} | {formatDisplayTime(showDeleteConfirm.startTime)} - {formatDisplayTime(showDeleteConfirm.endTime)}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <strong>Affected Floors:</strong> {formatAffectedFloors(showDeleteConfirm)}
+                </p>
+                {showDeleteConfirm.affectedReservations?.length > 0 && (
+                  <p className="text-sm text-red-600 mt-1">
+                    <strong>Warning:</strong> {showDeleteConfirm.affectedReservations.length} reservations were cancelled and will remain cancelled.
+                  </p>
+                )}
               </div>
 
               <div className="flex justify-end gap-3">
@@ -1053,9 +1136,16 @@ const handleStartConfirm = async () => {
                 <button
                   onClick={handleDeleteConfirm}
                   disabled={isDeleting}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
-                  {isDeleting ? "Deleting..." : "Yes, Delete"}
+                  {isDeleting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Deleting...
+                    </>
+                  ) : (
+                    "Yes, Delete Permanently"
+                  )}
                 </button>
               </div>
             </div>
