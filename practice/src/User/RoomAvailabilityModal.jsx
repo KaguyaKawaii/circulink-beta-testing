@@ -8,7 +8,7 @@ function RoomAvailabilityModal({
   availError,
   onClose,
   currentUserId = null,
-  closures = [], // Add closures prop
+  closures = [], // closures from the parent component
 }) {
 
   React.useEffect(() => {
@@ -21,6 +21,33 @@ function RoomAvailabilityModal({
 
   const formatTime = (iso) => {
     return moment(iso).tz("Asia/Manila").format("hh:mm A");
+  };
+
+  // Helper to check if a specific room has an active closure at the selected time
+  const getRoomClosureInfo = (room) => {
+    if (!closures || closures.length === 0) return null;
+    
+    // Get active closures for this date
+    const dateStr = selectedDate.toLocaleDateString("en-CA", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    });
+    
+    const activeClosures = closures.filter(c => c.date === dateStr && c.status === "Active");
+    
+    for (const closure of activeClosures) {
+      // Check if this closure affects the room
+      const isRoomAffected = 
+        closure.affectedAllFloors || 
+        (closure.affectedFloors && closure.affectedFloors.includes(room.floor));
+      
+      if (isRoomAffected) {
+        return closure;
+      }
+    }
+    return null;
   };
 
   // Helper to check if a floor has active closure at selected time
@@ -37,6 +64,7 @@ function RoomAvailabilityModal({
     
     const activeClosures = closures.filter(c => c.date === dateStr && c.status === "Active");
     
+    // Check if any closure affects this entire floor
     for (const closure of activeClosures) {
       if (closure.affectedAllFloors) {
         return closure;
@@ -48,11 +76,15 @@ function RoomAvailabilityModal({
     return null;
   };
 
-  // Filter room statuses based on user permissions
+  // Filter room statuses based on user permissions and closures
   const getFilteredRoomStatus = (room) => {
     const isRoomActive = room.isActive !== false;
     const approvedOccupied = Array.isArray(room.occupied) ? room.occupied : [];
     const pendingReservations = Array.isArray(room.pending) ? room.pending : [];
+    
+    // Check if room has an active closure
+    const roomClosure = getRoomClosureInfo(room);
+    const isRoomClosedByClosure = !!roomClosure;
     
     // For all users, show approved/ongoing reservations
     // For pending reservations, only show if they belong to the current user
@@ -64,6 +96,8 @@ function RoomAvailabilityModal({
       ...room,
       occupied: approvedOccupied,
       pending: visiblePending,
+      isClosedByClosure: isRoomClosedByClosure,
+      closureInfo: roomClosure
     };
   };
 
@@ -81,8 +115,12 @@ function RoomAvailabilityModal({
     const isRoomActive = room.isActive !== false;
     const hasOccupied = Array.isArray(room.occupied) && room.occupied.length > 0;
     const hasPending = Array.isArray(room.pending) && room.pending.length > 0;
+    const isClosedByClosure = room.isClosedByClosure === true;
 
-    if (!isRoomActive) {
+    // CLOSURE TAKES HIGHEST PRIORITY
+    if (isClosedByClosure) {
+      return { status: 'closed', color: 'gray', isClosed: true };
+    } else if (!isRoomActive) {
       return { status: 'inactive', color: 'gray' };
     } else if (hasOccupied) {
       return { status: 'occupied', color: 'red' };
@@ -91,6 +129,11 @@ function RoomAvailabilityModal({
     } else {
       return { status: 'available', color: 'green' };
     }
+  };
+
+  // Helper to check if any room in floor is affected by closure
+  const hasAnyRoomClosure = (rooms) => {
+    return rooms.some(room => room.isClosedByClosure === true);
   };
 
   return (
@@ -141,18 +184,19 @@ function RoomAvailabilityModal({
               {["Ground Floor", "2nd Floor", "4th Floor", "5th Floor"].filter(f => groupedByFloor[f]).map((floorName, fIdx) => {
                 const rooms = groupedByFloor[floorName];
                 const floorClosure = getFloorClosureInfo(floorName);
+                const hasRoomClosures = hasAnyRoomClosure(rooms);
                 
                 return (
-                  <div key={fIdx} className={`border rounded-lg overflow-hidden ${floorClosure ? 'border-red-300 bg-red-50/30' : 'border-gray-200'}`}>
+                  <div key={fIdx} className={`border rounded-lg overflow-hidden ${(floorClosure || hasRoomClosures) ? 'border-red-300 bg-red-50/30' : 'border-gray-200'}`}>
                     {/* Floor Header with Closure Badge */}
-                    <div className={`px-3 py-2 border-b ${floorClosure ? 'bg-red-100 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className={`px-3 py-2 border-b ${(floorClosure || hasRoomClosures) ? 'bg-red-100 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
                       <div className="flex justify-between items-center">
-                        <h3 className={`font-semibold text-sm ${floorClosure ? 'text-red-700' : 'text-gray-800'}`}>
+                        <h3 className={`font-semibold text-sm ${(floorClosure || hasRoomClosures) ? 'text-red-700' : 'text-gray-800'}`}>
                           {floorName}
                         </h3>
-                        {floorClosure && (
+                        {(floorClosure || hasRoomClosures) && (
                           <span className="text-xs bg-red-600 text-white px-2 py-1 rounded-full">
-                            Floor Closed
+                            {floorClosure ? "Floor Closed" : "Has Closed Rooms"}
                           </span>
                         )}
                       </div>
@@ -166,37 +210,52 @@ function RoomAvailabilityModal({
                     {/* Room List */}
                     <div className="divide-y divide-gray-100">
                       {rooms.map((room, rIdx) => {
-                        const { status } = getRoomStatus(room);
+                        const { status, isClosed } = getRoomStatus(room);
                         const isRoomActive = room.isActive !== false;
                         const allReservations = [...(room.occupied || []), ...(room.pending || [])]
                           .sort((a, b) => new Date(a.start) - new Date(b.start));
+                        const roomClosure = room.closureInfo;
 
                         return (
-                          <div key={rIdx} className={`p-3 ${floorClosure ? 'opacity-75' : ''}`}>
+                          <div key={rIdx} className={`p-3 ${isClosed ? 'bg-red-50/50' : ''}`}>
                             <div className="flex justify-between items-start gap-2">
                               {/* Room Info */}
                               <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                                  floorClosure ? "bg-gray-400" :
+                                  isClosed ? "bg-gray-400" :
                                   status === 'inactive' ? "bg-gray-400" :
                                   status === 'occupied' ? "bg-red-500" :
                                   status === 'pending' ? "bg-yellow-500" : "bg-green-500"
                                 }`} />
-                                <p className={`font-medium text-sm truncate ${
-                                  floorClosure ? "text-gray-500" :
-                                  !isRoomActive ? "text-gray-500" : "text-gray-900"
-                                }`}>
-                                  {room.room}
-                                  {!isRoomActive && " (Inactive)"}
-                                </p>
+                                <div>
+                                  <p className={`font-medium text-sm truncate ${
+                                    isClosed ? "text-gray-500 line-through" :
+                                    !isRoomActive ? "text-gray-500" : "text-gray-900"
+                                  }`}>
+                                    {room.room}
+                                    {!isRoomActive && " (Inactive)"}
+                                  </p>
+                                  {isClosed && roomClosure && (
+                                    <p className="text-xs text-red-600 mt-0.5">
+                                      {roomClosure.title}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
 
                               {/* Status */}
                               <div className="text-right flex-shrink-0">
-                                {floorClosure ? (
-                                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                                    Floor Closed
-                                  </span>
+                                {isClosed ? (
+                                  <div className="space-y-1">
+                                    <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded block">
+                                      Room Closed
+                                    </span>
+                                    {roomClosure && (
+                                      <span className="text-xs text-gray-500 block">
+                                        {roomClosure.startTime}-{roomClosure.endTime}
+                                      </span>
+                                    )}
+                                  </div>
                                 ) : status === 'inactive' ? (
                                   <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Unavailable</span>
                                 ) : status === 'occupied' ? (

@@ -33,13 +33,24 @@ export const generateAvailability = async (date, userId) => {
 
     console.log(`📅 Found ${reservations.length} reservations for date: ${date}`);
 
-    // ✅ Fetch closures for this date
+    // ✅ Fetch active closures for this date
     const closures = await Closure.find({
       date: date,
       status: "Active"
     }).lean();
 
     console.log(`🔒 Found ${closures.length} active closures for date: ${date}`);
+    
+    // Log closure details for debugging
+    if (closures.length > 0) {
+      console.log('Closure details:', closures.map(c => ({
+        title: c.title,
+        startTime: c.startTime,
+        endTime: c.endTime,
+        affectedAllFloors: c.affectedAllFloors,
+        affectedFloors: c.affectedFloors
+      })));
+    }
 
     // ✅ Build availability for each room
     const availability = rooms.map((room) => {
@@ -53,18 +64,50 @@ export const generateAvailability = async (date, userId) => {
           occupied: [],
           pending: [],
           closedTimeSlots: [],
-          isClosed: false
+          isClosed: false,
+          hasClosures: false,
+          closureInfo: null
         };
       }
 
-      // ✅ Check if room is closed by any closure
-      const roomClosures = closures.filter(closure => 
-        closure.affectedAllRooms || closure.affectedRooms.includes(room.room)
-      );
+      // ✅ Check if room is affected by any closure
+      // Use affectedFloors and affectedAllFloors (not affectedRooms/affectedAllRooms)
+      const roomClosures = closures.filter(closure => {
+        // Check if closure affects all floors
+        if (closure.affectedAllFloors) {
+          return true;
+        }
+        
+        // Check if closure affects the specific floor of this room
+        if (closure.affectedFloors && Array.isArray(closure.affectedFloors)) {
+          // Normalize floor names for comparison
+          const roomFloorNormalized = room.floor.toString().toLowerCase();
+          const affectedFloorsNormalized = closure.affectedFloors.map(f => f.toString().toLowerCase());
+          
+          return affectedFloorsNormalized.includes(roomFloorNormalized);
+        }
+        
+        return false;
+      });
       
+      // Check if room is fully closed for the entire day
       const isFullyClosed = roomClosures.some(closure => 
         closure.startTime === "00:00" && closure.endTime === "23:59"
       );
+      
+      // Check if room has any active closure at all
+      const hasClosures = roomClosures.length > 0;
+      
+      // Get the most relevant closure info (the one that affects this room)
+      const closureInfo = roomClosures.length > 0 ? {
+        title: roomClosures[0].title,
+        reason: roomClosures[0].reason,
+        startTime: roomClosures[0].startTime,
+        endTime: roomClosures[0].endTime,
+        affectedAllFloors: roomClosures[0].affectedAllFloors,
+        affectedFloors: roomClosures[0].affectedFloors,
+        isFullyClosed: roomClosures[0].startTime === "00:00" && roomClosures[0].endTime === "23:59"
+      } : null;
 
       // ✅ Filter reservations for this specific room
       const roomReservations = reservations.filter((reservation) => {
@@ -79,7 +122,7 @@ export const generateAvailability = async (date, userId) => {
         );
       });
 
-      console.log(`🏠 Room ${room.room} has ${roomReservations.length} reservations, ${roomClosures.length} closures`);
+      console.log(`🏠 Room ${room.room} (Floor ${room.floor}) has ${roomReservations.length} reservations, ${roomClosures.length} closures`);
 
       // ✅ Separate occupied (approved/ongoing) from pending
       const occupied = roomReservations
@@ -111,7 +154,9 @@ export const generateAvailability = async (date, userId) => {
         reason: closure.title,
         closureId: closure._id,
         startTime: closure.startTime,
-        endTime: closure.endTime
+        endTime: closure.endTime,
+        title: closure.title,
+        affectedFloors: closure.affectedAllFloors ? "All Floors" : closure.affectedFloors
       }));
 
       return {
@@ -123,11 +168,22 @@ export const generateAvailability = async (date, userId) => {
         pending,
         closedTimeSlots,
         isFullyClosed,
-        hasClosures: roomClosures.length > 0
+        hasClosures,
+        closureInfo,
+        // Add a flag to indicate if room should be considered closed
+        isClosed: hasClosures // This tells the frontend that the room is closed
       };
     });
 
     console.log(`✅ Generated availability for ${availability.length} rooms`);
+    console.log(`📊 Rooms with closures: ${availability.filter(r => r.hasClosures).length}`);
+    
+    // Log which rooms are affected by closures
+    const closedRooms = availability.filter(r => r.hasClosures);
+    if (closedRooms.length > 0) {
+      console.log('🚫 Rooms affected by closures:', closedRooms.map(r => `${r.room} (Floor ${r.floor})`));
+    }
+
     return availability;
 
   } catch (error) {
