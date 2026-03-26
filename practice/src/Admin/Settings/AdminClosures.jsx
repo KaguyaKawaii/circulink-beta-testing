@@ -276,8 +276,12 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       });
       
       showToast(response.data.message, "success");
+      
+      // IMPORTANT: Force refresh immediately after activation
       await fetchClosures();
+      
     } catch (error) {
+      console.error("Activation error:", error);
       showToast(error.response?.data?.message || "Failed to activate closure", "error");
     } finally {
       setIsActivating(false);
@@ -300,8 +304,12 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       });
       
       showToast(response.data.message, "success");
+      
+      // Force refresh immediately after deactivation
       await fetchClosures();
+      
     } catch (error) {
+      console.error("Deactivation error:", error);
       showToast(error.response?.data?.message || "Failed to stop closure", "error");
     } finally {
       setIsDeactivating(false);
@@ -323,8 +331,12 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       });
       
       showToast("Closure deleted successfully", "success");
+      
+      // Force refresh immediately after deletion
       await fetchClosures();
+      
     } catch (error) {
+      console.error("Delete error:", error);
       showToast(error.response?.data?.message || "Failed to delete closure", "error");
     } finally {
       setIsDeleting(false);
