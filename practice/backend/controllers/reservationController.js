@@ -541,6 +541,18 @@ export const createReservation = async (req, res) => {
       });
     }
 
+        // ✅ NEW: CHECK FOR FACILITY CLOSURE BEFORE PROCEEDING
+    const closureCheck = await checkClosureBeforeReservation(date, time, roomName, location);
+    
+    if (closureCheck.isClosed) {
+      console.log(`❌ Reservation BLOCKED due to closure: ${closureCheck.closure.title}`);
+      return res.status(400).json({ 
+        message: `Cannot create reservation: This time slot is CLOSED due to facility closure.`,
+        isClosed: true,
+        closure: closureCheck.closure
+      });
+    }
+
     // ✅ Get main user FIRST and CHECK IF SUSPENDED
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found." });
@@ -3079,6 +3091,19 @@ export const adminCreateReservation = async (req, res) => {
     console.log("Participants count:", participants?.length);
     console.log("NumUsers:", numUsers);
 
+    // ✅ NEW: CHECK FOR FACILITY CLOSURE BEFORE PROCEEDING
+    const closureCheck = await checkClosureBeforeReservation(date, time, roomName, location);
+    
+    if (closureCheck.isClosed) {
+      console.log(`❌ Admin reservation BLOCKED due to closure: ${closureCheck.closure.title}`);
+      return res.status(400).json({ 
+        message: `Cannot create reservation: This time slot is CLOSED due to facility closure: ${closureCheck.closure.title}`,
+        isClosed: true,
+        closure: closureCheck.closure
+      });
+    }
+
+
     // Validate required fields
     const missingFields = [];
     if (!room_Id) missingFields.push("room_Id");
@@ -3504,6 +3529,18 @@ export const editReservation = async (req, res) => {
     if (!participants || !Array.isArray(participants) || participants.length === 0) {
       return res.status(400).json({ 
         message: "At least one participant is required" 
+      });
+    }
+
+     // ✅ NEW: CHECK FOR FACILITY CLOSURE BEFORE PROCEEDING
+    const closureCheck = await checkClosureBeforeReservation(date || reservation.date, time || reservation.time, reservation.roomName, reservation.location);
+    
+    if (closureCheck.isClosed) {
+      console.log(`❌ Edit reservation BLOCKED due to closure: ${closureCheck.closure.title}`);
+      return res.status(400).json({ 
+        message: `Cannot edit reservation: This time slot is CLOSED due to facility closure: ${closureCheck.closure.title}`,
+        isClosed: true,
+        closure: closureCheck.closure
       });
     }
 
@@ -4323,39 +4360,63 @@ export const getReservationsByStaffFloor = async (req, res) => {
 
 /* ------------------------------------------------
    ✅ CHECK IF TIME SLOT IS CLOSED BEFORE CREATING RESERVATION
+   UPDATED FOR FLOOR-BASED CLOSURES
 ------------------------------------------------ */
-export const checkClosureBeforeReservation = async (date, time, roomName) => {
+export const checkClosureBeforeReservation = async (date, time, roomName, floor) => {
   try {
     const Closure = mongoose.model("Closure");
     
+    // Find the room to get its floor if not provided
+    let roomFloor = floor;
+    if (!roomFloor && roomName) {
+      const room = await Room.findOne({ room: roomName });
+      if (room) {
+        roomFloor = room.floor;
+      }
+    }
+    
+    if (!roomFloor) {
+      console.log("⚠️ Could not determine floor for room:", roomName);
+      return { isClosed: false };
+    }
+    
+    console.log(`🔍 Checking closure for: Date=${date}, Time=${time}, Room=${roomName}, Floor=${roomFloor}`);
+    
+    // UPDATED: Check floor-based closures
     const closureQuery = {
       date: date,
       status: "Active",
       startTime: { $lte: time },
       endTime: { $gt: time },
       $or: [
-        { affectedAllRooms: true },
-        { affectedRooms: roomName }
+        { affectedAllFloors: true },           // ← UPDATED from affectedAllRooms
+        { affectedFloors: roomFloor }          // ← UPDATED from affectedRooms
       ]
     };
+
+    console.log("🔍 Closure query:", JSON.stringify(closureQuery, null, 2));
 
     const activeClosure = await Closure.findOne(closureQuery);
     
     if (activeClosure) {
+      console.log(`❌ CLOSURE FOUND: ${activeClosure.title} affects floor ${roomFloor}`);
       return {
         isClosed: true,
         closure: {
           title: activeClosure.title,
           reason: activeClosure.reason,
           startTime: activeClosure.startTime,
-          endTime: activeClosure.endTime
+          endTime: activeClosure.endTime,
+          affectedAllFloors: activeClosure.affectedAllFloors,
+          affectedFloors: activeClosure.affectedFloors
         }
       };
     }
     
+    console.log(`✅ No closure found for ${roomName} on ${date} at ${time}`);
     return { isClosed: false };
   } catch (err) {
-    console.error("Error checking closure:", err);
+    console.error("❌ Error checking closure:", err);
     return { isClosed: false, error: err.message };
   }
 };
