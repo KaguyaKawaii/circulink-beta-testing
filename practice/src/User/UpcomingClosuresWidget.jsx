@@ -58,6 +58,19 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
     });
   };
 
+  // Helper function to convert time to 12-hour format
+  const formatTimeTo12Hour = (timeString) => {
+    if (!timeString) return '';
+    
+    // Handle time in HH:MM format (e.g., "14:30")
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
   const getClosureStatus = (closure) => {
     const today = new Date().toISOString().split("T")[0];
     if (closure.date === today) {
@@ -152,7 +165,7 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
                       {status.text}
                     </span>
                     <span className="text-xs text-gray-500">
-                      {closure.startTime} - {closure.endTime}
+                      {formatTimeTo12Hour(closure.startTime)} - {formatTimeTo12Hour(closure.endTime)}
                     </span>
                   </div>
                   <p className="text-gray-800 text-sm font-semibold mb-1 truncate">
@@ -211,7 +224,7 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
                 </div>
                 <div className="flex items-center gap-2 text-gray-600">
                   <Clock size={16} className="text-gray-400" />
-                  <span>{selectedClosure.startTime} - {selectedClosure.endTime}</span>
+                  <span>{formatTimeTo12Hour(selectedClosure.startTime)} - {formatTimeTo12Hour(selectedClosure.endTime)}</span>
                 </div>
               </div>
               
