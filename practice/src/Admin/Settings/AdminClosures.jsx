@@ -49,7 +49,7 @@ const formatDate = (date) => {
   });
 };
 
-// Available floors - MUST MATCH your backend enum
+// Available floors
 const FLOORS = [
   { id: "ground", name: "Ground Floor", color: "bg-green-100", borderColor: "border-green-200", textColor: "text-green-700" },
   { id: "2nd", name: "2nd Floor", color: "bg-blue-100", borderColor: "border-blue-200", textColor: "text-blue-700" },
@@ -485,10 +485,10 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               <button
                 onClick={() => handleStartClick(closure)}
                 className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors cursor-pointer"
-                title="Start Now"
+                title="Manually activate closure (for early start or emergencies)"
               >
                 <Play size={16} />
-                <span className="text-sm font-medium hidden sm:inline">Start</span>
+                <span className="text-sm font-medium hidden sm:inline">Start Early</span>
               </button>
             )}
             
@@ -926,13 +926,13 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
           <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
             <div className="p-6">
               <div className="flex items-start mb-4">
-                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3">
-                  <Play className="text-green-600" size={20} />
+                <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center mr-3">
+                  <Play className="text-yellow-600" size={20} />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Start Closure?</h3>
+                  <h3 className="text-lg font-semibold text-gray-900">Manual Activation</h3>
                   <p className="text-gray-600 mt-1">
-                    You're about to start "<span className="font-medium">{showStartConfirm.title}</span>"
+                    You're about to manually activate "<span className="font-medium">{showStartConfirm.title}</span>"
                   </p>
                 </div>
               </div>
@@ -940,18 +940,21 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
                 <div className="flex gap-2">
                   <AlertTriangle size={18} className="text-yellow-600 flex-shrink-0" />
-                  <p className="text-yellow-800 text-sm">
-                    Starting this closure will:
+                  <p className="text-yellow-800 text-sm font-medium">
+                    What will happen:
                   </p>
                 </div>
-                <ul className="text-yellow-700 text-sm mt-2 ml-6 list-disc">
-                  <li>Change the closure status from "Scheduled" to "Active"</li>
+                <ul className="text-yellow-700 text-sm mt-2 ml-6 list-disc space-y-1">
+                  <li>Change closure status from <strong>"Scheduled"</strong> to <strong>"Active"</strong></li>
                   <li>Cancel any conflicting reservations during this time period</li>
                   <li>Send email notifications to affected users</li>
                 </ul>
-                <p className="text-yellow-800 text-sm mt-2 font-medium">
-                  This action cannot be undone.
-                </p>
+                <div className="mt-3 p-2 bg-yellow-100 rounded">
+                  <p className="text-yellow-800 text-xs">
+                    <strong>Note:</strong> This closure will automatically activate at its scheduled time anyway. 
+                    Use this only if you need to start it early or if auto-activation failed.
+                  </p>
+                </div>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-3 mb-6">
@@ -983,10 +986,10 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   {isActivating ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Starting...
+                      Activating...
                     </>
                   ) : (
-                    "Yes, Start Closure"
+                    "Yes, Activate Now"
                   )}
                 </button>
               </div>
@@ -1022,7 +1025,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   </p>
                 </div>
                 <ul className="text-blue-700 text-sm mt-2 ml-6 list-disc">
-                  <li>Change the closure status to "Stopped"</li>
+                  <li>Change the closure status to <strong>"Stopped"</strong></li>
                   <li>Restore any cancelled reservations (if still available and no conflicts exist)</li>
                   <li>Send email notifications to restored users</li>
                 </ul>
