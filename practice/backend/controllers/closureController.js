@@ -9,7 +9,7 @@ import sendEmail from "../utils/sendEmail.js";
 import logAction from "../utils/logAction.js";
 import generateReservationEmail from "../utils/generateReservationEmail.js";
 import timeService from "../services/timeService.js";
-import Room from "../models/Room.js";  // Import directly instead of using mongoose.model()
+import Room from "../models/Room.js";
 
 // Helper: Convert time string to minutes
 function timeToMinutes(timeStr) {
@@ -21,24 +21,10 @@ function timeToMinutes(timeStr) {
 // Helper: Get all rooms on specified floors
 async function getRoomsOnFloors(floors) {
   try {
-    const Room = mongoose.model("Room");
     const rooms = await Room.find({ floor: { $in: floors } });
     return rooms.map(r => r.room);
   } catch (err) {
     console.error("Error getting rooms on floors:", err);
-    return [];
-  }
-}
-
-// Helper: Get all floors that contain specific rooms
-async function getFloorsForRooms(roomNames) {
-  try {
-    const Room = mongoose.model("Room");
-    const rooms = await Room.find({ room: { $in: roomNames } });
-    const floors = [...new Set(rooms.map(r => r.floor))];
-    return floors;
-  } catch (err) {
-    console.error("Error getting floors for rooms:", err);
     return [];
   }
 }
@@ -51,10 +37,8 @@ function isClosureExpired(closure) {
   const closureDate = closure.date;
   const closureEndTime = closure.endTime;
   
-  // Parse closure end datetime
   const closureEndDateTime = timeService.parseClosureDateTime(closureDate, closureEndTime);
   
-  // Check if current time is after closure end time
   return now.isAfter(closureEndDateTime);
 }
 
@@ -90,7 +74,6 @@ async function updateExpiredClosures() {
         
         console.log(`✅ Closure "${closure.title}" has expired automatically`);
         
-        // Notify admins
         try {
           const admins = await Admin.find({});
           for (const admin of admins) {
@@ -137,7 +120,6 @@ async function activateScheduledClosures() {
     
     const today = timeService.getCurrentDate();
     
-    // Find all scheduled closures with date <= today
     const scheduledClosures = await Closure.find({ 
       status: "Scheduled",
       date: { $lte: today }
@@ -148,7 +130,6 @@ async function activateScheduledClosures() {
     
     for (const closure of scheduledClosures) {
       if (shouldActivateClosure(closure)) {
-        // Check for overlapping active closures
         const overlappingClosures = await Closure.find({
           _id: { $ne: closure._id },
           date: closure.date,
@@ -166,7 +147,6 @@ async function activateScheduledClosures() {
           continue;
         }
         
-        // Check for overlapping scheduled closures that should also activate
         const overlappingScheduled = await Closure.find({
           _id: { $ne: closure._id },
           date: closure.date,
@@ -184,7 +164,6 @@ async function activateScheduledClosures() {
           continue;
         }
         
-        // Activate the closure
         closure.status = "Active";
         closure.activatedAt = new Date();
         closure.activatedBy = null;
@@ -196,7 +175,6 @@ async function activateScheduledClosures() {
         
         console.log(`✅ Closure "${closure.title}" activated automatically`);
         
-        // Cancel conflicting reservations
         await cancelConflictingReservations(closure, "System (Auto)");
       }
     }
@@ -213,20 +191,33 @@ async function activateScheduledClosures() {
   }
 }
 
-// Helper: Cancel conflicting reservations for a closure (updated for floors)
+// Helper: Cancel conflicting reservations for a closure
 async function cancelConflictingReservations(closure, cancelledBy = "System") {
-  if (!closure || closure.status !== "Active") return [];
+  if (!closure) {
+    console.log("⚠️ cancelConflictingReservations called with null closure");
+    return [];
+  }
+  
+  if (!closure.date) {
+    console.log("⚠️ cancelConflictingReservations called with closure missing date");
+    return [];
+  }
+  
+  if (!closure.affectedFloors) {
+    closure.affectedFloors = [];
+  }
+  
+  if (!closure.affectedAllFloors && closure.affectedFloors.length === 0) {
+    console.log(`⚠️ No floors affected by closure "${closure.title}"`);
+    return [];
+  }
   
   let affectedRoomNames = [];
   
-  // Determine which rooms are affected based on floors
   if (closure.affectedAllFloors) {
-    // All rooms in all floors are affected
-    const Room = mongoose.model("Room");
     const allRooms = await Room.find({});
     affectedRoomNames = allRooms.map(r => r.room);
   } else if (closure.affectedFloors && closure.affectedFloors.length > 0) {
-    // Get all rooms on the selected floors
     affectedRoomNames = await getRoomsOnFloors(closure.affectedFloors);
   }
   
@@ -275,7 +266,6 @@ async function cancelConflictingReservations(closure, cancelledBy = "System") {
       reservation.cancelledAt = new Date();
       await reservation.save();
       
-      // Send cancellation email
       try {
         if (reservation.userId?.email) {
           await sendEmail({
@@ -303,7 +293,6 @@ async function cancelConflictingReservations(closure, cancelledBy = "System") {
     }
   }
   
-  // Update affected reservations in closure
   closure.affectedReservations = affectedList.map(r => ({
     reservationId: r._id,
     userId: r.userId?._id,
@@ -321,15 +310,9 @@ async function cancelConflictingReservations(closure, cancelledBy = "System") {
   return affectedList;
 }
 
-/* ------------------------------------------------
-   ✅ UPDATE CLOSURE STATUSES (API ENDPOINT)
------------------------------------------------- */
 export const updateClosureStatuses = async (req, res) => {
   try {
-    // First, activate scheduled closures that should be active
     const activatedResult = await activateScheduledClosures();
-    
-    // Then, update expired closures
     const expiredResult = await updateExpiredClosures();
     
     res.json({
@@ -351,11 +334,9 @@ export const updateClosureStatuses = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ ACTIVATE CLOSURE (MANUAL) - Updated for floors
------------------------------------------------- */
 export const activateClosure = async (req, res) => {
   try {
+    console.log("=== ACTIVATE CLOSURE START ===");
     const { id } = req.params;
     const { activateNow } = req.body;
 
@@ -392,7 +373,6 @@ export const activateClosure = async (req, res) => {
     const now = timeService.getCurrentTime();
     const closureStartDateTime = timeService.parseClosureDateTime(closure.date, closure.startTime);
 
-    // If not activating now and start time is in the future, just schedule it
     if (!activateNow && now.isBefore(closureStartDateTime)) {
       closure.status = "Scheduled";
       closure.activatedAt = null;
@@ -407,7 +387,6 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    // Check for overlapping active closures
     const overlappingClosures = await Closure.find({
       _id: { $ne: id },
       date: closure.date,
@@ -432,7 +411,6 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    // Check for overlapping scheduled closures that might conflict
     const overlappingScheduled = await Closure.find({
       _id: { $ne: id },
       date: closure.date,
@@ -457,7 +435,6 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    // Activate the closure
     closure.status = "Active";
     closure.activatedAt = new Date();
     closure.activatedBy = req.admin?._id || null;
@@ -466,7 +443,6 @@ export const activateClosure = async (req, res) => {
 
     console.log(`✅ Closure "${closure.title}" activated manually by ${req.admin?.name || "System"}`);
 
-    // Cancel conflicting reservations
     const cancelledReservations = await cancelConflictingReservations(closure, req.admin?.name || "System");
 
     res.json({
@@ -478,6 +454,7 @@ export const activateClosure = async (req, res) => {
 
   } catch (err) {
     console.error("❌ Error activating closure:", err);
+    console.error("Error stack:", err.stack);
     res.status(500).json({
       success: false,
       message: "Failed to activate closure",
@@ -486,9 +463,6 @@ export const activateClosure = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ DEACTIVATE CLOSURE (MANUAL) - Updated for floors
------------------------------------------------- */
 export const deactivateClosure = async (req, res) => {
   try {
     const { id } = req.params;
@@ -526,14 +500,11 @@ export const deactivateClosure = async (req, res) => {
 
     const previousStatus = closure.status;
     
-    // Determine new status based on whether it's in the past or future
     const now = timeService.getCurrentTime();
     const closureStartDateTime = timeService.parseClosureDateTime(closure.date, closure.startTime);
-    const closureEndDateTime = timeService.parseClosureDateTime(closure.date, closure.endTime);
     
     let newStatus = "Deactivated";
     
-    // If the closure hasn't started yet, we can set it back to Scheduled
     if (now.isBefore(closureStartDateTime) && previousStatus === "Active") {
       newStatus = "Scheduled";
     }
@@ -544,7 +515,6 @@ export const deactivateClosure = async (req, res) => {
     closure.deactivatedByName = req.admin?.name || "System";
     closure.deactivatedReason = reason || "Manually deactivated by admin";
     
-    // Clear activation info if reverting to scheduled
     if (newStatus === "Scheduled") {
       closure.activatedAt = null;
       closure.activatedBy = null;
@@ -557,11 +527,9 @@ export const deactivateClosure = async (req, res) => {
 
     const restoredReservations = [];
     if (restoreReservations && closure.affectedReservations?.length > 0) {
-      // Get all rooms that were affected by this closure
       let affectedRoomNames = [];
       
       if (closure.affectedAllFloors) {
-        const Room = mongoose.model("Room");
         const allRooms = await Room.find({});
         affectedRoomNames = allRooms.map(r => r.room);
       } else if (closure.affectedFloors && closure.affectedFloors.length > 0) {
@@ -572,7 +540,6 @@ export const deactivateClosure = async (req, res) => {
         try {
           const reservation = await Reservation.findById(affected.reservationId).populate("userId", "name email");
           if (reservation && reservation.status === "Cancelled") {
-            // Check if the time slot is still available
             const conflictExists = await Reservation.findOne({
               _id: { $ne: reservation._id },
               roomName: reservation.roomName,
@@ -586,7 +553,6 @@ export const deactivateClosure = async (req, res) => {
               ]
             });
 
-            // Check if there's still an active closure affecting this room
             const activeClosureExists = await Closure.findOne({
               _id: { $ne: id },
               date: reservation.date,
@@ -607,7 +573,6 @@ export const deactivateClosure = async (req, res) => {
               await reservation.save();
               restoredReservations.push(reservation);
               
-              // Send restoration email
               try {
                 if (reservation.userId?.email) {
                   await sendEmail({
@@ -657,9 +622,6 @@ export const deactivateClosure = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ PREVIEW CLOSURE CONFLICTS - Updated for floors
------------------------------------------------- */
 export const previewClosureConflicts = async (req, res) => {
   try {
     const {
@@ -691,14 +653,10 @@ export const previewClosureConflicts = async (req, res) => {
 
     let affectedRoomNames = [];
     
-    // Determine which rooms are affected based on floors
     if (affectedAllFloors) {
-      // All rooms in all floors are affected
-      const Room = mongoose.model("Room");
       const allRooms = await Room.find({});
       affectedRoomNames = allRooms.map(r => r.room);
     } else if (affectedFloors && affectedFloors.length > 0) {
-      // Get all rooms on the selected floors
       affectedRoomNames = await getRoomsOnFloors(affectedFloors);
     }
     
@@ -776,9 +734,6 @@ export const previewClosureConflicts = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ CREATE CLOSURE WITH CONFLICT DETECTION - Updated for floors
------------------------------------------------- */
 export const createClosure = async (req, res) => {
   try {
     const {
@@ -826,13 +781,11 @@ export const createClosure = async (req, res) => {
       });
     }
 
-    // Determine initial status based on current time and closure start time
     let initialStatus = status || "Scheduled";
     
     const now = timeService.getCurrentTime();
     const closureStartDateTime = timeService.parseClosureDateTime(date, startTime);
     
-    // If no status provided, determine based on current time vs closure start time
     if (!status) {
       if (now.isSameOrAfter(closureStartDateTime)) {
         initialStatus = "Active";
@@ -847,7 +800,6 @@ export const createClosure = async (req, res) => {
     console.log(`Closure start time: ${closureStartDateTime.format()}`);
     console.log(`Initial status determined: ${initialStatus}`);
 
-    // Check for overlapping closures
     if (initialStatus === "Active") {
       const overlappingClosures = await Closure.find({
         date,
@@ -873,7 +825,6 @@ export const createClosure = async (req, res) => {
         });
       }
     } else {
-      // Check for scheduled closures that would conflict when activated
       const conflictingScheduled = await Closure.find({
         date,
         status: "Scheduled",
@@ -900,7 +851,6 @@ export const createClosure = async (req, res) => {
 
     let affectedReservationsList = [];
     if (initialStatus === "Active") {
-      // Create a temporary closure object for conflict cancellation
       const tempClosure = {
         ...req.body,
         status: initialStatus,
@@ -977,9 +927,6 @@ export const createClosure = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ GET ALL CLOSURES (WITH FILTERS)
------------------------------------------------- */
 export const getClosures = async (req, res) => {
   try {
     console.log("=== GET CLOSURES CALLED ===");
@@ -1021,7 +968,6 @@ export const getClosures = async (req, res) => {
 
     console.log(`Found ${closures.length} closures`);
 
-    // Auto-update statuses asynchronously (don't await to avoid delay)
     updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
     activateScheduledClosures().catch(err => console.error("Auto-activate error:", err));
 
@@ -1047,9 +993,6 @@ export const getClosures = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ GET SINGLE CLOSURE BY ID
------------------------------------------------- */
 export const getClosureById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1091,9 +1034,6 @@ export const getClosureById = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ UPDATE CLOSURE - Updated for floors
------------------------------------------------- */
 export const updateClosure = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1139,7 +1079,6 @@ export const updateClosure = async (req, res) => {
       });
     }
 
-    // Update fields
     if (title) closure.title = title;
     if (reason) closure.reason = reason;
     if (date) closure.date = date;
@@ -1149,7 +1088,6 @@ export const updateClosure = async (req, res) => {
     if (affectedAllFloors !== undefined) closure.affectedAllFloors = affectedAllFloors;
     if (location) closure.location = location;
     
-    // Only update status if it's not expired and not active
     if (status && status !== closure.status && status !== "Expired" && status !== "Active") {
       closure.status = status;
     }
@@ -1172,9 +1110,6 @@ export const updateClosure = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ DELETE CLOSURE
------------------------------------------------- */
 export const deleteClosure = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1202,7 +1137,6 @@ export const deleteClosure = async (req, res) => {
         try {
           const reservation = await Reservation.findById(affected.reservationId).populate("userId", "name email");
           if (reservation && reservation.status === "Cancelled") {
-            // Check if the time slot is still available
             const conflictExists = await Reservation.findOne({
               _id: { $ne: reservation._id },
               roomName: reservation.roomName,
@@ -1216,7 +1150,6 @@ export const deleteClosure = async (req, res) => {
               ]
             });
 
-            // Check if there's still an active closure affecting this room
             const activeClosureExists = await Closure.findOne({
               _id: { $ne: id },
               date: reservation.date,
@@ -1262,9 +1195,6 @@ export const deleteClosure = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ BULK DELETE CLOSURES
------------------------------------------------- */
 export const bulkDeleteClosures = async (req, res) => {
   try {
     const { closureIds, restoreReservations } = req.body;
@@ -1342,9 +1272,6 @@ export const bulkDeleteClosures = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ CHECK IF A TIME SLOT IS CLOSED - Updated for floors
------------------------------------------------- */
 export const checkSlotClosed = async (req, res) => {
   try {
     const { date, time, roomName } = req.query;
@@ -1356,12 +1283,9 @@ export const checkSlotClosed = async (req, res) => {
       });
     }
 
-    // Get the floor for this room
-    const Room = mongoose.model("Room");
     const room = await Room.findOne({ room: roomName });
     const roomFloor = room?.floor;
 
-    // Update statuses before checking
     await updateExpiredClosures();
     await activateScheduledClosures();
 
@@ -1400,9 +1324,6 @@ export const checkSlotClosed = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ GET AVAILABILITY WITH CLOSURES - Updated for floors
------------------------------------------------- */
 export const getAvailabilityWithClosures = async (req, res) => {
   try {
     const { date, userId } = req.query;
@@ -1414,11 +1335,9 @@ export const getAvailabilityWithClosures = async (req, res) => {
       });
     }
 
-    // Update statuses before checking
     await updateExpiredClosures();
     await activateScheduledClosures();
 
-    const Room = mongoose.model("Room");
     const rooms = await Room.find({}).sort({ floor: 1, room: 1 });
 
     const reservations = await Reservation.find({
@@ -1436,7 +1355,6 @@ export const getAvailabilityWithClosures = async (req, res) => {
         r => r.location === room.floor && r.roomName === room.room
       );
 
-      // Check if this room is affected by any floor closure
       const roomClosures = closures.filter(c => 
         c.affectedAllFloors || (c.affectedFloors && c.affectedFloors.includes(room.floor))
       );
@@ -1490,14 +1408,10 @@ export const getAvailabilityWithClosures = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ GET UPCOMING CLOSURES FOR USER DASHBOARD
------------------------------------------------- */
 export const getUpcomingClosures = async (req, res) => {
   try {
     const today = timeService.getCurrentDate();
     
-    // Update statuses before fetching
     await updateExpiredClosures();
     await activateScheduledClosures();
     
@@ -1521,12 +1435,8 @@ export const getUpcomingClosures = async (req, res) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ GET CLOSURE STATISTICS - Updated for floors
------------------------------------------------- */
 export const getClosureStats = async (req, res) => {
   try {
-    // Update statuses before counting
     await updateExpiredClosures();
     await activateScheduledClosures();
     
