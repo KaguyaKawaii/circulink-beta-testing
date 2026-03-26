@@ -9,6 +9,7 @@ import sendEmail from "../utils/sendEmail.js";
 import logAction from "../utils/logAction.js";
 import generateReservationEmail from "../utils/generateReservationEmail.js";
 import timeService from "../services/timeService.js";
+import Room from "../models/Room.js";  // Import directly instead of using mongoose.model()
 
 // Helper: Convert time string to minutes
 function timeToMinutes(timeStr) {
