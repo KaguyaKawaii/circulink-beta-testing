@@ -349,7 +349,6 @@ export const activateClosure = async (req, res) => {
     console.log("Request body:", req.body);
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      console.log("❌ Invalid ID format");
       return res.status(400).json({
         success: false,
         message: "Invalid closure ID format"
@@ -359,7 +358,6 @@ export const activateClosure = async (req, res) => {
     const closure = await Closure.findById(id);
     
     if (!closure) {
-      console.log("❌ Closure not found");
       return res.status(404).json({
         success: false,
         message: "Closure not found"
@@ -376,7 +374,6 @@ export const activateClosure = async (req, res) => {
     });
 
     if (closure.status === "Active") {
-      console.log("❌ Already active");
       return res.status(400).json({
         success: false,
         message: "Closure is already active"
@@ -384,13 +381,65 @@ export const activateClosure = async (req, res) => {
     }
 
     if (closure.status === "Expired") {
-      console.log("❌ Already expired");
       return res.status(400).json({
         success: false,
         message: "Cannot activate an expired closure. Please create a new one."
       });
     }
 
+    // ✅ FIX: Force activation if activateNow is true (regardless of time)
+    if (activateNow === true || activateNow === "true") {
+      console.log("🚀 FORCE ACTIVATION requested - ignoring time check");
+      
+      // Check for overlapping active closures
+      const overlappingClosures = await Closure.find({
+        _id: { $ne: id },
+        date: closure.date,
+        status: "Active",
+        $or: [
+          {
+            startTime: { $lt: closure.endTime },
+            endTime: { $gt: closure.startTime }
+          }
+        ]
+      });
+
+      if (overlappingClosures.length > 0) {
+        console.log("❌ Found overlapping active closures:", overlappingClosures.length);
+        return res.status(400).json({
+          success: false,
+          message: "Cannot activate: There is already an active closure during this time period",
+          overlappingClosures: overlappingClosures.map(c => ({
+            title: c.title,
+            time: `${c.startTime} - ${c.endTime}`,
+            floors: c.affectedAllFloors ? "All Floors" : c.affectedFloors?.join(", ") || "None"
+          }))
+        });
+      }
+
+      // ACTIVATE IMMEDIATELY
+      console.log("🚀 ACTIVATING CLOSURE NOW (FORCE MODE)");
+      closure.status = "Active";
+      closure.activatedAt = new Date();
+      closure.activatedBy = req.admin?._id || null;
+      closure.activatedByName = req.admin?.name || "System";
+      await closure.save();
+
+      console.log(`✅ Closure "${closure.title}" activated manually by ${req.admin?.name || "System"}`);
+
+      // Cancel conflicting reservations
+      const cancelledReservations = await cancelConflictingReservations(closure, req.admin?.name || "System");
+      console.log(`📊 Cancelled ${cancelledReservations.length} reservations`);
+
+      return res.json({
+        success: true,
+        message: `Closure activated successfully. ${cancelledReservations.length} reservations were cancelled.`,
+        closure,
+        cancelledReservations: cancelledReservations.length
+      });
+    }
+
+    // Original logic for non-force activation (scheduling)
     const now = timeService.getCurrentTime();
     const closureStartDateTime = timeService.parseClosureDateTime(closure.date, closure.startTime);
     
@@ -398,10 +447,7 @@ export const activateClosure = async (req, res) => {
     console.log("  Current time (PH):", now.format());
     console.log("  Closure start:", closureStartDateTime.format());
     console.log("  Is now before start?", now.isBefore(closureStartDateTime));
-    console.log("  !activateNow:", !activateNow);
-    console.log("  Condition result:", (!activateNow && now.isBefore(closureStartDateTime)));
 
-    // CRITICAL: Check if we're in the scheduling branch
     if (!activateNow && now.isBefore(closureStartDateTime)) {
       console.log("⚠️ Entering SCHEDULED branch - NOT activating");
       closure.status = "Scheduled";
@@ -417,8 +463,6 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    console.log("✅ Proceeding to ACTIVATION branch");
-    
     // Check for overlapping active closures
     const overlappingClosures = await Closure.find({
       _id: { $ne: id },
@@ -438,32 +482,6 @@ export const activateClosure = async (req, res) => {
         success: false,
         message: "Cannot activate: There is already an active closure during this time period",
         overlappingClosures: overlappingClosures.map(c => ({
-          title: c.title,
-          time: `${c.startTime} - ${c.endTime}`,
-          floors: c.affectedAllFloors ? "All Floors" : c.affectedFloors?.join(", ") || "None"
-        }))
-      });
-    }
-
-    // Check for overlapping scheduled closures
-    const overlappingScheduled = await Closure.find({
-      _id: { $ne: id },
-      date: closure.date,
-      status: "Scheduled",
-      $or: [
-        {
-          startTime: { $lt: closure.endTime },
-          endTime: { $gt: closure.startTime }
-        }
-      ]
-    });
-
-    if (overlappingScheduled.length > 0) {
-      console.log("❌ Found overlapping scheduled closures:", overlappingScheduled.length);
-      return res.status(400).json({
-        success: false,
-        message: "Cannot activate: There is a scheduled closure during this time period that will conflict",
-        overlappingClosures: overlappingScheduled.map(c => ({
           title: c.title,
           time: `${c.startTime} - ${c.endTime}`,
           floors: c.affectedAllFloors ? "All Floors" : c.affectedFloors?.join(", ") || "None"
