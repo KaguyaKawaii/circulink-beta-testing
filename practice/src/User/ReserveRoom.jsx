@@ -1,3 +1,4 @@
+// src/ReserveRoom.jsx - UPDATED with floor-based closures
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import socket from "../utils/socket";
@@ -86,7 +87,7 @@ function ReserveRoom({ user, setView }) {
   const purposeRef = useRef(null);
   const participantRefs = useRef([]);
 
-  // ========== CLOSURE SYSTEM INTEGRATION ==========
+  // ========== FLOOR-BASED CLOSURE SYSTEM ==========
   const [closures, setClosures] = useState([]);
   const [closureLoading, setClosureLoading] = useState(false);
   const [showClosureModal, setShowClosureModal] = useState(false);
@@ -97,92 +98,75 @@ function ReserveRoom({ user, setView }) {
   // Track floor-specific closure info
   const [floorClosures, setFloorClosures] = useState({});
 
-// Fetch closures for selected date
-const fetchClosuresForDate = useCallback(async (date) => {
-  if (!date) return;
-  
-  setClosureLoading(true);
-  try {
-    // Fetch all rooms ONCE before processing closures
-    const allRoomsResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/rooms`);
-    const roomsData = allRoomsResponse.data;
+  // Fetch closures for selected date (UPDATED for floor-based)
+  const fetchClosuresForDate = useCallback(async (date) => {
+    if (!date) return;
     
-    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/closures`, {
-      params: {
-        date: date,
-        status: "Active"
-      }
-    });
-    
-    // Filter active closures for this date
-    const activeClosures = response.data.closures.filter(
-      closure => closure.status === "Active" && closure.date === date
-    );
-    
-    setClosures(activeClosures);
-    
-    // Check for global closure (affects all rooms)
-    const global = activeClosures.find(c => c.affectedAllRooms);
-    setGlobalClosure(global);
-    
-    // Determine which floors are closed
-    const closedFloorsSet = new Set();
-    const floorClosuresMap = {};
-    
-    activeClosures.forEach(closure => {
-      if (closure.affectedAllRooms) {
-        // If global closure, all floors are closed
-        closedFloorsSet.add("Ground Floor");
-        closedFloorsSet.add("2nd Floor");
-        closedFloorsSet.add("4th Floor");
-        closedFloorsSet.add("5th Floor");
-        // Store closure info for each floor
-        ["Ground Floor", "2nd Floor", "4th Floor", "5th Floor"].forEach(floor => {
-          if (!floorClosuresMap[floor]) floorClosuresMap[floor] = [];
-          floorClosuresMap[floor].push(closure);
-        });
-      } else if (closure.affectedRooms && closure.affectedRooms.length > 0) {
-        // Check which floors are affected by room-specific closures
-        const roomsInClosure = closure.affectedRooms;
-        
-        roomsData.forEach(room => {
-          if (roomsInClosure.includes(room.room)) {
-            // This room is in closure, so its floor is affected
-            const floor = room.floor;
-            if (!closedFloorsSet.has(floor)) {
-              closedFloorsSet.add(floor);
-            }
+    setClosureLoading(true);
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/closures`, {
+        params: {
+          date: date,
+          status: "Active"
+        }
+      });
+      
+      // Filter active closures for this date
+      const activeClosures = (response.data.closures || []).filter(
+        closure => closure.status === "Active" && closure.date === date
+      );
+      
+      setClosures(activeClosures);
+      
+      // Check for global closure (affects all floors)
+      const global = activeClosures.find(c => c.affectedAllFloors === true);
+      setGlobalClosure(global);
+      
+      // Determine which floors are closed
+      const closedFloorsSet = new Set();
+      const floorClosuresMap = {};
+      
+      activeClosures.forEach(closure => {
+        if (closure.affectedAllFloors) {
+          // If global closure, all floors are closed
+          const allFloors = ["Ground Floor", "2nd Floor", "4th Floor", "5th Floor"];
+          allFloors.forEach(floor => {
+            closedFloorsSet.add(floor);
             if (!floorClosuresMap[floor]) floorClosuresMap[floor] = [];
-            if (!floorClosuresMap[floor].includes(closure)) {
-              floorClosuresMap[floor].push(closure);
-            }
-          }
-        });
+            floorClosuresMap[floor].push(closure);
+          });
+        } else if (closure.affectedFloors && closure.affectedFloors.length > 0) {
+          // Floor-specific closure
+          closure.affectedFloors.forEach(floor => {
+            closedFloorsSet.add(floor);
+            if (!floorClosuresMap[floor]) floorClosuresMap[floor] = [];
+            floorClosuresMap[floor].push(closure);
+          });
+        }
+      });
+      
+      setClosedFloors(Array.from(closedFloorsSet));
+      setFloorClosures(floorClosuresMap);
+      
+      if (global) {
+        showAlert(
+          `FACILITY CLOSURE NOTICE\n\n${global.title}\n${global.reason || ""}\n\nTime: ${global.startTime} - ${global.endTime}\n\nNo reservations can be made during this time.`,
+          8000
+        );
+      } else if (closedFloorsSet.size > 0) {
+        // Show alert for floor closures
+        const closedFloorsList = Array.from(closedFloorsSet).join(", ");
+        showAlert(
+          `FLOOR CLOSURE NOTICE\n\nThe following floors have active closures: ${closedFloorsList}\n\nPlease check room availability before reserving.`,
+          5000
+        );
       }
-    });
-    
-    setClosedFloors(Array.from(closedFloorsSet));
-    setFloorClosures(floorClosuresMap);
-    
-    if (global) {
-      showAlert(
-        `FACILITY CLOSURE NOTICE\n\n${global.title}\n${global.reason}\n\nTime: ${global.startTime} - ${global.endTime}\n\nNo reservations can be made during this time.`,
-        8000
-      );
-    } else if (closedFloorsSet.size > 0) {
-      // Show alert for floor closures
-      const closedFloorsList = Array.from(closedFloorsSet).join(", ");
-      showAlert(
-        `FLOOR CLOSURE NOTICE\n\nThe following floors have active closures: ${closedFloorsList}\n\nPlease check room availability before reserving.`,
-        5000
-      );
+    } catch (error) {
+      console.error("Error fetching closures:", error);
+    } finally {
+      setClosureLoading(false);
     }
-  } catch (error) {
-    console.error("Error fetching closures:", error);
-  } finally {
-    setClosureLoading(false);
-  }
-}, [showAlert]);
+  }, []);
 
   // Check if a specific floor is closed at the selected time
   const isFloorClosed = useCallback((floor, date, time) => {
@@ -200,18 +184,11 @@ const fetchClosuresForDate = useCallback(async (date) => {
       if (!isTimeInClosure) return false;
       
       // Check if this floor is affected
-      if (closure.affectedAllRooms) return true;
+      if (closure.affectedAllFloors) return true;
       
-      // If not global, need to check if any rooms on this floor are closed
-      // This requires checking rooms on that floor
-      if (closure.affectedRooms && closure.affectedRooms.length > 0) {
-        const roomsOnFloor = rooms.filter(r => r.floor === floor);
-        return roomsOnFloor.some(room => closure.affectedRooms.includes(room.room));
-      }
-      
-      return false;
+      return closure.affectedFloors && closure.affectedFloors.includes(floor);
     });
-  }, [closures, rooms]);
+  }, [closures]);
 
   // Get closure info for a specific floor
   const getFloorClosureInfo = useCallback((floor, date, time) => {
@@ -221,20 +198,20 @@ const fetchClosuresForDate = useCallback(async (date) => {
       if (c.date !== date) return false;
       const isTimeInClosure = time >= c.startTime && time < c.endTime;
       if (!isTimeInClosure) return false;
-      if (c.affectedAllRooms) return true;
-      if (c.affectedRooms && c.affectedRooms.length > 0) {
-        const roomsOnFloor = rooms.filter(r => r.floor === floor);
-        return roomsOnFloor.some(room => c.affectedRooms.includes(room.room));
-      }
-      return false;
+      if (c.affectedAllFloors) return true;
+      return c.affectedFloors && c.affectedFloors.includes(floor);
     });
     
     return closure;
-  }, [closures, rooms]);
+  }, [closures]);
 
   // Check if a specific room is closed at a specific time
   const isRoomClosed = useCallback((roomName, date, time) => {
     if (!date || !time) return false;
+    
+    // Find the room to get its floor
+    const room = rooms.find(r => r.room === roomName);
+    if (!room) return false;
     
     return closures.some(closure => {
       // Check if date matches
@@ -247,26 +224,30 @@ const fetchClosuresForDate = useCallback(async (date) => {
       
       if (!isTimeInClosure) return false;
       
-      // Check if this room is affected
-      if (closure.affectedAllRooms) return true;
+      // Check if this floor is affected
+      if (closure.affectedAllFloors) return true;
       
-      return closure.affectedRooms.includes(roomName);
+      return closure.affectedFloors && closure.affectedFloors.includes(room.floor);
     });
-  }, [closures]);
+  }, [closures, rooms]);
 
   // Get closure info for a room at a specific time
   const getRoomClosureInfo = useCallback((roomName, date, time) => {
     if (!date || !time) return null;
     
+    const room = rooms.find(r => r.room === roomName);
+    if (!room) return null;
+    
     const closure = closures.find(c => {
       if (c.date !== date) return false;
       const isTimeInClosure = time >= c.startTime && time < c.endTime;
       if (!isTimeInClosure) return false;
-      return c.affectedAllRooms || c.affectedRooms.includes(roomName);
+      if (c.affectedAllFloors) return true;
+      return c.affectedFloors && c.affectedFloors.includes(room.floor);
     });
     
     return closure;
-  }, [closures]);
+  }, [closures, rooms]);
 
   // Check if a time slot is closed globally
   const isTimeSlotClosed = useCallback((date, time) => {
@@ -275,7 +256,7 @@ const fetchClosuresForDate = useCallback(async (date) => {
     return closures.some(closure => {
       if (closure.date !== date) return false;
       const isTimeInClosure = time >= closure.startTime && time < closure.endTime;
-      return isTimeInClosure && closure.affectedAllRooms;
+      return isTimeInClosure && closure.affectedAllFloors;
     });
   }, [closures]);
 
@@ -2412,7 +2393,7 @@ const fetchClosuresForDate = useCallback(async (date) => {
                           }
                         />
                       </td>
-                      {!p.role || (p.role !== "Faculty" && p.role !== "Staff") ? (
+                      {(!p.role || (p.role !== "Faculty" && p.role !== "Staff")) ? (
                         <td className="py-2 px-2 sm:py-3 sm:px-4">
                           <input
                             type="text"
@@ -2430,7 +2411,7 @@ const fetchClosuresForDate = useCallback(async (date) => {
                       ) : (
                         <td className="py-2 px-2 sm:py-3 sm:px-4 text-gray-400 italic text-xs sm:text-sm">N/A</td>
                       )}
-                      {!p.role || (p.role !== "Faculty" && p.role !== "Staff") ? (
+                      {(!p.role || (p.role !== "Faculty" && p.role !== "Staff")) ? (
                         <td className="py-2 px-2 sm:py-3 sm:px-4">
                           <input
                             type="text"
@@ -2699,17 +2680,17 @@ const fetchClosuresForDate = useCallback(async (date) => {
                 <Clock size={16} className="ml-2" />
                 <span>{globalClosure.startTime} - {globalClosure.endTime}</span>
               </div>
-              {globalClosure.affectedAllRooms ? (
+              {globalClosure.affectedAllFloors ? (
                 <div className="bg-red-50 p-3 rounded-lg">
-                  <p className="text-red-700 text-sm font-medium">Affects: All Rooms</p>
+                  <p className="text-red-700 text-sm font-medium">Affects: All Floors</p>
                 </div>
               ) : (
                 <div className="bg-red-50 p-3 rounded-lg">
-                  <p className="text-red-700 text-sm font-medium">Affected Rooms:</p>
+                  <p className="text-red-700 text-sm font-medium">Affected Floors:</p>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {globalClosure.affectedRooms?.map((room, idx) => (
+                    {globalClosure.affectedFloors?.map((floor, idx) => (
                       <span key={idx} className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
-                        {room}
+                        {floor}
                       </span>
                     ))}
                   </div>
