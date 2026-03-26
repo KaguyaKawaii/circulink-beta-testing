@@ -10,8 +10,9 @@ import {
   Plus,
   Play,
   Pause,
-  Home,
-  Building2
+  Building2,
+  Eye,
+  Edit
 } from "lucide-react";
 import axios from "axios";
 import AdminNavigation from "../AdminNavigation";
@@ -48,12 +49,12 @@ const formatDate = (date) => {
   });
 };
 
-// Available floors
+// Available floors - MUST MATCH your backend enum
 const FLOORS = [
-  { id: "ground", name: "Ground Floor", color: "bg-green-100", borderColor: "border-green-200" },
-  { id: "2nd", name: "2nd Floor", color: "bg-blue-100", borderColor: "border-blue-200" },
-  { id: "4th", name: "4th Floor", color: "bg-purple-100", borderColor: "border-purple-200" },
-  { id: "5th", name: "5th Floor", color: "bg-orange-100", borderColor: "border-orange-200" }
+  { id: "ground", name: "Ground Floor", color: "bg-green-100", borderColor: "border-green-200", textColor: "text-green-700" },
+  { id: "2nd", name: "2nd Floor", color: "bg-blue-100", borderColor: "border-blue-200", textColor: "text-blue-700" },
+  { id: "4th", name: "4th Floor", color: "bg-purple-100", borderColor: "border-purple-200", textColor: "text-purple-700" },
+  { id: "5th", name: "5th Floor", color: "bg-orange-100", borderColor: "border-orange-200", textColor: "text-orange-700" }
 ];
 
 // Toast notification
@@ -83,6 +84,9 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const [isCreating, setIsCreating] = useState(false);
   const [toast, setToast] = useState(null);
   const [conflictPreview, setConflictPreview] = useState(null);
+  const [viewingClosure, setViewingClosure] = useState(null);
+  const [filterStatus, setFilterStatus] = useState("All");
+  const [searchTerm, setSearchTerm] = useState("");
   
   // Modal states
   const [showStopConfirm, setShowStopConfirm] = useState(null);
@@ -94,7 +98,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
-  // Form data with floors instead of rooms
+  // Form data with floors
   const [formData, setFormData] = useState({
     title: "",
     reason: "",
@@ -102,7 +106,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     startTime: "",
     endTime: "",
     affectedAllFloors: false,
-    affectedFloors: [], // Array of floor names
+    affectedFloors: [],
   });
 
   const API_URL = import.meta.env.VITE_API_URL || "";
@@ -240,6 +244,24 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     });
   };
 
+  const handleEditClick = (closure) => {
+    setEditingClosure(closure);
+    setFormData({
+      title: closure.title,
+      reason: closure.reason || "",
+      date: closure.date,
+      startTime: closure.startTime,
+      endTime: closure.endTime,
+      affectedAllFloors: closure.affectedAllFloors || false,
+      affectedFloors: closure.affectedFloors || [],
+    });
+    setShowModal(true);
+  };
+
+  const handleViewClick = (closure) => {
+    setViewingClosure(closure);
+  };
+
   const handleStartClick = (closure) => {
     setShowStartConfirm(closure);
   };
@@ -314,7 +336,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     if (closure.status === "Active") {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-          <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>
+          <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5 animate-pulse"></span>
           Active
         </span>
       );
@@ -344,20 +366,30 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     return null;
   };
 
-  // Helper to format affected floors for display
   const formatAffectedFloors = (closure) => {
     if (closure.affectedAllFloors) return "All Floors";
     if (!closure.affectedFloors || closure.affectedFloors.length === 0) return "None";
     return closure.affectedFloors.join(", ");
   };
 
-  // Filter closures: Show Active, Scheduled, Deactivated (for reference)
-  const visibleClosures = closures.filter(c => c.status !== "Expired");
+  // Filter closures
+  let filteredClosures = closures.filter(c => c.status !== "Expired");
+  
+  if (filterStatus !== "All") {
+    filteredClosures = filteredClosures.filter(c => c.status === filterStatus);
+  }
+  
+  if (searchTerm.trim()) {
+    filteredClosures = filteredClosures.filter(c => 
+      c.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (c.reason && c.reason.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+  }
   
   // Separate by status for better organization
-  const activeClosures = visibleClosures.filter(c => c.status === "Active");
-  const scheduledClosures = visibleClosures.filter(c => c.status === "Scheduled");
-  const deactivatedClosures = visibleClosures.filter(c => c.status === "Deactivated");
+  const activeClosures = filteredClosures.filter(c => c.status === "Active");
+  const scheduledClosures = filteredClosures.filter(c => c.status === "Scheduled");
+  const deactivatedClosures = filteredClosures.filter(c => c.status === "Deactivated");
 
   const ClosureCard = ({ closure }) => {
     const isActive = closure.status === "Active";
@@ -365,12 +397,12 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     const isDeactivated = closure.status === "Deactivated";
     
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 overflow-hidden">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 overflow-hidden group">
         <div className="p-5">
           {/* Header */}
           <div className="flex justify-between items-start mb-3">
             <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900">{closure.title}</h3>
+              <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">{closure.title}</h3>
               {closure.reason && (
                 <p className="text-sm text-gray-500 mt-1 line-clamp-2">{closure.reason}</p>
               )}
@@ -381,29 +413,33 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
           {/* Details */}
           <div className="space-y-2 mb-4">
             <div className="flex items-center text-sm text-gray-600">
-              <Calendar size={14} className="mr-2 text-gray-400" />
+              <Calendar size={14} className="mr-2 text-gray-400 flex-shrink-0" />
               <span>{formatDate(closure.date)}</span>
             </div>
             <div className="flex items-center text-sm text-gray-600">
-              <Clock size={14} className="mr-2 text-gray-400" />
+              <Clock size={14} className="mr-2 text-gray-400 flex-shrink-0" />
               <span>{formatDisplayTime(closure.startTime)} — {formatDisplayTime(closure.endTime)}</span>
             </div>
             <div className="flex items-start text-sm text-gray-600">
-              <Building2 size={14} className="mr-2 text-gray-400 mt-0.5" />
+              <Building2 size={14} className="mr-2 text-gray-400 flex-shrink-0 mt-0.5" />
               <span className="flex flex-wrap gap-1">
                 {closure.affectedAllFloors ? (
                   <span className="text-blue-600 font-medium">All Floors</span>
                 ) : (
-                  closure.affectedFloors?.map((floor, idx) => (
-                    <span key={idx} className="inline-block px-2 py-0.5 bg-gray-100 rounded text-gray-700 text-xs">
-                      {floor}
-                    </span>
-                  ))
+                  closure.affectedFloors?.map((floor, idx) => {
+                    const floorInfo = FLOORS.find(f => f.name === floor);
+                    return (
+                      <span key={idx} className={`inline-block px-2 py-0.5 rounded text-xs ${floorInfo?.color || 'bg-gray-100'} text-gray-700`}>
+                        {floor}
+                      </span>
+                    );
+                  })
                 )}
               </span>
             </div>
-            {(closure.affectedReservations?.length > 0) && (
-              <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded inline-block">
+            {closure.affectedReservations?.length > 0 && (
+              <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded inline-flex items-center gap-1">
+                <AlertTriangle size={10} />
                 {closure.affectedReservations.length} reservation(s) cancelled
               </div>
             )}
@@ -411,13 +447,34 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
           
           {/* Action Buttons */}
           <div className="flex gap-2 pt-2 border-t border-gray-100">
+            <button
+              onClick={() => handleViewClick(closure)}
+              className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+              title="View Details"
+            >
+              <Eye size={16} />
+              <span className="text-sm font-medium hidden sm:inline">View</span>
+            </button>
+            
+            {(isScheduled || isDeactivated) && (
+              <button
+                onClick={() => handleEditClick(closure)}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-yellow-50 text-yellow-600 rounded-lg hover:bg-yellow-100 transition-colors cursor-pointer"
+                title="Edit"
+              >
+                <Edit size={16} />
+                <span className="text-sm font-medium hidden sm:inline">Edit</span>
+              </button>
+            )}
+            
             {isActive && (
               <button
                 onClick={() => handleStopClick(closure)}
                 className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors cursor-pointer"
+                title="Stop"
               >
                 <Pause size={16} />
-                <span className="text-sm font-medium">Stop</span>
+                <span className="text-sm font-medium hidden sm:inline">Stop</span>
               </button>
             )}
             
@@ -425,19 +482,21 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               <button
                 onClick={() => handleStartClick(closure)}
                 className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors cursor-pointer"
+                title="Start Now"
               >
                 <Play size={16} />
-                <span className="text-sm font-medium">Start</span>
+                <span className="text-sm font-medium hidden sm:inline">Start</span>
               </button>
             )}
             
-            {isDeactivated && (
+            {(isDeactivated || isScheduled) && (
               <button
                 onClick={() => handleDeleteClick(closure)}
                 className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
+                title="Delete"
               >
                 <Trash2 size={16} />
-                <span className="text-sm font-medium">Delete</span>
+                <span className="text-sm font-medium hidden sm:inline">Delete</span>
               </button>
             )}
           </div>
@@ -460,7 +519,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       
       <main className="ml-[250px] w-[calc(100%-250px)] min-h-screen bg-gray-50">
         <header className="bg-white px-6 py-4 border-b border-gray-200 sticky top-0 z-20">
-          <div className="flex justify-between items-center">
+          <div className="flex flex-wrap justify-between items-center gap-4">
             <div>
               <h1 className="text-2xl font-bold text-[#CC0000]">
                 Facility Closures
@@ -470,6 +529,32 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              {/* Search */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search closures..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none text-sm w-48 md:w-64"
+                />
+                <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              
+              {/* Status Filter */}
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none text-sm"
+              >
+                <option value="All">All Status</option>
+                <option value="Active">Active</option>
+                <option value="Scheduled">Scheduled</option>
+                <option value="Deactivated">Stopped</option>
+              </select>
+              
               <button
                 onClick={fetchClosures}
                 className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
@@ -498,17 +583,23 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               <div className="w-8 h-8 border-2 border-red-600 border-t-transparent rounded-full animate-spin"></div>
               <span className="ml-2 text-gray-500">Loading closures...</span>
             </div>
-          ) : visibleClosures.length === 0 ? (
+          ) : filteredClosures.length === 0 ? (
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
               <Calendar size={48} className="mx-auto text-gray-300 mb-3" />
-              <h3 className="text-lg font-medium text-gray-900 mb-1">No closures</h3>
-              <p className="text-gray-500 mb-4">No active or scheduled closures at the moment.</p>
-              <button
-                onClick={() => setShowModal(true)}
-                className="px-4 py-2 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                Create a closure
-              </button>
+              <h3 className="text-lg font-medium text-gray-900 mb-1">No closures found</h3>
+              <p className="text-gray-500 mb-4">
+                {searchTerm || filterStatus !== "All" 
+                  ? "No closures match your search criteria." 
+                  : "No active or scheduled closures at the moment."}
+              </p>
+              {!searchTerm && filterStatus === "All" && (
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="px-4 py-2 bg-[#CC0000] text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Create a closure
+                </button>
+              )}
             </div>
           ) : (
             <div className="space-y-6">
@@ -516,8 +607,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               {activeClosures.length > 0 && (
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
-                    <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
-                    Active Closures
+                    <span className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                    Active Closures ({activeClosures.length})
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {activeClosures.map(closure => (
@@ -532,7 +623,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
                     <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
-                    Scheduled Closures
+                    Scheduled Closures ({scheduledClosures.length})
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {scheduledClosures.map(closure => (
@@ -547,7 +638,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 <div>
                   <h2 className="text-lg font-semibold text-gray-900 mb-3 flex items-center">
                     <span className="w-2 h-2 bg-gray-500 rounded-full mr-2"></span>
-                    Stopped Closures
+                    Stopped Closures ({deactivatedClosures.length})
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {deactivatedClosures.map(closure => (
@@ -561,7 +652,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         </div>
       </main>
 
-      {/* Create/Edit Modal - With Floor Selection */}
+      {/* Create/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -580,7 +671,9 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
             <form onSubmit={handleSubmit} className="p-6 space-y-4">
               {/* Title */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Title <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="text"
                   name="title"
@@ -607,7 +700,9 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
 
               {/* Date */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Date <span className="text-red-500">*</span>
+                </label>
                 <input
                   type="date"
                   name="date"
@@ -622,7 +717,9 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               {/* Time Range */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Time *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Start Time <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="time"
                     name="startTime"
@@ -633,7 +730,9 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Time *</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    End Time <span className="text-red-500">*</span>
+                  </label>
                   <input
                     type="time"
                     name="endTime"
@@ -647,7 +746,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
 
               {/* Affected Floors */}
               <div>
-                <label className="flex items-center gap-2 mb-3">
+                <label className="flex items-center gap-2 mb-3 cursor-pointer">
                   <input
                     type="checkbox"
                     name="affectedAllFloors"
@@ -661,7 +760,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 {!formData.affectedAllFloors && (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Floors to Close *
+                      Select Floors to Close <span className="text-red-500">*</span>
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                       {FLOORS.map((floor) => (
@@ -679,7 +778,9 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                             onChange={() => handleFloorSelection(floor.name)}
                             className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
                           />
-                          <span className="text-gray-700 font-medium">{floor.name}</span>
+                          <div>
+                            <span className="text-gray-700 font-medium">{floor.name}</span>
+                          </div>
                         </label>
                       ))}
                     </div>
@@ -719,6 +820,102 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         </div>
       )}
 
+      {/* View Details Modal */}
+      {viewingClosure && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-gray-900">Closure Details</h3>
+              <button
+                onClick={() => setViewingClosure(null)}
+                className="p-1 hover:bg-gray-100 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900">{viewingClosure.title}</h4>
+                {viewingClosure.reason && (
+                  <p className="text-gray-600 mt-1">{viewingClosure.reason}</p>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Status</label>
+                  <div className="mt-1">{getStatusBadge(viewingClosure)}</div>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Date</label>
+                  <p className="mt-1 text-gray-900">{formatDate(viewingClosure.date)}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Time</label>
+                  <p className="mt-1 text-gray-900">
+                    {formatDisplayTime(viewingClosure.startTime)} — {formatDisplayTime(viewingClosure.endTime)}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Affected Floors</label>
+                  <p className="mt-1 text-gray-900">{formatAffectedFloors(viewingClosure)}</p>
+                </div>
+                {viewingClosure.activatedByName && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Activated By</label>
+                    <p className="mt-1 text-gray-900">{viewingClosure.activatedByName}</p>
+                    {viewingClosure.activatedAt && (
+                      <p className="text-xs text-gray-500">
+                        {new Date(viewingClosure.activatedAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {viewingClosure.deactivatedByName && (
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Stopped By</label>
+                    <p className="mt-1 text-gray-900">{viewingClosure.deactivatedByName}</p>
+                    {viewingClosure.deactivatedAt && (
+                      <p className="text-xs text-gray-500">
+                        {new Date(viewingClosure.deactivatedAt).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              {viewingClosure.affectedReservations?.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-gray-500 flex items-center gap-1">
+                    <AlertTriangle size={14} className="text-red-500" />
+                    Cancelled Reservations ({viewingClosure.affectedReservations.length})
+                  </label>
+                  <div className="mt-2 max-h-48 overflow-y-auto space-y-2">
+                    {viewingClosure.affectedReservations.map((res, idx) => (
+                      <div key={idx} className="bg-red-50 p-2 rounded-lg text-sm">
+                        <p className="font-medium">{res.roomName}</p>
+                        <p className="text-gray-600 text-xs">
+                          {res.date} {res.startTime} - {res.endTime}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex justify-end pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setViewingClosure(null)}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Start Confirmation Modal */}
       {showStartConfirm && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
@@ -737,8 +934,21 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               </div>
 
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                <p className="text-yellow-800 text-sm">
-                  ⚠️ Starting this closure will cancel any conflicting reservations during this time period.
+                <div className="flex gap-2">
+                  <AlertTriangle size={18} className="text-yellow-600 flex-shrink-0" />
+                  <p className="text-yellow-800 text-sm">
+                    Starting this closure will cancel any conflicting reservations during this time period.
+                    This action cannot be undone.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3 mb-6">
+                <p className="text-sm text-gray-600">
+                  <strong>Affected Floors:</strong> {formatAffectedFloors(showStartConfirm)}
+                </p>
+                <p className="text-sm text-gray-600 mt-1">
+                  <strong>Duration:</strong> {formatDisplayTime(showStartConfirm.startTime)} — {formatDisplayTime(showStartConfirm.endTime)}
                 </p>
               </div>
 
@@ -780,9 +990,14 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               </div>
 
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                <p className="text-blue-800 text-sm">
-                  ℹ️ Stopping this closure will restore any cancelled reservations (if still available).
-                </p>
+                <div className="flex gap-2">
+                  <svg className="w-5 h-5 text-blue-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-blue-800 text-sm">
+                    Stopping this closure will restore any cancelled reservations (if still available and no conflicts exist).
+                  </p>
+                </div>
               </div>
 
               <div className="flex justify-end gap-3">
@@ -862,21 +1077,36 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               </button>
             </div>
             <div className="p-6">
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-                <p className="text-yellow-800">
-                  ⚠️ This closure will affect {conflictPreview.affectedCount} reservation(s):
-                </p>
+              <div className={`rounded-lg p-4 mb-4 ${conflictPreview.affectedCount > 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-green-50 border border-green-200'}`}>
+                <div className="flex items-center gap-2">
+                  {conflictPreview.affectedCount > 0 ? (
+                    <AlertTriangle className="text-yellow-600" size={20} />
+                  ) : (
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                  <p className={conflictPreview.affectedCount > 0 ? "text-yellow-800" : "text-green-800"}>
+                    {conflictPreview.affectedCount === 0 
+                      ? "No conflicts found. No reservations will be affected."
+                      : `⚠️ This closure will affect ${conflictPreview.affectedCount} reservation(s):`
+                    }
+                  </p>
+                </div>
               </div>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {conflictPreview.reservations?.map((res, idx) => (
-                  <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
-                    <p className="font-semibold text-gray-900">{res.roomName}</p>
-                    <p className="text-sm text-gray-600">
-                      {res.userName} - {res.date} {formatDisplayTime(res.startTime)}-{formatDisplayTime(res.endTime)}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              {conflictPreview.affectedCount > 0 && (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {conflictPreview.reservations?.map((res, idx) => (
+                    <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                      <p className="font-semibold text-gray-900">{res.roomName}</p>
+                      <p className="text-sm text-gray-600">
+                        {res.userName} - {res.date} {formatDisplayTime(res.startTime)}-{formatDisplayTime(res.endTime)}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">Status: {res.status}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
               <div className="flex justify-end mt-4">
                 <button
                   onClick={() => setConflictPreview(null)}
