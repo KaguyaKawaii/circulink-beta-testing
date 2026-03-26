@@ -44,32 +44,47 @@ const closureSchema = new mongoose.Schema({
       message: "End time must be in HH:MM format"
     }
   },
-  affectedRooms: {
+  
+  // NEW: Floor-based closure fields
+  affectedFloors: {
     type: [String],
     default: [],
+    enum: ["Ground Floor", "2nd Floor", "4th Floor", "5th Floor"],
     validate: {
       validator: function(v) {
-        if (this.affectedAllRooms) return true;
-        return v.length > 0;
+        if (this.affectedAllFloors) return true;
+        return v && v.length > 0;
       },
-      message: "At least one room must be selected when not affecting all rooms"
+      message: "At least one floor must be selected when not affecting all floors"
     }
+  },
+  affectedAllFloors: {
+    type: Boolean,
+    default: false
+  },
+  
+  // DEPRECATED: Keep for backward compatibility, but will be migrated
+  affectedRooms: {
+    type: [String],
+    default: []
   },
   affectedAllRooms: {
     type: Boolean,
     default: false
   },
+  
   location: {
     type: String,
-    enum: ["Ground Floor", "2nd Floor", "3rd Floor", "4th Floor", "5th Floor", "All Floors", "Custom"],
+    enum: ["Ground Floor", "2nd Floor", "4th Floor", "5th Floor", "All Floors", "Custom"],
     default: "All Floors"
   },
-  // UPDATED: Added more status values for better control
+  
   status: {
     type: String,
     enum: ["Active", "Expired", "Cancelled", "Scheduled", "Deactivated"],
     default: "Scheduled"
   },
+  
   affectedReservations: [{
     reservationId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -88,6 +103,7 @@ const closureSchema = new mongoose.Schema({
       default: Date.now
     }
   }],
+  
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Admin",
@@ -98,7 +114,7 @@ const closureSchema = new mongoose.Schema({
     required: true
   },
   
-  // ========== NEW FIELDS FOR ACTIVATION ==========
+  // Activation fields
   activatedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Admin"
@@ -110,7 +126,7 @@ const closureSchema = new mongoose.Schema({
     type: Date
   },
   
-  // ========== NEW FIELDS FOR DEACTIVATION ==========
+  // Deactivation fields
   deactivatedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Admin"
@@ -125,7 +141,7 @@ const closureSchema = new mongoose.Schema({
     type: String
   },
   
-  // ========== NEW FIELDS FOR EXPIRATION ==========
+  // Expiration fields
   endedBy: {
     type: String,
     default: "System"
@@ -157,12 +173,14 @@ const closureSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for faster queries
+// Indexes
 closureSchema.index({ date: 1, status: 1 });
 closureSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 closureSchema.index({ status: 1, date: 1 });
+closureSchema.index({ affectedFloors: 1 });
+closureSchema.index({ affectedAllFloors: 1 });
 
-// Pre-save middleware to update expiresAt and handle status
+// Pre-save middleware
 closureSchema.pre('save', function(next) {
   if (this.isModified('date')) {
     const closureDate = new Date(this.date);
@@ -184,15 +202,29 @@ closureSchema.pre('save', function(next) {
     }
   }
   
+  // Migrate old room-based data to floor-based if needed
+  if (!this.affectedAllFloors && this.affectedRooms && this.affectedRooms.length > 0 && 
+      (!this.affectedFloors || this.affectedFloors.length === 0)) {
+    // This migration would require fetching rooms, but we can't do that here
+    // This will be handled in the controller
+    console.log("⚠️ Legacy closure with affectedRooms detected. Will migrate on activation.");
+  }
+  
   this.updatedAt = new Date();
   next();
 });
+
+// Method to check if a room is affected by this closure
+closureSchema.methods.isRoomAffected = function(roomName, roomFloor) {
+  if (this.affectedAllFloors) return true;
+  if (!this.affectedFloors || this.affectedFloors.length === 0) return false;
+  return this.affectedFloors.includes(roomFloor);
+};
 
 // Method to check if a time falls within closure period
 closureSchema.methods.isTimeOverlapping = function(checkTime) {
   const startTime = this.startTime;
   const endTime = this.endTime;
-  
   return checkTime >= startTime && checkTime < endTime;
 };
 
@@ -200,9 +232,7 @@ closureSchema.methods.isTimeOverlapping = function(checkTime) {
 closureSchema.methods.conflictsWithReservation = function(reservation) {
   if (reservation.date !== this.date) return false;
   
-  const roomAffected = this.affectedAllRooms || 
-    this.affectedRooms.includes(reservation.roomName);
-  
+  const roomAffected = this.isRoomAffected(reservation.roomName, reservation.location);
   if (!roomAffected) return false;
   
   const resStartTime = reservation.time || new Date(reservation.datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -218,12 +248,20 @@ closureSchema.methods.conflictsWithReservation = function(reservation) {
   return overlap;
 };
 
+// Virtual property to get affected display text
+closureSchema.virtual('affectedDisplay').get(function() {
+  if (this.affectedAllFloors) return "All Floors";
+  if (this.affectedFloors && this.affectedFloors.length > 0) {
+    return this.affectedFloors.join(", ");
+  }
+  return "None";
+});
+
 // Virtual property to check if closure is currently active
 closureSchema.virtual('isCurrentlyActive').get(function() {
   if (this.status !== "Active") return false;
   
   const now = new Date();
-  const closureDate = new Date(this.date);
   const [startHours, startMinutes] = this.startTime.split(":").map(Number);
   const [endHours, endMinutes] = this.endTime.split(":").map(Number);
   
@@ -241,7 +279,6 @@ closureSchema.virtual('isScheduled').get(function() {
   if (this.status !== "Scheduled") return false;
   
   const now = new Date();
-  const closureDate = new Date(this.date);
   const [startHours, startMinutes] = this.startTime.split(":").map(Number);
   const startDateTime = new Date(this.date);
   startDateTime.setHours(startHours, startMinutes, 0, 0);

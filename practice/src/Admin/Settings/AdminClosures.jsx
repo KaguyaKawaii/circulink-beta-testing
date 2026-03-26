@@ -10,7 +10,8 @@ import {
   Plus,
   Play,
   Pause,
-  Home
+  Home,
+  Building2
 } from "lucide-react";
 import axios from "axios";
 import AdminNavigation from "../AdminNavigation";
@@ -47,6 +48,14 @@ const formatDate = (date) => {
   });
 };
 
+// Available floors
+const FLOORS = [
+  { id: "ground", name: "Ground Floor", color: "bg-green-100", borderColor: "border-green-200" },
+  { id: "2nd", name: "2nd Floor", color: "bg-blue-100", borderColor: "border-blue-200" },
+  { id: "4th", name: "4th Floor", color: "bg-purple-100", borderColor: "border-purple-200" },
+  { id: "5th", name: "5th Floor", color: "bg-orange-100", borderColor: "border-orange-200" }
+];
+
 // Toast notification
 const Toast = ({ message, type, onClose }) => {
   useEffect(() => {
@@ -73,7 +82,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const [editingClosure, setEditingClosure] = useState(null);
   const [isCreating, setIsCreating] = useState(false);
   const [toast, setToast] = useState(null);
-  const [availableRooms, setAvailableRooms] = useState([]);
   const [conflictPreview, setConflictPreview] = useState(null);
   
   // Modal states
@@ -86,14 +94,15 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  // Form data with floors instead of rooms
   const [formData, setFormData] = useState({
     title: "",
     reason: "",
     date: "",
     startTime: "",
     endTime: "",
-    affectedAllRooms: false,
-    affectedRooms: [],
+    affectedAllFloors: false,
+    affectedFloors: [], // Array of floor names
   });
 
   const API_URL = import.meta.env.VITE_API_URL || "";
@@ -123,7 +132,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     try {
       const response = await axios.get(`${API_URL}/api/closures`);
       if (response.data && response.data.success !== false) {
-        // Filter out expired closures by default
         const allClosures = response.data.closures || [];
         setClosures(allClosures);
       }
@@ -135,18 +143,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     }
   }, [API_URL, showToast]);
 
-  const fetchRooms = async () => {
-    try {
-      const response = await axios.get(`${API_URL}/api/rooms`);
-      setAvailableRooms(response.data || []);
-    } catch (error) {
-      console.error("Error fetching rooms:", error);
-    }
-  };
-
   useEffect(() => {
     fetchClosures();
-    fetchRooms();
   }, [fetchClosures]);
 
   const handleInputChange = (e) => {
@@ -157,12 +155,12 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     }));
   };
 
-  const handleRoomSelection = (roomName) => {
+  const handleFloorSelection = (floorName) => {
     setFormData(prev => ({
       ...prev,
-      affectedRooms: prev.affectedRooms.includes(roomName)
-        ? prev.affectedRooms.filter(r => r !== roomName)
-        : [...prev.affectedRooms, roomName]
+      affectedFloors: prev.affectedFloors.includes(floorName)
+        ? prev.affectedFloors.filter(f => f !== floorName)
+        : [...prev.affectedFloors, floorName]
     }));
   };
 
@@ -175,7 +173,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
 
       const response = await axios.post(`${API_URL}/api/closures/preview`, {
         ...formData,
-        affectedRooms: formData.affectedAllRooms ? [] : formData.affectedRooms
+        affectedFloors: formData.affectedAllFloors ? [] : formData.affectedFloors,
+        affectedAllFloors: formData.affectedAllFloors
       });
       setConflictPreview(response.data);
     } catch (error) {
@@ -201,8 +200,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       return;
     }
 
-    if (!formData.affectedAllRooms && formData.affectedRooms.length === 0) {
-      showToast("Please select at least one room or select 'All Rooms'", "error");
+    if (!formData.affectedAllFloors && formData.affectedFloors.length === 0) {
+      showToast("Please select at least one floor or select 'All Floors'", "error");
       return;
     }
 
@@ -236,8 +235,8 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       date: "",
       startTime: "",
       endTime: "",
-      affectedAllRooms: false,
-      affectedRooms: [],
+      affectedAllFloors: false,
+      affectedFloors: [],
     });
   };
 
@@ -345,8 +344,14 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     return null;
   };
 
+  // Helper to format affected floors for display
+  const formatAffectedFloors = (closure) => {
+    if (closure.affectedAllFloors) return "All Floors";
+    if (!closure.affectedFloors || closure.affectedFloors.length === 0) return "None";
+    return closure.affectedFloors.join(", ");
+  };
+
   // Filter closures: Show Active, Scheduled, Deactivated (for reference)
-  // Expired closures are hidden from main view
   const visibleClosures = closures.filter(c => c.status !== "Expired");
   
   // Separate by status for better organization
@@ -384,12 +389,17 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               <span>{formatDisplayTime(closure.startTime)} — {formatDisplayTime(closure.endTime)}</span>
             </div>
             <div className="flex items-start text-sm text-gray-600">
-              <Home size={14} className="mr-2 text-gray-400 mt-0.5" />
-              <span>
-                {closure.affectedAllRooms 
-                  ? "All Rooms" 
-                  : `${closure.affectedRooms?.length || 0} room(s): ${closure.affectedRooms?.slice(0, 3).join(", ")}${closure.affectedRooms?.length > 3 ? "..." : ""}`
-                }
+              <Building2 size={14} className="mr-2 text-gray-400 mt-0.5" />
+              <span className="flex flex-wrap gap-1">
+                {closure.affectedAllFloors ? (
+                  <span className="text-blue-600 font-medium">All Floors</span>
+                ) : (
+                  closure.affectedFloors?.map((floor, idx) => (
+                    <span key={idx} className="inline-block px-2 py-0.5 bg-gray-100 rounded text-gray-700 text-xs">
+                      {floor}
+                    </span>
+                  ))
+                )}
               </span>
             </div>
             {(closure.affectedReservations?.length > 0) && (
@@ -456,7 +466,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 Facility Closures
               </h1>
               <p className="text-gray-600 text-sm">
-                Manage closures for events and maintenance
+                Manage closures for events and maintenance (by floor)
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -551,13 +561,13 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         </div>
       </main>
 
-      {/* Create/Edit Modal - Simplified */}
+      {/* Create/Edit Modal - With Floor Selection */}
       {showModal && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
               <h2 className="text-xl font-bold text-gray-900">
-                {editingClosure ? "Edit Closure" : "Create Closure"}
+                {editingClosure ? "Edit Closure" : "Create Facility Closure"}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -635,39 +645,47 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                 </div>
               </div>
 
-              {/* Rooms */}
+              {/* Affected Floors */}
               <div>
                 <label className="flex items-center gap-2 mb-3">
                   <input
                     type="checkbox"
-                    name="affectedAllRooms"
-                    checked={formData.affectedAllRooms}
+                    name="affectedAllFloors"
+                    checked={formData.affectedAllFloors}
                     onChange={handleInputChange}
                     className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
                   />
-                  <span className="text-gray-700">Affect all rooms</span>
+                  <span className="text-gray-700 font-medium">Affect all floors</span>
                 </label>
 
-                {!formData.affectedAllRooms && (
+                {!formData.affectedAllFloors && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Affected Rooms</label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto p-3 border border-gray-200 rounded-lg bg-gray-50">
-                      {availableRooms.length === 0 ? (
-                        <p className="text-gray-500 col-span-full text-center">Loading rooms...</p>
-                      ) : (
-                        availableRooms.map((room) => (
-                          <label key={room._id} className="flex items-center gap-2 text-gray-700 text-sm">
-                            <input
-                              type="checkbox"
-                              checked={formData.affectedRooms.includes(room.room)}
-                              onChange={() => handleRoomSelection(room.room)}
-                              className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
-                            />
-                            <span>{room.room}</span>
-                          </label>
-                        ))
-                      )}
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Select Floors to Close *
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {FLOORS.map((floor) => (
+                        <label
+                          key={floor.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                            formData.affectedFloors.includes(floor.name)
+                              ? `${floor.color} border-red-500 ring-2 ring-red-200`
+                              : "bg-white border-gray-200 hover:border-gray-300"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={formData.affectedFloors.includes(floor.name)}
+                            onChange={() => handleFloorSelection(floor.name)}
+                            className="w-4 h-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                          />
+                          <span className="text-gray-700 font-medium">{floor.name}</span>
+                        </label>
+                      ))}
                     </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Selected floors will be completely closed. All rooms on these floors will be unavailable.
+                    </p>
                   </div>
                 )}
               </div>

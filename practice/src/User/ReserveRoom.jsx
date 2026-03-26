@@ -3,7 +3,7 @@ import axios from "axios";
 import socket from "../utils/socket";
 import moment from "moment-timezone";
 import RoomAvailabilityModal from "./RoomAvailabilityModal";
-import { AlertTriangle, Calendar, Clock, X } from "lucide-react"; // ✅ ADDED THIS LINE - missing import
+import { AlertTriangle, Calendar, Clock, X } from "lucide-react";
 
 // Import shared room images configuration
 import { availableRoomImages, getRoomImageById } from "../data/roomImages";
@@ -92,46 +92,148 @@ function ReserveRoom({ user, setView }) {
   const [showClosureModal, setShowClosureModal] = useState(false);
   const [selectedClosure, setSelectedClosure] = useState(null);
   const [globalClosure, setGlobalClosure] = useState(null);
+  // Track which floors are fully closed
+  const [closedFloors, setClosedFloors] = useState([]);
+  // Track floor-specific closure info
+  const [floorClosures, setFloorClosures] = useState({});
 
-  // Fetch closures for selected date
-  const fetchClosuresForDate = useCallback(async (date) => {
-    if (!date) return;
+// Fetch closures for selected date
+const fetchClosuresForDate = useCallback(async (date) => {
+  if (!date) return;
+  
+  setClosureLoading(true);
+  try {
+    // Fetch all rooms ONCE before processing closures
+    const allRoomsResponse = await axios.get(`${import.meta.env.VITE_API_URL}/api/rooms`);
+    const roomsData = allRoomsResponse.data;
     
-    setClosureLoading(true);
-    try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/closures`, {
-        params: {
-          date: date,
-          status: "Active"
-        }
-      });
-      
-      // Filter active closures for this date
-      const activeClosures = response.data.closures.filter(
-        closure => closure.status === "Active" && closure.date === date
-      );
-      
-      setClosures(activeClosures);
-      
-      // Check for global closure (affects all rooms)
-      const global = activeClosures.find(c => c.affectedAllRooms);
-      setGlobalClosure(global);
-      
-      if (global) {
-        showAlert(
-          `FACILITY CLOSURE NOTICE\n\n${global.title}\n${global.reason}\n\nTime: ${global.startTime} - ${global.endTime}\n\nNo reservations can be made during this time.`,
-          8000
-        );
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/closures`, {
+      params: {
+        date: date,
+        status: "Active"
       }
-    } catch (error) {
-      console.error("Error fetching closures:", error);
-    } finally {
-      setClosureLoading(false);
+    });
+    
+    // Filter active closures for this date
+    const activeClosures = response.data.closures.filter(
+      closure => closure.status === "Active" && closure.date === date
+    );
+    
+    setClosures(activeClosures);
+    
+    // Check for global closure (affects all rooms)
+    const global = activeClosures.find(c => c.affectedAllRooms);
+    setGlobalClosure(global);
+    
+    // Determine which floors are closed
+    const closedFloorsSet = new Set();
+    const floorClosuresMap = {};
+    
+    activeClosures.forEach(closure => {
+      if (closure.affectedAllRooms) {
+        // If global closure, all floors are closed
+        closedFloorsSet.add("Ground Floor");
+        closedFloorsSet.add("2nd Floor");
+        closedFloorsSet.add("4th Floor");
+        closedFloorsSet.add("5th Floor");
+        // Store closure info for each floor
+        ["Ground Floor", "2nd Floor", "4th Floor", "5th Floor"].forEach(floor => {
+          if (!floorClosuresMap[floor]) floorClosuresMap[floor] = [];
+          floorClosuresMap[floor].push(closure);
+        });
+      } else if (closure.affectedRooms && closure.affectedRooms.length > 0) {
+        // Check which floors are affected by room-specific closures
+        const roomsInClosure = closure.affectedRooms;
+        
+        roomsData.forEach(room => {
+          if (roomsInClosure.includes(room.room)) {
+            // This room is in closure, so its floor is affected
+            const floor = room.floor;
+            if (!closedFloorsSet.has(floor)) {
+              closedFloorsSet.add(floor);
+            }
+            if (!floorClosuresMap[floor]) floorClosuresMap[floor] = [];
+            if (!floorClosuresMap[floor].includes(closure)) {
+              floorClosuresMap[floor].push(closure);
+            }
+          }
+        });
+      }
+    });
+    
+    setClosedFloors(Array.from(closedFloorsSet));
+    setFloorClosures(floorClosuresMap);
+    
+    if (global) {
+      showAlert(
+        `FACILITY CLOSURE NOTICE\n\n${global.title}\n${global.reason}\n\nTime: ${global.startTime} - ${global.endTime}\n\nNo reservations can be made during this time.`,
+        8000
+      );
+    } else if (closedFloorsSet.size > 0) {
+      // Show alert for floor closures
+      const closedFloorsList = Array.from(closedFloorsSet).join(", ");
+      showAlert(
+        `FLOOR CLOSURE NOTICE\n\nThe following floors have active closures: ${closedFloorsList}\n\nPlease check room availability before reserving.`,
+        5000
+      );
     }
-  }, []);
+  } catch (error) {
+    console.error("Error fetching closures:", error);
+  } finally {
+    setClosureLoading(false);
+  }
+}, [showAlert]);
+
+  // Check if a specific floor is closed at the selected time
+  const isFloorClosed = useCallback((floor, date, time) => {
+    if (!date || !time) return false;
+    
+    return closures.some(closure => {
+      // Check if date matches
+      if (closure.date !== date) return false;
+      
+      // Check if time falls within closure period
+      const closureStart = closure.startTime;
+      const closureEnd = closure.endTime;
+      const isTimeInClosure = time >= closureStart && time < closureEnd;
+      
+      if (!isTimeInClosure) return false;
+      
+      // Check if this floor is affected
+      if (closure.affectedAllRooms) return true;
+      
+      // If not global, need to check if any rooms on this floor are closed
+      // This requires checking rooms on that floor
+      if (closure.affectedRooms && closure.affectedRooms.length > 0) {
+        const roomsOnFloor = rooms.filter(r => r.floor === floor);
+        return roomsOnFloor.some(room => closure.affectedRooms.includes(room.room));
+      }
+      
+      return false;
+    });
+  }, [closures, rooms]);
+
+  // Get closure info for a specific floor
+  const getFloorClosureInfo = useCallback((floor, date, time) => {
+    if (!date || !time) return null;
+    
+    const closure = closures.find(c => {
+      if (c.date !== date) return false;
+      const isTimeInClosure = time >= c.startTime && time < c.endTime;
+      if (!isTimeInClosure) return false;
+      if (c.affectedAllRooms) return true;
+      if (c.affectedRooms && c.affectedRooms.length > 0) {
+        const roomsOnFloor = rooms.filter(r => r.floor === floor);
+        return roomsOnFloor.some(room => c.affectedRooms.includes(room.room));
+      }
+      return false;
+    });
+    
+    return closure;
+  }, [closures, rooms]);
 
   // Check if a specific room is closed at a specific time
-  const isRoomClosed = (roomName, date, time) => {
+  const isRoomClosed = useCallback((roomName, date, time) => {
     if (!date || !time) return false;
     
     return closures.some(closure => {
@@ -150,10 +252,10 @@ function ReserveRoom({ user, setView }) {
       
       return closure.affectedRooms.includes(roomName);
     });
-  };
+  }, [closures]);
 
   // Get closure info for a room at a specific time
-  const getRoomClosureInfo = (roomName, date, time) => {
+  const getRoomClosureInfo = useCallback((roomName, date, time) => {
     if (!date || !time) return null;
     
     const closure = closures.find(c => {
@@ -164,10 +266,10 @@ function ReserveRoom({ user, setView }) {
     });
     
     return closure;
-  };
+  }, [closures]);
 
   // Check if a time slot is closed globally
-  const isTimeSlotClosed = (date, time) => {
+  const isTimeSlotClosed = useCallback((date, time) => {
     if (!date || !time) return false;
     
     return closures.some(closure => {
@@ -175,10 +277,10 @@ function ReserveRoom({ user, setView }) {
       const isTimeInClosure = time >= closure.startTime && time < closure.endTime;
       return isTimeInClosure && closure.affectedAllRooms;
     });
-  };
+  }, [closures]);
 
   // Get all closures affecting a time slot
-  const getTimeSlotClosures = (date, time) => {
+  const getTimeSlotClosures = useCallback((date, time) => {
     if (!date || !time) return [];
     
     return closures.filter(closure => {
@@ -186,7 +288,7 @@ function ReserveRoom({ user, setView }) {
       const isTimeInClosure = time >= closure.startTime && time < closure.endTime;
       return isTimeInClosure;
     });
-  };
+  }, [closures]);
 
   // Update room availability check to include closures
   const isRoomAvailableForTime = useCallback((room, selectedTime) => {
@@ -205,7 +307,7 @@ function ReserveRoom({ user, setView }) {
     const hasPending = roomStatus.pending && roomStatus.pending.length > 0;
     
     return !hasOccupied && !hasPending;
-  }, [roomAvailability, formData.date, closures]);
+  }, [roomAvailability, formData.date, isRoomClosed]);
 
   // ========== END CLOSURE SYSTEM INTEGRATION ==========
 
@@ -227,8 +329,13 @@ function ReserveRoom({ user, setView }) {
     return user?.role === "Faculty" || user?.role === "Staff_Office";
   }, [user]);
 
-  // Check if user can reserve a specific floor
+  // Check if user can reserve a specific floor (with closure consideration)
   const canReserveFloor = useCallback((floor) => {
+    // First check if floor is closed due to facility closure
+    if (isFloorClosed(floor, formData.date, formData.time)) {
+      return false;
+    }
+    
     // Faculty can reserve any floor
     if (isFacultyUser()) {
       return true;
@@ -250,7 +357,7 @@ function ReserveRoom({ user, setView }) {
     }
     
     return false;
-  }, [isGraduateStudent, isCollegeOfLawUser, isFacultyUser]);
+  }, [isGraduateStudent, isCollegeOfLawUser, isFacultyUser, isFloorClosed, formData.date, formData.time]);
 
   // Calendar generation functions
   const months = [
@@ -397,6 +504,10 @@ function ReserveRoom({ user, setView }) {
     setFormData({ ...formData, date: date.date });
     setShowDateModal(false);
     
+    // Reset location and room when date changes
+    setFormData(prev => ({ ...prev, location: "", roomName: "", room_Id: "" }));
+    setSelectedRoomDetails(null);
+    
     // Fetch closures for the selected date
     await fetchClosuresForDate(date.date);
     
@@ -407,7 +518,8 @@ function ReserveRoom({ user, setView }) {
   // Handle time selection with dropdown values
   const handleTimeSelect = () => {
     const timeString = convertTo24Hour(tempHour, tempMinute);
-    setFormData({ ...formData, time: timeString });
+    setFormData(prev => ({ ...prev, time: timeString, location: "", roomName: "", room_Id: "" }));
+    setSelectedRoomDetails(null);
     setShowTimeModal(false);
     
     // Show availability modal when time is selected
@@ -619,6 +731,14 @@ function ReserveRoom({ user, setView }) {
       return false;
     }
 
+    // Check if selected floor is closed
+    if (isFloorClosed(formData.location, formData.date, formData.time)) {
+      const floorClosure = getFloorClosureInfo(formData.location, formData.date, formData.time);
+      showAlert(`This floor is closed at the selected time due to: ${floorClosure?.title || "Facility Closure"}\n\n${floorClosure?.reason || "No reservations can be made during this time."}\n\nTime: ${floorClosure?.startTime} - ${floorClosure?.endTime}`);
+      scrollToElement(locationRef);
+      return false;
+    }
+
     const selectedRoom = rooms.find(room => room._id === formData.room_Id);
     if (!formData.roomName || !formData.room_Id) {
       showAlert("Please select a room.");
@@ -641,7 +761,10 @@ function ReserveRoom({ user, setView }) {
     }
 
     if (!canReserveFloor(formData.location)) {
-      if (formData.location === "Ground Floor") {
+      if (isFloorClosed(formData.location, formData.date, formData.time)) {
+        const floorClosure = getFloorClosureInfo(formData.location, formData.date, formData.time);
+        showAlert(`This floor is closed at the selected time due to: ${floorClosure?.title || "Facility Closure"}`);
+      } else if (formData.location === "Ground Floor") {
         showAlert("Ground Floor is reserved for Graduate students only.");
       } else if (formData.location === "2nd Floor") {
         showAlert("2nd Floor is reserved for College of Law students only.");
@@ -941,6 +1064,13 @@ function ReserveRoom({ user, setView }) {
     }
 
     // Final closure check before submission (in case something changed)
+    const floorClosure = getFloorClosureInfo(formData.location, formData.date, formData.time);
+    if (floorClosure) {
+      showAlert(`Cannot submit: This floor is closed at the selected time due to: ${floorClosure.title}`);
+      setIsSubmitting(false);
+      return;
+    }
+    
     const roomClosure = getRoomClosureInfo(formData.roomName, formData.date, formData.time);
     if (roomClosure) {
       showAlert(`Cannot submit: This room is closed at the selected time due to: ${roomClosure.title}`);
@@ -1053,6 +1183,14 @@ function ReserveRoom({ user, setView }) {
   const handleRoomClick = (room) => {
     // Always show room details
     setSelectedRoomDetails(room);
+    
+    // Check if floor is closed
+    const floorIsClosed = isFloorClosed(room.floor, formData.date, formData.time);
+    if (floorIsClosed) {
+      const floorClosure = getFloorClosureInfo(room.floor, formData.date, formData.time);
+      showAlert(`This floor is closed at the selected time due to: ${floorClosure?.title || "Facility Closure"}\n\n${floorClosure?.reason || ""}`);
+      return;
+    }
     
     // Check if room is closed due to closure
     const roomClosure = getRoomClosureInfo(room.room, formData.date, formData.time);
@@ -1813,12 +1951,18 @@ function ReserveRoom({ user, setView }) {
             {roomLocations.map((loc) => {
               const imageSrc = getFloorImage(loc);
               const canReserve = canReserveFloor(loc);
+              const floorIsClosed = isFloorClosed(loc, formData.date, formData.time);
+              const floorClosure = getFloorClosureInfo(loc, formData.date, formData.time);
               const isSelected = formData.location === loc;
 
               return (
                 <button
                   key={loc}
                   onClick={() => {
+                    if (floorIsClosed) {
+                      showAlert(`This floor is closed at the selected time due to: ${floorClosure?.title || "Facility Closure"}\n\n${floorClosure?.reason || ""}\n\nTime: ${floorClosure?.startTime} - ${floorClosure?.endTime}`);
+                      return;
+                    }
                     if (!canReserve) {
                       if (loc === "Ground Floor") {
                         showAlert("Ground Floor is reserved for Graduate students only.");
@@ -1839,11 +1983,13 @@ function ReserveRoom({ user, setView }) {
                   className={`border-2 rounded-2xl w-full xs:w-[150px] sm:w-[180px] md:w-[200px] h-[120px] sm:h-[150px] md:h-[200px] flex flex-col justify-center items-center cursor-pointer transition-all duration-200 overflow-hidden relative min-h-[120px] ${
                     isSelected 
                       ? "border-[#CC0000] ring-2 ring-red-100 opacity-100 scale-105" 
+                      : floorIsClosed
+                      ? "border-red-300 opacity-50 cursor-not-allowed bg-gray-100"
                       : !canReserve
                       ? "border-gray-200 opacity-50 cursor-not-allowed"
                       : "border-gray-200 opacity-70 hover:opacity-100 hover:border-gray-300"
                   }`}
-                  disabled={!canReserve}
+                  disabled={floorIsClosed || !canReserve}
                 >
                   {imageSrc && (
                     <img
@@ -1854,10 +2000,20 @@ function ReserveRoom({ user, setView }) {
                       onLoad={() => handleImageLoad(`floor-${loc}`)}
                     />
                   )}
-                  <div className="absolute inset-0 bg-black/40"></div>
+                  <div className={`absolute inset-0 ${
+                    floorIsClosed ? "bg-red-800/70" : "bg-black/40"
+                  }`}></div>
+                  
+                  {/* Closure Badge */}
+                  {floorIsClosed && (
+                    <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10 flex items-center gap-1">
+                      <AlertTriangle size={12} />
+                      Closed
+                    </div>
+                  )}
                   
                   {/* Restricted Badge */}
-                  {!canReserve && (
+                  {!canReserve && !floorIsClosed && (
                     <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
                       Restricted
                     </div>
@@ -1867,9 +2023,14 @@ function ReserveRoom({ user, setView }) {
                     <p className="text-sm sm:text-base md:text-lg font-semibold mb-1">
                       {loc}
                     </p>
-                    {(loc === "Ground Floor" || loc === "2nd Floor") && (
+                    {(loc === "Ground Floor" || loc === "2nd Floor") && !floorIsClosed && (
                       <p className="text-xs sm:text-sm opacity-90">
                         {loc === "Ground Floor" ? "Graduate Studies & Periodicals" : "Law Library"}
+                      </p>
+                    )}
+                    {floorIsClosed && floorClosure && (
+                      <p className="text-xs opacity-90 mt-1">
+                        {floorClosure.title.length > 30 ? floorClosure.title.substring(0, 30) + "..." : floorClosure.title}
                       </p>
                     )}
                   </div>
@@ -1911,17 +2072,18 @@ function ReserveRoom({ user, setView }) {
                   const isBooked = !isAvailable && formData.date && formData.time && !isRoomClosed(room.room, formData.date, formData.time);
                   const roomClosure = getRoomClosureInfo(room.room, formData.date, formData.time);
                   const isClosedByClosure = !!roomClosure;
+                  const floorIsClosed = isFloorClosed(room.floor, formData.date, formData.time);
 
                   return (
                     <button
                       key={room._id}
                       onClick={() => handleRoomClick(room)}
                       className={`border-2 rounded-2xl w-full sm:w-[280px] md:w-[300px] h-[250px] sm:h-[280px] md:h-[300px] flex justify-center items-center cursor-pointer relative overflow-hidden transition-all duration-200 ${
-                        isSelected && room.isActive && canReserve && isAvailable && !isClosedByClosure
+                        isSelected && room.isActive && canReserve && isAvailable && !isClosedByClosure && !floorIsClosed
                           ? "border-[#CC0000] ring-2 ring-red-100 bg-red-50"
-                          : isSelected && (!room.isActive || !canReserve || !isAvailable || isClosedByClosure)
+                          : isSelected && (!room.isActive || !canReserve || !isAvailable || isClosedByClosure || floorIsClosed)
                           ? "border-gray-400 ring-2 ring-gray-200 bg-gray-50"
-                          : isDisabled || !canReserve || isBooked || isClosedByClosure
+                          : isDisabled || !canReserve || isBooked || isClosedByClosure || floorIsClosed
                           ? "border-gray-300 bg-gray-100 cursor-pointer opacity-60"
                           : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                       }`}
@@ -1936,39 +2098,47 @@ function ReserveRoom({ user, setView }) {
                         />
                       )}
                       <div className={`absolute inset-0 z-0 ${
-                        isDisabled || !canReserve || isBooked || isClosedByClosure ? "bg-gray-800/60" : "bg-black/30"
+                        isDisabled || !canReserve || isBooked || isClosedByClosure || floorIsClosed ? "bg-gray-800/70" : "bg-black/30"
                       }`}></div>
                       
+                      {/* Floor Closure Badge */}
+                      {floorIsClosed && (
+                        <div className="absolute top-2 right-2 bg-purple-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10 flex items-center gap-1">
+                          <AlertTriangle size={12} />
+                          Floor Closed
+                        </div>
+                      )}
+                      
                       {/* Room Status Badge */}
-                      {isDisabled && (
+                      {isDisabled && !floorIsClosed && (
                         <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
                           Unavailable
                         </div>
                       )}
                       
                       {/* Closure Badge */}
-                      {isClosedByClosure && !isDisabled && (
-                        <div className="absolute top-2 right-2 bg-purple-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
+                      {isClosedByClosure && !isDisabled && !floorIsClosed && (
+                        <div className="absolute top-2 right-2 bg-orange-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
                           Closed
                         </div>
                       )}
                       
                       {/* Booked Badge */}
-                      {isBooked && !isDisabled && !isClosedByClosure && (
-                        <div className="absolute top-2 right-2 bg-orange-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
+                      {isBooked && !isDisabled && !isClosedByClosure && !floorIsClosed && (
+                        <div className="absolute top-2 right-2 bg-yellow-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
                           Booked
                         </div>
                       )}
                       
                       {/* Restricted Badge */}
-                      {!canReserve && !isDisabled && !isBooked && !isClosedByClosure && (
+                      {!canReserve && !isDisabled && !isBooked && !isClosedByClosure && !floorIsClosed && (
                         <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
                           Restricted
                         </div>
                       )}
                       
                       {/* View Details Badge */}
-                      {(isDisabled || !canReserve || isBooked || isClosedByClosure) && (
+                      {(isDisabled || !canReserve || isBooked || isClosedByClosure || floorIsClosed) && (
                         <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
                           Click to View Details
                         </div>
@@ -2018,19 +2188,41 @@ function ReserveRoom({ user, setView }) {
           <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100">
             <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 pb-2 border-b border-gray-100">Selected Room Details</h2>
             
-            {/* Show closure info if applicable */}
+            {/* Show floor closure info if applicable */}
             {(() => {
-              const closure = getRoomClosureInfo(selectedRoomDetails.room, formData.date, formData.time);
-              if (closure) {
+              const floorClosure = getFloorClosureInfo(selectedRoomDetails.floor, formData.date, formData.time);
+              if (floorClosure) {
+                return (
+                  <div className="mb-4 bg-purple-50 border border-purple-200 rounded-lg p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="text-purple-600 flex-shrink-0 mt-0.5" size={18} />
+                      <div>
+                        <p className="text-purple-800 font-semibold text-sm">Floor Closed: {floorClosure.title}</p>
+                        <p className="text-purple-700 text-xs mt-1">{floorClosure.reason}</p>
+                        <p className="text-purple-600 text-xs mt-1 font-medium">
+                          Time: {floorClosure.startTime} - {floorClosure.endTime}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+            
+            {/* Show room closure info if applicable */}
+            {(() => {
+              const roomClosure = getRoomClosureInfo(selectedRoomDetails.room, formData.date, formData.time);
+              if (roomClosure && !getFloorClosureInfo(selectedRoomDetails.floor, formData.date, formData.time)) {
                 return (
                   <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
                     <div className="flex items-start gap-2">
                       <AlertTriangle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
                       <div>
-                        <p className="text-red-800 font-semibold text-sm">Room Closed: {closure.title}</p>
-                        <p className="text-red-700 text-xs mt-1">{closure.reason}</p>
+                        <p className="text-red-800 font-semibold text-sm">Room Closed: {roomClosure.title}</p>
+                        <p className="text-red-700 text-xs mt-1">{roomClosure.reason}</p>
                         <p className="text-red-600 text-xs mt-1 font-medium">
-                          Time: {closure.startTime} - {closure.endTime}
+                          Time: {roomClosure.startTime} - {roomClosure.endTime}
                         </p>
                       </div>
                     </div>
@@ -2327,6 +2519,12 @@ function ReserveRoom({ user, setView }) {
                 Facility Closure Notice: {globalClosure.title} - {globalClosure.startTime} to {globalClosure.endTime}
               </li>
             )}
+            {closedFloors.length > 0 && !globalClosure && (
+              <li className="text-xs sm:text-sm text-orange-600 flex items-start font-medium">
+                <span className="text-orange-600 font-bold mr-1">•</span>
+                Floor Closure Notice: {closedFloors.join(", ")} {closedFloors.length === 1 ? "is" : "are"} closed at the selected time.
+              </li>
+            )}
           </ul>
         </div>
 
@@ -2335,9 +2533,9 @@ function ReserveRoom({ user, setView }) {
           <button
             onClick={submitReservation}
             type="button"
-            disabled={loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting || (globalClosure && isTimeSlotClosed(formData.date, formData.time))}
+            disabled={loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting || (globalClosure && isTimeSlotClosed(formData.date, formData.time)) || (closedFloors.length > 0 && closedFloors.includes(formData.location))}
             className={`px-6 sm:px-8 py-3 sm:py-3 rounded-lg transition cursor-pointer flex items-center text-sm sm:text-base min-h-[44px] min-w-[140px] justify-center ${
-              loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting || (globalClosure && isTimeSlotClosed(formData.date, formData.time))
+              loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting || (globalClosure && isTimeSlotClosed(formData.date, formData.time)) || (closedFloors.length > 0 && closedFloors.includes(formData.location))
                 ? "bg-gray-400 text-gray-200 cursor-not-allowed" 
                 : "bg-[#CC0000] text-white hover:bg-red-700 hover:shadow-md"
             }`}
@@ -2371,7 +2569,8 @@ function ReserveRoom({ user, setView }) {
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
                 {globalClosure && isTimeSlotClosed(formData.date, formData.time) ? "Time Slot Closed" : 
-                 (selectedRoomDetails && !selectedRoomDetails.isActive ? "Room Unavailable" : "Submit Reservation")}
+                 (closedFloors.length > 0 && closedFloors.includes(formData.location) ? "Floor Closed" :
+                 (selectedRoomDetails && !selectedRoomDetails.isActive ? "Room Unavailable" : "Submit Reservation"))}
               </>
             )}
           </button>

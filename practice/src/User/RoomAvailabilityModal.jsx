@@ -8,6 +8,7 @@ function RoomAvailabilityModal({
   availError,
   onClose,
   currentUserId = null,
+  closures = [], // Add closures prop
 }) {
 
   React.useEffect(() => {
@@ -20,6 +21,31 @@ function RoomAvailabilityModal({
 
   const formatTime = (iso) => {
     return moment(iso).tz("Asia/Manila").format("hh:mm A");
+  };
+
+  // Helper to check if a floor has active closure at selected time
+  const getFloorClosureInfo = (floor) => {
+    if (!closures || closures.length === 0) return null;
+    
+    // Get active closures for this date
+    const dateStr = selectedDate.toLocaleDateString("en-CA", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    });
+    
+    const activeClosures = closures.filter(c => c.date === dateStr && c.status === "Active");
+    
+    for (const closure of activeClosures) {
+      if (closure.affectedAllFloors) {
+        return closure;
+      }
+      if (closure.affectedFloors && closure.affectedFloors.includes(floor)) {
+        return closure;
+      }
+    }
+    return null;
   };
 
   // Filter room statuses based on user permissions
@@ -36,8 +62,8 @@ function RoomAvailabilityModal({
 
     return {
       ...room,
-      occupied: approvedOccupied, // Always show approved/ongoing
-      pending: visiblePending, // Only show user's own pending reservations
+      occupied: approvedOccupied,
+      pending: visiblePending,
     };
   };
 
@@ -114,11 +140,27 @@ function RoomAvailabilityModal({
             <div className="space-y-3">
               {["Ground Floor", "2nd Floor", "4th Floor", "5th Floor"].filter(f => groupedByFloor[f]).map((floorName, fIdx) => {
                 const rooms = groupedByFloor[floorName];
+                const floorClosure = getFloorClosureInfo(floorName);
+                
                 return (
-                  <div key={fIdx} className="border border-gray-200 rounded-lg overflow-hidden">
-                    {/* Floor Header */}
-                    <div className="px-3 py-2 bg-gray-50 border-b border-gray-200">
-                      <h3 className="font-semibold text-gray-800 text-sm">{floorName}</h3>
+                  <div key={fIdx} className={`border rounded-lg overflow-hidden ${floorClosure ? 'border-red-300 bg-red-50/30' : 'border-gray-200'}`}>
+                    {/* Floor Header with Closure Badge */}
+                    <div className={`px-3 py-2 border-b ${floorClosure ? 'bg-red-100 border-red-200' : 'bg-gray-50 border-gray-200'}`}>
+                      <div className="flex justify-between items-center">
+                        <h3 className={`font-semibold text-sm ${floorClosure ? 'text-red-700' : 'text-gray-800'}`}>
+                          {floorName}
+                        </h3>
+                        {floorClosure && (
+                          <span className="text-xs bg-red-600 text-white px-2 py-1 rounded-full">
+                            Floor Closed
+                          </span>
+                        )}
+                      </div>
+                      {floorClosure && (
+                        <p className="text-xs text-red-600 mt-1">
+                          {floorClosure.title} • {floorClosure.startTime} - {floorClosure.endTime}
+                        </p>
+                      )}
                     </div>
                     
                     {/* Room List */}
@@ -130,16 +172,18 @@ function RoomAvailabilityModal({
                           .sort((a, b) => new Date(a.start) - new Date(b.start));
 
                         return (
-                          <div key={rIdx} className="p-3">
+                          <div key={rIdx} className={`p-3 ${floorClosure ? 'opacity-75' : ''}`}>
                             <div className="flex justify-between items-start gap-2">
                               {/* Room Info */}
                               <div className="flex items-center gap-2 min-w-0 flex-1">
                                 <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                                  floorClosure ? "bg-gray-400" :
                                   status === 'inactive' ? "bg-gray-400" :
                                   status === 'occupied' ? "bg-red-500" :
                                   status === 'pending' ? "bg-yellow-500" : "bg-green-500"
                                 }`} />
                                 <p className={`font-medium text-sm truncate ${
+                                  floorClosure ? "text-gray-500" :
                                   !isRoomActive ? "text-gray-500" : "text-gray-900"
                                 }`}>
                                   {room.room}
@@ -149,7 +193,11 @@ function RoomAvailabilityModal({
 
                               {/* Status */}
                               <div className="text-right flex-shrink-0">
-                                {status === 'inactive' ? (
+                                {floorClosure ? (
+                                  <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                    Floor Closed
+                                  </span>
+                                ) : status === 'inactive' ? (
                                   <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Unavailable</span>
                                 ) : status === 'occupied' ? (
                                   <div className="space-y-1">

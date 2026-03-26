@@ -1,7 +1,7 @@
 // components/user/UpcomingClosuresWidget.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import { AlertTriangle, Calendar, Clock, X, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertTriangle, Calendar, Clock, X, ChevronDown, ChevronUp, Building2 } from "lucide-react";
 
 const UpcomingClosuresWidget = ({ user, setView }) => {
   const [closures, setClosures] = useState([]);
@@ -62,7 +62,6 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
   const formatTimeTo12Hour = (timeString) => {
     if (!timeString) return '';
     
-    // Handle time in HH:MM format (e.g., "14:30")
     const [hours, minutes] = timeString.split(':');
     const hour = parseInt(hours, 10);
     const ampm = hour >= 12 ? 'PM' : 'AM';
@@ -175,20 +174,22 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
                     {closure.reason}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-1">
-                    {closure.affectedAllRooms ? (
-                      <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium">
-                        All Rooms
+                    {closure.affectedAllFloors ? (
+                      <span className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded-full font-medium flex items-center gap-1">
+                        <Building2 size={12} />
+                        All Floors
                       </span>
                     ) : (
-                      closure.affectedRooms?.slice(0, 3).map((room, idx) => (
-                        <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
-                          {room}
+                      closure.affectedFloors?.slice(0, 3).map((floor, idx) => (
+                        <span key={idx} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full flex items-center gap-1">
+                          <Building2 size={10} />
+                          {floor}
                         </span>
                       ))
                     )}
-                    {closure.affectedRooms?.length > 3 && (
+                    {closure.affectedFloors?.length > 3 && (
                       <span className="text-xs text-gray-400 px-2 py-1">
-                        +{closure.affectedRooms.length - 3}
+                        +{closure.affectedFloors.length - 3}
                       </span>
                     )}
                   </div>
@@ -199,7 +200,7 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
         })}
       </div>
 
-      {/* Closure Details Modal - Light Theme */}
+      {/* Closure Details Modal */}
       {selectedClosure && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100000] p-4">
           <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl animate-fadeIn">
@@ -239,12 +240,16 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
               <div className="bg-gray-50 rounded-xl p-4">
                 <p className="text-xs text-gray-500 mb-2 font-medium">Affected Areas:</p>
                 <div className="flex flex-wrap gap-1">
-                  {selectedClosure.affectedAllRooms ? (
-                    <span className="text-sm text-red-600 font-semibold">All Rooms</span>
+                  {selectedClosure.affectedAllFloors ? (
+                    <span className="text-sm text-red-600 font-semibold flex items-center gap-1">
+                      <Building2 size={14} />
+                      All Floors
+                    </span>
                   ) : (
-                    selectedClosure.affectedRooms?.map((room, idx) => (
-                      <span key={idx} className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full">
-                        {room}
+                    selectedClosure.affectedFloors?.map((floor, idx) => (
+                      <span key={idx} className="text-xs bg-gray-200 text-gray-700 px-2 py-1 rounded-full flex items-center gap-1">
+                        <Building2 size={10} />
+                        {floor}
                       </span>
                     ))
                   )}
@@ -253,7 +258,6 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
               
               {/* Action Buttons */}
               <div className="flex gap-3 pt-2">
-                
                 <button
                   onClick={() => setSelectedClosure(null)}
                   className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl transition text-sm font-medium"

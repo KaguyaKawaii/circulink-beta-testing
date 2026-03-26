@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { availableRoomImages } from "../data/roomImages";
 import ReportProblemModal from "./Modals/ReportProblemModal";
-
+import { AlertTriangle } from "lucide-react";
 
 function ReservationDetails({ reservation, setView, refreshReservations, user }) {
   const [cancelling, setCancelling] = useState(false);
@@ -40,6 +40,31 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
 
   // Extension states - ONLY reason for user
   const [extensionReason, setExtensionReason] = useState("");
+
+  // Helper function to check if reservation was cancelled due to closure
+  const isCancelledByClosure = (reservation) => {
+    return reservation?.status === "Cancelled" && 
+           reservation?.cancellationReason?.includes("facility closure");
+  };
+
+  // Helper function to get closure info from cancellation reason
+  const getClosureInfo = (reservation) => {
+    if (!isCancelledByClosure(reservation)) return null;
+    
+    const reason = reservation.cancellationReason || "";
+    // Try to extract closure title
+    const match = reason.match(/due to facility closure: ([^.]+)/);
+    if (match) {
+      return {
+        title: match[1].trim(),
+        fullReason: reason
+      };
+    }
+    return {
+      title: "Facility Closure",
+      fullReason: reason
+    };
+  };
 
   // Helper function to get participant ID consistently
   const getParticipantId = (participant) => {
@@ -246,7 +271,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
     
     const participantId = getParticipantId(participant);
     setProcessingParticipantAction(`remove-${participantId}`);
-    setIsParticipantAction(true); // Mark as participant action
+    setIsParticipantAction(true);
     
     try {
       const response = await axios.post(
@@ -257,16 +282,13 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         }
       );
 
-      // Use separate state for participant messages
       setParticipantModalMessage(response.data.message || "Participant removed successfully");
       setShowParticipantResultModal(true);
       
-      // Close any open modals
       setShowManageParticipants(false);
       setShowRemoveConfirm(false);
       setParticipantToRemove(null);
       
-      // Refresh the data
       setTimeout(() => {
         refreshReservationData();
       }, 500);
@@ -287,7 +309,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
     
     const participantId = getParticipantId(selectedUser);
     setProcessingParticipantAction(`add-${participantId}`);
-    setIsParticipantAction(true); // Mark as participant action
+    setIsParticipantAction(true);
     
     try {
       const response = await axios.post(
@@ -298,7 +320,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         }
       );
 
-      // Use separate state for participant messages
       setParticipantModalMessage(response.data.message || "Participant added successfully");
       setShowParticipantResultModal(true);
       
@@ -307,7 +328,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
       setShowAddParticipantModal(false);
       setShowManageParticipants(false);
       
-      // Refresh the data
       setTimeout(() => {
         refreshReservationData();
       }, 500);
@@ -457,7 +477,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
 
   const handleShowExtendModal = () => {
     setShowExtendModal(true);
-    // Reset extension form - only reason
     setExtensionReason("");
   };
 
@@ -476,7 +495,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   const handleResultModalClose = () => {
     setShowResultModal(false);
     
-    // Check if this is a critical error that should redirect
     if (modalMessage.includes("no longer available") || modalMessage.includes("deleted")) {
       localStorage.removeItem('selectedReservation');
       setLocalReservation(null);
@@ -486,15 +504,12 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
       }
       setView("dashboard");
     } else {
-      // Just refresh the data but stay on the page
       refreshReservationData();
     }
   };
 
-  // Separate handler for participant result modal
   const handleParticipantResultModalClose = () => {
     setShowParticipantResultModal(false);
-    // Stay on the same page, just refresh data
     refreshReservationData();
   };
 
@@ -596,6 +611,9 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
   const hasRejectedExtension = localReservation.extensionRequested && 
                               localReservation.extensionStatus === "Rejected";
 
+  const closureInfo = getClosureInfo(localReservation);
+  const cancelledByClosure = isCancelledByClosure(localReservation);
+
   return (
     <main className="ml-0 lg:ml-[250px] w-full lg:w-[calc(100%-250px)] flex flex-col min-h-screen bg-gray-50 pb-safe">
       {/* Header */}
@@ -651,8 +669,22 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
             </div>
           )}
 
+          {/* Closure Cancellation Banner */}
+          {cancelledByClosure && closureInfo && (
+            <div className="mb-3 sm:mb-4 bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
+                <div>
+                  <p className="text-red-800 font-semibold text-sm">Cancelled Due to Facility Closure</p>
+                  <p className="text-red-700 text-xs mt-1">{closureInfo.title}</p>
+                  <p className="text-red-600 text-xs mt-1">{closureInfo.fullReason}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-5">
-            {/* Date - Separate from Time */}
+            {/* Date */}
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-500 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -665,7 +697,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
               </div>
             </div>
 
-            {/* Original Time - Separate from Date */}
+            {/* Original Time */}
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-500 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -680,6 +712,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
               </div>
             </div>
             
+            {/* Room */}
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-500 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -692,19 +725,21 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
               </div>
             </div>
             
+            {/* Location/Floor */}
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-500 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                Location
+                Floor
               </p>
               <div className="p-3 rounded-lg bg-gray-50 border border-gray-200">
                 <p className="font-medium text-gray-800 text-sm sm:text-base">{localReservation.location}</p>
               </div>
             </div>
             
+            {/* Purpose */}
             <div className="space-y-1 lg:col-span-1">
               <p className="text-sm font-medium text-gray-500 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -719,6 +754,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
               </div>
             </div>
             
+            {/* Status */}
             <div className="space-y-1">
               <p className="text-sm font-medium text-gray-500 flex items-center">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -729,6 +765,14 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
               <div className={`p-3 w-full text-center rounded-lg font-semibold text-sm sm:text-base ${statusColorClass}`}>
                 {localReservation.status}
               </div>
+              {cancelledByClosure && closureInfo && (
+                <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-xs text-red-700 flex items-center gap-1">
+                    <AlertTriangle size={12} className="flex-shrink-0" />
+                    <span className="break-words">{closureInfo.fullReason}</span>
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -768,7 +812,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
           )}
         </div>
 
-        {/* Room/Floor Image - Dynamically show based on reservation */}
+        {/* Room/Floor Image */}
         {roomImage && (
           <div className="bg-white rounded-xl shadow-sm p-3 sm:p-4 lg:p-6 border border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800 mb-3 sm:mb-4 pb-2 border-b border-gray-100">
@@ -820,7 +864,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                           </span>
                         )}
                       </div>
-                      {/* Remove button - hidden for index 0 (main reserver) */}
                       {isMainReserver && ["Pending", "Approved"].includes(localReservation.status) && i !== 0 && (
                         <button
                           onClick={() => openRemoveConfirm(p)}
@@ -865,7 +908,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                     {isMainReserver && ["Pending", "Approved"].includes(localReservation.status) && (
                       <th className="px-3 py-2 lg:px-4 lg:py-3 text-left text-xs font-medium text-gray-800 uppercase tracking-wider">Actions</th>
                     )}
-                  </tr>
+                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {localReservation.participants.map((p, i) => (
@@ -890,7 +933,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                       <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm text-gray-500">
                         {p.department || "N/A"}
                       </td>
-                      {/* Action column - hidden for index 0 (main reserver) */}
                       {isMainReserver && ["Pending", "Approved"].includes(localReservation.status) && (
                         <td className="px-3 py-2 lg:px-4 lg:py-3 whitespace-nowrap text-xs lg:text-sm">
                           {i !== 0 ? (
@@ -984,7 +1026,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                     {processingAction === "end-early" ? "Ending..." : "End Early"}
                   </button>
 
-                  {/* Extension Request Handling - Both Admin AND Staff can handle */}
                   {hasPendingExtension && (
                     <>
                       <button
@@ -1062,7 +1103,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
             </>
           )}
 
-          {/* Staff Monitoring View - No actions but visible for reference */}
+          {/* Staff Monitoring View */}
           {isStaff && !isAdmin && localReservation.status === "Pending" && (
             <div className="text-center text-gray-500 py-2 px-4 bg-gray-100 rounded-lg">
               <p className="text-sm">Monitoring Mode - Only Admin can approve/reject reservations</p>
@@ -1074,13 +1115,9 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
       {/* Footer */}
       <footer className="mt-auto bg-white border-t border-gray-200">
         <div className="px-4 sm:px-5 py-3 sm:py-2 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
-          {/* Copyright */}
           <div className="text-xs sm:text-sm text-gray-500 order-2 sm:order-1 flex items-center gap-1">
-            
             © {new Date().getFullYear()} <span className="font-semibold">USA-FLD CircuLink</span>
           </div>
-
-          {/* Report Button */}
           <button
             onClick={() => setShowReportModal(true)}
             className="flex items-center gap-1 text-xs sm:text-sm font-medium text-red-600 hover:text-red-800 transition-all duration-300 cursor-pointer order-1 sm:order-2 hover:gap-2"
@@ -1104,7 +1141,8 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         </div>
       </footer>
 
-      {/* Modal Components */}
+      {/* Modals - Keep existing modals (Cancel, End Early, Start, Approve, Reject, Approve Extension, Reject Extension, Result, Extend, etc.) */}
+      {/* I'm keeping all existing modal code as is to save space, they work correctly */}
       {showReportModal && (
         <ReportProblemModal
           isOpen={showReportModal}
@@ -1113,7 +1151,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         />
       )}
 
-      {/* All Modals with Responsive Improvements */}
       {/* Cancel Confirmation Modal */}
       {showCancelConfirm && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[90] p-2 sm:p-4">
@@ -1195,7 +1232,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         </div>
       )}
 
-      {/* Start Reservation Confirmation Modal */}
+      {/* Start Confirmation Modal */}
       {showStartConfirm && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[90] p-2 sm:p-4">
           <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 mx-2">
@@ -1324,7 +1361,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
 
       {/* Approve Extension Confirmation Modal */}
       {showApproveExtensionConfirm && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[90] p-2 sm:p-4">
           <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 mx-2">
             <div className="flex items-center mb-4">
               <div className="bg-green-100 p-2 rounded-full mr-3">
@@ -1406,7 +1443,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         </div>
       )}
 
-      {/* Result Modal (for non-participant actions) */}
+      {/* Result Modal */}
       {showResultModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[95] p-2 sm:p-4">
           <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 mx-2">
@@ -1431,14 +1468,14 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         </div>
       )}
 
-      {/* Participant Result Modal (separate from main actions) */}
+      {/* Participant Result Modal */}
       {showParticipantResultModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[96] p-2 sm:p-4">
           <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 mx-2">
             <div className="flex items-center mb-4">
               <div className="bg-green-100 p-2 rounded-full mr-3">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <path fillRule="evenodd" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" clipRule="evenodd" />
                 </svg>
               </div>
               <h3 className="text-xl font-semibold text-gray-800">Participant Management</h3>
@@ -1456,7 +1493,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
         </div>
       )}
 
-      {/* Extend Modal - SIMPLIFIED: Only reason field remains */}
+      {/* Extend Modal */}
       {showExtendModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[90] p-2 sm:p-4">
           <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 mx-2">
@@ -1470,13 +1507,11 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
             </div>
             
             <div className="space-y-4 mb-6 max-h-[60vh] overflow-y-auto pr-1">
-              {/* Current Schedule - For information only */}
               <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                 <p className="text-xs font-medium text-gray-500 mb-1">Current End Time</p>
                 <p className="text-sm font-semibold text-gray-900">{formatTimeOnly(currentEndTime)}</p>
               </div>
 
-              {/* Reason/Notes - ONLY FIELD REMAINING */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Reason for Extension <span className="text-red-500">*</span>
@@ -1491,7 +1526,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                 />
               </div>
 
-              {/* Info Banner - Updated message */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -1691,8 +1725,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
       {showManageParticipants && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[80] p-2 sm:p-4">
           <div className="bg-white rounded-2xl p-4 sm:p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 mx-2">
-            
-            {/* Header */}
             <div className="flex items-center justify-between mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-gray-200">
               <div className="flex items-center space-x-2 sm:space-x-3">
                 <div className="bg-indigo-100 p-2 sm:p-3 rounded-full">
@@ -1715,7 +1747,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
               </button>
             </div>
 
-            {/* Info Banner */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6">
               <div className="flex items-start space-x-2 sm:space-x-3">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
@@ -1732,10 +1763,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
               </div>
             </div>
 
-            {/* Main Content - Responsive Layout */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
-              
-              {/* Current Participants Column */}
               <div className="space-y-3 sm:space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-gray-800 text-base sm:text-lg">Current Participants</h4>
@@ -1764,7 +1792,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                             )}
                           </div>
                         </div>
-                        {/* Remove button - hidden for index 0 (main reserver) */}
                         {index !== 0 && (
                           <button
                             onClick={() => openRemoveConfirm(participant)}
@@ -1778,7 +1805,7 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                           </button>
                         )}
                         {index === 0 && (
-                          <div className="w-[44px]"></div> /* Spacer for alignment */
+                          <div className="w-[44px]"></div>
                         )}
                       </div>
                     ))
@@ -1794,7 +1821,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
                 </div>
               </div>
 
-              {/* Add Participants Column */}
               <div className="space-y-3 sm:space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-gray-800 text-base sm:text-lg">Add New Participant</h4>
@@ -1841,7 +1867,6 @@ function ReservationDetails({ reservation, setView, refreshReservations, user })
               </div>
             </div>
 
-            {/* Footer */}
             <div className="flex justify-end pt-3 sm:pt-4 border-t border-gray-200">
               <button
                 onClick={() => setShowManageParticipants(false)}

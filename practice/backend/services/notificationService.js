@@ -1,3 +1,4 @@
+// services/notificationService.js
 import Notification from "../models/Notification.js";
 
 class NotificationService {
@@ -5,15 +6,18 @@ class NotificationService {
     try {
       const {
         userId,
+        title,
         message,
         status,
         reservationId,
-        type = "system", // Default to "system" instead of "reservation"
+        type = "system",
         reportId,
+        closureId,
         targetRole = "user",
         adminName,
         issue,
         roomName,
+        affectedFloors,
         date,
         startTime,
         endTime,
@@ -21,7 +25,7 @@ class NotificationService {
         userName,
         idNumber,
         staffName,
-        title // Add title field
+        closureTitle
       } = notificationData;
 
       // Normalize status to proper casing
@@ -36,14 +40,18 @@ class NotificationService {
         roomName,
         date,
         type: normalizedType,
-        userName
+        userName,
+        closureTitle,
+        affectedFloors
       });
 
       // Generate title if not provided
       const finalTitle = title || this.generateDefaultTitle({
         status: normalizedStatus,
         type: normalizedType,
-        userName
+        userName,
+        closureTitle,
+        affectedFloors
       });
 
       // Create the notification
@@ -53,12 +61,14 @@ class NotificationService {
         message: finalMessage,
         status: normalizedStatus,
         reservationId,
-        type: normalizedType, // Use normalized type
+        type: normalizedType,
         reportId,
+        closureId,
         targetRole,
         adminName,
         issue,
         roomName,
+        affectedFloors,
         date,
         startTime,
         endTime,
@@ -66,6 +76,7 @@ class NotificationService {
         userName,
         idNumber,
         staffName,
+        closureTitle,
         isRead: false,
         dismissed: false,
       });
@@ -94,7 +105,6 @@ class NotificationService {
           io.to("admin-room").emit("notification", emitData);
           console.log('📢 Sent to admin-room');
         } else if (userId) {
-          // Use the same room name as backend socket setup: "user-{userId}"
           const userRoom = `user-${userId}`;
           io.to(userRoom).emit("new-notification", emitData);
           io.to(userRoom).emit("notification", emitData);
@@ -116,7 +126,6 @@ class NotificationService {
   // Create multiple notifications for different users
   createBulkNotifications = async (notificationsData, io) => {
     try {
-      // Normalize data for bulk insert
       const normalizedNotifications = notificationsData.map(notification => {
         const normalizedStatus = this.normalizeStatus(notification.status || "Pending");
         const normalizedType = this.normalizeType(notification.type || "system");
@@ -128,14 +137,18 @@ class NotificationService {
           title: notification.title || this.generateDefaultTitle({
             status: normalizedStatus,
             type: normalizedType,
-            userName: notification.userName
+            userName: notification.userName,
+            closureTitle: notification.closureTitle,
+            affectedFloors: notification.affectedFloors
           }),
           message: notification.message || this.generateDefaultMessage({
             status: normalizedStatus,
             roomName: notification.roomName,
             date: notification.date,
             type: normalizedType,
-            userName: notification.userName
+            userName: notification.userName,
+            closureTitle: notification.closureTitle,
+            affectedFloors: notification.affectedFloors
           }),
           isRead: false,
           dismissed: false,
@@ -144,7 +157,6 @@ class NotificationService {
 
       const notifications = await Notification.insertMany(normalizedNotifications);
       
-      // Emit each notification with correct event names
       if (io) {
         for (const notification of notifications) {
           const populated = await Notification.findById(notification._id)
@@ -178,7 +190,84 @@ class NotificationService {
     }
   }
 
-  // Helper method to normalize status casing
+  // ========== NEW: CLOSURE NOTIFICATION METHODS ==========
+  
+  createClosureActivationNotification = async (userId, userName, reservation, closure, io) => {
+    return this.createNotification({
+      userId,
+      userName,
+      title: "Reservation Cancelled Due to Facility Closure",
+      message: `Your reservation for ${reservation.roomName} on ${reservation.date} has been cancelled due to facility closure: "${closure.title}". ${closure.reason}`,
+      type: "alert",
+      status: "Cancelled",
+      targetRole: "user",
+      roomName: reservation.roomName,
+      date: reservation.date,
+      startTime: reservation.time || reservation.startTime,
+      endTime: reservation.endTime,
+      closureId: closure._id,
+      closureTitle: closure.title
+    }, io);
+  };
+
+  createFloorClosureNotification = async (userId, userName, floor, closure, io) => {
+    return this.createNotification({
+      userId,
+      userName,
+      title: `Floor Closure Notice: ${floor}`,
+      message: `The ${floor} will be closed on ${closure.date} from ${closure.startTime} to ${closure.endTime} for: ${closure.title}. ${closure.reason}`,
+      type: "closure",
+      status: "Closure",
+      targetRole: "user",
+      date: closure.date,
+      startTime: closure.startTime,
+      endTime: closure.endTime,
+      affectedFloors: [floor],
+      closureId: closure._id,
+      closureTitle: closure.title
+    }, io);
+  };
+
+  createGlobalClosureNotification = async (userId, userName, closure, io) => {
+    return this.createNotification({
+      userId,
+      userName,
+      title: `Facility Closure Notice`,
+      message: `The facility will be closed on ${closure.date} from ${closure.startTime} to ${closure.endTime} for: ${closure.title}. ${closure.reason}. All floors are affected.`,
+      type: "closure",
+      status: "Closure",
+      targetRole: "user",
+      date: closure.date,
+      startTime: closure.startTime,
+      endTime: closure.endTime,
+      affectedFloors: ["All Floors"],
+      closureId: closure._id,
+      closureTitle: closure.title
+    }, io);
+  };
+
+  createClosureNotificationForAdmins = async (closure, io) => {
+    const affectedFloorsText = closure.affectedAllFloors 
+      ? "All Floors" 
+      : closure.affectedFloors?.join(", ") || "None";
+    
+    return this.createNotification({
+      targetRole: "admin",
+      title: `New Closure Created: ${closure.title}`,
+      message: `A new facility closure has been created: "${closure.title}". Affected floors: ${affectedFloorsText}. Date: ${closure.date}, Time: ${closure.startTime} - ${closure.endTime}. Reason: ${closure.reason}`,
+      type: "closure",
+      status: "New",
+      date: closure.date,
+      startTime: closure.startTime,
+      endTime: closure.endTime,
+      affectedFloors: closure.affectedFloors || [],
+      closureId: closure._id,
+      closureTitle: closure.title
+    }, io);
+  };
+
+  // ========== EXISTING METHODS ==========
+
   normalizeStatus = (status) => {
     if (!status || typeof status !== 'string') return 'Pending';
     
@@ -195,23 +284,18 @@ class NotificationService {
       'verified': 'Verified',
       'unverified': 'Unverified',
       'read': 'Read',
-      'unread': 'Unread'
+      'unread': 'Unread',
+      'closure': 'Closure'
     };
     
     const lowerStatus = status.toLowerCase();
-    return statusMap[lowerStatus] || status; // Return original if no mapping
+    return statusMap[lowerStatus] || status;
   }
 
-  // ✅ NEW: Helper method to normalize type to valid enum values
   normalizeType = (type) => {
     if (!type || typeof type !== 'string') return 'system';
     
-    // Map all possible type values to valid enum values
-    // Based on your error, valid enum values likely include: 
-    // 'system', 'message', 'alert', 'reminder', 'verification', 'reservation', 'report', 'announcement', etc.
-    
     const typeMap = {
-      // User account related
       'user_welcome': 'system',
       'welcome': 'system',
       'account_created': 'system',
@@ -220,48 +304,49 @@ class NotificationService {
       'account_suspended': 'alert',
       'account_unsuspended': 'alert',
       'password_changed': 'system',
-      
-      // Reservation related
       'reservation': 'reservation',
       'booking': 'reservation',
       'extension': 'extension',
-      
-      // Report related
       'report': 'report',
-      
-      // System related
       'system': 'system',
       'announcement': 'announcement',
       'maintenance': 'maintenance',
       'reminder': 'reminder',
-      
-      // Message related
       'message': 'message',
       'chat': 'message',
-      
-      // Default fallback
+      'closure': 'closure',
+      'alert': 'alert',
+      'participant': 'participant',
       'default': 'system'
     };
     
     const lowerType = type.toLowerCase();
-    return typeMap[lowerType] || 'system'; // Default to 'system' if no mapping
+    return typeMap[lowerType] || 'system';
   }
 
-  // ✅ NEW: Helper method to generate default title
   generateDefaultTitle = (data) => {
-    const { status, type, userName } = data;
+    const { status, type, userName, closureTitle, affectedFloors } = data;
+
+    // Closure notifications
+    if (type === 'closure') {
+      if (affectedFloors && affectedFloors.length > 0 && affectedFloors[0] !== "All Floors") {
+        return `Floor Closure: ${affectedFloors.join(", ")}`;
+      }
+      return `Facility Closure: ${closureTitle || "Notice"}`;
+    }
+    
+    if (type === 'alert') {
+      if (status === 'Cancelled') return 'Reservation Cancelled';
+      if (status === 'Suspended') return 'Account Suspended';
+      if (status === 'Unsuspended') return 'Account Restored';
+      return 'Important Alert';
+    }
 
     // Account related notifications
     if (type === 'verification') {
       if (status === 'Verified') return 'Account Verified';
       if (status === 'Unverified') return 'Account Unverified';
       return 'Verification Update';
-    }
-    
-    if (type === 'alert') {
-      if (status === 'Suspended') return 'Account Suspended';
-      if (status === 'Unsuspended') return 'Account Restored';
-      return 'Account Alert';
     }
     
     if (type === 'system') {
@@ -287,6 +372,12 @@ class NotificationService {
       return 'Extension Request';
     }
     
+    if (type === 'participant') {
+      if (status === 'added' || status === 'participant_added') return 'Added as Participant';
+      if (status === 'removed') return 'Removed from Reservation';
+      return 'Participant Update';
+    }
+    
     if (type === 'message') {
       return 'New Message';
     }
@@ -310,21 +401,35 @@ class NotificationService {
     return 'Notification';
   }
 
-  // Helper method to generate default message
   generateDefaultMessage = (data) => {
-    const { status, roomName, date, type, userName } = data;
+    const { status, roomName, date, type, userName, closureTitle, affectedFloors } = data;
+
+    // Closure notifications
+    if (type === 'closure') {
+      const floorsText = affectedFloors && affectedFloors.length > 0 
+        ? affectedFloors.join(", ") 
+        : "All Floors";
+      return `${closureTitle || "Facility closure"} affecting ${floorsText} on ${date || "the selected date"}.`;
+    }
+    
+    if (type === 'alert') {
+      if (status === 'Cancelled') {
+        return `Your reservation for ${roomName || 'the room'} on ${date || 'the selected date'} has been cancelled due to a facility closure.`;
+      }
+      if (status === 'Suspended') {
+        return `Your account has been suspended. Please contact the administrator for more information.`;
+      }
+      if (status === 'Unsuspended') {
+        return `Your account has been restored. You may now log in.`;
+      }
+      return `Important alert: ${status || 'Update available'}`;
+    }
 
     // Account related notifications
     if (type === 'verification') {
       if (status === 'Verified') return `Your account has been verified successfully.`;
       if (status === 'Unverified') return `Your account has been unverified. Please contact support if you believe this is an error.`;
       return `Your verification status has been updated.`;
-    }
-    
-    if (type === 'alert') {
-      if (status === 'Suspended') return `Your account has been suspended. Please contact the administrator for more information.`;
-      if (status === 'Unsuspended') return `Your account has been restored. You may now log in.`;
-      return `There's an update regarding your account.`;
     }
     
     if (type === 'system') {
@@ -354,8 +459,6 @@ class NotificationService {
       }
     } else if (type === "report") {
       return `New report notification.`;
-    } else if (type === "system") {
-      return `System notification.`;
     } else if (type === "announcement") {
       return `New announcement.`;
     } else if (type === "reminder") {
@@ -364,6 +467,14 @@ class NotificationService {
       return `Extension request notification.`;
     } else if (type === "maintenance") {
       return `Maintenance notification.`;
+    } else if (type === "participant") {
+      if (status === "added" || status === "participant_added") {
+        return `You have been added as a participant to a reservation for ${roomName} on ${date}.`;
+      }
+      if (status === "removed") {
+        return `You have been removed from the reservation for ${roomName} on ${date}.`;
+      }
+      return `Update regarding your participation in reservation for ${roomName}.`;
     } else if (type === "message") {
       return `You have a new message.`;
     }
@@ -371,7 +482,7 @@ class NotificationService {
     return "New notification";
   }
 
-  // ✅ NEW: Convenience method for welcome notifications
+  // Convenience methods
   createWelcomeNotification = async (userId, userName, io) => {
     return this.createNotification({
       userId,
@@ -384,7 +495,6 @@ class NotificationService {
     }, io);
   }
 
-  // ✅ NEW: Convenience method for verification notifications
   createVerificationNotification = async (userId, userName, isVerified, io) => {
     return this.createNotification({
       userId,
@@ -399,7 +509,6 @@ class NotificationService {
     }, io);
   }
 
-  // ✅ NEW: Convenience method for suspension notifications
   createSuspensionNotification = async (userId, userName, isSuspended, io) => {
     return this.createNotification({
       userId,

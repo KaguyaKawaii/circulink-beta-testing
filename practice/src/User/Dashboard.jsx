@@ -8,7 +8,7 @@ import ReportProblemModal from "./Modals/ReportProblemModal";
 import AnnouncementModal from "./Modals/AnnouncementModal";
 import UpcomingClosuresWidget from "./UpcomingClosuresWidget";
 
-// Helper functions (keep your existing ones)
+// Helper functions
 const formatPH = (date) => {
   if (!date) return "N/A";
   try {
@@ -96,10 +96,69 @@ function Dashboard({ user, setView, setSelectedReservation }) {
   const [currentAnnouncementIndex, setCurrentAnnouncementIndex] = useState(0);
   const [allAnnouncements, setAllAnnouncements] = useState([]);
   
-const API_BASE_URL = `${import.meta.env.VITE_API_URL}`;
-const RESERVATIONS_ENDPOINT = `${API_BASE_URL}/api/reservations`;
-const NEWS_ENDPOINT = `${API_BASE_URL}/api/news`;
-const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
+  // ========== CLOSURE SYSTEM STATE ==========
+  const [activeClosures, setActiveClosures] = useState([]);
+  const [closureLoading, setClosureLoading] = useState(false);
+  
+  const API_BASE_URL = `${import.meta.env.VITE_API_URL}`;
+  const RESERVATIONS_ENDPOINT = `${API_BASE_URL}/api/reservations`;
+  const NEWS_ENDPOINT = `${API_BASE_URL}/api/news`;
+  const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
+
+  // ========== CLOSURE FUNCTIONS ==========
+  const fetchActiveClosures = useCallback(async () => {
+    setClosureLoading(true);
+    try {
+      const today = getManilaDateString(new Date());
+      const response = await axios.get(`${API_BASE_URL}/api/closures`, {
+        params: {
+          status: "Active"
+        }
+      });
+      
+      // Filter closures for today and active status
+      const todayClosures = response.data.closures?.filter(c => 
+        c.status === "Active" && c.date === today
+      ) || [];
+      
+      setActiveClosures(todayClosures);
+      
+      // Log any floor closures
+      if (todayClosures.length > 0) {
+        console.log("Active closures today:", todayClosures);
+      }
+    } catch (error) {
+      console.error("Failed to fetch active closures:", error);
+    } finally {
+      setClosureLoading(false);
+    }
+  }, [API_BASE_URL]);
+
+  // Helper to check if a floor is closed at a specific time
+  const isFloorClosed = useCallback((floor, date) => {
+    if (!date) return false;
+    const dateStr = getManilaDateString(date);
+    
+    return activeClosures.some(closure => {
+      if (closure.date !== dateStr) return false;
+      if (closure.affectedAllFloors) return true;
+      if (closure.affectedFloors && closure.affectedFloors.includes(floor)) return true;
+      return false;
+    });
+  }, [activeClosures]);
+
+  // Get closure info for a floor
+  const getFloorClosureInfo = useCallback((floor, date) => {
+    if (!date) return null;
+    const dateStr = getManilaDateString(date);
+    
+    return activeClosures.find(closure => {
+      if (closure.date !== dateStr) return false;
+      if (closure.affectedAllFloors) return true;
+      if (closure.affectedFloors && closure.affectedFloors.includes(floor)) return true;
+      return false;
+    });
+  }, [activeClosures]);
 
   // Event listener for new reservations
   useEffect(() => {
@@ -170,7 +229,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
     }
   }, [user, RESERVATIONS_ENDPOINT]);
 
-  // Fetch news - FIXED with error handling for 404
+  // Fetch news
   const fetchNews = useCallback(async () => {
     try {
       console.log("Fetching news from:", NEWS_ENDPOINT);
@@ -298,11 +357,12 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
         fetchReservations(),
         checkActiveReservation(),
         fetchNews(),
-        fetchAnnouncements()
+        fetchAnnouncements(),
+        fetchActiveClosures()
       ]);
     };
     loadData();
-  }, [fetchReservations, checkActiveReservation, fetchNews, fetchAnnouncements]);
+  }, [fetchReservations, checkActiveReservation, fetchNews, fetchAnnouncements, fetchActiveClosures]);
 
   // Handle reservation updates
   useEffect(() => {
@@ -313,6 +373,15 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
     window.addEventListener("reservationSubmitted", handleNewReservation);
     return () => window.removeEventListener("reservationSubmitted", handleNewReservation);
   }, [fetchReservations, checkActiveReservation]);
+
+  // Refresh closures periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchActiveClosures();
+    }, 60000); // Refresh every minute
+    
+    return () => clearInterval(interval);
+  }, [fetchActiveClosures]);
 
   // Room availability modal effect
   useEffect(() => {
@@ -333,6 +402,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                 location: r.location || "Main Building",
                 isActive: r.isActive !== false,
                 occupied: Array.isArray(r.occupied) ? r.occupied : [],
+                pending: Array.isArray(r.pending) ? r.pending : [],
               }))
             : []
         );
@@ -394,14 +464,13 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
     setCurrentAnnouncementIndex(0);
   };
 
-  // Event handlers - REMOVED RESERVATION LIMIT
+  // Event handlers
   const handleReserveClick = () => {
-    // No more limit check - directly go to reserve view
     setView("reserve");
   };
 
   const handleDateClick = async (date) => {
-    console.log("Date clicked:", date); // Debug log
+    console.log("Date clicked:", date);
     setSelectedDate(date);
     setModalDate(date);
     setAvailLoading(true);
@@ -410,13 +479,13 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
 
     try {
       const manilaDateStr = getManilaDateString(date);
-      console.log("Fetching availability for date:", manilaDateStr); // Debug log
+      console.log("Fetching availability for date:", manilaDateStr);
       
       const { data } = await axios.get(`${RESERVATIONS_ENDPOINT}/availability`, {
         params: { date: manilaDateStr },
       });
 
-      console.log("Availability data received:", data); // Debug log
+      console.log("Availability data received:", data);
 
       setRoomStatuses(
         Array.isArray(data)
@@ -426,6 +495,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
               location: r.location || "Main Building",
               isActive: r.isActive !== false,
               occupied: Array.isArray(r.occupied) ? r.occupied : [],
+              pending: Array.isArray(r.pending) ? r.pending : [],
             }))
           : []
       );
@@ -445,15 +515,27 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
     const hasRes = allReservations.some(reservation => 
       isSameManilaDate(new Date(reservation.datetime), date)
     );
+    
+    // Check if this date has any active closures
+    const dateStr = getManilaDateString(date);
+    const hasClosure = activeClosures.some(closure => closure.date === dateStr);
+    
+    // Check if any floor is closed on this date
+    const hasFloorClosure = activeClosures.some(closure => 
+      closure.date === dateStr && (closure.affectedAllFloors || (closure.affectedFloors && closure.affectedFloors.length > 0))
+    );
 
     return (
       <div
         className={`absolute inset-0 flex items-center justify-center ${
           isToday ? "bg-yellow-400/20 rounded-full" : ""
-        } ${hasRes ? "bg-green-500/10" : ""}`}
-        aria-label={`${date.getDate()} ${isToday ? "Today" : ""} ${hasRes ? "Has reservation" : ""}`}
+        } ${hasRes ? "bg-green-500/10" : ""} ${hasFloorClosure ? "bg-red-500/10" : ""}`}
+        aria-label={`${date.getDate()} ${isToday ? "Today" : ""} ${hasRes ? "Has reservation" : ""} ${hasFloorClosure ? "Has floor closure" : ""}`}
       >
         {date.getDate()}
+        {hasFloorClosure && (
+          <div className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full"></div>
+        )}
       </div>
     );
   };
@@ -495,6 +577,12 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
     return Array.from({ length: endPage - startPage + 1 }, (_, i) => startPage + i);
   };
 
+  // Get active floor closures for display
+  const activeFloorClosures = activeClosures.filter(c => 
+    !c.affectedAllFloors && c.affectedFloors && c.affectedFloors.length > 0
+  );
+  const globalClosure = activeClosures.find(c => c.affectedAllFloors);
+
   return (
     <main className="w-full min-h-screen flex flex-col bg-[#FFFCFB] lg:pl-[250px]">
       {/* HEADER */}
@@ -517,7 +605,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
             <p className="text-red-100 mt-1 sm:mt-2 text-sm sm:text-base relative z-10">Manage your room reservations and stay updated</p>
           </div>
 
-          {/* Navigation Tabs - Preserved original sizing */}
+          {/* Navigation Tabs */}
           <div className="flex w-[200px] max-w-xs sm:max-w-sm justify-between bg-white shadow-md p-1 rounded-3xl mb-1">
             <button
               onClick={() => setView("dashboard")}
@@ -742,6 +830,18 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                       </button>
                     </div>
 
+                    {/* Check if reservation was cancelled due to closure */}
+                    {reservation.status === "Cancelled" && reservation.cancellationReason?.includes("facility closure") && (
+                      <div className="text-orange-600 text-xs mt-2 bg-orange-50 p-2 rounded-lg border border-orange-200">
+                        <p className="flex items-center gap-1">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          <span className="break-words"><strong>Cancelled due to facility closure.</strong> {reservation.cancellationReason}</span>
+                        </p>
+                      </div>
+                    )}
+
                     <div className="text-gray-500 text-xs mt-2 bg-gray-50 p-2 rounded-lg border border-gray-100">
                       <p className="flex items-center gap-1">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -777,7 +877,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
         {/* RIGHT SIDEBAR */}
         <aside className="w-full xl:w-80 flex flex-col gap-4 sm:gap-6 min-w-0">
           
-          {/* Upcoming Closures Widget - Now with light theme */}
+          {/* Upcoming Closures Widget */}
           <UpcomingClosuresWidget user={user} setView={setView} />
           
           {/* Calendar */}
@@ -808,7 +908,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
                 return days[date.getDay()];
               }}
             />
-            <div className="mt-4 flex items-center justify-center space-x-4 gap-2">
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
               <div className="flex items-center">
                 <div className="w-3 h-3 rounded-full bg-yellow-400/20 border border-yellow-400 mr-2"></div>
                 <span className="text-xs text-gray-600">Today</span>
@@ -819,12 +919,34 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
               </div>
               <div className="flex items-center">
                 <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500 mr-2"></div>
+                <span className="text-xs text-gray-600">Has Closure</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
                 <span className="text-xs text-gray-600">Click to view</span>
               </div>
-
             </div>
-
-
+            {/* Closure Notice */}
+            {globalClosure && (
+              <div className="mt-3 p-2 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-xs text-red-700 flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <strong>Closure:</strong> {globalClosure.title}
+                </p>
+              </div>
+            )}
+            {activeFloorClosures.length > 0 && !globalClosure && (
+              <div className="mt-3 p-2 bg-orange-50 border border-orange-200 rounded-lg">
+                <p className="text-xs text-orange-700 flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  </svg>
+                  <strong>Floor Closures:</strong> {activeFloorClosures.map(c => c.affectedFloors?.join(", ")).join(", ")}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Reserve Room Button */}
@@ -981,7 +1103,7 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
         />
       )}
 
-      {/* Room Availability Modal */}
+      {/* Room Availability Modal - Pass closures */}
       {showAvailModal && (
         <RoomAvailabilityModal
           selectedDate={modalDate}
@@ -989,6 +1111,8 @@ const ANNOUNCEMENTS_ENDPOINT = `${API_BASE_URL}/api/announcements`;
           availLoading={availLoading}
           availError={availError}
           onClose={() => setShowAvailModal(false)}
+          currentUserId={user?._id}
+          closures={activeClosures}
         />
       )}
     </main>

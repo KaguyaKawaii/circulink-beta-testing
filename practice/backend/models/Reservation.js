@@ -1,3 +1,4 @@
+// models/Reservation.js
 import mongoose from "mongoose";
 
 const reservationSchema = new mongoose.Schema({
@@ -53,6 +54,21 @@ const reservationSchema = new mongoose.Schema({
     enum: ["Pending", "Approved", "Rejected", "Ongoing", "Cancelled", "Expired", "Completed"],
     default: "Pending",
   },
+  
+  // ========== CLOSURE CANCELLATION FIELDS ==========
+  cancellationReason: {
+    type: String,
+    default: null,
+  },
+  cancelledBy: {
+    type: String,
+    default: null,
+  },
+  cancelledAt: {
+    type: Date,
+    default: null,
+  },
+  
   extensionRequested: {
     type: Boolean,
     default: false,
@@ -98,6 +114,8 @@ const reservationSchema = new mongoose.Schema({
 reservationSchema.index({ userId: 1, datetime: 1 });
 reservationSchema.index({ roomId: 1, datetime: 1 });
 reservationSchema.index({ status: 1 });
+reservationSchema.index({ cancelledAt: 1 });
+reservationSchema.index({ cancellationReason: 1 });
 
 const Reservation = mongoose.model("Reservation", reservationSchema);
 export default Reservation;

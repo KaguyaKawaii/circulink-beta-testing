@@ -1,3 +1,4 @@
+// models/Notification.js
 import mongoose from "mongoose";
 
 const notificationSchema = new mongoose.Schema(
@@ -5,6 +6,10 @@ const notificationSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
+      default: null,
+    },
+    title: {
+      type: String,
       default: null,
     },
     message: {
@@ -17,7 +22,8 @@ const notificationSchema = new mongoose.Schema(
       enum: [
         "Pending", "Approved", "Rejected", "Cancelled", "Ongoing", 
         "Expired", "Completed", "System", "New", "Verified", 
-        "Unverified", "added", "removed", "participant_added"
+        "Unverified", "added", "removed", "participant_added",
+        "Closure", "Floor Closed"  // Added closure statuses
       ],
       default: "Pending",
     },
@@ -25,7 +31,8 @@ const notificationSchema = new mongoose.Schema(
       type: String,
       enum: [
         "reservation", "report", "system", "announcement",
-        "reminder", "extension", "maintenance", "participant"
+        "reminder", "extension", "maintenance", "participant",
+        "closure", "alert"  // Added closure and alert types
       ],
       default: "reservation",
     },
@@ -37,6 +44,11 @@ const notificationSchema = new mongoose.Schema(
     reportId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Report",
+      default: null,
+    },
+    closureId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Closure",
       default: null,
     },
     targetRole: {
@@ -55,6 +67,7 @@ const notificationSchema = new mongoose.Schema(
     adminName: { type: String, trim: true },
     issue: { type: String, trim: true },
     roomName: { type: String, trim: true },
+    affectedFloors: { type: [String], default: [] }, // For floor closures
     date: { type: String, trim: true },
     startTime: { type: String, trim: true },
     endTime: { type: String, trim: true },
@@ -62,6 +75,7 @@ const notificationSchema = new mongoose.Schema(
     userName: { type: String, trim: true },
     idNumber: { type: String, trim: true },
     staffName: { type: String, trim: true },
+    closureTitle: { type: String, trim: true }, // For closure notifications
   },
   { timestamps: true }
 );
@@ -71,6 +85,7 @@ notificationSchema.index({ userId: 1, isRead: 1 });
 notificationSchema.index({ targetRole: 1, isRead: 1 });
 notificationSchema.index({ createdAt: -1 });
 notificationSchema.index({ reservationId: 1 });
+notificationSchema.index({ closureId: 1 });
 notificationSchema.index({ type: 1 });
 
 // Static method to get unread count for a user
@@ -159,7 +174,9 @@ const normalizeStatus = (status) => {
     'unverified': 'Unverified',
     'added': 'added',
     'removed': 'removed',
-    'participant_added': 'participant_added'
+    'participant_added': 'participant_added',
+    'closure': 'Closure',
+    'floor closed': 'Floor Closed'
   };
   
   return statusMap[status.toLowerCase()] || 'Pending';
@@ -170,14 +187,68 @@ notificationSchema.pre("save", function (next) {
   this.status = normalizeStatus(this.status);
   
   if (!this.message) {
-    this.message = this.generateReservationMessage();
+    this.message = this.generateMessage();
+  }
+  
+  if (!this.title) {
+    this.title = this.generateTitle();
   }
   
   next();
 });
 
+// Method to generate dynamic title
+notificationSchema.methods.generateTitle = function () {
+  if (this.type === "closure") {
+    if (this.affectedFloors && this.affectedFloors.length > 0) {
+      return `Floor Closure: ${this.affectedFloors.join(", ")}`;
+    }
+    return `Facility Closure: ${this.closureTitle || "Notice"}`;
+  }
+  
+  if (this.type === "alert") {
+    return "Important Alert";
+  }
+  
+  if (this.type === "participant") {
+    switch (this.status) {
+      case "added":
+      case "participant_added":
+        return "Added as Participant";
+      case "removed":
+        return "Removed from Reservation";
+      default:
+        return "Participant Update";
+    }
+  }
+
+  switch (this.status) {
+    case "Approved": return "Reservation Approved";
+    case "Rejected": return "Reservation Rejected";
+    case "Pending": return "Reservation Pending";
+    case "Cancelled": return "Reservation Cancelled";
+    case "Ongoing": return "Reservation Ongoing";
+    case "Expired": return "Reservation Expired";
+    case "Completed": return "Reservation Completed";
+    case "Verified": return "Account Verified";
+    case "Unverified": return "Verification Required";
+    default: return "Reservation Update";
+  }
+};
+
 // Method to generate dynamic message
-notificationSchema.methods.generateReservationMessage = function () {
+notificationSchema.methods.generateMessage = function () {
+  if (this.type === "closure") {
+    const floors = this.affectedFloors && this.affectedFloors.length > 0 
+      ? this.affectedFloors.join(", ") 
+      : "All Floors";
+    return `Facility closure: ${this.closureTitle || "Closure"} from ${this.startTime} to ${this.endTime} on ${this.date}. Affected: ${floors}. ${this.message || ""}`;
+  }
+  
+  if (this.type === "alert") {
+    return `⚠️ ${this.message || "Important alert regarding your reservation."}`;
+  }
+  
   if (this.type === "participant") {
     switch (this.status) {
       case "added":
