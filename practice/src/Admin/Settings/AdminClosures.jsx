@@ -266,24 +266,24 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     setShowStartConfirm(closure);
   };
 
-  const handleStartConfirm = async () => {
-    if (!showStartConfirm) return;
+const handleStartConfirm = async () => {
+  if (!showStartConfirm) return;
+  
+  setIsActivating(true);
+  try {
+    const response = await axios.post(`${API_URL}/api/closures/${showStartConfirm._id}/activate`, {
+      activateNow: true  // ← THIS IS CORRECT!
+    });
     
-    setIsActivating(true);
-    try {
-      const response = await axios.post(`${API_URL}/api/closures/${showStartConfirm._id}/activate`, {
-        activateNow: true
-      });
-      
-      showToast(response.data.message, "success");
-      await fetchClosures();
-    } catch (error) {
-      showToast(error.response?.data?.message || "Failed to activate closure", "error");
-    } finally {
-      setIsActivating(false);
-      setShowStartConfirm(null);
-    }
-  };
+    showToast(response.data.message, "success");
+    await fetchClosures();
+  } catch (error) {
+    showToast(error.response?.data?.message || "Failed to activate closure", "error");
+  } finally {
+    setIsActivating(false);
+    setShowStartConfirm(null);
+  }
+};
 
   const handleStopClick = (closure) => {
     setShowStopConfirm(closure);
