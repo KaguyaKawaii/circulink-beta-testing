@@ -6,6 +6,8 @@ import ArchivedReservation from "../models/ArchivedReservation.js";
 import User from "../models/User.js";
 import Room from "../models/Room.js";
 import Admin from "../models/Admin.js";
+import Closure from "../models/Closure.js";  // ✅ ADD THIS LINE
+
 import sendEmail from "../utils/sendEmail.js";
 import logAction from "../utils/logAction.js";
 import generateReservationEmail from "../utils/generateReservationEmail.js";
@@ -4364,7 +4366,8 @@ export const getReservationsByStaffFloor = async (req, res) => {
 ------------------------------------------------ */
 export const checkClosureBeforeReservation = async (date, time, roomName, floor) => {
   try {
-    const Closure = mongoose.model("Closure");
+    // Dynamic import or use already imported Closure
+    const ClosureModel = Closure || mongoose.model("Closure");
     
     // Find the room to get its floor if not provided
     let roomFloor = floor;
@@ -4380,26 +4383,35 @@ export const checkClosureBeforeReservation = async (date, time, roomName, floor)
       return { isClosed: false };
     }
     
+    // Normalize time for comparison (remove leading zeros if needed)
+    const normalizeTime = (timeStr) => {
+      if (!timeStr) return "";
+      // Compare as strings - MongoDB will handle string comparison correctly
+      return timeStr;
+    };
+    
+    const normalizedTime = normalizeTime(time);
+    
     console.log(`🔍 Checking closure for: Date=${date}, Time=${time}, Room=${roomName}, Floor=${roomFloor}`);
     
-    // UPDATED: Check floor-based closures
+    // Check floor-based closures
     const closureQuery = {
       date: date,
       status: "Active",
       startTime: { $lte: time },
       endTime: { $gt: time },
       $or: [
-        { affectedAllFloors: true },           // ← UPDATED from affectedAllRooms
-        { affectedFloors: roomFloor }          // ← UPDATED from affectedRooms
+        { affectedAllFloors: true },
+        { affectedFloors: roomFloor }
       ]
     };
 
     console.log("🔍 Closure query:", JSON.stringify(closureQuery, null, 2));
 
-    const activeClosure = await Closure.findOne(closureQuery);
+    const activeClosure = await ClosureModel.findOne(closureQuery);
     
     if (activeClosure) {
-      console.log(`❌ CLOSURE FOUND: ${activeClosure.title} affects floor ${roomFloor}`);
+      console.log(`❌ CLOSURE FOUND: ${activeClosure.title} affects floor ${roomFloor} from ${activeClosure.startTime} to ${activeClosure.endTime}`);
       return {
         isClosed: true,
         closure: {
