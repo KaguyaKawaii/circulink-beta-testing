@@ -8,7 +8,6 @@ import {
   Trash2, 
   RefreshCw, 
   Plus,
-  Play,
   Pause,
   Building2,
   Eye,
@@ -90,11 +89,9 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   
   // Modal states
   const [showStopConfirm, setShowStopConfirm] = useState(null);
-  const [showStartConfirm, setShowStartConfirm] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
   
   // Loading states
-  const [isActivating, setIsActivating] = useState(false);
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   
@@ -262,33 +259,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     setViewingClosure(closure);
   };
 
-  const handleStartClick = (closure) => {
-    setShowStartConfirm(closure);
-  };
-
-  const handleStartConfirm = async () => {
-    if (!showStartConfirm) return;
-    
-    setIsActivating(true);
-    try {
-      const response = await axios.post(`${API_URL}/api/closures/${showStartConfirm._id}/activate`, {
-        activateNow: true
-      });
-      
-      showToast(response.data.message, "success");
-      
-      // IMPORTANT: Force refresh immediately after activation
-      await fetchClosures();
-      
-    } catch (error) {
-      console.error("Activation error:", error);
-      showToast(error.response?.data?.message || "Failed to activate closure", "error");
-    } finally {
-      setIsActivating(false);
-      setShowStartConfirm(null);
-    }
-  };
-
   const handleStopClick = (closure) => {
     setShowStopConfirm(closure);
   };
@@ -304,8 +274,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       });
       
       showToast(response.data.message, "success");
-      
-      // Force refresh immediately after deactivation
       await fetchClosures();
       
     } catch (error) {
@@ -331,8 +299,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
       });
       
       showToast("Closure deleted successfully", "success");
-      
-      // Force refresh immediately after deletion
       await fetchClosures();
       
     } catch (error) {
@@ -489,18 +455,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               >
                 <Pause size={16} />
                 <span className="text-sm font-medium hidden sm:inline">Stop</span>
-              </button>
-            )}
-            
-            {/* Start button - only for Scheduled closures */}
-            {isScheduled && (
-              <button
-                onClick={() => handleStartClick(closure)}
-                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors cursor-pointer"
-                title="Manually activate closure (for early start or emergencies)"
-              >
-                <Play size={16} />
-                <span className="text-sm font-medium hidden sm:inline">Start Early</span>
               </button>
             )}
             
@@ -925,84 +879,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Start Confirmation Modal */}
-      {showStartConfirm && (
-        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
-            <div className="p-6">
-              <div className="flex items-start mb-4">
-                <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center mr-3">
-                  <Play className="text-yellow-600" size={20} />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Manual Activation</h3>
-                  <p className="text-gray-600 mt-1">
-                    You're about to manually activate "<span className="font-medium">{showStartConfirm.title}</span>"
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-                <div className="flex gap-2">
-                  <AlertTriangle size={18} className="text-yellow-600 flex-shrink-0" />
-                  <p className="text-yellow-800 text-sm font-medium">
-                    What will happen:
-                  </p>
-                </div>
-                <ul className="text-yellow-700 text-sm mt-2 ml-6 list-disc space-y-1">
-                  <li>Change closure status from <strong>"Scheduled"</strong> to <strong>"Active"</strong></li>
-                  <li>Cancel any conflicting reservations during this time period</li>
-                  <li>Send email notifications to affected users</li>
-                </ul>
-                <div className="mt-3 p-2 bg-yellow-100 rounded">
-                  <p className="text-yellow-800 text-xs">
-                    <strong>Note:</strong> This closure will automatically activate at its scheduled time anyway. 
-                    Use this only if you need to start it early or if auto-activation failed.
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-3 mb-6">
-                <p className="text-sm text-gray-600">
-                  <strong>Affected Floors:</strong> {formatAffectedFloors(showStartConfirm)}
-                </p>
-                <p className="text-sm text-gray-600 mt-1">
-                  <strong>Duration:</strong> {formatDisplayTime(showStartConfirm.startTime)} — {formatDisplayTime(showStartConfirm.endTime)}
-                </p>
-                {showStartConfirm.reason && (
-                  <p className="text-sm text-gray-600 mt-1">
-                    <strong>Reason:</strong> {showStartConfirm.reason}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => setShowStartConfirm(null)}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleStartConfirm}
-                  disabled={isActivating}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isActivating ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Activating...
-                    </>
-                  ) : (
-                    "Yes, Activate Now"
-                  )}
                 </button>
               </div>
             </div>
