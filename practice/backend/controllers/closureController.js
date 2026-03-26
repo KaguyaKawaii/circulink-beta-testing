@@ -113,23 +113,46 @@ async function updateExpiredClosures() {
   }
 }
 
-// Helper: Auto-activate scheduled closures
+// Helper: Auto-activate scheduled closures (UPDATED with better logging)
 async function activateScheduledClosures() {
   try {
-    console.log("🔄 Checking for scheduled closures to activate...");
+    console.log("=".repeat(50));
+    console.log("🔄 AUTO-ACTIVATION CHECK RUNNING");
+    console.log("=".repeat(50));
     
+    const now = timeService.getCurrentTime();
     const today = timeService.getCurrentDate();
+    
+    console.log(`⏰ Current Time (PH): ${now.format()}`);
+    console.log(`📅 Current Date: ${today}`);
     
     const scheduledClosures = await Closure.find({ 
       status: "Scheduled",
       date: { $lte: today }
     });
     
+    console.log(`📋 Found ${scheduledClosures.length} scheduled closures to check`);
+    
     let activatedCount = 0;
     const activatedClosures = [];
     
     for (const closure of scheduledClosures) {
-      if (shouldActivateClosure(closure)) {
+      const closureStartDateTime = timeService.parseClosureDateTime(closure.date, closure.startTime);
+      const shouldActivate = now.isSameOrAfter(closureStartDateTime);
+      
+      console.log(`\n🔍 Checking closure: "${closure.title}"`);
+      console.log(`   Date: ${closure.date}`);
+      console.log(`   Start Time: ${closure.startTime}`);
+      console.log(`   End Time: ${closure.endTime}`);
+      console.log(`   Parsed Start: ${closureStartDateTime.format()}`);
+      console.log(`   Current Time: ${now.format()}`);
+      console.log(`   Should Activate: ${shouldActivate}`);
+      console.log(`   Time Difference: ${Math.floor(closureStartDateTime.diff(now, 'minutes'))} minutes until start`);
+      
+      if (shouldActivate) {
+        console.log(`⏰ TIME TO ACTIVATE "${closure.title}"!`);
+        
+        // Check for overlapping active closures
         const overlappingClosures = await Closure.find({
           _id: { $ne: closure._id },
           date: closure.date,
@@ -143,10 +166,11 @@ async function activateScheduledClosures() {
         });
         
         if (overlappingClosures.length > 0) {
-          console.log(`⚠️ Cannot auto-activate "${closure.title}" - overlapping with active closure`);
+          console.log(`⚠️ Cannot auto-activate "${closure.title}" - overlapping with ${overlappingClosures.length} active closure(s)`);
           continue;
         }
         
+        // Check for overlapping scheduled closures
         const overlappingScheduled = await Closure.find({
           _id: { $ne: closure._id },
           date: closure.date,
@@ -160,10 +184,12 @@ async function activateScheduledClosures() {
         });
         
         if (overlappingScheduled.length > 0) {
-          console.log(`⚠️ Cannot auto-activate "${closure.title}" - overlapping with scheduled closure`);
+          console.log(`⚠️ Cannot auto-activate "${closure.title}" - overlapping with ${overlappingScheduled.length} scheduled closure(s)`);
           continue;
         }
         
+        // ACTIVATE THE CLOSURE
+        console.log(`🚀 ACTIVATING "${closure.title}" NOW!`);
         closure.status = "Active";
         closure.activatedAt = new Date();
         closure.activatedBy = null;
@@ -173,15 +199,50 @@ async function activateScheduledClosures() {
         activatedCount++;
         activatedClosures.push(closure);
         
-        console.log(`✅ Closure "${closure.title}" activated automatically`);
+        console.log(`✅ Closure "${closure.title}" activated automatically at ${new Date().toLocaleString()}`);
         
-        await cancelConflictingReservations(closure, "System (Auto)");
+        // Cancel conflicting reservations
+        const cancelledCount = await cancelConflictingReservations(closure, "System (Auto)");
+        console.log(`📊 Cancelled ${cancelledCount} reservations due to closure activation`);
+        
+        // Send notification to admins
+        try {
+          const admins = await Admin.find({});
+          for (const admin of admins) {
+            if (admin.email) {
+              await sendEmail({
+                to: admin.email,
+                subject: `Closure Activated: ${closure.title}`,
+                html: `
+                  <h2>Closure Activated Automatically</h2>
+                  <p>The facility closure "${closure.title}" has been automatically activated.</p>
+                  <ul>
+                    <li><strong>Date:</strong> ${closure.date}</li>
+                    <li><strong>Time:</strong> ${closure.startTime} - ${closure.endTime}</li>
+                    <li><strong>Reason:</strong> ${closure.reason}</li>
+                    <li><strong>Affected Floors:</strong> ${closure.affectedAllFloors ? "All Floors" : closure.affectedFloors?.join(", ") || "None"}</li>
+                  </ul>
+                  <p>${cancelledCount} reservations were cancelled.</p>
+                `
+              }).catch(err => console.warn("Email send error:", err.message));
+            }
+          }
+        } catch (emailError) {
+          console.warn("⚠️ Failed to send activation email:", emailError.message);
+        }
+      } else {
+        const minutesUntilStart = Math.floor(closureStartDateTime.diff(now, 'minutes'));
+        console.log(`⏳ "${closure.title}" will activate in ${minutesUntilStart} minutes (at ${closureStartDateTime.format()})`);
       }
     }
     
     if (activatedCount > 0) {
-      console.log(`📊 Activated ${activatedCount} scheduled closures`);
+      console.log(`\n✅ AUTO-ACTIVATION SUMMARY: Activated ${activatedCount} scheduled closures`);
+    } else {
+      console.log(`\n✅ No scheduled closures need activation at this time`);
     }
+    
+    console.log("=".repeat(50));
     
     return { activatedCount, activatedClosures };
     
@@ -312,8 +373,12 @@ async function cancelConflictingReservations(closure, cancelledBy = "System") {
 
 export const updateClosureStatuses = async (req, res) => {
   try {
+    console.log("🔄 Manual closure status update triggered");
+    
     const activatedResult = await activateScheduledClosures();
     const expiredResult = await updateExpiredClosures();
+    
+    console.log(`✅ Status update complete: ${expiredResult.updatedCount} expired, ${activatedResult.activatedCount} activated`);
     
     res.json({
       success: true,
@@ -387,7 +452,7 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    // Force activation if activateNow is true
+    // Force activation if activateNow is true (manual activation)
     if (activateNow === true || activateNow === "true") {
       console.log("🚀 FORCE ACTIVATION requested - ignoring time check");
       
@@ -418,7 +483,7 @@ export const activateClosure = async (req, res) => {
       }
 
       // ACTIVATE IMMEDIATELY
-      console.log("🚀 ACTIVATING CLOSURE NOW (FORCE MODE)");
+      console.log("🚀 ACTIVATING CLOSURE NOW (MANUAL MODE)");
       closure.status = "Active";
       closure.activatedAt = new Date();
       closure.activatedBy = req.admin?._id || null;
@@ -439,7 +504,7 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    // Original logic for non-force activation
+    // Original logic for non-force activation (auto-activation logic)
     const now = timeService.getCurrentTime();
     const closureStartDateTime = timeService.parseClosureDateTime(closure.date, closure.startTime);
     
@@ -986,18 +1051,16 @@ export const getClosures = async (req, res) => {
       page = 1,
       limit = 20,
       status = "All",
-      date,  // Add date parameter support
+      date,
       search
     } = req.query;
 
     const query = {};
 
-    // Filter by status if specified
     if (status && status !== "All") {
       query.status = status;
     }
 
-    // Filter by date if provided
     if (date) {
       query.date = date;
     }
@@ -1025,7 +1088,7 @@ export const getClosures = async (req, res) => {
 
     console.log(`Found ${closures.length} closures`);
 
-    // Run auto-updates in background (don't await)
+    // Run auto-updates in background
     updateExpiredClosures().catch(err => console.error("Auto-update error:", err));
     activateScheduledClosures().catch(err => console.error("Auto-activate error:", err));
 
@@ -1344,7 +1407,6 @@ export const checkSlotClosed = async (req, res) => {
     const room = await Room.findOne({ room: roomName });
     const roomFloor = room?.floor;
 
-    // Update statuses before checking
     await updateExpiredClosures();
     await activateScheduledClosures();
 
