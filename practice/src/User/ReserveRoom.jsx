@@ -277,16 +277,14 @@ function ReserveRoom({ user, setView }) {
     await fetchRoomAvailability(date.date, formData.time || null);
   };
 
-  // Handle time selection
+  // Handle time selection - REMOVED room availability fetch
   const handleTimeSelect = () => {
     const timeString = convertTo24Hour(tempHour, tempMinute);
     setFormData(prev => ({ ...prev, time: timeString, location: "", roomName: "", room_Id: "" }));
     setSelectedRoomDetails(null);
     setShowTimeModal(false);
     
-    if (formData.date) {
-      fetchRoomAvailability(formData.date, timeString);
-    }
+    // Removed: fetchRoomAvailability(formData.date, timeString);
   };
 
   const openTimeModal = () => {
