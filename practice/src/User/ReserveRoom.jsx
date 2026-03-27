@@ -1,10 +1,10 @@
-// src/ReserveRoom.jsx - COMPLETE with closure popup modal and header warnings
+// src/ReserveRoom.jsx - COMPLETE with enhanced closure popup modal and header warnings
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import socket from "../utils/socket";
 import moment from "moment-timezone";
 import RoomAvailabilityModal from "./RoomAvailabilityModal";
-import { AlertTriangle, Calendar, Clock, X, Building2, Info } from "lucide-react";
+import { AlertTriangle, Calendar, Clock, X, Building2, Info, Bell } from "lucide-react";
 
 // Import shared room images configuration
 import { availableRoomImages, getRoomImageById } from "../data/roomImages";
@@ -87,7 +87,7 @@ function ReserveRoom({ user, setView }) {
   const purposeRef = useRef(null);
   const participantRefs = useRef([]);
 
-  // ========== FLOOR-BASED CLOSURE SYSTEM ==========
+  // ========== ENHANCED FLOOR-BASED CLOSURE SYSTEM ==========
   const [closures, setClosures] = useState([]);
   const [closureLoading, setClosureLoading] = useState(false);
   const [showClosureModal, setShowClosureModal] = useState(false);
@@ -102,13 +102,16 @@ function ReserveRoom({ user, setView }) {
   // Track if current selected time is within any closure
   const [isCurrentTimeClosed, setIsCurrentTimeClosed] = useState(false);
   const [currentTimeClosures, setCurrentTimeClosures] = useState([]);
+  // Track if header warning is visible
+  const [showHeaderWarning, setShowHeaderWarning] = useState(false);
 
-  // Fetch closures for selected date
+  // Fetch closures for selected date with improved error handling
   const fetchClosuresForDate = useCallback(async (date) => {
     if (!date) return;
     
     setClosureLoading(true);
     try {
+      // First get all closures and let the backend filter
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/closures`, {
         params: {
           date: date,
@@ -159,6 +162,9 @@ function ReserveRoom({ user, setView }) {
       // SHOW CLOSURE LIST MODAL if there are closures
       if (activeClosures.length > 0 && !showClosureListModal) {
         setShowClosureListModal(true);
+        setShowHeaderWarning(true); // Show header warning
+      } else if (activeClosures.length === 0) {
+        setShowHeaderWarning(false); // Hide header warning if no closures
       }
       
       // Show alert for global closure
@@ -177,10 +183,13 @@ function ReserveRoom({ user, setView }) {
       }
     } catch (error) {
       console.error("Error fetching closures:", error);
+      setActiveClosuresList([]);
+      setClosedFloors([]);
+      setGlobalClosure(null);
     } finally {
       setClosureLoading(false);
     }
-  }, []);
+  }, [showClosureListModal]);
 
   // Check if a specific time is within any closure period
   const updateCurrentTimeClosureStatus = useCallback((date, time) => {
@@ -196,8 +205,14 @@ function ReserveRoom({ user, setView }) {
       return isTimeInClosure;
     });
     
-    setIsCurrentTimeClosed(activeClosuresAtTime.length > 0);
+    const hasTimeClosures = activeClosuresAtTime.length > 0;
+    setIsCurrentTimeClosed(hasTimeClosures);
     setCurrentTimeClosures(activeClosuresAtTime);
+    
+    // Update header warning if time is closed
+    if (hasTimeClosures) {
+      setShowHeaderWarning(true);
+    }
   }, [closures]);
 
   // Check if a specific floor is closed at the selected time
@@ -484,35 +499,33 @@ function ReserveRoom({ user, setView }) {
     return `${hour24.toString().padStart(2, '0')}:${minute}`;
   };
 
-// In ReserveRoom.jsx, update the fetchRoomAvailability function:
-
-const fetchRoomAvailability = async (date, time = null) => {
-  if (!date) return;
-  
-  setAvailabilityLoading(true);
-  setAvailabilityError(null);
-  
-  try {
-    const params = { date: date };
-    if (time) {
-      params.time = time;
+  // Fetch room availability
+  const fetchRoomAvailability = async (date, time = null) => {
+    if (!date) return;
+    
+    setAvailabilityLoading(true);
+    setAvailabilityError(null);
+    
+    try {
+      const params = { date: date };
+      if (time) {
+        params.time = time;
+      }
+      
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations/availability`, {
+        params: params
+      });
+      
+      setRoomAvailability(response.data || []);
+      setSelectedAvailabilityDate(new Date(date));
+      setShowAvailabilityModal(true);
+    } catch (error) {
+      console.error("Failed to fetch room availability:", error);
+      setAvailabilityError("Failed to load room availability. Please try again.");
+    } finally {
+      setAvailabilityLoading(false);
     }
-    
-    // FIXED: Use the correct endpoint - /availability instead of /room-availability
-    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/reservations/availability`, {
-      params: params
-    });
-    
-    setRoomAvailability(response.data || []);
-    setSelectedAvailabilityDate(new Date(date));
-    setShowAvailabilityModal(true);
-  } catch (error) {
-    console.error("Failed to fetch room availability:", error);
-    setAvailabilityError("Failed to load room availability. Please try again.");
-  } finally {
-    setAvailabilityLoading(false);
-  }
-};
+  };
 
   // Handle date selection
   const handleDateSelect = async (date) => {
@@ -1595,6 +1608,16 @@ const fetchRoomAvailability = async (date, time = null) => {
     return getFloorClosureInfo(floor, formData.date, formData.time);
   };
 
+  // Check if header warning should be visible
+  const shouldShowHeaderWarning = () => {
+    if (!formData.date) return false;
+    if (globalClosure) return true;
+    if (isCurrentTimeClosed && formData.time) return true;
+    if (closedFloors.length > 0 && formData.location && isFloorClosed(formData.location, formData.date, formData.time)) return true;
+    if (activeClosuresList.length > 0 && (!formData.time || !formData.location)) return true;
+    return false;
+  };
+
   return (
     <main className="w-full min-h-screen flex flex-col bg-gray-50 lg:pl-[250px]">
       {loading && (
@@ -1622,14 +1645,16 @@ const fetchRoomAvailability = async (date, time = null) => {
         </div>
       )}
 
-      {/* CLOSURE WARNING HEADER - ALWAYS VISIBLE WHEN THERE ARE CLOSURES */}
-      {(globalClosure || closedFloors.length > 0 || isCurrentTimeClosed) && formData.date && (
-        <div className={`sticky top-0 z-40 px-4 py-2 shadow-md ${
-          globalClosure ? "bg-red-600" : isCurrentTimeClosed ? "bg-red-500" : "bg-orange-500"
+      {/* ENHANCED CLOSURE WARNING HEADER - ALWAYS VISIBLE WHEN THERE ARE CLOSURES */}
+      {shouldShowHeaderWarning() && (
+        <div className={`sticky top-0 z-40 px-4 py-2 shadow-md transition-all duration-300 ${
+          globalClosure ? "bg-red-600" : 
+          isCurrentTimeClosed ? "bg-red-500" : 
+          "bg-orange-500"
         } text-white`}>
           <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <AlertTriangle size={18} className="flex-shrink-0" />
+              <Bell size={18} className="flex-shrink-0 animate-pulse" />
               <div className="flex-1 min-w-0">
                 {globalClosure ? (
                   <>
@@ -1649,6 +1674,24 @@ const fetchRoomAvailability = async (date, time = null) => {
                       ({formData.time} is within closure period)
                     </span>
                   </>
+                ) : formData.location && isFloorClosed(formData.location, formData.date, formData.time) ? (
+                  <>
+                    <span className="font-semibold">⛔ FLOOR CLOSED:</span>
+                    <span className="ml-1 text-sm">
+                      {formData.location} is CLOSED
+                    </span>
+                    {(() => {
+                      const floorClosure = getFloorClosureInfo(formData.location, formData.date, formData.time);
+                      if (floorClosure) {
+                        return (
+                          <span className="hidden sm:inline text-xs ml-2">
+                            ({floorClosure.startTime} - {floorClosure.endTime})
+                          </span>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </>
                 ) : closedFloors.length > 0 ? (
                   <>
                     <span className="font-semibold">⚠️ FLOOR CLOSURE NOTICE:</span>
@@ -1656,7 +1699,7 @@ const fetchRoomAvailability = async (date, time = null) => {
                       {closedFloors.join(", ")} {closedFloors.length === 1 ? "is" : "are"} CLOSED
                     </span>
                     <span className="hidden sm:inline text-xs ml-2">
-                      at {formData.time || "selected time"}
+                      {formData.time ? `at ${formData.time}` : "today"}
                     </span>
                   </>
                 ) : null}
@@ -1664,10 +1707,10 @@ const fetchRoomAvailability = async (date, time = null) => {
             </div>
             <button
               onClick={() => setShowClosureListModal(true)}
-              className="text-white hover:text-gray-200 text-xs sm:text-sm underline whitespace-nowrap flex items-center gap-1"
+              className="text-white hover:text-gray-200 text-xs sm:text-sm underline whitespace-nowrap flex items-center gap-1 bg-white/20 px-2 py-1 rounded-md hover:bg-white/30 transition-colors"
             >
               <Info size={14} />
-              View Details
+              View All Closures
             </button>
           </div>
         </div>
@@ -1676,7 +1719,7 @@ const fetchRoomAvailability = async (date, time = null) => {
       {/* Specific closure alert for selected floor (if applicable) */}
       {formData.location && formData.date && formData.time && (() => {
         const floorClosure = getFloorClosureForCurrentTime(formData.location);
-        if (floorClosure && !globalClosure && !isCurrentTimeClosed) {
+        if (floorClosure && !globalClosure && !isCurrentTimeClosed && !shouldShowHeaderWarning()) {
           return (
             <div className="bg-red-500 text-white px-4 py-2 sticky top-0 z-40 shadow-md">
               <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
@@ -2773,62 +2816,7 @@ const fetchRoomAvailability = async (date, time = null) => {
         </div>
       )}
 
-      {/* Closure Details Modal (Single Closure) */}
-      {showClosureModal && globalClosure && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white p-6 rounded-xl w-full max-w-[450px] shadow-xl">
-            <div className="flex justify-between items-start mb-4">
-              <h2 className="text-xl font-bold text-red-600 flex items-center gap-2">
-                <AlertTriangle size={24} />
-                Facility Closure Notice
-              </h2>
-              <button
-                onClick={() => setShowClosureModal(false)}
-                className="p-1 hover:bg-gray-100 rounded-lg"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <h3 className="font-semibold text-gray-800">{globalClosure.title}</h3>
-                <p className="text-gray-600 text-sm mt-1">{globalClosure.reason}</p>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <Calendar size={16} />
-                <span>{new Date(globalClosure.date).toLocaleDateString()}</span>
-                <Clock size={16} className="ml-2" />
-                <span>{globalClosure.startTime} - {globalClosure.endTime}</span>
-              </div>
-              {globalClosure.affectedAllFloors ? (
-                <div className="bg-red-50 p-3 rounded-lg">
-                  <p className="text-red-700 text-sm font-medium">Affects: All Floors</p>
-                  <p className="text-red-600 text-xs mt-1">No reservations can be made during this time.</p>
-                </div>
-              ) : (
-                <div className="bg-red-50 p-3 rounded-lg">
-                  <p className="text-red-700 text-sm font-medium">Affected Floors:</p>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {globalClosure.affectedFloors?.map((floor, idx) => (
-                      <span key={idx} className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">
-                        {floor}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <button
-                onClick={() => setShowClosureModal(false)}
-                className="w-full mt-4 bg-[#CC0000] text-white px-4 py-2 rounded-lg hover:bg-red-700 transition"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* CLOSURE LIST MODAL */}
+      {/* CLOSURE LIST MODAL - Enhanced */}
       {showClosureListModal && activeClosuresList.length > 0 && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
@@ -2872,6 +2860,18 @@ const fetchRoomAvailability = async (date, time = null) => {
                       </span>
                     </div>
                   </div>
+                  {/* Show affected rooms if closure is floor-specific */}
+                  {!closure.affectedAllFloors && closure.affectedFloors && (
+                    <div className="mt-3 pt-3 border-t border-red-200">
+                      <p className="text-red-700 text-xs font-medium">Affected Rooms on these floors:</p>
+                      <p className="text-red-600 text-xs mt-1">
+                        {rooms
+                          .filter(room => closure.affectedFloors.includes(room.floor))
+                          .map(room => room.room)
+                          .join(", ")}
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
               <button
