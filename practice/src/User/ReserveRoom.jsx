@@ -1,10 +1,10 @@
-// src/ReserveRoom.jsx - REFACTORED (Closure Features Removed)
+// src/ReserveRoom.jsx - WITH CLOSURE INTEGRATION
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import socket from "../utils/socket";
 import moment from "moment-timezone";
 import RoomAvailabilityModal from "./RoomAvailabilityModal";
-import { AlertTriangle, Calendar, Clock, X, Building2 } from "lucide-react";
+import { AlertTriangle, Calendar, Clock, X, Building2, Ban, Info } from "lucide-react";
 
 // Import shared room images configuration
 import { availableRoomImages, getRoomImageById } from "../data/roomImages";
@@ -72,6 +72,11 @@ function ReserveRoom({ user, setView }) {
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
   const [availabilityError, setAvailabilityError] = useState(null);
   
+  // ========== NEW: CLOSURE STATES ==========
+  const [floorClosures, setFloorClosures] = useState([]);
+  const [loadingClosures, setLoadingClosures] = useState(false);
+  const [closureBanner, setClosureBanner] = useState(null);
+  
   // Alert modal state
   const [showAlertModal, setShowAlertModal] = useState(false);
   const [alertMessage, setAlertMessage] = useState("");
@@ -86,6 +91,106 @@ function ReserveRoom({ user, setView }) {
   const roomRef = useRef(null);
   const purposeRef = useRef(null);
   const participantRefs = useRef([]);
+
+  // ========== NEW: FETCH CLOSURES FOR SELECTED DATE ==========
+  const fetchClosuresForDate = async (date) => {
+    if (!date) return;
+    
+    setLoadingClosures(true);
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/closures/availability`, {
+        params: { date: date }
+      });
+      
+      setFloorClosures(response.data.closures || []);
+      
+      // Create banner if there are closures
+      if (response.data.closures && response.data.closures.length > 0) {
+        const activeClosures = response.data.closures.filter(c => c.status === "Active");
+        if (activeClosures.length > 0) {
+          setClosureBanner({
+            title: "⚠️ Facility Closure Notice",
+            message: `The following floors will be closed on this date:`,
+            closures: activeClosures
+          });
+        } else {
+          setClosureBanner(null);
+        }
+      } else {
+        setClosureBanner(null);
+      }
+    } catch (error) {
+      console.error("Failed to fetch closures:", error);
+      setFloorClosures([]);
+      setClosureBanner(null);
+    } finally {
+      setLoadingClosures(false);
+    }
+  };
+
+  // ========== NEW: CHECK IF FLOOR IS CLOSED ==========
+  const isFloorClosed = useCallback((floor) => {
+    if (!formData.date || !floorClosures.length) return false;
+    
+    const selectedTime = formData.time;
+    
+    for (const closure of floorClosures) {
+      // Skip if not active
+      if (closure.status !== "Active") continue;
+      
+      // Check if this floor is affected
+      let floorAffected = false;
+      if (closure.affectedAllFloors) {
+        floorAffected = true;
+      } else if (closure.affectedFloors && closure.affectedFloors.length > 0) {
+        floorAffected = closure.affectedFloors.includes(floor);
+      }
+      
+      if (!floorAffected) continue;
+      
+      // Check time range if time is selected
+      if (selectedTime) {
+        const closureStart = closure.startTime;
+        const closureEnd = closure.endTime;
+        
+        if (selectedTime >= closureStart && selectedTime < closureEnd) {
+          return true;
+        }
+      } else {
+        // If no time selected, just check if there's any closure on this floor
+        return true;
+      }
+    }
+    
+    return false;
+  }, [formData.date, formData.time, floorClosures]);
+
+  // ========== NEW: GET CLOSURE INFO FOR FLOOR ==========
+  const getFloorClosureInfo = useCallback((floor) => {
+    if (!formData.date || !floorClosures.length) return null;
+    
+    for (const closure of floorClosures) {
+      if (closure.status !== "Active") continue;
+      
+      let floorAffected = false;
+      if (closure.affectedAllFloors) {
+        floorAffected = true;
+      } else if (closure.affectedFloors && closure.affectedFloors.length > 0) {
+        floorAffected = closure.affectedFloors.includes(floor);
+      }
+      
+      if (floorAffected) {
+        return {
+          title: closure.title,
+          reason: closure.reason,
+          startTime: closure.startTime,
+          endTime: closure.endTime
+        };
+      }
+    }
+    
+    return null;
+  }, [formData.date, floorClosures]);
 
   // Check if user is from College of Law
   const isCollegeOfLawUser = useCallback(() => {
@@ -266,7 +371,7 @@ function ReserveRoom({ user, setView }) {
     }
   };
 
-  // Handle date selection
+  // Handle date selection - UPDATED to fetch closures
   const handleDateSelect = async (date) => {
     setFormData({ ...formData, date: date.date });
     setShowDateModal(false);
@@ -274,17 +379,23 @@ function ReserveRoom({ user, setView }) {
     setFormData(prev => ({ ...prev, location: "", roomName: "", room_Id: "" }));
     setSelectedRoomDetails(null);
     
+    // Fetch closures for the selected date
+    await fetchClosuresForDate(date.date);
+    
     await fetchRoomAvailability(date.date, formData.time || null);
   };
 
-  // Handle time selection - REMOVED room availability fetch
+  // Handle time selection - UPDATED to re-check closures
   const handleTimeSelect = () => {
     const timeString = convertTo24Hour(tempHour, tempMinute);
     setFormData(prev => ({ ...prev, time: timeString, location: "", roomName: "", room_Id: "" }));
     setSelectedRoomDetails(null);
     setShowTimeModal(false);
     
-    // Removed: fetchRoomAvailability(formData.date, timeString);
+    // Re-fetch closures to check time-specific closures
+    if (formData.date) {
+      fetchClosuresForDate(formData.date);
+    }
   };
 
   const openTimeModal = () => {
@@ -439,6 +550,7 @@ function ReserveRoom({ user, setView }) {
     }
   };
 
+  // ========== UPDATED: Validate form with closure check ==========
   const validateForm = () => {
     if (!formData.date) {
       showAlert("Please select a date.");
@@ -462,6 +574,21 @@ function ReserveRoom({ user, setView }) {
 
     if (!formData.location) {
       showAlert("Please select a location/floor.");
+      scrollToElement(locationRef);
+      return false;
+    }
+
+    // ========== NEW: Check if floor is closed ==========
+    if (isFloorClosed(formData.location)) {
+      const closureInfo = getFloorClosureInfo(formData.location);
+      const timeDisplay = formatDisplayTime(formData.time);
+      showAlert(
+        `❌ ${formData.location} is CLOSED on ${formData.date} at ${timeDisplay}.\n\n` +
+        `Event: ${closureInfo?.title || "Facility Closure"}\n` +
+        `Reason: ${closureInfo?.reason || "Maintenance/Event"}\n` +
+        `Closure Period: ${closureInfo?.startTime || "Start"} - ${closureInfo?.endTime || "End"}\n\n` +
+        `Please select a different floor or date.`
+      );
       scrollToElement(locationRef);
       return false;
     }
@@ -862,8 +989,22 @@ function ReserveRoom({ user, setView }) {
     "5th Floor"
   ];
 
+  // ========== UPDATED: Handle room click with closure check ==========
   const handleRoomClick = (room) => {
     setSelectedRoomDetails(room);
+    
+    // Check if floor is closed first
+    if (isFloorClosed(room.floor)) {
+      const closureInfo = getFloorClosureInfo(room.floor);
+      showAlert(
+        `❌ ${room.floor} is CLOSED on ${formData.date} at ${formatDisplayTime(formData.time)}\n\n` +
+        `Event: ${closureInfo?.title || "Facility Closure"}\n` +
+        `Reason: ${closureInfo?.reason || "Maintenance/Event"}\n` +
+        `Closure Period: ${closureInfo?.startTime || "Start"} - ${closureInfo?.endTime || "End"}\n\n` +
+        `Please select a different floor or date.`
+      );
+      return;
+    }
     
     const canAccess = canReserveFloor(room.floor);
     const isAvailable = isRoomAvailableForTime(room, formData.time);
@@ -1274,6 +1415,32 @@ function ReserveRoom({ user, setView }) {
       </header>
 
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-full overflow-x-hidden">
+        
+        {/* ========== NEW: CLOSURE BANNER ========== */}
+        {closureBanner && closureBanner.closures && closureBanner.closures.length > 0 && (
+          <div className="bg-red-50 border-l-4 border-red-500 rounded-lg p-4 shadow-sm">
+            <div className="flex items-start gap-3">
+              <Ban className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-red-800">{closureBanner.title}</h3>
+                <p className="text-red-700 text-sm mt-1">{closureBanner.message}</p>
+                <ul className="mt-2 space-y-1">
+                  {closureBanner.closures.map((closure, idx) => (
+                    <li key={idx} className="text-sm text-red-600 border-t border-red-100 pt-1 mt-1 first:border-t-0 first:pt-0">
+                      <span className="font-medium">{closure.title}</span>
+                      {closure.reason && <span className="text-red-500"> - {closure.reason}</span>}
+                      <div className="text-xs text-red-500 mt-0.5">
+                        Affected: {closure.affectedAllFloors ? "All Floors" : closure.affectedFloors?.join(", ") || "None"}
+                        {closure.startTime && closure.endTime && ` • Time: ${closure.startTime} - ${closure.endTime}`}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* User Type Notice */}
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <div className="flex items-center">
@@ -1569,12 +1736,26 @@ function ReserveRoom({ user, setView }) {
             {roomLocations.map((loc) => {
               const imageSrc = getFloorImage(loc);
               const canReserve = canReserveFloor(loc);
+              // ========== NEW: Check if floor is closed ==========
+              const closed = isFloorClosed(loc);
+              const closureInfo = getFloorClosureInfo(loc);
               const isSelected = formData.location === loc;
+              const disabled = !canReserve || closed;
 
               return (
                 <button
                   key={loc}
                   onClick={() => {
+                    if (closed) {
+                      showAlert(
+                        `❌ ${loc} is CLOSED on ${formData.date} at ${formData.time ? formatDisplayTime(formData.time) : "selected time"}.\n\n` +
+                        `Event: ${closureInfo?.title || "Facility Closure"}\n` +
+                        `Reason: ${closureInfo?.reason || "Maintenance/Event"}\n` +
+                        `Closure Period: ${closureInfo?.startTime || "Start"} - ${closureInfo?.endTime || "End"}\n\n` +
+                        `Please select a different floor or date.`
+                      );
+                      return;
+                    }
                     if (!canReserve) {
                       if (loc === "Ground Floor") {
                         showAlert("Ground Floor is reserved for Graduate students only.");
@@ -1593,13 +1774,13 @@ function ReserveRoom({ user, setView }) {
                     });
                   }}
                   className={`border-2 rounded-2xl w-full xs:w-[150px] sm:w-[180px] md:w-[200px] h-[120px] sm:h-[150px] md:h-[200px] flex flex-col justify-center items-center cursor-pointer transition-all duration-200 overflow-hidden relative min-h-[120px] ${
-                    isSelected 
+                    isSelected && !disabled
                       ? "border-[#CC0000] ring-2 ring-red-100 opacity-100 scale-105" 
-                      : !canReserve
+                      : disabled
                       ? "border-gray-200 opacity-50 cursor-not-allowed"
                       : "border-gray-200 opacity-70 hover:opacity-100 hover:border-gray-300"
                   }`}
-                  disabled={!canReserve}
+                  disabled={disabled}
                 >
                   {imageSrc && (
                     <img
@@ -1612,7 +1793,15 @@ function ReserveRoom({ user, setView }) {
                   )}
                   <div className="absolute inset-0 bg-black/40"></div>
                   
-                  {!canReserve && (
+                  {/* ========== NEW: Closed Badge ========== */}
+                  {closed && (
+                    <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10 flex items-center gap-1">
+                      <Ban className="w-3 h-3" />
+                      CLOSED
+                    </div>
+                  )}
+                  
+                  {!closed && !canReserve && (
                     <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
                       Restricted
                     </div>
@@ -1627,6 +1816,12 @@ function ReserveRoom({ user, setView }) {
                         {loc === "Ground Floor" ? "Graduate Studies & Periodicals" : "Law Library"}
                       </p>
                     )}
+                    {/* ========== NEW: Show closure reason on badge ========== */}
+                    {closed && closureInfo && (
+                      <p className="text-xs bg-red-800/80 rounded px-1 py-0.5 mt-1">
+                        {closureInfo.title.length > 20 ? closureInfo.title.slice(0, 20) + "..." : closureInfo.title}
+                      </p>
+                    )}
                   </div>
                 </button>
               );
@@ -1635,113 +1830,145 @@ function ReserveRoom({ user, setView }) {
           {!formData.location && (
             <p className="text-xs text-red-500 text-center mt-2">Please select a location</p>
           )}
+          {/* ========== NEW: Show warning if selected floor is closed ========== */}
+          {formData.location && isFloorClosed(formData.location) && (
+            <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <div className="flex items-center gap-2 text-red-700">
+                <Ban className="w-4 h-4" />
+                <span className="text-sm font-medium">Warning: {formData.location} is CLOSED for your selected date/time</span>
+              </div>
+              {(() => {
+                const info = getFloorClosureInfo(formData.location);
+                return info && (
+                  <p className="text-xs text-red-600 mt-1">
+                    {info.title}: {info.reason} ({info.startTime} - {info.endTime})
+                  </p>
+                );
+              })()}
+              <button
+                onClick={() => setFormData(prev => ({ ...prev, location: "", roomName: "", room_Id: "" }))}
+                className="mt-2 text-xs text-red-600 underline"
+              >
+                Clear selection and choose another floor
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Room Selection */}
+        {/* Room Selection - UPDATED to filter out rooms from closed floors */}
         {formData.location && (
           <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100" ref={roomRef}>
             <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 pb-2 border-b border-gray-100">Select Room</h2>
 
-            <div className="flex flex-wrap gap-3 sm:gap-5 justify-center">
-              {rooms
-                .filter((room) => {
-                  const floor = formData.location;
-                  if (floor === "5th Floor") {
-                    return room.floor === floor && (room.room === "Faculty Room" || room.room === "Collaboration Room");
-                  } else {
-                    return room.floor === floor;
-                  }
-                })
-                .map((room) => {
-                  const roomImage = getRoomImage(room);
-                  const isDisabled = !room.isActive;
-                  const canReserve = canReserveFloor(room.floor);
-                  const isAvailable = isRoomAvailableForTime(room, formData.time);
-                  const isSelected = formData.room_Id === room._id;
-                  const isBooked = !isAvailable && formData.date && formData.time;
+            {/* ========== NEW: Show message if floor is closed ========== */}
+            {isFloorClosed(formData.location) ? (
+              <div className="text-center py-8">
+                <Ban className="w-12 h-12 text-red-400 mx-auto mb-3" />
+                <p className="text-gray-500">This floor is currently closed for the selected date and time.</p>
+                <p className="text-sm text-gray-400 mt-1">Please select a different floor or date.</p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-3 sm:gap-5 justify-center">
+                {rooms
+                  .filter((room) => {
+                    const floor = formData.location;
+                    if (floor === "5th Floor") {
+                      return room.floor === floor && (room.room === "Faculty Room" || room.room === "Collaboration Room");
+                    } else {
+                      return room.floor === floor;
+                    }
+                  })
+                  .map((room) => {
+                    const roomImage = getRoomImage(room);
+                    const isDisabled = !room.isActive;
+                    const canReserve = canReserveFloor(room.floor);
+                    const isAvailable = isRoomAvailableForTime(room, formData.time);
+                    const isSelected = formData.room_Id === room._id;
+                    const isBooked = !isAvailable && formData.date && formData.time;
 
-                  return (
-                    <button
-                      key={room._id}
-                      onClick={() => handleRoomClick(room)}
-                      className={`border-2 rounded-2xl w-full sm:w-[280px] md:w-[300px] h-[250px] sm:h-[280px] md:h-[300px] flex justify-center items-center cursor-pointer relative overflow-hidden transition-all duration-200 ${
-                        isSelected && room.isActive && canReserve && isAvailable
-                          ? "border-[#CC0000] ring-2 ring-red-100 bg-red-50"
-                          : isSelected && (!room.isActive || !canReserve || !isAvailable)
-                          ? "border-gray-400 ring-2 ring-gray-200 bg-gray-50"
-                          : isDisabled || !canReserve || isBooked
-                          ? "border-gray-300 bg-gray-100 cursor-pointer opacity-60"
-                          : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                      }`}
-                    >
-                      {roomImage && (
-                        <img
-                          src={roomImage}
-                          alt={room.room}
-                          className="absolute w-full h-full object-cover"
-                          loading="lazy"
-                          onLoad={() => handleImageLoad(`room-${room._id}`)}
-                        />
-                      )}
-                      <div className={`absolute inset-0 z-0 ${
-                        isDisabled || !canReserve || isBooked ? "bg-gray-800/70" : "bg-black/30"
-                      }`}></div>
-                      
-                      {isDisabled && (
-                        <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
-                          Unavailable
-                        </div>
-                      )}
-                      
-                      {isBooked && !isDisabled && (
-                        <div className="absolute top-2 right-2 bg-yellow-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
-                          Booked
-                        </div>
-                      )}
-                      
-                      {!canReserve && !isDisabled && !isBooked && (
-                        <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
-                          Restricted
-                        </div>
-                      )}
-                      
-                      {(isDisabled || !canReserve || isBooked) && (
-                        <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
-                          Click to View Details
-                        </div>
-                      )}
-                      
-                      <div className="relative z-10 text-center text-white p-3 sm:p-4">
-                        <p className="text-lg sm:text-xl font-semibold drop-shadow-md mb-2">
-                          {room.room}
-                        </p>
+                    return (
+                      <button
+                        key={room._id}
+                        onClick={() => handleRoomClick(room)}
+                        className={`border-2 rounded-2xl w-full sm:w-[280px] md:w-[300px] h-[250px] sm:h-[280px] md:h-[300px] flex justify-center items-center cursor-pointer relative overflow-hidden transition-all duration-200 ${
+                          isSelected && room.isActive && canReserve && isAvailable
+                            ? "border-[#CC0000] ring-2 ring-red-100 bg-red-50"
+                            : isSelected && (!room.isActive || !canReserve || !isAvailable)
+                            ? "border-gray-400 ring-2 ring-gray-200 bg-gray-50"
+                            : isDisabled || !canReserve || isBooked
+                            ? "border-gray-300 bg-gray-100 cursor-pointer opacity-60"
+                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        {roomImage && (
+                          <img
+                            src={roomImage}
+                            alt={room.room}
+                            className="absolute w-full h-full object-cover"
+                            loading="lazy"
+                            onLoad={() => handleImageLoad(`room-${room._id}`)}
+                          />
+                        )}
+                        <div className={`absolute inset-0 z-0 ${
+                          isDisabled || !canReserve || isBooked ? "bg-gray-800/70" : "bg-black/30"
+                        }`}></div>
                         
-                        {room.features && Object.values(room.features).some(val => val) && (
-                          <div className="flex flex-wrap justify-center gap-1 mb-2">
-                            {Object.entries(room.features).map(([feature, enabled]) => 
-                              enabled && (
-                                <RoomFeatureIcon key={feature} feature={feature} enabled={enabled} />
-                              )
-                            )}
+                        {isDisabled && (
+                          <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
+                            Unavailable
                           </div>
                         )}
                         
-                        <div className="flex items-center justify-center text-xs sm:text-sm mb-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                          </svg>
-                          Capacity: {room.capacity}
-                        </div>
+                        {isBooked && !isDisabled && (
+                          <div className="absolute top-2 right-2 bg-yellow-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
+                            Booked
+                          </div>
+                        )}
                         
-                        <div className="text-xs sm:text-sm opacity-90">
-                          {room.type}
+                        {!canReserve && !isDisabled && !isBooked && (
+                          <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
+                            Restricted
+                          </div>
+                        )}
+                        
+                        {(isDisabled || !canReserve || isBooked) && (
+                          <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
+                            Click to View Details
+                          </div>
+                        )}
+                        
+                        <div className="relative z-10 text-center text-white p-3 sm:p-4">
+                          <p className="text-lg sm:text-xl font-semibold drop-shadow-md mb-2">
+                            {room.room}
+                          </p>
+                          
+                          {room.features && Object.values(room.features).some(val => val) && (
+                            <div className="flex flex-wrap justify-center gap-1 mb-2">
+                              {Object.entries(room.features).map(([feature, enabled]) => 
+                                enabled && (
+                                  <RoomFeatureIcon key={feature} feature={feature} enabled={enabled} />
+                                )
+                              )}
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center justify-center text-xs sm:text-sm mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            Capacity: {room.capacity}
+                          </div>
+                          
+                          <div className="text-xs sm:text-sm opacity-90">
+                            {room.type}
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
-            </div>
-            {!formData.roomName && (
+                      </button>
+                    );
+                  })}
+              </div>
+            )}
+            {!formData.roomName && !isFloorClosed(formData.location) && (
               <p className="text-xs text-red-500 text-center mt-2">Please select a room</p>
             )}
           </div>
@@ -2000,9 +2227,9 @@ function ReserveRoom({ user, setView }) {
           <button
             onClick={submitReservation}
             type="button"
-            disabled={loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting}
+            disabled={loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting || (formData.location && isFloorClosed(formData.location))}
             className={`px-6 sm:px-8 py-3 sm:py-3 rounded-lg transition cursor-pointer flex items-center text-sm sm:text-base min-h-[44px] min-w-[140px] justify-center ${
-              loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting
+              loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting || (formData.location && isFloorClosed(formData.location))
                 ? "bg-gray-400 text-gray-200 cursor-not-allowed" 
                 : "bg-[#CC0000] text-white hover:bg-red-700 hover:shadow-md"
             }`}
@@ -2020,7 +2247,7 @@ function ReserveRoom({ user, setView }) {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                {selectedRoomDetails && !selectedRoomDetails.isActive ? "Room Unavailable" : "Submit Reservation"}
+                {selectedRoomDetails && !selectedRoomDetails.isActive ? "Room Unavailable" : (formData.location && isFloorClosed(formData.location) ? "Floor Closed" : "Submit Reservation")}
               </>
             )}
           </button>

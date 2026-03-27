@@ -11,7 +11,9 @@ import {
   Pause,
   Building2,
   Eye,
-  Edit
+  Edit,
+  CheckCircle,
+  Play
 } from "lucide-react";
 import axios from "axios";
 import AdminNavigation from "../AdminNavigation";
@@ -90,10 +92,12 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
   // Modal states
   const [showStopConfirm, setShowStopConfirm] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [showActivateConfirm, setShowActivateConfirm] = useState(null);
   
   // Loading states
   const [isDeactivating, setIsDeactivating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isActivating, setIsActivating] = useState(false);
   
   // Form data with floors
   const [formData, setFormData] = useState({
@@ -259,6 +263,31 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     setViewingClosure(closure);
   };
 
+  const handleActivateClick = (closure) => {
+    setShowActivateConfirm(closure);
+  };
+
+  const handleActivateConfirm = async () => {
+    if (!showActivateConfirm) return;
+    
+    setIsActivating(true);
+    try {
+      const response = await axios.post(`${API_URL}/api/closures/${showActivateConfirm._id}/activate`, {
+        activateNow: true
+      });
+      
+      showToast(response.data.message, "success");
+      await fetchClosures();
+      
+    } catch (error) {
+      console.error("Activation error:", error);
+      showToast(error.response?.data?.message || "Failed to activate closure", "error");
+    } finally {
+      setIsActivating(false);
+      setShowActivateConfirm(null);
+    }
+  };
+
   const handleStopClick = (closure) => {
     setShowStopConfirm(closure);
   };
@@ -350,7 +379,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
     return closure.affectedFloors.join(", ");
   };
 
-  // Filter closures
+  // Filter closures - hide expired by default
   let filteredClosures = closures.filter(c => c.status !== "Expired");
   
   if (filterStatus !== "All") {
@@ -433,6 +462,18 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
               <Eye size={16} />
               <span className="text-sm font-medium hidden sm:inline">View</span>
             </button>
+            
+            {/* Activate button - only for Scheduled closures */}
+            {isScheduled && (
+              <button
+                onClick={() => handleActivateClick(closure)}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors cursor-pointer"
+                title="Activate Now"
+              >
+                <Play size={16} />
+                <span className="text-sm font-medium hidden sm:inline">Activate</span>
+              </button>
+            )}
             
             {/* Edit button - only for Scheduled or Deactivated closures */}
             {(isScheduled || isDeactivated) && (
@@ -886,6 +927,73 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
         </div>
       )}
 
+      {/* Activate Confirmation Modal */}
+      {showActivateConfirm && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-start mb-4">
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mr-3">
+                  <Play className="text-green-600" size={20} />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Activate Closure?</h3>
+                  <p className="text-gray-600 mt-1">
+                    You're about to activate "<span className="font-medium">{showActivateConfirm.title}</span>"
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
+                <div className="flex gap-2">
+                  <AlertTriangle size={18} className="text-yellow-600 flex-shrink-0" />
+                  <p className="text-yellow-800 text-sm">
+                    Activating this closure will:
+                  </p>
+                </div>
+                <ul className="text-yellow-700 text-sm mt-2 ml-6 list-disc">
+                  <li>Immediately close the selected floors</li>
+                  <li>Cancel any conflicting reservations</li>
+                  <li>Send email notifications to affected users</li>
+                </ul>
+              </div>
+
+              <div className="bg-gray-50 rounded-lg p-3 mb-6">
+                <p className="text-sm text-gray-600">
+                  <strong>Affected Floors:</strong> {formatAffectedFloors(showActivateConfirm)}
+                </p>
+                <p className="text-sm text-gray-600 mt-1">
+                  <strong>Duration:</strong> {formatDisplayTime(showActivateConfirm.startTime)} — {formatDisplayTime(showActivateConfirm.endTime)}
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowActivateConfirm(null)}
+                  className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleActivateConfirm}
+                  disabled={isActivating}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isActivating ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      Activating...
+                    </>
+                  ) : (
+                    "Yes, Activate Now"
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stop Confirmation Modal */}
       {showStopConfirm && (
         <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
@@ -917,16 +1025,10 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   <li>Restore any cancelled reservations (if still available and no conflicts exist)</li>
                   <li>Send email notifications to restored users</li>
                 </ul>
-                <p className="text-blue-800 text-sm mt-2">
-                  You can always start it again later if needed.
-                </p>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-3 mb-6">
                 <p className="text-sm text-gray-600">
-                  <strong>Current Status:</strong> <span className="text-green-600 font-medium">Active</span>
-                </p>
-                <p className="text-sm text-gray-600 mt-1">
                   <strong>Affected Floors:</strong> {formatAffectedFloors(showStopConfirm)}
                 </p>
                 <p className="text-sm text-gray-600 mt-1">
@@ -999,15 +1101,6 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
 
               <div className="bg-gray-50 rounded-lg p-3 mb-6">
                 <p className="text-sm text-gray-600">
-                  <strong>Closure Details:</strong>
-                </p>
-                <p className="text-sm text-gray-900 mt-1">
-                  {showDeleteConfirm.title}
-                </p>
-                <p className="text-sm text-gray-600">
-                  {formatDate(showDeleteConfirm.date)} | {formatDisplayTime(showDeleteConfirm.startTime)} - {formatDisplayTime(showDeleteConfirm.endTime)}
-                </p>
-                <p className="text-sm text-gray-600">
                   <strong>Affected Floors:</strong> {formatAffectedFloors(showDeleteConfirm)}
                 </p>
                 {showDeleteConfirm.affectedReservations?.length > 0 && (
@@ -1063,9 +1156,7 @@ const AdminClosures = ({ setView, onLogout, admin }) => {
                   {conflictPreview.affectedCount > 0 ? (
                     <AlertTriangle className="text-yellow-600" size={20} />
                   ) : (
-                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
+                    <CheckCircle className="text-green-600" size={20} />
                   )}
                   <p className={conflictPreview.affectedCount > 0 ? "text-yellow-800" : "text-green-800"}>
                     {conflictPreview.affectedCount === 0 

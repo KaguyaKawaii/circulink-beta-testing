@@ -40,6 +40,7 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
     setError(null);
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_URL || ''}/api/closures/upcoming`);
+      // The response contains { success: true, closures: [...] }
       setClosures(response.data.closures || []);
     } catch (error) {
       console.error("Error fetching closures:", error);
@@ -114,8 +115,15 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
     return null;
   }
 
-  const displayClosures = expanded ? closures : closures.slice(0, 2);
-  const hasMore = closures.length > 2;
+  // Filter to show only Active and Scheduled closures (not Expired or Deactivated)
+  const activeAndScheduled = closures.filter(c => c.status === "Active" || c.status === "Scheduled");
+  
+  if (activeAndScheduled.length === 0) {
+    return null;
+  }
+
+  const displayClosures = expanded ? activeAndScheduled : activeAndScheduled.slice(0, 2);
+  const hasMore = activeAndScheduled.length > 2;
 
   return (
     <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl border border-gray-200 shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden">
@@ -125,7 +133,7 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
           <div className="flex items-center gap-2">
             <AlertTriangle className="text-red-500" size={18} />
             <h3 className="text-gray-800 font-bold text-sm sm:text-base">
-              Upcoming Facility Closures ({closures.length})
+              Upcoming Facility Closures ({activeAndScheduled.length})
             </h3>
           </div>
           {hasMore && (
@@ -139,7 +147,7 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
                 </>
               ) : (
                 <>
-                  Show {closures.length - 2} More <ChevronDown size={14} />
+                  Show {activeAndScheduled.length - 2} More <ChevronDown size={14} />
                 </>
               )}
             </button>
@@ -217,6 +225,17 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
               </button>
             </div>
             <div className="p-5 space-y-4">
+              {/* Status Badge */}
+              <div>
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                  selectedClosure.status === "Active" 
+                    ? "bg-green-100 text-green-800" 
+                    : "bg-blue-100 text-blue-800"
+                }`}>
+                  {selectedClosure.status === "Active" ? "Active Now" : "Scheduled"}
+                </span>
+              </div>
+              
               {/* Date and Time */}
               <div className="flex flex-wrap gap-4 text-sm">
                 <div className="flex items-center gap-2 text-gray-600">
@@ -230,11 +249,13 @@ const UpcomingClosuresWidget = ({ user, setView }) => {
               </div>
               
               {/* Reason */}
-              <div>
-                <p className="text-gray-600 text-sm whitespace-pre-wrap">
-                  {selectedClosure.reason}
-                </p>
-              </div>
+              {selectedClosure.reason && (
+                <div>
+                  <p className="text-gray-600 text-sm whitespace-pre-wrap">
+                    {selectedClosure.reason}
+                  </p>
+                </div>
+              )}
               
               {/* Affected Areas */}
               <div className="bg-gray-50 rounded-xl p-4">
