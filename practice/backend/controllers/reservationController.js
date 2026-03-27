@@ -14,8 +14,9 @@ import generateReservationEmail from "../utils/generateReservationEmail.js";
 import * as availabilityService from "../services/availabilityService.js";
 import notificationService from "../services/notificationService.js";
 
-// Add this near the top of the file, after the imports
-// Helper function to check if a time slot is closed
+// ============================================
+// ✅ HELPER FUNCTION: CHECK IF TIME SLOT IS CLOSED
+// ============================================
 const checkClosureBeforeReservation = async (date, time, roomName, floor) => {
   try {
     // Find the room to get its floor if not provided
@@ -73,9 +74,11 @@ const checkClosureBeforeReservation = async (date, time, roomName, floor) => {
   }
 };
 
-/* ------------------------------------------------
-   ✅ CHECK USER RESERVATION LIMIT (UPDATED)
------------------------------------------------- */
+
+
+// ============================================
+// ✅ CHECK USER RESERVATION LIMIT
+// ============================================
 export const checkUserReservationLimit = async (req, res) => {
   try {
     const { userId } = req.params;
