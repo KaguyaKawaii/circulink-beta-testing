@@ -1,4 +1,4 @@
-// src/ReserveRoom.jsx - COMPLETE with enhanced closure popup modal and header warnings
+// src/ReserveRoom.jsx - COMPLETE with closure popup modal and header warnings
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import socket from "../utils/socket";
@@ -104,9 +104,11 @@ function ReserveRoom({ user, setView }) {
   const [currentTimeClosures, setCurrentTimeClosures] = useState([]);
   // Track if header warning is visible
   const [showHeaderWarning, setShowHeaderWarning] = useState(false);
+  // Track if we've shown the closure modal for the selected date
+  const [hasShownClosureModal, setHasShownClosureModal] = useState(false);
 
   // Fetch closures for selected date with improved error handling
-  const fetchClosuresForDate = useCallback(async (date) => {
+  const fetchClosuresForDate = useCallback(async (date, skipModal = false) => {
     if (!date) return;
     
     setClosureLoading(true);
@@ -159,12 +161,14 @@ function ReserveRoom({ user, setView }) {
       setClosedFloors(Array.from(closedFloorsSet));
       setFloorClosures(floorClosuresMap);
       
-      // SHOW CLOSURE LIST MODAL if there are closures
-      if (activeClosures.length > 0 && !showClosureListModal) {
+      // SHOW CLOSURE LIST MODAL if there are closures and we haven't shown it yet
+      if (activeClosures.length > 0 && !skipModal && !hasShownClosureModal) {
         setShowClosureListModal(true);
         setShowHeaderWarning(true); // Show header warning
+        setHasShownClosureModal(true); // Mark that we've shown it
       } else if (activeClosures.length === 0) {
         setShowHeaderWarning(false); // Hide header warning if no closures
+        setHasShownClosureModal(false); // Reset for next date
       }
       
       // Show alert for global closure
@@ -181,15 +185,23 @@ function ReserveRoom({ user, setView }) {
           6000
         );
       }
+      
+      return activeClosures;
     } catch (error) {
       console.error("Error fetching closures:", error);
       setActiveClosuresList([]);
       setClosedFloors([]);
       setGlobalClosure(null);
+      return [];
     } finally {
       setClosureLoading(false);
     }
-  }, [showClosureListModal]);
+  }, [hasShownClosureModal]);
+
+  // Reset closure modal shown flag when date changes
+  useEffect(() => {
+    setHasShownClosureModal(false);
+  }, [formData.date]);
 
   // Check if a specific time is within any closure period
   const updateCurrentTimeClosureStatus = useCallback((date, time) => {
@@ -527,7 +539,7 @@ function ReserveRoom({ user, setView }) {
     }
   };
 
-  // Handle date selection
+  // Handle date selection - FIXED: Show closure modal first, then availability
   const handleDateSelect = async (date) => {
     setFormData({ ...formData, date: date.date });
     setShowDateModal(false);
@@ -537,15 +549,18 @@ function ReserveRoom({ user, setView }) {
     setSelectedRoomDetails(null);
     
     // Fetch closures for the selected date (this will show the popup)
-    await fetchClosuresForDate(date.date);
+    const activeClosures = await fetchClosuresForDate(date.date, false);
     
     // Update closure status for current time if time is already selected
     if (formData.time) {
       updateCurrentTimeClosureStatus(date.date, formData.time);
     }
     
-    // Show availability modal when date is selected
-    await fetchRoomAvailability(date.date, formData.time || null);
+    // Show availability modal after a short delay (to allow closure modal to appear first)
+    // This ensures the closure modal shows first if there are closures
+    setTimeout(async () => {
+      await fetchRoomAvailability(date.date, formData.time || null);
+    }, 100);
   };
 
   // Handle time selection with dropdown values
