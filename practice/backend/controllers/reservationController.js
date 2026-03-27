@@ -15,7 +15,7 @@ import * as availabilityService from "../services/availabilityService.js";
 import notificationService from "../services/notificationService.js";
 
 // ============================================
-// ✅ HELPER FUNCTION: CHECK IF TIME SLOT IS CLOSED
+// ✅ HELPER FUNCTION: CHECK IF TIME SLOT IS CLOSED (FIXED)
 // ============================================
 const checkClosureBeforeReservation = async (date, time, roomName, floor) => {
   try {
@@ -35,7 +35,7 @@ const checkClosureBeforeReservation = async (date, time, roomName, floor) => {
     
     console.log(`🔍 Checking closure for: Date=${date}, Time=${time}, Room=${roomName}, Floor=${roomFloor}`);
     
-    // Check floor-based closures
+    // ✅ FIXED: Use $in operator to check if the floor is in the affectedFloors array
     const closureQuery = {
       date: date,
       status: "Active",
@@ -43,7 +43,7 @@ const checkClosureBeforeReservation = async (date, time, roomName, floor) => {
       endTime: { $gt: time },
       $or: [
         { affectedAllFloors: true },
-        { affectedFloors: roomFloor }
+        { affectedFloors: { $in: [roomFloor] } }  // ✅ FIXED: Use $in operator
       ]
     };
 
@@ -3597,8 +3597,13 @@ export const editReservation = async (req, res) => {
     }
 
      // ✅ NEW: CHECK FOR FACILITY CLOSURE BEFORE PROCEEDING
-    const closureCheck = await checkClosureBeforeReservation(date || reservation.date, time || reservation.time, reservation.roomName, reservation.location);
-    
+// In editReservation function, after parsing dates
+const closureCheck = await checkClosureBeforeReservation(
+  date || reservation.date, 
+  time || reservation.time, 
+  reservation.roomName, 
+  reservation.location
+);    
     if (closureCheck.isClosed) {
       console.log(`❌ Edit reservation BLOCKED due to closure: ${closureCheck.closure.title}`);
       return res.status(400).json({ 
