@@ -113,8 +113,7 @@ async function updateExpiredClosures() {
   }
 }
 
-// Helper: Auto-activate scheduled closures (UPDATED with better logging)
-// Helper: Auto-activate scheduled closures (UPDATED WITH MORE LOGGING)
+// Helper: Auto-activate scheduled closures
 async function activateScheduledClosures() {
   try {
     console.log("=".repeat(60));
@@ -128,14 +127,12 @@ async function activateScheduledClosures() {
     console.log(`📅 Current Date: ${today}`);
     console.log(`📅 Current Time String: ${now.format('HH:mm')}`);
     
-    // Find all scheduled closures (not just today, but any future dates too)
     const scheduledClosures = await Closure.find({ 
       status: "Scheduled"
     });
     
     console.log(`📋 Found ${scheduledClosures.length} scheduled closures total`);
     
-    // Also check for any closures that might have been missed
     const allClosures = await Closure.find({});
     console.log(`📊 Total closures in database: ${allClosures.length}`);
     console.log(`   Active: ${allClosures.filter(c => c.status === "Active").length}`);
@@ -162,21 +159,6 @@ async function activateScheduledClosures() {
       console.log(`   Current DateTime: ${now.format()}`);
       console.log(`   Should Activate: ${shouldActivate}`);
       
-      if (closureStartDateTime.isValid()) {
-        const diffMinutes = closureStartDateTime.diff(now, 'minutes');
-        console.log(`   Minutes until start: ${diffMinutes}`);
-        console.log(`   Start time is ${diffMinutes > 0 ? 'future' : diffMinutes < 0 ? 'past' : 'now'}`);
-      } else {
-        console.log(`   ⚠️ Invalid date/time format!`);
-        console.log(`   Date: ${closure.date}, Time: ${closure.startTime}`);
-      }
-      
-      // Check if the date is today or in the past
-      const closureDate = new Date(closure.date);
-      const todayDate = new Date(today);
-      const isDatePassed = closureDate <= todayDate;
-      console.log(`   Is date passed or today: ${isDatePassed} (${closure.date} <= ${today})`);
-      
       if (shouldActivate) {
         console.log(`⏰ TIME TO ACTIVATE "${closure.title}"!`);
         
@@ -195,9 +177,6 @@ async function activateScheduledClosures() {
         
         if (overlappingClosures.length > 0) {
           console.log(`⚠️ Cannot auto-activate "${closure.title}" - overlapping with ${overlappingClosures.length} active closure(s)`);
-          overlappingClosures.forEach(c => {
-            console.log(`   - ${c.title}: ${c.startTime} - ${c.endTime}`);
-          });
           continue;
         }
         
@@ -216,29 +195,19 @@ async function activateScheduledClosures() {
         
         if (overlappingScheduled.length > 0) {
           console.log(`⚠️ Cannot auto-activate "${closure.title}" - overlapping with ${overlappingScheduled.length} scheduled closure(s)`);
-          overlappingScheduled.forEach(c => {
-            console.log(`   - ${c.title}: ${c.startTime} - ${c.endTime}`);
-          });
           continue;
         }
         
         // ACTIVATE THE CLOSURE
         console.log(`🚀 ACTIVATING "${closure.title}" NOW!`);
         
-        const oldStatus = closure.status;
         closure.status = "Active";
         closure.activatedAt = new Date();
         closure.activatedBy = null;
         closure.activatedByName = "System (Auto)";
         
-        try {
-          await closure.save();
-          console.log(`✅ Closure "${closure.title}" status changed from ${oldStatus} to Active`);
-          console.log(`   Activated at: ${new Date().toLocaleString()}`);
-        } catch (saveError) {
-          console.error(`❌ Failed to save closure: ${saveError.message}`);
-          continue;
-        }
+        await closure.save();
+        console.log(`✅ Closure "${closure.title}" status changed to Active`);
         
         activatedCount++;
         activatedClosures.push(closure);
@@ -249,39 +218,6 @@ async function activateScheduledClosures() {
           console.log(`📊 Cancelled ${cancelledCount} reservations due to closure activation`);
         } catch (cancelError) {
           console.error(`❌ Error cancelling reservations: ${cancelError.message}`);
-        }
-        
-        // Send notification to admins
-        try {
-          const admins = await Admin.find({});
-          for (const admin of admins) {
-            if (admin.email) {
-              await sendEmail({
-                to: admin.email,
-                subject: `Closure Activated: ${closure.title}`,
-                html: `
-                  <h2>Closure Activated Automatically</h2>
-                  <p>The facility closure "${closure.title}" has been automatically activated.</p>
-                  <ul>
-                    <li><strong>Date:</strong> ${closure.date}</li>
-                    <li><strong>Time:</strong> ${closure.startTime} - ${closure.endTime}</li>
-                    <li><strong>Reason:</strong> ${closure.reason}</li>
-                    <li><strong>Affected Floors:</strong> ${closure.affectedAllFloors ? "All Floors" : closure.affectedFloors?.join(", ") || "None"}</li>
-                  </ul>
-                  <p>${closure.affectedReservations?.length || 0} reservations were cancelled.</p>
-                `
-              }).catch(err => console.warn("Email send error:", err.message));
-            }
-          }
-        } catch (emailError) {
-          console.warn("⚠️ Failed to send activation email:", emailError.message);
-        }
-      } else {
-        if (closureStartDateTime.isValid()) {
-          const minutesUntilStart = Math.floor(closureStartDateTime.diff(now, 'minutes'));
-          console.log(`⏳ "${closure.title}" will activate in ${minutesUntilStart} minutes (at ${closureStartDateTime.format()})`);
-        } else {
-          console.log(`⚠️ "${closure.title}" has invalid date/time format - cannot determine activation time`);
         }
       }
     }
@@ -298,7 +234,6 @@ async function activateScheduledClosures() {
     
   } catch (err) {
     console.error("❌ Error activating scheduled closures:", err);
-    console.error("Error stack:", err.stack);
     return { activatedCount: 0, activatedClosures: [], error: err.message };
   }
 }
@@ -422,6 +357,10 @@ async function cancelConflictingReservations(closure, cancelledBy = "System") {
   return affectedList;
 }
 
+// ============================================
+// EXPORTED CONTROLLER FUNCTIONS
+// ============================================
+
 export const updateClosureStatuses = async (req, res) => {
   try {
     console.log("🔄 Manual closure status update triggered");
@@ -537,14 +476,14 @@ export const activateClosure = async (req, res) => {
       console.log("🚀 ACTIVATING CLOSURE NOW (MANUAL MODE)");
       closure.status = "Active";
       closure.activatedAt = new Date();
-      closure.activatedBy = req.admin?._id || null;
-      closure.activatedByName = req.admin?.name || "System";
+      closure.activatedBy = null;  // No admin middleware
+      closure.activatedByName = "Admin (Manual)";  // Set default name
       await closure.save();
 
-      console.log(`✅ Closure "${closure.title}" activated manually by ${req.admin?.name || "System"}`);
+      console.log(`✅ Closure "${closure.title}" activated manually`);
 
       // Cancel conflicting reservations
-      const cancelledReservations = await cancelConflictingReservations(closure, req.admin?.name || "System");
+      const cancelledReservations = await cancelConflictingReservations(closure, "Admin");
       console.log(`📊 Cancelled ${cancelledReservations.length} reservations`);
 
       return res.json({
@@ -555,7 +494,7 @@ export const activateClosure = async (req, res) => {
       });
     }
 
-    // Original logic for non-force activation (auto-activation logic)
+    // Original logic for non-force activation
     const now = timeService.getCurrentTime();
     const closureStartDateTime = timeService.parseClosureDateTime(closure.date, closure.startTime);
     
@@ -609,14 +548,14 @@ export const activateClosure = async (req, res) => {
     console.log("🚀 ACTIVATING CLOSURE NOW");
     closure.status = "Active";
     closure.activatedAt = new Date();
-    closure.activatedBy = req.admin?._id || null;
-    closure.activatedByName = req.admin?.name || "System";
+    closure.activatedBy = null;
+    closure.activatedByName = "Admin";
     await closure.save();
 
-    console.log(`✅ Closure "${closure.title}" activated manually by ${req.admin?.name || "System"}`);
+    console.log(`✅ Closure "${closure.title}" activated`);
 
     // Cancel conflicting reservations
-    const cancelledReservations = await cancelConflictingReservations(closure, req.admin?.name || "System");
+    const cancelledReservations = await cancelConflictingReservations(closure, "Admin");
     console.log(`📊 Cancelled ${cancelledReservations.length} reservations`);
 
     res.json({
@@ -1092,7 +1031,6 @@ export const createClosure = async (req, res) => {
   }
 };
 
-// FIXED: getClosures with proper date filtering
 export const getClosures = async (req, res) => {
   try {
     console.log("=== GET CLOSURES CALLED ===");
