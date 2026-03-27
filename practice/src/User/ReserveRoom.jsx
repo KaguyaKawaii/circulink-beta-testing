@@ -408,7 +408,7 @@ function ReserveRoom({ user, setView }) {
   const daysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = (month, year) => new Date(year, month, 1).getDay();
 
-  const generateCalendarDays = useCallback((month, year) => {
+  const generateCalendarDays = useCallback(async (month, year) => {
     const days = [];
     const totalDays = daysInMonth(month, year);
     const firstDay = firstDayOfMonth(month, year);
@@ -419,6 +419,20 @@ function ReserveRoom({ user, setView }) {
 
     for (let i = 0; i < firstDay; i++) days.push(null);
 
+    // Fetch closures for all dates in this month to show indicators
+    let closureDates = new Set();
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/closures`, {
+        params: {
+          status: "Active"
+        }
+      });
+      const activeClosures = response.data.closures || [];
+      closureDates = new Set(activeClosures.map(c => c.date));
+    } catch (err) {
+      console.error("Failed to fetch closures for calendar:", err);
+    }
+
     for (let i = 1; i <= totalDays; i++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       const dateObj = new Date(year, month, i);
@@ -426,19 +440,26 @@ function ReserveRoom({ user, setView }) {
       const isPastDate = year < currentYear || 
                        (year === currentYear && month < currentMonth) || 
                        (year === currentYear && month === currentMonth && i < today);
+      const hasClosure = closureDates.has(dateStr);
       
       days.push({ 
         day: i, 
         date: dateStr, 
         disabled: isPastDate || isSunday,
-        isSunday: isSunday
+        isSunday: isSunday,
+        hasClosure: hasClosure && !isPastDate && !isSunday
       });
     }
 
     return days;
   }, []);
 
-  const [calendarDays, setCalendarDays] = useState(generateCalendarDays(currentMonth, currentYear));
+  const [calendarDays, setCalendarDays] = useState([]);
+
+  // Load calendar days when month/year changes
+  useEffect(() => {
+    generateCalendarDays(currentMonth, currentYear).then(setCalendarDays);
+  }, [currentMonth, currentYear, generateCalendarDays]);
 
   // Generate hours from 7 AM to 3 PM with proper display
   const generateHours = () => {
@@ -541,6 +562,7 @@ function ReserveRoom({ user, setView }) {
 
   // Handle date selection - FIXED: Show closure modal first, then availability
   const handleDateSelect = async (date) => {
+    // Set the date first
     setFormData({ ...formData, date: date.date });
     setShowDateModal(false);
     
@@ -548,19 +570,104 @@ function ReserveRoom({ user, setView }) {
     setFormData(prev => ({ ...prev, location: "", roomName: "", room_Id: "" }));
     setSelectedRoomDetails(null);
     
-    // Fetch closures for the selected date (this will show the popup)
-    const activeClosures = await fetchClosuresForDate(date.date, false);
+    // Reset closure modal flag for this date
+    setHasShownClosureModal(false);
     
-    // Update closure status for current time if time is already selected
-    if (formData.time) {
-      updateCurrentTimeClosureStatus(date.date, formData.time);
-    }
+    // Show loading state if needed
+    setClosureLoading(true);
     
-    // Show availability modal after a short delay (to allow closure modal to appear first)
-    // This ensures the closure modal shows first if there are closures
-    setTimeout(async () => {
+    try {
+      // FIRST: Fetch closures for the selected date
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/closures`, {
+        params: {
+          date: date.date,
+          status: "Active"
+        }
+      });
+      
+      // Filter active closures for this date
+      const activeClosures = (response.data.closures || []).filter(
+        closure => closure.status === "Active" && closure.date === date.date
+      );
+      
+      console.log("Active closures for date:", activeClosures);
+      
+      setClosures(activeClosures);
+      setActiveClosuresList(activeClosures);
+      
+      // Check for global closure
+      const global = activeClosures.find(c => c.affectedAllFloors === true);
+      setGlobalClosure(global);
+      
+      // Determine which floors are closed
+      const closedFloorsSet = new Set();
+      const floorClosuresMap = {};
+      
+      activeClosures.forEach(closure => {
+        if (closure.affectedAllFloors) {
+          const allFloors = ["Ground Floor", "2nd Floor", "4th Floor", "5th Floor"];
+          allFloors.forEach(floor => {
+            closedFloorsSet.add(floor);
+            if (!floorClosuresMap[floor]) floorClosuresMap[floor] = [];
+            floorClosuresMap[floor].push(closure);
+          });
+        } else if (closure.affectedFloors && closure.affectedFloors.length > 0) {
+          closure.affectedFloors.forEach(floor => {
+            closedFloorsSet.add(floor);
+            if (!floorClosuresMap[floor]) floorClosuresMap[floor] = [];
+            floorClosuresMap[floor].push(closure);
+          });
+        }
+      });
+      
+      setClosedFloors(Array.from(closedFloorsSet));
+      setFloorClosures(floorClosuresMap);
+      
+      // SHOW CLOSURE LIST MODAL FIRST if there are closures
+      if (activeClosures.length > 0) {
+        setShowClosureListModal(true);
+        setShowHeaderWarning(true);
+        setHasShownClosureModal(true);
+        
+        // Show alert for global closure
+        if (global) {
+          showAlert(
+            `⚠️ FACILITY CLOSURE NOTICE\n\n${global.title}\n${global.reason || ""}\n\nTime: ${global.startTime} - ${global.endTime}\n\nAll facilities are CLOSED during this time. No reservations can be made.`,
+            8000
+          );
+        } else if (closedFloorsSet.size > 0) {
+          const closedFloorsList = Array.from(closedFloorsSet).join(", ");
+          showAlert(
+            `⚠️ FLOOR CLOSURE NOTICE\n\nThe following floors have active closures: ${closedFloorsList}\n\nPlease select a different floor or time.\n\nReservations cannot be made on closed floors.`,
+            6000
+          );
+        }
+      } else {
+        setShowHeaderWarning(false);
+      }
+      
+      // Update closure status for current time if time is already selected
+      if (formData.time) {
+        updateCurrentTimeClosureStatus(date.date, formData.time);
+      }
+      
+      // THEN: After closure modal is shown (or if no closures), fetch availability
+      // Use a delay to allow the closure modal to be visible first
+      setTimeout(async () => {
+        await fetchRoomAvailability(date.date, formData.time || null);
+      }, 500); // 500ms delay to let user see closure modal first
+      
+    } catch (error) {
+      console.error("Error fetching closures:", error);
+      setActiveClosuresList([]);
+      setClosedFloors([]);
+      setGlobalClosure(null);
+      
+      // Still fetch availability even if closure fetch fails
       await fetchRoomAvailability(date.date, formData.time || null);
-    }, 100);
+    } finally {
+      setClosureLoading(false);
+    }
   };
 
   // Handle time selection with dropdown values
@@ -645,10 +752,6 @@ function ReserveRoom({ user, setView }) {
       socket.off('room_update', handleRoomUpdate);
     };
   }, []);
-
-  useEffect(() => {
-    setCalendarDays(generateCalendarDays(currentMonth, currentYear));
-  }, [currentMonth, currentYear, generateCalendarDays]);
 
   const handleMonthChange = (increment) => {
     let newMonth = currentMonth + increment;
@@ -1940,11 +2043,11 @@ function ReserveRoom({ user, setView }) {
               
               <div className="grid grid-cols-7 gap-2">
                 {calendarDays.map((day, index) => (
-                  <div key={index} className="text-center">
+                  <div key={index} className="text-center relative">
                     {day ? (
                       <button
                         onClick={() => handleDateSelect(day)}
-                        className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-colors text-sm sm:text-base font-medium min-w-[40px] min-h-[40px]
+                        className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-colors text-sm sm:text-base font-medium min-w-[40px] min-h-[40px] relative
                           ${day.disabled ? 
                             day.isSunday ? 
                               'text-red-300 bg-red-50 cursor-not-allowed' : 
@@ -1958,6 +2061,10 @@ function ReserveRoom({ user, setView }) {
                         disabled={day.disabled}
                       >
                         {day.day}
+                        {/* Add closure indicator dot */}
+                        {day.hasClosure && !day.disabled && (
+                          <span className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
+                        )}
                       </button>
                     ) : (
                       <div className="w-10 h-10 sm:w-12 sm:h-12"></div>
