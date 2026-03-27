@@ -66,7 +66,7 @@ import ArchivedNews from "./Admin/Archive/ArchivedNews.jsx";
 import ProfileSettings from "./Admin/Settings/ProfileSettings.jsx";
 import PasswordSecurity from "./Admin/Settings/PasswordSecurity.jsx";
 import SystemSettings from "./Admin/Settings/SystemSettings.jsx";
-import AdminClosures from "./Admin/Settings/AdminClosures.jsx"; // Add this import
+import AdminClosures from "./Admin/Settings/AdminClosures.jsx";
 
 
 /* ---- admin analytics ---- */
