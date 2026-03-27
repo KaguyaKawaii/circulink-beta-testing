@@ -65,10 +65,11 @@ function SignUp_User({ onSwitchToLogin }) {
   const departmentOptions = {
     "CLASE": "College of Liberal Arts, Sciences, and Education (CLASE)",
     "COT": "College of Technology (COT)",
-    "COC": "College of Commerce (COC)",
+    "COC": "College of Business (COB)",
     "CNND": "College of Nursing, Nutrition, and Dietetics (CNND)",
     "CPMT": "College of Pharmacy and Medical Technology (CPMT)",
     "COL": "College of Law (COL)",
+    "COCJ" : "College of Criminal Justice (COCJ)",
     "SHS": "Senior High School (SHS)"
   };
 
@@ -144,6 +145,10 @@ function SignUp_User({ onSwitchToLogin }) {
     ],
     COL: [
       "Juris Doctor"
+    ],
+    COCJ: [
+      "Bachelor of Science in Criminology",
+      
     ]
   };
 
