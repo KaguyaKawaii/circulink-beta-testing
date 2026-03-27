@@ -1,10 +1,10 @@
-// src/ReserveRoom.jsx - COMPLETE FIXED VERSION
+// src/ReserveRoom.jsx - REFACTORED (Closure Features Removed)
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
 import socket from "../utils/socket";
 import moment from "moment-timezone";
 import RoomAvailabilityModal from "./RoomAvailabilityModal";
-import { AlertTriangle, Calendar, Clock, X, Building2, Info, Bell } from "lucide-react";
+import { AlertTriangle, Calendar, Clock, X, Building2 } from "lucide-react";
 
 // Import shared room images configuration
 import { availableRoomImages, getRoomImageById } from "../data/roomImages";
@@ -78,9 +78,6 @@ function ReserveRoom({ user, setView }) {
 
   // Add state to track if submission is in progress
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Add state to track if we're waiting for closure modal to close
-  const [pendingAvailabilityDate, setPendingAvailabilityDate] = useState(null);
 
   // Add refs for scrolling to invalid fields
   const dateRef = useRef(null);
@@ -89,234 +86,6 @@ function ReserveRoom({ user, setView }) {
   const roomRef = useRef(null);
   const purposeRef = useRef(null);
   const participantRefs = useRef([]);
-
-  // ========== ENHANCED FLOOR-BASED CLOSURE SYSTEM ==========
-  const [closures, setClosures] = useState([]);
-  const [closureLoading, setClosureLoading] = useState(false);
-  const [showClosureModal, setShowClosureModal] = useState(false);
-  const [showClosureListModal, setShowClosureListModal] = useState(false);
-  const [activeClosuresList, setActiveClosuresList] = useState([]);
-  const [selectedClosure, setSelectedClosure] = useState(null);
-  const [globalClosure, setGlobalClosure] = useState(null);
-  // Track which floors are fully closed
-  const [closedFloors, setClosedFloors] = useState([]);
-  // Track floor-specific closure info
-  const [floorClosures, setFloorClosures] = useState({});
-  // Track if current selected time is within any closure
-  const [isCurrentTimeClosed, setIsCurrentTimeClosed] = useState(false);
-  const [currentTimeClosures, setCurrentTimeClosures] = useState([]);
-  // Track if header warning is visible
-  const [showHeaderWarning, setShowHeaderWarning] = useState(false);
-  // Track if we've shown the closure modal for the selected date
-  const [hasShownClosureModal, setHasShownClosureModal] = useState(false);
-
-  // Fetch closures for selected date
-  const fetchClosuresForDate = useCallback(async (date) => {
-    if (!date) return [];
-    
-    setClosureLoading(true);
-    try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/closures`, {
-        params: {
-          date: date,
-          status: "Active"
-        }
-      });
-      
-      const activeClosures = (response.data.closures || []).filter(
-        closure => closure.status === "Active" && closure.date === date
-      );
-      
-      console.log("Active closures for date:", activeClosures);
-      
-      setClosures(activeClosures);
-      setActiveClosuresList(activeClosures);
-      
-      const global = activeClosures.find(c => c.affectedAllFloors === true);
-      setGlobalClosure(global);
-      
-      const closedFloorsSet = new Set();
-      const floorClosuresMap = {};
-      
-      activeClosures.forEach(closure => {
-        if (closure.affectedAllFloors) {
-          const allFloors = ["Ground Floor", "2nd Floor", "4th Floor", "5th Floor"];
-          allFloors.forEach(floor => {
-            closedFloorsSet.add(floor);
-            if (!floorClosuresMap[floor]) floorClosuresMap[floor] = [];
-            floorClosuresMap[floor].push(closure);
-          });
-        } else if (closure.affectedFloors && closure.affectedFloors.length > 0) {
-          closure.affectedFloors.forEach(floor => {
-            closedFloorsSet.add(floor);
-            if (!floorClosuresMap[floor]) floorClosuresMap[floor] = [];
-            floorClosuresMap[floor].push(closure);
-          });
-        }
-      });
-      
-      setClosedFloors(Array.from(closedFloorsSet));
-      setFloorClosures(floorClosuresMap);
-      
-      if (activeClosures.length > 0) {
-        setShowHeaderWarning(true);
-      } else {
-        setShowHeaderWarning(false);
-      }
-      
-      if (global) {
-        showAlert(
-          `⚠️ FACILITY CLOSURE NOTICE\n\n${global.title}\n${global.reason || ""}\n\nTime: ${global.startTime} - ${global.endTime}\n\nAll facilities are CLOSED during this time. No reservations can be made.`,
-          8000
-        );
-      }
-      
-      return activeClosures;
-    } catch (error) {
-      console.error("Error fetching closures:", error);
-      setActiveClosuresList([]);
-      setClosedFloors([]);
-      setGlobalClosure(null);
-      return [];
-    } finally {
-      setClosureLoading(false);
-    }
-  }, []);
-
-  // Reset closure modal shown flag when date changes
-  useEffect(() => {
-    setHasShownClosureModal(false);
-  }, [formData.date]);
-
-  // Check if a specific time is within any closure period
-  const updateCurrentTimeClosureStatus = useCallback((date, time) => {
-    if (!date || !time) {
-      setIsCurrentTimeClosed(false);
-      setCurrentTimeClosures([]);
-      return;
-    }
-    
-    const activeClosuresAtTime = closures.filter(closure => {
-      if (closure.date !== date) return false;
-      const isTimeInClosure = time >= closure.startTime && time < closure.endTime;
-      return isTimeInClosure;
-    });
-    
-    const hasTimeClosures = activeClosuresAtTime.length > 0;
-    setIsCurrentTimeClosed(hasTimeClosures);
-    setCurrentTimeClosures(activeClosuresAtTime);
-    
-    if (hasTimeClosures) {
-      setShowHeaderWarning(true);
-    }
-  }, [closures]);
-
-  // Check if a specific floor is closed at the selected time
-  const isFloorClosed = useCallback((floor, date, time) => {
-    if (!date || !time) return false;
-    
-    return closures.some(closure => {
-      if (closure.date !== date) return false;
-      const closureStart = closure.startTime;
-      const closureEnd = closure.endTime;
-      const isTimeInClosure = time >= closureStart && time < closureEnd;
-      if (!isTimeInClosure) return false;
-      if (closure.affectedAllFloors) return true;
-      return closure.affectedFloors && closure.affectedFloors.includes(floor);
-    });
-  }, [closures]);
-
-  // Get closure info for a specific floor
-  const getFloorClosureInfo = useCallback((floor, date, time) => {
-    if (!date || !time) return null;
-    
-    const closure = closures.find(c => {
-      if (c.date !== date) return false;
-      const isTimeInClosure = time >= c.startTime && time < c.endTime;
-      if (!isTimeInClosure) return false;
-      if (c.affectedAllFloors) return true;
-      return c.affectedFloors && c.affectedFloors.includes(floor);
-    });
-    
-    return closure;
-  }, [closures]);
-
-  // Check if a specific room is closed at a specific time
-  const isRoomClosed = useCallback((roomName, date, time) => {
-    if (!date || !time) return false;
-    
-    const room = rooms.find(r => r.room === roomName);
-    if (!room) return false;
-    
-    return closures.some(closure => {
-      if (closure.date !== date) return false;
-      const closureStart = closure.startTime;
-      const closureEnd = closure.endTime;
-      const isTimeInClosure = time >= closureStart && time < closureEnd;
-      if (!isTimeInClosure) return false;
-      if (closure.affectedAllFloors) return true;
-      return closure.affectedFloors && closure.affectedFloors.includes(room.floor);
-    });
-  }, [closures, rooms]);
-
-  // Get closure info for a room at a specific time
-  const getRoomClosureInfo = useCallback((roomName, date, time) => {
-    if (!date || !time) return null;
-    
-    const room = rooms.find(r => r.room === roomName);
-    if (!room) return null;
-    
-    const closure = closures.find(c => {
-      if (c.date !== date) return false;
-      const isTimeInClosure = time >= c.startTime && time < c.endTime;
-      if (!isTimeInClosure) return false;
-      if (c.affectedAllFloors) return true;
-      return c.affectedFloors && c.affectedFloors.includes(room.floor);
-    });
-    
-    return closure;
-  }, [closures, rooms]);
-
-  // Check if a time slot is closed globally
-  const isTimeSlotClosed = useCallback((date, time) => {
-    if (!date || !time) return false;
-    
-    return closures.some(closure => {
-      if (closure.date !== date) return false;
-      const isTimeInClosure = time >= closure.startTime && time < closure.endTime;
-      return isTimeInClosure && closure.affectedAllFloors;
-    });
-  }, [closures]);
-
-  // Get all closures affecting a time slot
-  const getTimeSlotClosures = useCallback((date, time) => {
-    if (!date || !time) return [];
-    
-    return closures.filter(closure => {
-      if (closure.date !== date) return false;
-      const isTimeInClosure = time >= closure.startTime && time < closure.endTime;
-      return isTimeInClosure;
-    });
-  }, [closures]);
-
-  // Update room availability check to include closures
-  const isRoomAvailableForTime = useCallback((room, selectedTime) => {
-    if (isRoomClosed(room.room, formData.date, selectedTime)) {
-      return false;
-    }
-    
-    if (!roomAvailability || roomAvailability.length === 0) return true;
-    
-    const roomStatus = roomAvailability.find(r => r._id === room._id);
-    if (!roomStatus) return true;
-    
-    const hasOccupied = roomStatus.occupied && roomStatus.occupied.length > 0;
-    const hasPending = roomStatus.pending && roomStatus.pending.length > 0;
-    
-    return !hasOccupied && !hasPending;
-  }, [roomAvailability, formData.date, isRoomClosed]);
-
-  // ========== END CLOSURE SYSTEM INTEGRATION ==========
 
   // Check if user is from College of Law
   const isCollegeOfLawUser = useCallback(() => {
@@ -336,12 +105,8 @@ function ReserveRoom({ user, setView }) {
     return user?.role === "Faculty" || user?.role === "Staff_Office";
   }, [user]);
 
-  // Check if user can reserve a specific floor (with closure consideration)
+  // Check if user can reserve a specific floor
   const canReserveFloor = useCallback((floor) => {
-    if (isFloorClosed(floor, formData.date, formData.time)) {
-      return false;
-    }
-    
     if (isFacultyUser()) {
       return true;
     }
@@ -359,7 +124,7 @@ function ReserveRoom({ user, setView }) {
     }
     
     return false;
-  }, [isGraduateStudent, isCollegeOfLawUser, isFacultyUser, isFloorClosed, formData.date, formData.time]);
+  }, [isGraduateStudent, isCollegeOfLawUser, isFacultyUser]);
 
   // Calendar generation functions
   const months = [
@@ -381,19 +146,6 @@ function ReserveRoom({ user, setView }) {
 
     for (let i = 0; i < firstDay; i++) days.push(null);
 
-    let closureDates = new Set();
-    try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/closures`, {
-        params: {
-          status: "Active"
-        }
-      });
-      const activeClosures = response.data.closures || [];
-      closureDates = new Set(activeClosures.map(c => c.date));
-    } catch (err) {
-      console.error("Failed to fetch closures for calendar:", err);
-    }
-
     for (let i = 1; i <= totalDays; i++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
       const dateObj = new Date(year, month, i);
@@ -401,14 +153,12 @@ function ReserveRoom({ user, setView }) {
       const isPastDate = year < currentYear || 
                        (year === currentYear && month < currentMonth) || 
                        (year === currentYear && month === currentMonth && i < today);
-      const hasClosure = closureDates.has(dateStr);
       
       days.push({ 
         day: i, 
         date: dateStr, 
         disabled: isPastDate || isSunday,
         isSunday: isSunday,
-        hasClosure: hasClosure && !isPastDate && !isSunday
       });
     }
 
@@ -516,110 +266,15 @@ function ReserveRoom({ user, setView }) {
     }
   };
 
-  // Handle date selection - FIXED: Show closure modal FIRST, then wait for user to close it
+  // Handle date selection
   const handleDateSelect = async (date) => {
-    // Set the date
     setFormData({ ...formData, date: date.date });
     setShowDateModal(false);
     
-    // Reset location and room
     setFormData(prev => ({ ...prev, location: "", roomName: "", room_Id: "" }));
     setSelectedRoomDetails(null);
     
-    // Reset flags
-    setHasShownClosureModal(false);
-    setClosureLoading(true);
-    
-    try {
-      // Fetch closures for the selected date
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/closures`, {
-        params: {
-          date: date.date,
-          status: "Active"
-        }
-      });
-      
-      const activeClosures = (response.data.closures || []).filter(
-        closure => closure.status === "Active" && closure.date === date.date
-      );
-      
-      console.log("Active closures for date:", activeClosures);
-      
-      setClosures(activeClosures);
-      setActiveClosuresList(activeClosures);
-      
-      const global = activeClosures.find(c => c.affectedAllFloors === true);
-      setGlobalClosure(global);
-      
-      const closedFloorsSet = new Set();
-      const floorClosuresMap = {};
-      
-      activeClosures.forEach(closure => {
-        if (closure.affectedAllFloors) {
-          const allFloors = ["Ground Floor", "2nd Floor", "4th Floor", "5th Floor"];
-          allFloors.forEach(floor => {
-            closedFloorsSet.add(floor);
-            if (!floorClosuresMap[floor]) floorClosuresMap[floor] = [];
-            floorClosuresMap[floor].push(closure);
-          });
-        } else if (closure.affectedFloors && closure.affectedFloors.length > 0) {
-          closure.affectedFloors.forEach(floor => {
-            closedFloorsSet.add(floor);
-            if (!floorClosuresMap[floor]) floorClosuresMap[floor] = [];
-            floorClosuresMap[floor].push(closure);
-          });
-        }
-      });
-      
-      setClosedFloors(Array.from(closedFloorsSet));
-      setFloorClosures(floorClosuresMap);
-      
-      // SHOW CLOSURE LIST MODAL if there are closures
-      if (activeClosures.length > 0) {
-        setShowClosureListModal(true);
-        setShowHeaderWarning(true);
-        setHasShownClosureModal(true);
-        
-        if (global) {
-          showAlert(
-            `⚠️ FACILITY CLOSURE NOTICE\n\n${global.title}\n${global.reason || ""}\n\nTime: ${global.startTime} - ${global.endTime}\n\nAll facilities are CLOSED during this time. No reservations can be made.`,
-            8000
-          );
-        } else if (closedFloorsSet.size > 0) {
-          const closedFloorsList = Array.from(closedFloorsSet).join(", ");
-          showAlert(
-            `⚠️ FLOOR CLOSURE NOTICE\n\nThe following floors have active closures: ${closedFloorsList}\n\nPlease select a different floor or time.\n\nReservations cannot be made on closed floors.`,
-            6000
-          );
-        }
-      } else {
-        setShowHeaderWarning(false);
-        // No closures, show availability modal immediately
-        await fetchRoomAvailability(date.date, formData.time || null);
-      }
-      
-      if (formData.time) {
-        updateCurrentTimeClosureStatus(date.date, formData.time);
-      }
-      
-    } catch (error) {
-      console.error("Error fetching closures:", error);
-      setActiveClosuresList([]);
-      setClosedFloors([]);
-      setGlobalClosure(null);
-      await fetchRoomAvailability(date.date, formData.time || null);
-    } finally {
-      setClosureLoading(false);
-    }
-  };
-
-  // Handle closing the closure modal - then show availability
-  const handleCloseClosureModal = () => {
-    setShowClosureListModal(false);
-    // After user closes closure modal, show availability modal
-    if (formData.date) {
-      fetchRoomAvailability(formData.date, formData.time || null);
-    }
+    await fetchRoomAvailability(date.date, formData.time || null);
   };
 
   // Handle time selection
@@ -630,7 +285,6 @@ function ReserveRoom({ user, setView }) {
     setShowTimeModal(false);
     
     if (formData.date) {
-      updateCurrentTimeClosureStatus(formData.date, timeString);
       fetchRoomAvailability(formData.date, timeString);
     }
   };
@@ -800,14 +454,6 @@ function ReserveRoom({ user, setView }) {
       return false;
     }
 
-    if (isTimeSlotClosed(formData.date, formData.time)) {
-      const closuresAtTime = getTimeSlotClosures(formData.date, formData.time);
-      const closureTitles = closuresAtTime.map(c => c.title).join(", ");
-      showAlert(`❌ This time slot is CLOSED due to facility closure(s): ${closureTitles}\n\nNo reservations can be made during this time. Please select a different time.`);
-      scrollToElement(timeRef);
-      return false;
-    }
-
     const [hour] = formData.time.split(":");
     const hourNum = parseInt(hour, 10);
     if (hourNum < 7 || hourNum > 15) {
@@ -818,13 +464,6 @@ function ReserveRoom({ user, setView }) {
 
     if (!formData.location) {
       showAlert("Please select a location/floor.");
-      scrollToElement(locationRef);
-      return false;
-    }
-
-    if (isFloorClosed(formData.location, formData.date, formData.time)) {
-      const floorClosure = getFloorClosureInfo(formData.location, formData.date, formData.time);
-      showAlert(`❌ This floor is CLOSED at the selected time due to: ${floorClosure?.title || "Facility Closure"}\n\n${floorClosure?.reason || "No reservations can be made during this time."}\n\nTime: ${floorClosure?.startTime} - ${floorClosure?.endTime}\n\nPlease select a different floor or time.`);
       scrollToElement(locationRef);
       return false;
     }
@@ -842,18 +481,8 @@ function ReserveRoom({ user, setView }) {
       return false;
     }
 
-    const roomClosure = getRoomClosureInfo(formData.roomName, formData.date, formData.time);
-    if (roomClosure) {
-      showAlert(`❌ This room is CLOSED at the selected time due to: ${roomClosure.title}\n\n${roomClosure.reason}\n\nTime: ${roomClosure.startTime} - ${roomClosure.endTime}\n\nPlease select a different room or time.`);
-      scrollToElement(roomRef);
-      return false;
-    }
-
     if (!canReserveFloor(formData.location)) {
-      if (isFloorClosed(formData.location, formData.date, formData.time)) {
-        const floorClosure = getFloorClosureInfo(formData.location, formData.date, formData.time);
-        showAlert(`❌ This floor is CLOSED at the selected time due to: ${floorClosure?.title || "Facility Closure"}`);
-      } else if (formData.location === "Ground Floor") {
+      if (formData.location === "Ground Floor") {
         showAlert("Ground Floor is reserved for Graduate students only.");
       } else if (formData.location === "2nd Floor") {
         showAlert("2nd Floor is reserved for College of Law students only.");
@@ -1147,28 +776,6 @@ function ReserveRoom({ user, setView }) {
       return;
     }
 
-    const floorClosure = getFloorClosureInfo(formData.location, formData.date, formData.time);
-    if (floorClosure) {
-      showAlert(`❌ RESERVATION BLOCKED\n\nThis floor is CLOSED at the selected time due to: ${floorClosure.title}\n\n${floorClosure.reason}\n\nTime: ${floorClosure.startTime} - ${floorClosure.endTime}\n\nPlease select a different floor or time.`);
-      setIsSubmitting(false);
-      return;
-    }
-    
-    const roomClosure = getRoomClosureInfo(formData.roomName, formData.date, formData.time);
-    if (roomClosure) {
-      showAlert(`❌ RESERVATION BLOCKED\n\nThis room is CLOSED at the selected time due to: ${roomClosure.title}\n\n${roomClosure.reason}\n\nTime: ${roomClosure.startTime} - ${roomClosure.endTime}\n\nPlease select a different room or time.`);
-      setIsSubmitting(false);
-      return;
-    }
-
-    if (isTimeSlotClosed(formData.date, formData.time)) {
-      const closuresAtTime = getTimeSlotClosures(formData.date, formData.time);
-      const closureTitles = closuresAtTime.map(c => c.title).join(", ");
-      showAlert(`❌ RESERVATION BLOCKED\n\nThis time slot is CLOSED due to: ${closureTitles}\n\nNo reservations can be made during this time.\n\nPlease select a different time.`);
-      setIsSubmitting(false);
-      return;
-    }
-
     const allParticipantsHaveAccess = await validateParticipantFloorAccess();
     if (!allParticipantsHaveAccess) {
       setIsSubmitting(false);
@@ -1238,11 +845,7 @@ function ReserveRoom({ user, setView }) {
       setShowSuccessModal(true);
     } catch (error) {
       console.error("Reservation failed:", error);
-      if (error.response?.data?.isClosed) {
-        showAlert(`❌ RESERVATION BLOCKED\n\n${error.response.data.message}`);
-      } else {
-        showAlert(`Reservation failed: ${error.response?.data?.message || error.message}`);
-      }
+      showAlert(`Reservation failed: ${error.response?.data?.message || error.message}`);
     } finally {
       setLoading(false);
       setIsSubmitting(false);
@@ -1264,20 +867,10 @@ function ReserveRoom({ user, setView }) {
   const handleRoomClick = (room) => {
     setSelectedRoomDetails(room);
     
-    const floorIsClosed = isFloorClosed(room.floor, formData.date, formData.time);
-    if (floorIsClosed) {
-      const floorClosure = getFloorClosureInfo(room.floor, formData.date, formData.time);
-      showAlert(`❌ This floor is CLOSED at the selected time due to: ${floorClosure?.title || "Facility Closure"}\n\n${floorClosure?.reason || ""}\n\nTime: ${floorClosure?.startTime} - ${floorClosure?.endTime}\n\nYou cannot reserve this room.`);
-      return;
-    }
-    
-    const roomClosure = getRoomClosureInfo(room.room, formData.date, formData.time);
-    const isClosed = !!roomClosure;
-    
-    const isAvailable = isRoomAvailableForTime(room, formData.time);
     const canAccess = canReserveFloor(room.floor);
+    const isAvailable = isRoomAvailableForTime(room, formData.time);
     
-    if (room.isActive && isAvailable && canAccess && !isClosed) {
+    if (room.isActive && isAvailable && canAccess) {
       setFormData((prev) => ({
         ...prev,
         roomName: room.room,
@@ -1285,8 +878,6 @@ function ReserveRoom({ user, setView }) {
       }));
     } else if (!room.isActive) {
       showAlert("This room is currently unavailable. You can view details but cannot reserve it.");
-    } else if (isClosed && formData.date && formData.time) {
-      showAlert(`❌ This room is CLOSED at the selected time due to: ${roomClosure.title}\n\n${roomClosure.reason}\n\nTime: ${roomClosure.startTime} - ${roomClosure.endTime}\n\nYou cannot reserve this room.`);
     } else if (!isAvailable && formData.date && formData.time) {
       showAlert("This room is already booked for the selected time. Please choose a different time or room.");
     } else if (!canReserveFloor(room.floor)) {
@@ -1299,6 +890,19 @@ function ReserveRoom({ user, setView }) {
       }
     }
   };
+
+  // Check if room is available at selected time
+  const isRoomAvailableForTime = useCallback((room, selectedTime) => {
+    if (!roomAvailability || roomAvailability.length === 0) return true;
+    
+    const roomStatus = roomAvailability.find(r => r._id === room._id);
+    if (!roomStatus) return true;
+    
+    const hasOccupied = roomStatus.occupied && roomStatus.occupied.length > 0;
+    const hasPending = roomStatus.pending && roomStatus.pending.length > 0;
+    
+    return !hasOccupied && !hasPending;
+  }, [roomAvailability]);
 
   const getRoomImage = (room) => {
     if (room.image && room.image.url) {
@@ -1645,19 +1249,6 @@ function ReserveRoom({ user, setView }) {
     setLoadedImages(prev => new Set(prev).add(imageId));
   };
 
-  const getFloorClosureForCurrentTime = (floor) => {
-    return getFloorClosureInfo(floor, formData.date, formData.time);
-  };
-
-  const shouldShowHeaderWarning = () => {
-    if (!formData.date) return false;
-    if (globalClosure) return true;
-    if (isCurrentTimeClosed && formData.time) return true;
-    if (closedFloors.length > 0 && formData.location && isFloorClosed(formData.location, formData.date, formData.time)) return true;
-    if (activeClosuresList.length > 0 && (!formData.time || !formData.location)) return true;
-    return false;
-  };
-
   return (
     <main className="w-full min-h-screen flex flex-col bg-gray-50 lg:pl-[250px]">
       {loading && (
@@ -1669,92 +1260,6 @@ function ReserveRoom({ user, setView }) {
           <p className="text-white text-lg">Submitting Reservation...</p>
         </div>
       )}
-
-      {/* CLOSURE WARNING HEADER */}
-      {shouldShowHeaderWarning() && (
-        <div className={`sticky top-0 z-40 px-4 py-2 shadow-md transition-all duration-300 ${
-          globalClosure ? "bg-red-600" : 
-          isCurrentTimeClosed ? "bg-red-500" : 
-          "bg-orange-500"
-        } text-white`}>
-          <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Bell size={18} className="flex-shrink-0 animate-pulse" />
-              <div className="flex-1 min-w-0">
-                {globalClosure ? (
-                  <>
-                    <span className="font-semibold">⚠️ FACILITY CLOSURE:</span>
-                    <span className="ml-1 text-sm">{globalClosure.title}</span>
-                    <span className="hidden sm:inline text-xs ml-2">
-                      ({globalClosure.startTime} - {globalClosure.endTime})
-                    </span>
-                  </>
-                ) : isCurrentTimeClosed ? (
-                  <>
-                    <span className="font-semibold">⛔ TIME SLOT CLOSED:</span>
-                    <span className="ml-1 text-sm">
-                      {currentTimeClosures.map(c => c.title).join(", ")}
-                    </span>
-                    <span className="hidden sm:inline text-xs ml-2">
-                      ({formData.time} is within closure period)
-                    </span>
-                  </>
-                ) : formData.location && isFloorClosed(formData.location, formData.date, formData.time) ? (
-                  <>
-                    <span className="font-semibold">⛔ FLOOR CLOSED:</span>
-                    <span className="ml-1 text-sm">
-                      {formData.location} is CLOSED
-                    </span>
-                  </>
-                ) : closedFloors.length > 0 ? (
-                  <>
-                    <span className="font-semibold">⚠️ FLOOR CLOSURE NOTICE:</span>
-                    <span className="ml-1 text-sm">
-                      {closedFloors.join(", ")} {closedFloors.length === 1 ? "is" : "are"} CLOSED
-                    </span>
-                    <span className="hidden sm:inline text-xs ml-2">
-                      {formData.time ? `at ${formData.time}` : "today"}
-                    </span>
-                  </>
-                ) : null}
-              </div>
-            </div>
-            <button
-              onClick={() => setShowClosureListModal(true)}
-              className="text-white hover:text-gray-200 text-xs sm:text-sm underline whitespace-nowrap flex items-center gap-1 bg-white/20 px-2 py-1 rounded-md hover:bg-white/30 transition-colors"
-            >
-              <Info size={14} />
-              View All Closures
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Specific closure alert for selected floor */}
-      {formData.location && formData.date && formData.time && (() => {
-        const floorClosure = getFloorClosureForCurrentTime(formData.location);
-        if (floorClosure && !globalClosure && !isCurrentTimeClosed && !shouldShowHeaderWarning()) {
-          return (
-            <div className="bg-red-500 text-white px-4 py-2 sticky top-0 z-40 shadow-md">
-              <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-2">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle size={18} />
-                  <span className="font-semibold">⛔ FLOOR CLOSED:</span>
-                  <span className="text-sm">{floorClosure.title}</span>
-                  <span className="text-xs ml-1">({floorClosure.startTime} - {floorClosure.endTime})</span>
-                </div>
-                <button
-                  onClick={() => setShowClosureListModal(true)}
-                  className="text-white hover:text-gray-200 text-xs underline"
-                >
-                  Details
-                </button>
-              </div>
-            </div>
-          );
-        }
-        return null;
-      })()}
 
       <header className="text-black px-4 sm:px-6 h-[60px] flex items-center justify-between shadow-sm bg-white sticky top-0 z-30">
         <h1 className="text-lg sm:text-xl md:text-2xl font-bold tracking-wide">Room Reservation Request</h1>
@@ -1850,12 +1355,6 @@ function ReserveRoom({ user, setView }) {
               {!formData.time && (
                 <p className="text-xs text-red-500 mt-1">Time is required</p>
               )}
-              {formData.time && isTimeSlotClosed(formData.date, formData.time) && (
-                <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-                  <AlertTriangle size={12} />
-                  This time slot is CLOSED due to facility closure
-                </p>
-              )}
             </div>
 
             {/* Number of Users Selector */}
@@ -1935,7 +1434,7 @@ function ReserveRoom({ user, setView }) {
                     {day ? (
                       <button
                         onClick={() => handleDateSelect(day)}
-                        className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-colors text-sm sm:text-base font-medium min-w-[40px] min-h-[40px] relative
+                        className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center transition-colors text-sm sm:text-base font-medium min-w-[40px] min-h-[40px]
                           ${day.disabled ? 
                             day.isSunday ? 
                               'text-red-300 bg-red-50 cursor-not-allowed' : 
@@ -1949,9 +1448,6 @@ function ReserveRoom({ user, setView }) {
                         disabled={day.disabled}
                       >
                         {day.day}
-                        {day.hasClosure && !day.disabled && (
-                          <span className="absolute bottom-0 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 bg-red-500 rounded-full"></span>
-                        )}
                       </button>
                     ) : (
                       <div className="w-10 h-10 sm:w-12 sm:h-12"></div>
@@ -2075,18 +1571,12 @@ function ReserveRoom({ user, setView }) {
             {roomLocations.map((loc) => {
               const imageSrc = getFloorImage(loc);
               const canReserve = canReserveFloor(loc);
-              const floorIsClosed = isFloorClosed(loc, formData.date, formData.time);
-              const floorClosure = getFloorClosureInfo(loc, formData.date, formData.time);
               const isSelected = formData.location === loc;
 
               return (
                 <button
                   key={loc}
                   onClick={() => {
-                    if (floorIsClosed) {
-                      showAlert(`❌ This floor is CLOSED at the selected time due to: ${floorClosure?.title || "Facility Closure"}\n\n${floorClosure?.reason || ""}\n\nTime: ${floorClosure?.startTime} - ${floorClosure?.endTime}\n\nYou cannot reserve this floor.`);
-                      return;
-                    }
                     if (!canReserve) {
                       if (loc === "Ground Floor") {
                         showAlert("Ground Floor is reserved for Graduate students only.");
@@ -2107,13 +1597,11 @@ function ReserveRoom({ user, setView }) {
                   className={`border-2 rounded-2xl w-full xs:w-[150px] sm:w-[180px] md:w-[200px] h-[120px] sm:h-[150px] md:h-[200px] flex flex-col justify-center items-center cursor-pointer transition-all duration-200 overflow-hidden relative min-h-[120px] ${
                     isSelected 
                       ? "border-[#CC0000] ring-2 ring-red-100 opacity-100 scale-105" 
-                      : floorIsClosed
-                      ? "border-red-300 opacity-50 cursor-not-allowed bg-gray-100"
                       : !canReserve
                       ? "border-gray-200 opacity-50 cursor-not-allowed"
                       : "border-gray-200 opacity-70 hover:opacity-100 hover:border-gray-300"
                   }`}
-                  disabled={floorIsClosed || !canReserve}
+                  disabled={!canReserve}
                 >
                   {imageSrc && (
                     <img
@@ -2124,16 +1612,9 @@ function ReserveRoom({ user, setView }) {
                       onLoad={() => handleImageLoad(`floor-${loc}`)}
                     />
                   )}
-                  <div className={`absolute inset-0 ${floorIsClosed ? "bg-red-800/70" : "bg-black/40"}`}></div>
+                  <div className="absolute inset-0 bg-black/40"></div>
                   
-                  {floorIsClosed && (
-                    <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10 flex items-center gap-1">
-                      <AlertTriangle size={12} />
-                      CLOSED
-                    </div>
-                  )}
-                  
-                  {!canReserve && !floorIsClosed && (
+                  {!canReserve && (
                     <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
                       Restricted
                     </div>
@@ -2143,14 +1624,9 @@ function ReserveRoom({ user, setView }) {
                     <p className="text-sm sm:text-base md:text-lg font-semibold mb-1">
                       {loc}
                     </p>
-                    {(loc === "Ground Floor" || loc === "2nd Floor") && !floorIsClosed && (
+                    {(loc === "Ground Floor" || loc === "2nd Floor") && (
                       <p className="text-xs sm:text-sm opacity-90">
                         {loc === "Ground Floor" ? "Graduate Studies & Periodicals" : "Law Library"}
-                      </p>
-                    )}
-                    {floorIsClosed && floorClosure && (
-                      <p className="text-xs opacity-90 mt-1">
-                        {floorClosure.title.length > 30 ? floorClosure.title.substring(0, 30) + "..." : floorClosure.title}
                       </p>
                     )}
                   </div>
@@ -2161,12 +1637,6 @@ function ReserveRoom({ user, setView }) {
           {!formData.location && (
             <p className="text-xs text-red-500 text-center mt-2">Please select a location</p>
           )}
-          {formData.location && isFloorClosed(formData.location, formData.date, formData.time) && (
-            <p className="text-xs text-red-500 text-center mt-2 flex items-center justify-center gap-1">
-              <AlertTriangle size={12} />
-              This floor is CLOSED at the selected time. Please select a different floor or time.
-            </p>
-          )}
         </div>
 
         {/* Room Selection */}
@@ -2174,130 +1644,106 @@ function ReserveRoom({ user, setView }) {
           <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100" ref={roomRef}>
             <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 pb-2 border-b border-gray-100">Select Room</h2>
 
-            {isFloorClosed(formData.location, formData.date, formData.time) ? (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-                <AlertTriangle className="text-red-600 mx-auto mb-2" size={32} />
-                <p className="text-red-800 font-semibold">This floor is CLOSED at the selected time</p>
-                <p className="text-red-600 text-sm mt-1">No rooms are available on this floor. Please select a different floor or time.</p>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-3 sm:gap-5 justify-center">
-                {rooms
-                  .filter((room) => {
-                    const floor = formData.location;
-                    if (floor === "5th Floor") {
-                      return room.floor === floor && (room.room === "Faculty Room" || room.room === "Collaboration Room");
-                    } else {
-                      return room.floor === floor;
-                    }
-                  })
-                  .map((room) => {
-                    const roomImage = getRoomImage(room);
-                    const isDisabled = !room.isActive;
-                    const canReserve = canReserveFloor(room.floor);
-                    const isAvailable = isRoomAvailableForTime(room, formData.time);
-                    const isSelected = formData.room_Id === room._id;
-                    const isBooked = !isAvailable && formData.date && formData.time && !isRoomClosed(room.room, formData.date, formData.time);
-                    const roomClosure = getRoomClosureInfo(room.room, formData.date, formData.time);
-                    const isClosedByClosure = !!roomClosure;
-                    const floorIsClosed = isFloorClosed(room.floor, formData.date, formData.time);
+            <div className="flex flex-wrap gap-3 sm:gap-5 justify-center">
+              {rooms
+                .filter((room) => {
+                  const floor = formData.location;
+                  if (floor === "5th Floor") {
+                    return room.floor === floor && (room.room === "Faculty Room" || room.room === "Collaboration Room");
+                  } else {
+                    return room.floor === floor;
+                  }
+                })
+                .map((room) => {
+                  const roomImage = getRoomImage(room);
+                  const isDisabled = !room.isActive;
+                  const canReserve = canReserveFloor(room.floor);
+                  const isAvailable = isRoomAvailableForTime(room, formData.time);
+                  const isSelected = formData.room_Id === room._id;
+                  const isBooked = !isAvailable && formData.date && formData.time;
 
-                    return (
-                      <button
-                        key={room._id}
-                        onClick={() => handleRoomClick(room)}
-                        className={`border-2 rounded-2xl w-full sm:w-[280px] md:w-[300px] h-[250px] sm:h-[280px] md:h-[300px] flex justify-center items-center cursor-pointer relative overflow-hidden transition-all duration-200 ${
-                          isSelected && room.isActive && canReserve && isAvailable && !isClosedByClosure && !floorIsClosed
-                            ? "border-[#CC0000] ring-2 ring-red-100 bg-red-50"
-                            : isSelected && (!room.isActive || !canReserve || !isAvailable || isClosedByClosure || floorIsClosed)
-                            ? "border-gray-400 ring-2 ring-gray-200 bg-gray-50"
-                            : isDisabled || !canReserve || isBooked || isClosedByClosure || floorIsClosed
-                            ? "border-gray-300 bg-gray-100 cursor-pointer opacity-60"
-                            : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                        }`}
-                      >
-                        {roomImage && (
-                          <img
-                            src={roomImage}
-                            alt={room.room}
-                            className="absolute w-full h-full object-cover"
-                            loading="lazy"
-                            onLoad={() => handleImageLoad(`room-${room._id}`)}
-                          />
-                        )}
-                        <div className={`absolute inset-0 z-0 ${
-                          isDisabled || !canReserve || isBooked || isClosedByClosure || floorIsClosed ? "bg-gray-800/70" : "bg-black/30"
-                        }`}></div>
-                        
-                        {floorIsClosed && (
-                          <div className="absolute top-2 right-2 bg-purple-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10 flex items-center gap-1">
-                            <AlertTriangle size={12} />
-                            Floor CLOSED
-                          </div>
-                        )}
-                        
-                        {isDisabled && !floorIsClosed && (
-                          <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
-                            Unavailable
-                          </div>
-                        )}
-                        
-                        {isClosedByClosure && !isDisabled && !floorIsClosed && (
-                          <div className="absolute top-2 right-2 bg-orange-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
-                            CLOSED
-                          </div>
-                        )}
-                        
-                        {isBooked && !isDisabled && !isClosedByClosure && !floorIsClosed && (
-                          <div className="absolute top-2 right-2 bg-yellow-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
-                            Booked
-                          </div>
-                        )}
-                        
-                        {!canReserve && !isDisabled && !isBooked && !isClosedByClosure && !floorIsClosed && (
-                          <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
-                            Restricted
-                          </div>
-                        )}
-                        
-                        {(isDisabled || !canReserve || isBooked || isClosedByClosure || floorIsClosed) && (
-                          <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
-                            Click to View Details
-                          </div>
-                        )}
-                        
-                        <div className="relative z-10 text-center text-white p-3 sm:p-4">
-                          <p className="text-lg sm:text-xl font-semibold drop-shadow-md mb-2">
-                            {room.room}
-                          </p>
-                          
-                          {room.features && Object.values(room.features).some(val => val) && (
-                            <div className="flex flex-wrap justify-center gap-1 mb-2">
-                              {Object.entries(room.features).map(([feature, enabled]) => 
-                                enabled && (
-                                  <RoomFeatureIcon key={feature} feature={feature} enabled={enabled} />
-                                )
-                              )}
-                            </div>
-                          )}
-                          
-                          <div className="flex items-center justify-center text-xs sm:text-sm mb-2">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                            Capacity: {room.capacity}
-                          </div>
-                          
-                          <div className="text-xs sm:text-sm opacity-90">
-                            {room.type}
-                          </div>
+                  return (
+                    <button
+                      key={room._id}
+                      onClick={() => handleRoomClick(room)}
+                      className={`border-2 rounded-2xl w-full sm:w-[280px] md:w-[300px] h-[250px] sm:h-[280px] md:h-[300px] flex justify-center items-center cursor-pointer relative overflow-hidden transition-all duration-200 ${
+                        isSelected && room.isActive && canReserve && isAvailable
+                          ? "border-[#CC0000] ring-2 ring-red-100 bg-red-50"
+                          : isSelected && (!room.isActive || !canReserve || !isAvailable)
+                          ? "border-gray-400 ring-2 ring-gray-200 bg-gray-50"
+                          : isDisabled || !canReserve || isBooked
+                          ? "border-gray-300 bg-gray-100 cursor-pointer opacity-60"
+                          : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {roomImage && (
+                        <img
+                          src={roomImage}
+                          alt={room.room}
+                          className="absolute w-full h-full object-cover"
+                          loading="lazy"
+                          onLoad={() => handleImageLoad(`room-${room._id}`)}
+                        />
+                      )}
+                      <div className={`absolute inset-0 z-0 ${
+                        isDisabled || !canReserve || isBooked ? "bg-gray-800/70" : "bg-black/30"
+                      }`}></div>
+                      
+                      {isDisabled && (
+                        <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
+                          Unavailable
                         </div>
-                      </button>
-                    );
-                  })}
-              </div>
-            )}
-            {!formData.roomName && !isFloorClosed(formData.location, formData.date, formData.time) && (
+                      )}
+                      
+                      {isBooked && !isDisabled && (
+                        <div className="absolute top-2 right-2 bg-yellow-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
+                          Booked
+                        </div>
+                      )}
+                      
+                      {!canReserve && !isDisabled && !isBooked && (
+                        <div className="absolute top-2 right-2 bg-red-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
+                          Restricted
+                        </div>
+                      )}
+                      
+                      {(isDisabled || !canReserve || isBooked) && (
+                        <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 rounded-full text-xs font-semibold z-10">
+                          Click to View Details
+                        </div>
+                      )}
+                      
+                      <div className="relative z-10 text-center text-white p-3 sm:p-4">
+                        <p className="text-lg sm:text-xl font-semibold drop-shadow-md mb-2">
+                          {room.room}
+                        </p>
+                        
+                        {room.features && Object.values(room.features).some(val => val) && (
+                          <div className="flex flex-wrap justify-center gap-1 mb-2">
+                            {Object.entries(room.features).map(([feature, enabled]) => 
+                              enabled && (
+                                <RoomFeatureIcon key={feature} feature={feature} enabled={enabled} />
+                              )
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center justify-center text-xs sm:text-sm mb-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 sm:h-4 sm:w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                          Capacity: {room.capacity}
+                        </div>
+                        
+                        <div className="text-xs sm:text-sm opacity-90">
+                          {room.type}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+            </div>
+            {!formData.roomName && (
               <p className="text-xs text-red-500 text-center mt-2">Please select a room</p>
             )}
           </div>
@@ -2307,54 +1753,6 @@ function ReserveRoom({ user, setView }) {
         {selectedRoomDetails && (
           <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-100">
             <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-3 sm:mb-4 pb-2 border-b border-gray-100">Selected Room Details</h2>
-            
-            {(() => {
-              const floorClosure = getFloorClosureInfo(selectedRoomDetails.floor, formData.date, formData.time);
-              if (floorClosure) {
-                return (
-                  <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
-                      <div>
-                        <p className="text-red-800 font-semibold text-sm">❌ Floor CLOSED: {floorClosure.title}</p>
-                        <p className="text-red-700 text-xs mt-1">{floorClosure.reason}</p>
-                        <p className="text-red-600 text-xs mt-1 font-medium">
-                          Time: {floorClosure.startTime} - {floorClosure.endTime}
-                        </p>
-                        <p className="text-red-600 text-xs mt-1 font-bold">
-                          You cannot reserve this room.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-              return null;
-            })()}
-            
-            {(() => {
-              const roomClosure = getRoomClosureInfo(selectedRoomDetails.room, formData.date, formData.time);
-              if (roomClosure && !getFloorClosureInfo(selectedRoomDetails.floor, formData.date, formData.time)) {
-                return (
-                  <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="text-red-600 flex-shrink-0 mt-0.5" size={18} />
-                      <div>
-                        <p className="text-red-800 font-semibold text-sm">❌ Room CLOSED: {roomClosure.title}</p>
-                        <p className="text-red-700 text-xs mt-1">{roomClosure.reason}</p>
-                        <p className="text-red-600 text-xs mt-1 font-medium">
-                          Time: {roomClosure.startTime} - {roomClosure.endTime}
-                        </p>
-                        <p className="text-red-600 text-xs mt-1 font-bold">
-                          You cannot reserve this room.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-              return null;
-            })()}
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
               <div className="md:col-span-2">
@@ -2596,18 +1994,6 @@ function ReserveRoom({ user, setView }) {
                 Faculty: You can reserve rooms with just yourself. Additional participants are optional.
               </li>
             )}
-            {globalClosure && (
-              <li className="text-xs sm:text-sm text-red-600 flex items-start font-medium">
-                <span className="text-red-600 font-bold mr-1">•</span>
-                ⚠️ Facility Closure Notice: {globalClosure.title} - {globalClosure.startTime} to {globalClosure.endTime}
-              </li>
-            )}
-            {closedFloors.length > 0 && !globalClosure && (
-              <li className="text-xs sm:text-sm text-orange-600 flex items-start font-medium">
-                <span className="text-orange-600 font-bold mr-1">•</span>
-                ⚠️ Floor Closure Notice: {closedFloors.join(", ")} {closedFloors.length === 1 ? "is" : "are"} CLOSED at the selected time.
-              </li>
-            )}
           </ul>
         </div>
 
@@ -2616,9 +2002,9 @@ function ReserveRoom({ user, setView }) {
           <button
             onClick={submitReservation}
             type="button"
-            disabled={loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting || (globalClosure && isTimeSlotClosed(formData.date, formData.time)) || (closedFloors.length > 0 && closedFloors.includes(formData.location)) || (formData.location && isFloorClosed(formData.location, formData.date, formData.time)) || isCurrentTimeClosed}
+            disabled={loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting}
             className={`px-6 sm:px-8 py-3 sm:py-3 rounded-lg transition cursor-pointer flex items-center text-sm sm:text-base min-h-[44px] min-w-[140px] justify-center ${
-              loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting || (globalClosure && isTimeSlotClosed(formData.date, formData.time)) || (closedFloors.length > 0 && closedFloors.includes(formData.location)) || (formData.location && isFloorClosed(formData.location, formData.date, formData.time)) || isCurrentTimeClosed
+              loading || (selectedRoomDetails && !selectedRoomDetails.isActive) || isSubmitting
                 ? "bg-gray-400 text-gray-200 cursor-not-allowed" 
                 : "bg-[#CC0000] text-white hover:bg-red-700 hover:shadow-md"
             }`}
@@ -2636,11 +2022,7 @@ function ReserveRoom({ user, setView }) {
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                {globalClosure && isTimeSlotClosed(formData.date, formData.time) ? "Time Slot CLOSED" : 
-                 isCurrentTimeClosed ? "Time Slot CLOSED" :
-                 (closedFloors.length > 0 && closedFloors.includes(formData.location) ? "Floor CLOSED" :
-                 (formData.location && isFloorClosed(formData.location, formData.date, formData.time) ? "Floor CLOSED" :
-                 (selectedRoomDetails && !selectedRoomDetails.isActive ? "Room Unavailable" : "Submit Reservation")))}
+                {selectedRoomDetails && !selectedRoomDetails.isActive ? "Room Unavailable" : "Submit Reservation"}
               </>
             )}
           </button>
@@ -2699,66 +2081,6 @@ function ReserveRoom({ user, setView }) {
             <button onClick={() => setShowAlertModal(false)} className="bg-[#CC0000] text-white px-4 py-3 rounded-lg hover:bg-red-700 transition w-full cursor-pointer font-semibold min-h-[44px]">
               OK
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* CLOSURE LIST MODAL */}
-      {showClosureListModal && activeClosuresList.length > 0 && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex justify-between items-center">
-              <h2 className="text-xl font-bold text-red-600 flex items-center gap-2">
-                <AlertTriangle size={24} />
-                Facility Closures on {formData.date ? new Date(formData.date).toLocaleDateString() : "Selected Date"}
-              </h2>
-              <button onClick={handleCloseClosureModal} className="p-1 hover:bg-gray-100 rounded-lg">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-2">
-                <p className="text-red-800 font-semibold flex items-center gap-2">
-                  <AlertTriangle size={16} />
-                  ⚠️ RESERVATIONS ARE BLOCKED
-                </p>
-                <p className="text-red-700 text-sm mt-1">
-                  The following closures are active on this date. You cannot make reservations during these times or on affected floors.
-                </p>
-              </div>
-              {activeClosuresList.map((closure, idx) => (
-                <div key={idx} className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <h3 className="font-semibold text-red-800 text-lg">{closure.title}</h3>
-                  <p className="text-red-700 text-sm mt-1">{closure.reason || "No reason provided"}</p>
-                  <div className="flex flex-wrap items-center gap-4 mt-3 text-sm text-red-600">
-                    <div className="flex items-center gap-1">
-                      <Clock size={14} />
-                      <span>{closure.startTime} - {closure.endTime}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Building2 size={14} />
-                      <span>
-                        {closure.affectedAllFloors ? "All Floors" : closure.affectedFloors?.join(", ")}
-                      </span>
-                    </div>
-                  </div>
-                  {!closure.affectedAllFloors && closure.affectedFloors && (
-                    <div className="mt-3 pt-3 border-t border-red-200">
-                      <p className="text-red-700 text-xs font-medium">Affected Rooms on these floors:</p>
-                      <p className="text-red-600 text-xs mt-1">
-                        {rooms
-                          .filter(room => closure.affectedFloors.includes(room.floor))
-                          .map(room => room.room)
-                          .join(", ")}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              ))}
-              <button onClick={handleCloseClosureModal} className="w-full mt-2 bg-[#CC0000] text-white px-4 py-3 rounded-lg hover:bg-red-700 transition font-semibold">
-                I Understand - Close
-              </button>
-            </div>
           </div>
         </div>
       )}
