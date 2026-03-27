@@ -14,6 +14,65 @@ import generateReservationEmail from "../utils/generateReservationEmail.js";
 import * as availabilityService from "../services/availabilityService.js";
 import notificationService from "../services/notificationService.js";
 
+// Add this near the top of the file, after the imports
+// Helper function to check if a time slot is closed
+const checkClosureBeforeReservation = async (date, time, roomName, floor) => {
+  try {
+    // Find the room to get its floor if not provided
+    let roomFloor = floor;
+    if (!roomFloor && roomName) {
+      const room = await Room.findOne({ room: roomName });
+      if (room) {
+        roomFloor = room.floor;
+      }
+    }
+    
+    if (!roomFloor) {
+      console.log("⚠️ Could not determine floor for room:", roomName);
+      return { isClosed: false };
+    }
+    
+    console.log(`🔍 Checking closure for: Date=${date}, Time=${time}, Room=${roomName}, Floor=${roomFloor}`);
+    
+    // Check floor-based closures
+    const closureQuery = {
+      date: date,
+      status: "Active",
+      startTime: { $lte: time },
+      endTime: { $gt: time },
+      $or: [
+        { affectedAllFloors: true },
+        { affectedFloors: roomFloor }
+      ]
+    };
+
+    console.log("🔍 Closure query:", JSON.stringify(closureQuery, null, 2));
+
+    const activeClosure = await Closure.findOne(closureQuery);
+    
+    if (activeClosure) {
+      console.log(`❌ CLOSURE FOUND: ${activeClosure.title} affects floor ${roomFloor} from ${activeClosure.startTime} to ${activeClosure.endTime}`);
+      return {
+        isClosed: true,
+        closure: {
+          title: activeClosure.title,
+          reason: activeClosure.reason,
+          startTime: activeClosure.startTime,
+          endTime: activeClosure.endTime,
+          affectedAllFloors: activeClosure.affectedAllFloors,
+          affectedFloors: activeClosure.affectedFloors
+        }
+      };
+    }
+    
+    console.log(`✅ No closure found for ${roomName} on ${date} at ${time}`);
+    return { isClosed: false };
+  } catch (err) {
+    console.error("❌ Error checking closure:", err);
+    return { isClosed: false, error: err.message };
+  }
+};
+
 /* ------------------------------------------------
    ✅ CHECK USER RESERVATION LIMIT (UPDATED)
 ------------------------------------------------ */
@@ -4360,75 +4419,3 @@ export const getReservationsByStaffFloor = async (req, res) => {
 
 // Add to reservationController.js
 
-/* ------------------------------------------------
-   ✅ CHECK IF TIME SLOT IS CLOSED BEFORE CREATING RESERVATION
-   UPDATED FOR FLOOR-BASED CLOSURES
------------------------------------------------- */
-export const checkClosureBeforeReservation = async (date, time, roomName, floor) => {
-  try {
-    // Dynamic import or use already imported Closure
-    const ClosureModel = Closure || mongoose.model("Closure");
-    
-    // Find the room to get its floor if not provided
-    let roomFloor = floor;
-    if (!roomFloor && roomName) {
-      const room = await Room.findOne({ room: roomName });
-      if (room) {
-        roomFloor = room.floor;
-      }
-    }
-    
-    if (!roomFloor) {
-      console.log("⚠️ Could not determine floor for room:", roomName);
-      return { isClosed: false };
-    }
-    
-    // Normalize time for comparison (remove leading zeros if needed)
-    const normalizeTime = (timeStr) => {
-      if (!timeStr) return "";
-      // Compare as strings - MongoDB will handle string comparison correctly
-      return timeStr;
-    };
-    
-    const normalizedTime = normalizeTime(time);
-    
-    console.log(`🔍 Checking closure for: Date=${date}, Time=${time}, Room=${roomName}, Floor=${roomFloor}`);
-    
-    // Check floor-based closures
-    const closureQuery = {
-      date: date,
-      status: "Active",
-      startTime: { $lte: time },
-      endTime: { $gt: time },
-      $or: [
-        { affectedAllFloors: true },
-        { affectedFloors: roomFloor }
-      ]
-    };
-
-    console.log("🔍 Closure query:", JSON.stringify(closureQuery, null, 2));
-
-    const activeClosure = await ClosureModel.findOne(closureQuery);
-    
-    if (activeClosure) {
-      console.log(`❌ CLOSURE FOUND: ${activeClosure.title} affects floor ${roomFloor} from ${activeClosure.startTime} to ${activeClosure.endTime}`);
-      return {
-        isClosed: true,
-        closure: {
-          title: activeClosure.title,
-          reason: activeClosure.reason,
-          startTime: activeClosure.startTime,
-          endTime: activeClosure.endTime,
-          affectedAllFloors: activeClosure.affectedAllFloors,
-          affectedFloors: activeClosure.affectedFloors
-        }
-      };
-    }
-    
-    console.log(`✅ No closure found for ${roomName} on ${date} at ${time}`);
-    return { isClosed: false };
-  } catch (err) {
-    console.error("❌ Error checking closure:", err);
-    return { isClosed: false, error: err.message };
-  }
-};
