@@ -85,6 +85,8 @@ import StaffMessages from "./Staff/StaffMessages.jsx";
 import StaffNotification from "./Staff/StaffNotifications.jsx";
 import StaffProfile from "./Staff/StaffProfile.jsx";
 import StaffReports from "./Staff/StaffReports.jsx";
+import StaffAnalytics from "./Staff/StaffAnalytics.jsx"; // Add this line
+
 
 function App() {
   const navigate = useNavigate();
@@ -832,6 +834,7 @@ function App() {
       {view === "staffNotification" && renderStaffNavigation(<StaffNotification setView={setView} staff={user} />)}
       {view === "staffProfile" && renderStaffNavigation(<StaffProfile setView={setView} staff={user} />)}
       {view === "staffReports" && renderStaffNavigation(<StaffReports setView={setView} staff={user} />)}
+      {view === "staffAnalytics" && renderStaffNavigation(<StaffAnalytics setView={setView} staff={user} />)} {/* Add this line */}
 
       {/* Logout Modal */}
       {showLogoutModal && (

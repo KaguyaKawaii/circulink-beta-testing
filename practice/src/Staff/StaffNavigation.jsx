@@ -10,6 +10,7 @@ import {
   Bell,
   User,
   LogOut,
+  BarChart3,
 } from "lucide-react";
 
 function StaffNavigation({ staff, setView, currentView, onLogout }) {
@@ -193,6 +194,7 @@ function StaffNavigation({ staff, setView, currentView, onLogout }) {
     { id: "staffUsers", label: "Users", icon: Users, badge: 0 },
     { id: "staffMessages", label: "Messages", icon: MessageSquare, badge: unreadCounts.messages },
     { id: "staffNotification", label: "Notifications", icon: Bell, badge: unreadCounts.notifications },
+    { id: "staffAnalytics", label: "Analytics", icon: BarChart3, badge: 0 },
     { id: "staffProfile", label: "Profile", icon: User, badge: 0 },
   ];
 
