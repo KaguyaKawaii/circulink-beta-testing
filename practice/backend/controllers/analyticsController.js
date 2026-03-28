@@ -2937,13 +2937,1118 @@ function calculateEngagementTrend(current, previous) {
   };
 }
 
+// ================= STAFF ANALYTICS =================
+
+export const getStaffReservationAnalytics = async (req, res) => {
+  try {
+    const { range = "month", startDate, endDate } = req.query;
+    const staff = req.user;
+    
+    if (!staff || !staff.floor) {
+      return res.status(403).json({
+        success: false,
+        message: "Staff user not found or no floor assigned"
+      });
+    }
+
+    let startDateObj, previousStartDateObj;
+    let isCustomRange = false;
+    
+    if (startDate && endDate) {
+      isCustomRange = true;
+      startDateObj = new Date(startDate);
+      startDateObj.setHours(0, 0, 0, 0);
+      
+      const endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999);
+      
+      const rangeLength = endDateObj - startDateObj;
+      previousStartDateObj = new Date(startDateObj - rangeLength);
+    } else {
+      startDateObj = getStartDate(range);
+      previousStartDateObj = getPreviousStartDate(range);
+    }
+
+    const endDateObj = isCustomRange && endDate 
+      ? new Date(endDate) 
+      : new Date();
+    
+    if (!isCustomRange) {
+      endDateObj.setHours(23, 59, 59, 999);
+    }
+
+    const staffFloor = staff.floor;
+    const roomsOnFloor = await Room.find({ floor: staffFloor }).lean();
+    const roomNames = roomsOnFloor.map(r => r.room || `${r.floor} - ${r.room}`);
+
+    let query = {
+      roomName: { $in: roomNames },
+      $or: [
+        { datetime: { $gte: startDateObj, $lte: endDateObj } },
+        { startTime: { $gte: startDateObj, $lte: endDateObj } }
+      ]
+    };
+
+    const reservations = await Reservation.find(query).lean();
+
+    const previousQuery = {
+      roomName: { $in: roomNames },
+      $or: [
+        { datetime: { $gte: previousStartDateObj, $lt: startDateObj } },
+        { startTime: { $gte: previousStartDateObj, $lt: startDateObj } }
+      ]
+    };
+    const previousReservations = await Reservation.find(previousQuery).lean();
+
+    const allReservations = await Reservation.find({
+      roomName: { $in: roomNames }
+    }).lean();
+
+    const stats = await calculateStaffReservationStats(
+      reservations,
+      previousReservations,
+      allReservations,
+      roomsOnFloor,
+      staffFloor,
+      range,
+      startDateObj,
+      endDateObj,
+      isCustomRange,
+      startDate,
+      endDate
+    );
+
+    res.json({
+      success: true,
+      data: stats
+    });
+
+  } catch (error) {
+    console.error("Error in getStaffReservationAnalytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch staff reservation analytics",
+      error: error.message
+    });
+  }
+};
+
+export const getStaffRoomAnalytics = async (req, res) => {
+  try {
+    const { range = "month", startDate, endDate } = req.query;
+    const staff = req.user;
+    
+    if (!staff || !staff.floor) {
+      return res.status(403).json({
+        success: false,
+        message: "Staff user not found or no floor assigned"
+      });
+    }
+
+    let startDateObj;
+    let endDateObj;
+    
+    if (startDate && endDate) {
+      startDateObj = new Date(startDate);
+      startDateObj.setHours(0, 0, 0, 0);
+      endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999);
+    } else {
+      startDateObj = getStartDate(range);
+      endDateObj = new Date();
+      endDateObj.setHours(23, 59, 59, 999);
+    }
+
+    const staffFloor = staff.floor;
+    const rooms = await Room.find({ floor: staffFloor }).lean();
+    
+    const roomNames = rooms.map(r => r.room || `${r.floor} - ${r.room}`);
+    const query = {
+      roomName: { $in: roomNames },
+      $or: [
+        { datetime: { $gte: startDateObj, $lte: endDateObj } },
+        { startTime: { $gte: startDateObj, $lte: endDateObj } }
+      ]
+    };
+
+    const reservations = await Reservation.find(query).lean();
+    const allReservations = await Reservation.find({
+      roomName: { $in: roomNames }
+    }).lean();
+
+    const stats = await calculateStaffRoomStats(
+      rooms,
+      reservations,
+      allReservations,
+      staffFloor
+    );
+
+    res.json({
+      success: true,
+      data: stats
+    });
+
+  } catch (error) {
+    console.error("Error in getStaffRoomAnalytics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch staff room analytics",
+      error: error.message
+    });
+  }
+};
+
+export const getStaffEngagementMetrics = async (req, res) => {
+  try {
+    const { range = "month", startDate, endDate } = req.query;
+    const staff = req.user;
+    
+    if (!staff || !staff.floor) {
+      return res.status(403).json({
+        success: false,
+        message: "Staff user not found or no floor assigned"
+      });
+    }
+
+    let startDateObj, previousStartDateObj;
+    let isCustomRange = false;
+    
+    if (startDate && endDate) {
+      isCustomRange = true;
+      startDateObj = new Date(startDate);
+      startDateObj.setHours(0, 0, 0, 0);
+      
+      const endDateObj = new Date(endDate);
+      endDateObj.setHours(23, 59, 59, 999);
+      
+      const rangeLength = endDateObj - startDateObj;
+      previousStartDateObj = new Date(startDateObj - rangeLength);
+    } else {
+      startDateObj = getStartDate(range);
+      previousStartDateObj = getPreviousStartDate(range);
+    }
+
+    const endDateObj = isCustomRange && endDate 
+      ? new Date(endDate) 
+      : new Date();
+    
+    if (!isCustomRange) {
+      endDateObj.setHours(23, 59, 59, 999);
+    }
+
+    const staffFloor = staff.floor;
+    const roomsOnFloor = await Room.find({ floor: staffFloor }).lean();
+    const roomNames = roomsOnFloor.map(r => r.room || `${r.floor} - ${r.room}`);
+
+    const logs = await Log.find({
+      createdAt: { $gte: startDateObj, $lte: endDateObj },
+      $or: [
+        { room: { $in: roomNames } },
+        { details: { $regex: new RegExp(roomNames.join('|'), 'i') } }
+      ]
+    }).lean();
+
+    const previousLogs = await Log.find({
+      createdAt: { $gte: previousStartDateObj, $lt: startDateObj },
+      $or: [
+        { room: { $in: roomNames } },
+        { details: { $regex: new RegExp(roomNames.join('|'), 'i') } }
+      ]
+    }).lean();
+
+    const reservations = await Reservation.find({
+      roomName: { $in: roomNames }
+    }).lean();
+
+    const userIds = [...new Set(reservations.map(r => r.userId?.toString()).filter(id => id))];
+    const users = await User.find({ _id: { $in: userIds } }).lean();
+
+    const stats = await calculateStaffEngagementMetrics(
+      logs,
+      previousLogs,
+      users,
+      reservations,
+      staffFloor,
+      range,
+      startDateObj,
+      endDateObj,
+      isCustomRange,
+      startDate,
+      endDate
+    );
+
+    res.json({
+      success: true,
+      data: stats
+    });
+
+  } catch (error) {
+    console.error("Error in getStaffEngagementMetrics:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch staff engagement metrics",
+      error: error.message
+    });
+  }
+};
+
+async function calculateStaffReservationStats(
+  reservations,
+  previousReservations,
+  allReservations,
+  roomsOnFloor,
+  staffFloor,
+  range,
+  startDate,
+  endDate,
+  isCustomRange,
+  customStart,
+  customEnd
+) {
+  const total = reservations.length;
+  const pending = reservations.filter(r => r.status === "Pending").length;
+  const approved = reservations.filter(r => r.status === "Approved").length;
+  const rejected = reservations.filter(r => r.status === "Rejected").length;
+  const completed = reservations.filter(r => r.status === "Completed").length;
+  const cancelled = reservations.filter(r => r.status === "Cancelled").length;
+  const expired = reservations.filter(r => r.status === "Expired").length;
+  const ongoing = reservations.filter(r => r.status === "Ongoing").length;
+
+  const previousTotal = previousReservations.length;
+
+  const trends = {
+    total: calculateTrend(total, previousTotal),
+    pending: calculateTrend(
+      pending,
+      previousReservations.filter(r => r.status === "Pending").length
+    ),
+    approved: calculateTrend(
+      approved,
+      previousReservations.filter(r => r.status === "Approved").length
+    ),
+    completed: calculateTrend(
+      completed,
+      previousReservations.filter(r => r.status === "Completed").length
+    ),
+    cancelled: calculateTrend(
+      cancelled,
+      previousReservations.filter(r => r.status === "Cancelled").length
+    )
+  };
+
+  const roomCounts = {};
+  allReservations.forEach(res => {
+    const roomKey = res.roomName || "Unknown";
+    if (!roomCounts[roomKey]) {
+      roomCounts[roomKey] = {
+        name: roomKey,
+        count: 0,
+        statuses: {}
+      };
+    }
+    roomCounts[roomKey].count++;
+    
+    const status = res.status || "Unknown";
+    roomCounts[roomKey].statuses[status] = 
+      (roomCounts[roomKey].statuses[status] || 0) + 1;
+  });
+
+  const byRoom = Object.values(roomCounts)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10)
+    .map(room => ({
+      name: room.name,
+      count: room.count,
+      approved: room.statuses.Approved || 0,
+      pending: room.statuses.Pending || 0,
+      completed: room.statuses.Completed || 0,
+      cancelled: room.statuses.Cancelled || 0
+    }));
+
+  const byDayOfWeek = {
+    mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0
+  };
+
+  allReservations.forEach(res => {
+    const dateField = res.datetime || res.startTime;
+    if (dateField) {
+      const day = new Date(dateField).getDay();
+      const dayMap = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+      const dayKey = dayMap[day];
+      if (byDayOfWeek.hasOwnProperty(dayKey)) {
+        byDayOfWeek[dayKey]++;
+      }
+    }
+  });
+
+  const totalPossibleSlots = 15 * 7;
+  const popularRooms = byRoom.slice(0, 5).map(room => {
+    const utilization = Math.min(
+      Math.round((room.count / totalPossibleSlots) * 100),
+      100
+    );
+    
+    return {
+      name: room.name,
+      bookings: room.count,
+      approved: room.approved,
+      completed: room.completed,
+      utilization: utilization
+    };
+  });
+
+  const growth = generateStaffReservationGrowthData(
+    allReservations,
+    range,
+    isCustomRange,
+    startDate,
+    endDate,
+    customStart,
+    customEnd
+  );
+
+  const floorDistribution = [{
+    name: `Floor ${staffFloor}`,
+    value: total
+  }];
+
+  const totalParticipants = allReservations.reduce(
+    (sum, res) => sum + (res.participants?.length || 0),
+    0
+  );
+  const avgGroupSize = allReservations.length > 0
+    ? Math.round((totalParticipants / allReservations.length) * 10) / 10
+    : 0;
+
+  const userIds = [...new Set(allReservations.map(r => r.userId?.toString()).filter(id => id))];
+  const users = await User.find({ _id: { $in: userIds } }).select('name department').lean();
+  
+  const userMap = {};
+  users.forEach(user => {
+    userMap[user._id.toString()] = user;
+  });
+
+  const deptCount = {};
+  allReservations.forEach(res => {
+    const userId = res.userId?.toString();
+    if (userId && userMap[userId]) {
+      const dept = userMap[userId].department || 'Other';
+      deptCount[dept] = (deptCount[dept] || 0) + 1;
+    }
+  });
+
+  const userDepartmentStats = Object.entries(deptCount)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  const userReservationCount = {};
+  allReservations.forEach(res => {
+    const userId = res.userId?.toString();
+    if (userId) {
+      userReservationCount[userId] = (userReservationCount[userId] || 0) + 1;
+    }
+  });
+
+  const topReservers = Object.entries(userReservationCount)
+    .map(([userId, count]) => {
+      const user = userMap[userId];
+      return {
+        name: user?.name || 'Unknown',
+        department: user?.department || 'Unknown',
+        count: count
+      };
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  return {
+    total,
+    pending,
+    approved,
+    rejected,
+    completed,
+    cancelled,
+    expired,
+    ongoing,
+    byRoom,
+    byDayOfWeek,
+    popularRooms,
+    trends,
+    growth,
+    floorDistribution,
+    avgGroupSize,
+    totalParticipants,
+    previousTotal,
+    userDepartmentStats,
+    topReservers
+  };
+}
+
+function generateStaffReservationGrowthData(
+  allReservations,
+  range,
+  isCustomRange,
+  startDate,
+  endDate,
+  customStart,
+  customEnd
+) {
+  const labels = [];
+  const values = [];
+  const now = new Date();
+
+  if (isCustomRange && customStart && customEnd) {
+    const start = new Date(customStart);
+    const end = new Date(customEnd);
+    end.setHours(23, 59, 59, 999);
+    
+    const rangeDays = Math.round((end - start) / (1000 * 60 * 60 * 24));
+    
+    if (rangeDays <= 14) {
+      for (let i = 0; i <= rangeDays; i++) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + i);
+        labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        
+        const dayStart = new Date(date.setHours(0,0,0,0));
+        const dayEnd = new Date(date.setHours(23,59,59,999));
+        
+        const count = allReservations.filter(r => {
+          const dateField = r.datetime || r.startTime;
+          return dateField && 
+            new Date(dateField) >= dayStart && 
+            new Date(dateField) <= dayEnd;
+        }).length;
+        values.push(count);
+      }
+    } else if (rangeDays <= 60) {
+      const weeks = Math.ceil(rangeDays / 7);
+      for (let i = 0; i < weeks; i++) {
+        const weekStart = new Date(start);
+        weekStart.setDate(start.getDate() + (i * 7));
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        
+        labels.push(`Week ${i+1}`);
+        
+        const count = allReservations.filter(r => {
+          const dateField = r.datetime || r.startTime;
+          return dateField && 
+            new Date(dateField) >= weekStart && 
+            new Date(dateField) <= weekEnd;
+        }).length;
+        values.push(count);
+      }
+    } else {
+      const months = Math.ceil(rangeDays / 30);
+      for (let i = 0; i < months; i++) {
+        const monthStart = new Date(start);
+        monthStart.setMonth(start.getMonth() + i);
+        const monthEnd = new Date(monthStart);
+        monthEnd.setMonth(monthStart.getMonth() + 1);
+        monthEnd.setDate(0);
+        
+        labels.push(monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+        
+        const count = allReservations.filter(r => {
+          const dateField = r.datetime || r.startTime;
+          return dateField && 
+            new Date(dateField) >= monthStart && 
+            new Date(dateField) <= monthEnd;
+        }).length;
+        values.push(count);
+      }
+    }
+  } else {
+    switch(range) {
+      case 'week':
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(now);
+          date.setDate(now.getDate() - i);
+          labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+          
+          const dayStart = new Date(date.setHours(0,0,0,0));
+          const dayEnd = new Date(date.setHours(23,59,59,999));
+          
+          const count = allReservations.filter(r => {
+            const dateField = r.datetime || r.startTime;
+            return dateField && 
+              new Date(dateField) >= dayStart && 
+              new Date(dateField) <= dayEnd;
+          }).length;
+          values.push(count);
+        }
+        break;
+        
+      case 'month':
+        for (let i = 3; i >= 0; i--) {
+          const weekEnd = new Date(now);
+          weekEnd.setDate(now.getDate() - (i * 7));
+          const weekStart = new Date(weekEnd);
+          weekStart.setDate(weekEnd.getDate() - 6);
+          
+          labels.push(`Week ${4-i}`);
+          
+          const count = allReservations.filter(r => {
+            const dateField = r.datetime || r.startTime;
+            return dateField && 
+              new Date(dateField) >= weekStart && 
+              new Date(dateField) <= weekEnd;
+          }).length;
+          values.push(count);
+        }
+        break;
+        
+      case 'year':
+        for (let i = 11; i >= 0; i--) {
+          const date = new Date(now);
+          date.setMonth(now.getMonth() - i);
+          labels.push(date.toLocaleDateString('en-US', { month: 'short' }));
+          
+          const monthStart = new Date(date.getFullYear(), date.getMonth(), 1);
+          const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+          
+          const count = allReservations.filter(r => {
+            const dateField = r.datetime || r.startTime;
+            return dateField && 
+              new Date(dateField) >= monthStart && 
+              new Date(dateField) <= monthEnd;
+          }).length;
+          values.push(count);
+        }
+        break;
+        
+      default:
+        for (let i = 3; i >= 0; i--) {
+          const weekEnd = new Date(now);
+          weekEnd.setDate(now.getDate() - (i * 7));
+          const weekStart = new Date(weekEnd);
+          weekStart.setDate(weekEnd.getDate() - 6);
+          
+          labels.push(`Week ${4-i}`);
+          
+          const count = allReservations.filter(r => {
+            const dateField = r.datetime || r.startTime;
+            return dateField && 
+              new Date(dateField) >= weekStart && 
+              new Date(dateField) <= weekEnd;
+          }).length;
+          values.push(count);
+        }
+    }
+  }
+  
+  return { labels, values };
+}
+
+async function calculateStaffRoomStats(rooms, reservations, allReservations, staffFloor) {
+  const total = rooms.length;
+  
+  const now = new Date();
+  const currentReservations = await Reservation.find({
+    $or: [
+      { datetime: { $lte: now }, endTime: { $gte: now } },
+      { startTime: { $lte: now }, endTime: { $gte: now } }
+    ],
+    status: { $in: ['Approved', 'Ongoing'] },
+    roomName: { $in: rooms.map(r => r.room || `${r.floor} - ${r.room}`) }
+  }).lean();
+
+  const occupiedRooms = new Set(currentReservations.map(r => r.roomName));
+  const occupied = occupiedRooms.size;
+  const maintenance = rooms.filter(r => !r.isActive).length;
+  const available = total - occupied - maintenance;
+
+  const totalPossibleSlots = 15 * 7;
+  const totalBookings = allReservations.length;
+  const totalSlots = rooms.length * totalPossibleSlots;
+  const utilization = totalSlots > 0
+    ? Math.min(Math.round((totalBookings / totalSlots) * 100), 100)
+    : 0;
+
+  const byType = {
+    lecture: rooms.filter(r => r.type?.toLowerCase() === 'lecture').length,
+    laboratory: rooms.filter(r => r.type?.toLowerCase() === 'laboratory').length,
+    conference: rooms.filter(r => r.type?.toLowerCase() === 'conference').length,
+    office: rooms.filter(r => r.type?.toLowerCase() === 'office').length,
+    general: rooms.filter(r => !r.type || r.type === 'General').length
+  };
+
+  const roomBookings = {};
+  allReservations.forEach(res => {
+    const roomName = res.roomName || 'Unknown';
+    if (!roomBookings[roomName]) {
+      roomBookings[roomName] = {
+        total: 0,
+        byStatus: {}
+      };
+    }
+    roomBookings[roomName].total++;
+    
+    const status = res.status || 'Unknown';
+    roomBookings[roomName].byStatus[status] = 
+      (roomBookings[roomName].byStatus[status] || 0) + 1;
+  });
+
+  const roomDetails = rooms.map(room => {
+    const roomName = room.room || `${room.floor} - ${room.room}`;
+    const bookings = roomBookings[roomName]?.total || 0;
+    const roomUtilization = totalSlots > 0
+      ? Math.min(Math.round((bookings / totalSlots) * 100), 100)
+      : 0;
+    
+    let status = 'available';
+    if (!room.isActive) {
+      status = 'maintenance';
+    } else if (occupiedRooms.has(roomName)) {
+      status = 'occupied';
+    }
+
+    return {
+      id: room._id,
+      name: roomName,
+      type: room.type || 'General',
+      floor: room.floor,
+      capacity: room.capacity || 0,
+      bookings: bookings,
+      utilization: roomUtilization,
+      status: status,
+      features: room.features || {}
+    };
+  });
+
+  const topRooms = [...roomDetails]
+    .sort((a, b) => b.bookings - a.bookings)
+    .slice(0, 5);
+
+  const hourlyUtilization = [];
+  const hours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+  
+  hours.forEach(hour => {
+    const hourStr = hour <= 11 ? `${hour}AM` : hour === 12 ? `12PM` : `${hour-12}PM`;
+    
+    const bookingsAtHour = allReservations.filter(res => {
+      const dateField = res.datetime || res.startTime;
+      if (!dateField) return false;
+      
+      try {
+        const resHour = new Date(dateField).getHours();
+        return resHour === hour;
+      } catch (e) {
+        return false;
+      }
+    }).length;
+    
+    const possibleBookings = rooms.length;
+    const hourUtilization = possibleBookings > 0
+      ? Math.min(Math.round((bookingsAtHour / possibleBookings) * 100), 100)
+      : 0;
+    
+    hourlyUtilization.push({
+      hour: hourStr,
+      utilization: hourUtilization,
+      bookings: bookingsAtHour
+    });
+  });
+
+  const peakHours = hourlyUtilization
+    .filter(h => h.utilization > 60)
+    .sort((a, b) => b.utilization - a.utilization)
+    .slice(0, 3);
+
+  return {
+    total,
+    available,
+    occupied,
+    maintenance,
+    utilization,
+    byType,
+    roomDetails: roomDetails.slice(0, 10),
+    topRooms,
+    hourlyUtilization,
+    peakHours,
+    floor: staffFloor
+  };
+}
+
+async function calculateStaffEngagementMetrics(
+  logs,
+  previousLogs,
+  users,
+  reservations,
+  staffFloor,
+  range,
+  startDate,
+  endDate,
+  isCustomRange,
+  customStart,
+  customEnd
+) {
+  const now = new Date();
+  const sevenDaysAgo = new Date(now);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  const dailyActive = getUniqueUsersFromLogs(logs, new Date(now.setDate(now.getDate() - 1)));
+  const weeklyActive = getUniqueUsersFromLogs(logs, sevenDaysAgo);
+  const monthlyActive = getUniqueUsersFromLogs(logs, thirtyDaysAgo);
+
+  const avgSession = calculateAverageSessionDuration(logs);
+  const retention = calculateStaffRetentionRate(users, logs);
+  const byDay = generateStaffDailyActiveUsers(logs, range, isCustomRange, customStart, customEnd);
+  const userActivity = calculateStaffUserActivityLevels(users, logs, reservations);
+
+  const engagementMetrics = {
+    pageViews: logs.filter(log => log.action === 'page_view' || log.action === 'view').length,
+    actions: logs.length,
+    avgActionsPerUser: logs.length > 0 ? Math.round((logs.length / dailyActive) * 10) / 10 : 0,
+    returningUsers: calculateReturningUsers(users, logs),
+    totalSessions: logs.length,
+    avgSessionDuration: avgSession
+  };
+
+  const activityBreakdown = generateStaffActivityBreakdown(logs);
+  const peakHours = generatePeakHours(logs);
+  const growth = generateStaffEngagementGrowthData(logs, range, isCustomRange, customStart, customEnd);
+
+  const trends = {
+    daily: calculateTrend(
+      dailyActive,
+      getUniqueUsersFromLogs(previousLogs, new Date(now.setDate(now.getDate() - 1)))
+    ),
+    weekly: calculateTrend(
+      weeklyActive,
+      getUniqueUsersFromLogs(previousLogs, sevenDaysAgo)
+    ),
+    monthly: calculateTrend(
+      monthlyActive,
+      getUniqueUsersFromLogs(previousLogs, thirtyDaysAgo)
+    )
+  };
+
+  return {
+    dailyActive,
+    weeklyActive,
+    monthlyActive,
+    averageSession: avgSession,
+    retention,
+    byDay,
+    userActivity,
+    engagementMetrics,
+    activityBreakdown,
+    peakHours,
+    growth,
+    trends,
+    floor: staffFloor
+  };
+}
+
+function generateStaffDailyActiveUsers(logs, range, isCustomRange, customStart, customEnd) {
+  const byDay = [];
+  const now = new Date();
+  
+  if (isCustomRange && customStart && customEnd) {
+    const start = new Date(customStart);
+    const end = new Date(customEnd);
+    
+    const days = Math.min(Math.round((end - start) / (1000 * 60 * 60 * 24)), 14);
+    
+    for (let i = 0; i <= days; i++) {
+      const date = new Date(start);
+      date.setDate(start.getDate() + i);
+      
+      const dayStart = new Date(date.setHours(0,0,0,0));
+      const dayEnd = new Date(date.setHours(23,59,59,999));
+      
+      const activeUsers = new Set();
+      logs.forEach(log => {
+        const logDate = new Date(log.createdAt);
+        if (logDate >= dayStart && logDate <= dayEnd) {
+          const userId = log.userId?.toString() || log.id_number;
+          if (userId) activeUsers.add(userId);
+        }
+      });
+      
+      byDay.push({
+        day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        active: activeUsers.size,
+        date: date.toISOString().split('T')[0]
+      });
+    }
+  } else {
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date(now);
+      date.setDate(now.getDate() - i);
+      
+      const dayStart = new Date(date.setHours(0,0,0,0));
+      const dayEnd = new Date(date.setHours(23,59,59,999));
+      
+      const activeUsers = new Set();
+      logs.forEach(log => {
+        const logDate = new Date(log.createdAt);
+        if (logDate >= dayStart && logDate <= dayEnd) {
+          const userId = log.userId?.toString() || log.id_number;
+          if (userId) activeUsers.add(userId);
+        }
+      });
+      
+      byDay.push({
+        day: date.toLocaleDateString('en-US', { weekday: 'short' }),
+        active: activeUsers.size,
+        date: date.toISOString().split('T')[0]
+      });
+    }
+  }
+  
+  return byDay;
+}
+
+function calculateStaffRetentionRate(users, logs) {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  const sixtyDaysAgo = new Date(now);
+  sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+  
+  const cohort = new Set();
+  const userFirstSeen = {};
+  
+  logs.forEach(log => {
+    const userId = log.userId?.toString() || log.id_number;
+    if (!userId) return;
+    
+    const logDate = new Date(log.createdAt);
+    if (logDate >= sixtyDaysAgo && logDate < thirtyDaysAgo) {
+      if (!userFirstSeen[userId] || logDate < userFirstSeen[userId]) {
+        userFirstSeen[userId] = logDate;
+      }
+    }
+  });
+  
+  Object.entries(userFirstSeen).forEach(([userId, firstSeen]) => {
+    if (firstSeen >= sixtyDaysAgo && firstSeen < thirtyDaysAgo) {
+      cohort.add(userId);
+    }
+  });
+  
+  if (cohort.size === 0) return 65;
+  
+  let retained = 0;
+  cohort.forEach(userId => {
+    const hasRecentActivity = logs.some(log => {
+      const logUserId = log.userId?.toString() || log.id_number;
+      return logUserId === userId && new Date(log.createdAt) >= thirtyDaysAgo;
+    });
+    if (hasRecentActivity) retained++;
+  });
+  
+  return Math.round((retained / cohort.size) * 100);
+}
+
+function calculateStaffUserActivityLevels(users, logs, reservations) {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  
+  const activityCounts = {
+    high: 0,
+    medium: 0,
+    low: 0,
+    inactive: 0
+  };
+  
+  const userActions = {};
+  
+  logs.forEach(log => {
+    const logDate = new Date(log.createdAt);
+    if (logDate >= thirtyDaysAgo) {
+      const userId = log.userId?.toString() || log.id_number;
+      if (userId) {
+        userActions[userId] = (userActions[userId] || 0) + 1;
+      }
+    }
+  });
+  
+  reservations.forEach(res => {
+    const resDate = new Date(res.createdAt);
+    if (resDate >= thirtyDaysAgo && res.userId) {
+      const userId = res.userId.toString();
+      userActions[userId] = (userActions[userId] || 0) + 1;
+    }
+  });
+  
+  Object.values(userActions).forEach(actions => {
+    if (actions >= 30) activityCounts.high++;
+    else if (actions >= 10) activityCounts.medium++;
+    else if (actions >= 1) activityCounts.low++;
+  });
+  
+  const activeUserIds = new Set(Object.keys(userActions));
+  activityCounts.inactive = users.filter(u => !activeUserIds.has(u._id.toString())).length;
+  
+  return activityCounts;
+}
+
+function generateStaffActivityBreakdown(logs) {
+  const breakdown = {};
+  
+  logs.forEach(log => {
+    const action = log.action || 'other';
+    breakdown[action] = (breakdown[action] || 0) + 1;
+  });
+  
+  const colorMap = {
+    page_view: 'blue',
+    view: 'blue',
+    login: 'purple',
+    create: 'green',
+    update: 'orange',
+    delete: 'red',
+    search: 'yellow',
+    other: 'gray'
+  };
+  
+  const displayNames = {
+    page_view: 'Page Views',
+    view: 'Page Views',
+    login: 'Logins',
+    create: 'Creations',
+    update: 'Updates',
+    delete: 'Deletions',
+    search: 'Searches',
+    other: 'Other'
+  };
+  
+  return Object.entries(breakdown)
+    .map(([name, value]) => ({
+      name: displayNames[name] || name,
+      value,
+      color: colorMap[name] || 'gray'
+    }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 5);
+}
+
+function generateStaffEngagementGrowthData(
+  allLogs,
+  range,
+  isCustomRange,
+  customStart,
+  customEnd
+) {
+  const labels = [];
+  const values = [];
+  const now = new Date();
+
+  if (isCustomRange && customStart && customEnd) {
+    const start = new Date(customStart);
+    const end = new Date(customEnd);
+    end.setHours(23, 59, 59, 999);
+    
+    const rangeDays = Math.min(Math.round((end - start) / (1000 * 60 * 60 * 24)), 30);
+    
+    if (rangeDays <= 14) {
+      for (let i = 0; i <= rangeDays; i++) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + i);
+        labels.push(date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+        
+        const dayStart = new Date(date.setHours(0,0,0,0));
+        const dayEnd = new Date(date.setHours(23,59,59,999));
+        
+        const count = allLogs.filter(log => 
+          log.createdAt && 
+          new Date(log.createdAt) >= dayStart && 
+          new Date(log.createdAt) <= dayEnd
+        ).length;
+        values.push(count);
+      }
+    } else {
+      const weeks = Math.ceil(rangeDays / 7);
+      for (let i = 0; i < weeks; i++) {
+        const weekStart = new Date(start);
+        weekStart.setDate(start.getDate() + (i * 7));
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        
+        labels.push(`Week ${i+1}`);
+        
+        const count = allLogs.filter(log => 
+          log.createdAt && 
+          new Date(log.createdAt) >= weekStart && 
+          new Date(log.createdAt) <= weekEnd
+        ).length;
+        values.push(count);
+      }
+    }
+  } else {
+    switch(range) {
+      case 'week':
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(now);
+          date.setDate(now.getDate() - i);
+          labels.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
+          
+          const dayStart = new Date(date.setHours(0,0,0,0));
+          const dayEnd = new Date(date.setHours(23,59,59,999));
+          
+          const count = allLogs.filter(log => 
+            log.createdAt && 
+            new Date(log.createdAt) >= dayStart && 
+            new Date(log.createdAt) <= dayEnd
+          ).length;
+          values.push(count);
+        }
+        break;
+        
+      case 'month':
+        for (let i = 3; i >= 0; i--) {
+          const weekEnd = new Date(now);
+          weekEnd.setDate(now.getDate() - (i * 7));
+          const weekStart = new Date(weekEnd);
+          weekStart.setDate(weekEnd.getDate() - 6);
+          
+          labels.push(`Week ${4-i}`);
+          
+          const count = allLogs.filter(log => 
+            log.createdAt && 
+            new Date(log.createdAt) >= weekStart && 
+            new Date(log.createdAt) <= weekEnd
+          ).length;
+          values.push(count);
+        }
+        break;
+        
+      default:
+        for (let i = 3; i >= 0; i--) {
+          const weekEnd = new Date(now);
+          weekEnd.setDate(now.getDate() - (i * 7));
+          const weekStart = new Date(weekEnd);
+          weekStart.setDate(weekEnd.getDate() - 6);
+          
+          labels.push(`Week ${4-i}`);
+          
+          const count = allLogs.filter(log => 
+            log.createdAt && 
+            new Date(log.createdAt) >= weekStart && 
+            new Date(log.createdAt) <= weekEnd
+          ).length;
+          values.push(count);
+        }
+    }
+  }
+  
+  return { labels, values };
+}
+
 // ================= EXPORT ANALYTICS =================
 export const exportAnalytics = async (req, res) => {
   try {
     const { type = "users", range = "month", startDate, endDate, format = "csv" } = req.query;
-    
-    // This is a placeholder for the export functionality
-    // You can implement actual CSV/Excel generation here
     
     res.json({
       success: true,
