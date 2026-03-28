@@ -85,7 +85,7 @@ import StaffMessages from "./Staff/StaffMessages.jsx";
 import StaffNotification from "./Staff/StaffNotifications.jsx";
 import StaffProfile from "./Staff/StaffProfile.jsx";
 import StaffReports from "./Staff/StaffReports.jsx";
-import StaffAnalytics from "./Staff/StaffAnalytics.jsx"; // Add this line
+import StaffAnalytics from "./Staff/StaffAnalytics.jsx"; // Add this import
 
 
 function App() {
