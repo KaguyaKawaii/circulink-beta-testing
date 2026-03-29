@@ -43,7 +43,7 @@ const sendEmail = async ({ to, subject, html = "", text = "" }) => {
     }
 
     const response = await resend.emails.send({
-      from: "CircuLink <stephenpatingomadero@gmail.com>",
+      from: "CircuLink <onboarding@resend.dev>",
       to,
       subject,
       html,
